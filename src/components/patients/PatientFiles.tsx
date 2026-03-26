@@ -3,7 +3,7 @@ import { FileText, Upload, Trash2, Search, Loader2, AlertCircle, File, Eye, X, P
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '@/contexts/AuthContext'
-import { cn } from '@/lib/utils'
+// No imports needed here besides standard React/Supabase if applicable
 
 interface PatientFilesProps {
     patientId: string

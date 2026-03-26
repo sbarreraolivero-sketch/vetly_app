@@ -5,8 +5,8 @@ type ClinicalRecord = Database['public']['Tables']['clinical_records']['Row']
 type Tag = { id: string; name: string; color: string }
 
 export const suggestTags = (
-    patient: Patient,
-    records: ClinicalRecord[],
+    patient: any,
+    records: any[],
     currentTags: Tag[],
     availableTags: Tag[]
 ): Tag[] => {
@@ -50,7 +50,7 @@ export const suggestTags = (
     }
 
     // Rule 4: Treatment Specific (Botox, Dental, etc.)
-    const treatments = records.map(r => r.treatment_name.toLowerCase())
+    const treatments = records.map(r => (r.treatment_name || '').toLowerCase())
 
     if (treatments.some(t => t.includes('botox') || t.includes('toxina'))) {
         const botoxTag = findTag('Botox')

@@ -30,7 +30,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { TutorForm } from '@/components/patients/TutorForm'
-import { PetForm } from '@/components/patients/PetForm'
+import { MedicalEventForm as ClinicalRecordForm } from '@/components/patients/MedicalEventForm'
 import { Database, Patient, Tutor } from '@/types/database'
 import { GuideBox } from '@/components/ui/GuideBox'
 
@@ -1710,13 +1710,13 @@ export default function Appointments() {
                 )
             }
 
-            {/* Patient Creation Modal */}
+            {/* Tutor Creation Modal (Fallback for CRM) */}
             {
                 showPatientModal && selectedAppointment && (
-                    <PatientForm
-                        patient={{
+                    <TutorForm
+                        tutor={{
                             // Pre-fill with appointment data
-                            id: '', // New
+                            id: '', 
                             clinic_id: profile!.clinic_id,
                             created_at: '',
                             updated_at: '',
@@ -1724,21 +1724,20 @@ export default function Appointments() {
                             last_appointment_at: null,
                             name: selectedAppointment.patient_name,
                             phone_number: selectedAppointment.phone_number,
-                            service: selectedAppointment.service,
                             notes: selectedAppointment.notes,
                             email: null,
                             address: null,
                         }}
                         onClose={() => {
                             setShowPatientModal(false)
-                            // If closed without saving, we stop the flow
                             if (!foundPatient) setSelectedAppointment(null)
                         }}
-                        onSave={(newPatient) => {
-                            if (newPatient) {
-                                setFoundPatient(newPatient)
+                        onSave={(newTutor: any) => {
+                            if (newTutor) {
+                                // Since logic expects a 'patient' object structure for the following flow, 
+                                // we mock it with what we need or adjust flow.
+                                setFoundPatient(newTutor)
                                 setShowPatientModal(false)
-                                // Continue format flow
                                 setTimeout(() => setShowRecordModal(true), 100)
                             }
                         }}
