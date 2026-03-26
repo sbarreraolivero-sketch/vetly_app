@@ -44,9 +44,8 @@ export function CSVUploader({ onSuccess }: CSVUploaderProps) {
             const headers = header.split(delimiter).map(h => h.trim());
 
             // Find necessary column indexes
-            const phoneIdx = headers.findIndex(h => h.includes('tel') || h.includes('phone') || h.includes('celular') || h.includes('contacto'));
-            const nameIdx = headers.findIndex(h => h.includes('nombre') || h.includes('name'));
-            const dateIdx = headers.findIndex(h => h.includes('fecha') || h.includes('date') || h.includes('última cita'));
+            const phoneIdx = headers.findIndex(h => h.includes('tel') || h.includes('cel') || h.includes('phone') || h.includes('cont'));
+            const nameIdx = headers.findIndex(h => h.includes('nom') || h.includes('paciente') || h.includes('mascota') || h.includes('name'));
 
             if (phoneIdx === -1) {
                 throw new Error('No se encontró una columna válida para los números de Teléfono.');
@@ -90,8 +89,7 @@ export function CSVUploader({ onSuccess }: CSVUploaderProps) {
                 throw new Error('No se pudo encontrar ningún paciente válido en el archivo.');
             }
 
-            const { error: insertError } = await supabase
-                .from('patients')
+            const { error: insertError } = await (supabase.from('patients') as any)
                 .insert(patientsToAdd);
 
             if (insertError) throw insertError;

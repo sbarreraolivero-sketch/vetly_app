@@ -88,8 +88,9 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
     const fetchFinances = async () => {
         setLoadingFinances(true)
         try {
-            const { data: patientData } = await supabase.from('patients').select('id, name').eq('tutor_id', tutor.id)
-            const patientIds = ((patientData as any[]) || []).map(p => p.id)
+            const { data: patientDataRaw } = await supabase.from('patients').select('id, name').eq('tutor_id', tutor.id)
+            const patientData = patientDataRaw as any[] | null
+            const patientIds = (patientData || []).map(p => p.id)
 
             let appts: any[] = []
             if (patientIds.length > 0) {

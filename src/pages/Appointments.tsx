@@ -31,7 +31,7 @@ import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { TutorForm } from '@/components/patients/TutorForm'
 import { MedicalEventForm as ClinicalRecordForm } from '@/components/patients/MedicalEventForm'
-import { Database, Patient, Tutor } from '@/types/database'
+import { Patient } from '@/types/database'
 import { GuideBox } from '@/components/ui/GuideBox'
 
 interface Appointment {
@@ -1657,17 +1657,17 @@ export default function Appointments() {
                 showRecordModal && foundPatient && selectedAppointment && (
                     <ClinicalRecordForm
                         patientId={foundPatient.id}
-                        record={{
+                        event={{
                             id: '', // New record
-                            clinic_id: profile!.clinic_id,
                             patient_id: foundPatient.id,
-                            date: selectedAppointment.appointment_date.split('T')[0],
-                            treatment_name: selectedAppointment.service,
-                            description: selectedAppointment.notes || '',
-                            notes: '',
-                            attachments: [],
-                            created_at: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
+                            event_date: selectedAppointment.appointment_date,
+                            event_type: selectedAppointment.service,
+                            reason: selectedAppointment.notes || '',
+                            anamnesis: '',
+                            diagnosis: '',
+                            procedure_notes: '',
+                            veterinarian_id: profile!.id,
+                            created_at: new Date().toISOString()
                         }}
                         onClose={() => {
                             setShowRecordModal(false)

@@ -1,8 +1,4 @@
-import { Database } from '@/types/database'
-
-type Patient = Database['public']['Tables']['patients']['Row']
-type ClinicalRecord = Database['public']['Tables']['clinical_records']['Row']
-type Tag = { id: string; name: string; color: string }
+import { Tag } from '../types/dashboard'
 
 export const suggestTags = (
     patient: any,
