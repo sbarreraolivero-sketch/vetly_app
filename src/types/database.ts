@@ -515,6 +515,7 @@ export type MedicalHistory = Database['public']['Tables']['medical_history']['Ro
 export type ClinicalRecord = Database['public']['Tables']['clinical_records']['Row']
 export type Vaccination = Database['public']['Tables']['vaccinations']['Row']
 export type Deworming = Database['public']['Tables']['dewormings']['Row']
+export type Tag = Database['public']['Tables']['tags']['Row']
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
 

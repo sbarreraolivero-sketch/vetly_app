@@ -1,4 +1,4 @@
-import { Tag } from '../types/dashboard'
+import { Tag } from '../types/database'
 
 export const suggestTags = (
     patient: any,
