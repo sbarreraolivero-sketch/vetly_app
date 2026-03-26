@@ -1,0 +1,23 @@
+# A string used to distinguish different Supabase projects on the same host. Defaults to the working directory name when executing supabase init.
+project_id = "ehmncwawzdciajvuallg"
+
+[functions.ycloud-whatsapp-webhook]
+verify_jwt = false
+
+[functions.mercadopago-webhook]
+verify_jwt = false
+
+[functions.ycloud-templates]
+verify_jwt = false
+
+[functions.get-ycloud-templates]
+verify_jwt = false
+
+[functions.create-ycloud-template]
+verify_jwt = false
+
+[functions.chat-agent]
+verify_jwt = false
+
+[functions.ai-simulator]
+verify_jwt = false
