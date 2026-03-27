@@ -49,7 +49,7 @@ const plans = [
         id: 'essence',
         name: 'Essence',
         tagline: 'Para veterinarias que buscan orden y visibilidad',
-        price: 79,
+        price: 99,
         period: '/mes',
         description: 'Todo lo necesario para organizar tu atención y automatizar el agendamiento básico de tu centro veterinario.',
         highlight: false,
@@ -121,7 +121,7 @@ const plans = [
 type CurrencyCode = 'USD' | 'CLP' | 'COP' | 'MXN' | 'EUR';
 const exchangeRates: Record<CurrencyCode, { rate: number, symbol: string, label: string }> = {
     USD: { rate: 1, symbol: 'US$', label: 'USD (Dólares)' },
-    CLP: { rate: 950, symbol: '$', label: 'CLP (Pesos Chilenos)' },
+    CLP: { rate: 939.4, symbol: '$', label: 'CLP (Pesos Chilenos)' },
     COP: { rate: 4200, symbol: '$', label: 'COP (Pesos Colombianos)' },
     MXN: { rate: 18, symbol: '$', label: 'MXN (Pesos Mexicanos)' },
     EUR: { rate: 0.92, symbol: '€', label: 'EUR (Euros)' },
