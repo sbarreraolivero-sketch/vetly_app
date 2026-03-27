@@ -11,12 +11,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 // Plan prices in various currencies
 const PLAN_PRICES: Record<string, Record<string, number>> = {
     essence: {
-        CLP: 75000,
-        ARS: 79000,
+        CLP: 93000,
+        ARS: 99000,
         MXN: 1400,
         COP: 310000,
         PEN: 300,
-        USD: 79,
+        USD: 99,
     },
     radiance: {
         CLP: 150000,

@@ -103,7 +103,7 @@ export const PLANS = {
         id: 'essence',
         name: 'Essence',
         tagline: 'Control Esencial y Automatización',
-        price: 75000,
+        price: 93000,
         currency: 'CLP',
         monthlyAppointments: 50,
         features: [

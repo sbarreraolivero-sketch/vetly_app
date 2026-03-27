@@ -7,7 +7,7 @@ const plans = [
         id: 'essence',
         name: 'Essence',
         tagline: 'Para clínicas que buscan orden y visibilidad.',
-        price: 79,
+        price: 99,
         period: '/mes',
         description: 'Todo lo necesario para organizar tu atención y automatizar el agendamiento.',
         highlight: false,
