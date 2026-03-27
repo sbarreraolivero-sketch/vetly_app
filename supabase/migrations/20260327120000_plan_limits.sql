@@ -1,6 +1,21 @@
 -- Migration: Add subscription limits for agendas and reminders
 -- Description: Adds columns to the subscriptions table to track and enforce limits for agendas and monthly reminders.
 
+-- 0. Ensure 'plan' column exists (it might be missing if CREATE TABLE IF NOT EXISTS skipped it in previous migrations)
+DO $$ 
+BEGIN
+    -- If 'subscription_plan' exists but 'plan' doesn't, rename it
+    IF EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name = 'subscription_plan') 
+       AND NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name = 'plan') THEN
+        ALTER TABLE public.subscriptions RENAME COLUMN subscription_plan TO plan;
+    END IF;
+
+    -- If 'plan' still doesn't exist, add it
+    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name = 'plan') THEN
+        ALTER TABLE public.subscriptions ADD COLUMN plan TEXT DEFAULT 'essence';
+    END IF;
+END $$;
+
 -- 1. Add columns to public.subscriptions
 ALTER TABLE public.subscriptions 
 ADD COLUMN IF NOT EXISTS max_agendas INTEGER,
