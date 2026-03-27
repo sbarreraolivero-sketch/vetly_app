@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import {
     Sparkles,
     ArrowRight,
-    ShieldCheck,
     Users,
     MessageSquare,
     Calendar,
@@ -47,30 +46,31 @@ const features = [
 const plans = [
     {
         id: 'essence',
-        name: 'Essence',
-        tagline: 'Para veterinarias que buscan orden y visibilidad',
+        name: 'Plan Essence',
+        tagline: 'Ideal para Veterinarios Independientes a Domicilio y Clinicas Pequeñas.',
         price: 99,
         period: '/mes',
-        description: 'Todo lo necesario para organizar tu atención y automatizar el agendamiento básico de tu centro veterinario.',
+        description: 'Lo necesario para gestionar los prospectos, pacientes y reservas con IA.',
         highlight: false,
         icon: Sparkles,
         features: [
-            'Hasta 2 usuarios',
-            '1 Agente IA (Vet Care)',
-            'Recordatorios de Vacunación por IA',
-            'Hasta 50 citas mensuales',
-            'Dashboard básico',
-            'Integración WhatsApp',
-            'Health Retention Engine (Diagnóstico)',
-            'Dashboard de pacientes en riesgo',
+            'Hasta 2 Usuarios',
+            'Agente de IA especializado en rubro veterinario',
+            'Integración con Google Maps (Reservas geolocalizadas)',
+            'Hasta 50 citas automatizadas mensuales',
+            'Hasta 1 agenda disponible',
+            'Gestión de servicios',
+            'Fichas clínicas + historial médico animal',
+            'Dashboard con Métricas (Ranking, Conversión, etc.)',
+            'Integración oficial de WhatsApp (Meta). Libre de bloqueos',
         ],
         cta: 'Agendar Implementación',
         gradient: 'from-gray-500 to-gray-700',
     },
     {
         id: 'radiance',
-        name: 'Radiance',
-        tagline: 'Para clínicas en pleno crecimiento',
+        name: 'Plan Radiance',
+        tagline: 'Para clínicas en pleno crecimiento (Móviles o físicas).',
         price: 159,
         period: '/mes',
         description: 'La solución completa para captar, retener por salud y automatizar tu clínica veterinaria.',
@@ -78,15 +78,16 @@ const plans = [
         icon: Zap,
         features: [
             'Todo lo de Essence, más:',
-            'Hasta 5 usuarios',
-            'Recordatorios Médicos Ilimitados',
-            'CRM Gestión de tutores',
-            'Campañas WhatsApp de desparasitación',
-            'Módulo de Finanzas Complejo',
-            'Gestión de servicios + farmacia',
-            'Citas ilimitadas',
-            'IA avanzada + historial médico animal',
-            'Revenue Engine Totalmente Autónomo',
+            'Hasta 5 usuarios (Adm, Prof, Recepcionista)',
+            '5 agendas independientes disponibles',
+            'Recordatorios de vacunas/desparasitación IA',
+            'Recordatorios confirmación (Hasta 50/mes)',
+            'CRM de ventas para prospectos',
+            'Campañas Marketing masivo (WhatsApp)',
+            'Sistema Inteligente de Referidos con IA',
+            'Módulo de Gestión Financiera',
+            'Citas Ilimitadas',
+            'Encuestas de satisfacción personalizadas',
         ],
         cta: 'Agendar Implementación',
         gradient: 'from-primary-500 to-primary-700',
@@ -98,20 +99,16 @@ const plans = [
         tagline: 'Top de línea para redes veterinarias',
         price: 299,
         period: '/mes',
-        description: 'Infraestructura empresarial absoluta para controlar y escalar múltiples sedes y cirujanos.',
+        description: 'Infraestructura empresarial absoluta para controlar y escalar múltiples sedes.',
         highlight: false,
         icon: Crown,
         features: [
             'Todo lo de Radiance, más:',
             'Usuarios ilimitados',
-            'Recordatorios Automáticos Ilimitados',
             'Multi-sucursal / Multi-hospital',
             'IA personalizada (especialidades)',
-            'Reportes ejecutivos avanzados',
-            'Concierge Onboarding',
-            'Ajuste dinámico por especie/raza',
-            'Proyección LTV Tutores',
-            'Benchmark entre sedes'
+            'Recordatorios confirmación ilimitados',
+            'Benchmark entre sedes. Super Administrador',
         ],
         cta: 'Agendar Implementación',
         gradient: 'from-charcoal to-charcoal/90',
@@ -177,7 +174,6 @@ export default function Landing() {
 
                         <div className="hidden md:flex items-center gap-8 text-sm font-bold">
                             <a href="#problema" className="text-charcoal/80 hover:text-primary-600 transition-colors">El Problema</a>
-                            <a href="#retention" className="text-charcoal/80 hover:text-primary-600 transition-colors">Revenue Retention™</a>
                             <a href="#modulos" className="text-charcoal/80 hover:text-primary-600 transition-colors">Módulos</a>
                             <a href="#pricing" className="text-charcoal/80 hover:text-primary-600 transition-colors">Planes</a>
                         </div>
@@ -389,110 +385,7 @@ export default function Landing() {
                 </div>
             </section>
 
-            {/* 4. Revenue Retention Engine */}
-            <section id="retention" className="py-32 px-4 sm:px-6 lg:px-8 bg-charcoal text-white relative overflow-hidden shadow-[inset_0_10px_30px_rgba(0,0,0,0.5)]">
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
 
-                {/* Dynamic animated glow points */}
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600 rounded-full blur-[120px] opacity-30 animate-pulse"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-600 rounded-full blur-[120px] opacity-20 animate-pulse" style={{ animationDelay: '2s' }}></div>
-
-                <div className="max-w-7xl mx-auto relative z-10">
-                    <div className="grid lg:grid-cols-2 gap-16 items-center">
-                        <div className="text-left">
-                            <div className="inline-flex items-center gap-2 border border-white/30 bg-white/10 backdrop-blur-md px-5 py-2 rounded-full text-xs font-bold tracking-widest uppercase mb-8 shadow-lg">
-                                <Crown className="w-4 h-4 text-accent-300" />
-                                Tecnología Exclusiva
-                            </div>
-
-                            {/* Alineación forzosa a la izquierda y estructura limpia */}
-                            <div className="mb-8 flex flex-col items-start gap-1">
-                                <h2 className="text-5xl sm:text-6xl font-extrabold text-white leading-tight m-0 block tracking-tight">
-                                    Vetly AI
-                                </h2>
-                                <h2 className="text-5xl sm:text-6xl font-extrabold leading-tight m-0 block text-transparent bg-clip-text bg-gradient-to-r from-primary-300 via-primary-400 to-accent-300 pb-2 drop-shadow-lg scale-105 origin-left tracking-tight">
-                                    Health Retention Engine™
-                                </h2>
-                            </div>
-
-                            <p className="text-2xl text-white/90 mb-8 leading-relaxed font-medium border-l-4 border-primary-400 pl-4 bg-white/5 py-2 rounded-r-lg">
-                                "No necesitas más dueños nuevos. Necesitas proteger a tus mascotas actuales."
-                            </p>
-                            <p className="text-lg text-white/70 mb-10 leading-relaxed font-medium">
-                                No es un reporte de recordatorios. Es un motor predictivo que analiza historiales clínicos, detecta mascotas en riesgo de plan sanitario vencido (ej. Sextuples al límite), calcula el dinero en riesgo y <strong>ejecuta campañas inteligentes de recuperación por WhatsApp completamente solo</strong>.
-                            </p>
-
-                            <ul className="space-y-5 mb-12">
-                                {[
-                                    'Mayor retención de tutores tras la primera consulta.',
-                                    'Aumento drástico del LTV (Life Time Value) del Paciente animal.',
-                                    'Menores fugas de presupuesto en farmacia estancada.'
-                                ].map((li, i) => (
-                                    <li key={i} className="flex items-center gap-4 bg-white/5 p-3 rounded-xl border border-white/10 shadow-sm">
-                                        <div className="bg-emerald-500/20 p-2 rounded-full"><ShieldCheck className="w-6 h-6 text-emerald-400" /></div>
-                                        <span className="text-white/90 font-bold text-lg">{li}</span>
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <Link to="/register" className="inline-block text-center bg-white text-charcoal hover:bg-gray-100 px-6 py-4 sm:px-8 sm:py-4 rounded-xl font-extrabold shadow-xl hover:shadow-2xl hover:scale-105 transition-all text-base sm:text-lg w-full sm:w-auto">
-                                Calcular tu potencial de retención
-                            </Link>
-                        </div>
-
-                        {/* Mockup Dashboard UI */}
-                        <div className="relative mt-8 lg:mt-0">
-                            <div className="absolute inset-0 bg-gradient-to-tr from-primary-500/20 to-accent-500/20 rounded-[2.5rem] blur-2xl"></div>
-                            <div className="bg-[#1C1F26] border border-white/10 rounded-[2rem] p-8 md:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.6)] transform lg:rotate-2 hover:rotate-0 hover:scale-105 transition-all duration-500 relative z-10">
-                                <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
-                                    <h3 className="font-bold text-white text-xl flex items-center gap-2">
-                                        <Activity className="text-primary-400" /> Dashboard Retención
-                                    </h3>
-                                    <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-4 py-1.5 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                        Motor Activo
-                                    </span>
-                                </div>
-
-                                <p className="text-white/60 text-sm mb-2 uppercase tracking-widest font-bold">Ingresos Recuperados Mensuales</p>
-                                <div className="text-6xl font-extrabold text-white mb-4 tracking-tight drop-shadow-md">+$2,850<span className="text-2xl text-white/40 font-bold">/mes</span></div>
-                                <p className="text-emerald-400 font-bold mb-10 text-lg flex items-center gap-2 bg-emerald-500/10 inline-block px-3 py-1 rounded-lg">
-                                    <CheckCircle2 className="w-5 h-5" /> 12 mascotas re-activadas en automático.
-                                </p>
-
-                                <div className="space-y-5">
-                                    <div className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden shadow-inner group transition-colors hover:bg-white/10">
-                                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-yellow-500 group-hover:w-2 transition-all"></div>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="text-base font-bold text-white mb-1">Alerta de Vacunación Crítica</p>
-                                                <p className="text-sm text-white/70 font-medium">14 mascotas post-refuerzo (Sextuple vencida &gt;5 meses)</p>
-                                            </div>
-                                            <span className="text-yellow-400 font-extrabold text-xl ml-4">$3,100</span>
-                                        </div>
-                                        <div className="mt-5 flex gap-2">
-                                            <span className="bg-primary-500/20 text-primary-200 text-xs font-bold px-3 py-1.5 rounded-md border border-primary-500/30 flex items-center gap-1">
-                                                <Users className="w-3.5 h-3.5" /> Campaña "Retoque" Activa
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white/5 rounded-2xl p-6 border border-white/10 relative overflow-hidden shadow-inner group transition-colors hover:bg-white/10">
-                                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 group-hover:w-2 transition-all"></div>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="text-base font-bold text-white mb-1">Ausencias Recurrentes</p>
-                                                <p className="text-sm text-white/70 font-medium">3 pacientes (Faltaron a Sesión Láser Diariamente)</p>
-                                            </div>
-                                            <span className="text-red-400 font-extrabold text-xl ml-4">$420</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
 
             {/* 5. Cómo funciona */}
             <section className="py-24 px-4 sm:px-6 lg:px-8 bg-white border-b border-silk-beige">
@@ -510,8 +403,8 @@ export default function Landing() {
                         {[
                             { step: '1', title: 'Agrupa', desc: 'Centralizamos todos los historiales médicos, fichas y agendamientos en un solo lugar.' },
                             { step: '2', title: 'Analiza', desc: 'La IA procesa tiempos muertos de box, frecuencias de vacunas y desparasitaciones pendientes.' },
-                            { step: '3', title: 'Detecta', desc: 'Predice financieramente qué tutor exacto está a punto de marginar a su mascota de tu centro.' },
-                            { step: '4', title: 'Fideliza', desc: 'Reactiva bases de datos de mascotas inactivas automáticamente, generando miles de USD de revenue.' }
+                            { step: '3', title: 'Notifica', desc: 'Identifica mascotas con controles de salud próximos y genera avisos automáticos.' },
+                            { step: '4', title: 'Fideliza', desc: 'Mejora la atención y el cumplimiento médico, asegurando que ninguna mascota pierda su control.' }
                         ].map((s, i) => (
                             <div key={i} className="relative z-10 flex flex-col items-center text-center group">
                                 <div className="w-16 h-16 bg-white border-4 border-silk-beige rounded-full flex items-center justify-center font-extrabold text-2xl text-charcoal mb-6 shadow-lg group-hover:scale-110 group-hover:border-primary-400 group-hover:bg-primary-50 transition-all duration-300 relative">

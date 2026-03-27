@@ -155,10 +155,19 @@ Deno.serve(async (req: Request) => {
             mercadopago_subscription_id: preference.id,
             trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days trial
             monthly_appointments_limit: plan === "essence" ? 50 : null,
+            max_agendas: plan === "essence" ? 1 : (plan === "radiance" ? 5 : 1000),
+            monthly_reminders_limit: plan === "radiance" ? 50 : (plan === "essence" ? 0 : 1000000),
             monthly_appointments_used: 0,
+            monthly_reminders_used: 0,
         }, {
             onConflict: "clinic_id",
         });
+
+        // Sync max_users to clinic_settings
+        const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 1000);
+        await supabase.from("clinic_settings").update({
+            max_users: maxUsers
+        }).eq("id", clinic_id);
 
         return new Response(
             JSON.stringify({

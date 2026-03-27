@@ -5,22 +5,23 @@ import { cn } from '@/lib/utils'
 const plans = [
     {
         id: 'essence',
-        name: 'Essence',
-        tagline: 'Para clínicas que buscan orden y visibilidad.',
+        name: 'Plan Essence',
+        tagline: 'Ideal para Veterinarios Independientes a Domicilio y Clinicas Pequeñas.',
         price: 99,
         period: '/mes',
-        description: 'Todo lo necesario para organizar tu atención y automatizar el agendamiento.',
+        description: 'Lo necesario para gestionar los prospectos, pacientes y reservas con IA.',
         highlight: false,
         icon: Sparkles,
         features: [
-            'Hasta 2 usuarios',
-            '1 Agente IA (Soft Luxury)',
-            'Hasta 50 citas mensuales',
-            'Dashboard básico',
-            'Integración WhatsApp',
-            'Revenue Retention Engine (Diagnóstico)',
-            'Dashboard de ingresos en riesgo',
-            'Alertas manuales'
+            'Hasta 2 Usuarios',
+            'Agente de IA especializado en rubro veterinario',
+            'Integración con Google Maps (Reservas geolocalizadas)',
+            'Hasta 50 citas automatizadas mensuales',
+            'Hasta 1 agenda disponible',
+            'Gestión de servicios',
+            'Fichas clínicas + historial médico animal',
+            'Dashboard con Métricas (Ranking, Conversión, etc.)',
+            'Integración oficial de WhatsApp (Meta). Libre de bloqueos',
         ],
         limitations: [],
         cta: 'Comenzar con Essence',
@@ -28,25 +29,25 @@ const plans = [
     },
     {
         id: 'radiance',
-        name: 'Radiance',
-        tagline: 'Para clínicas en crecimiento.',
+        name: 'Plan Radiance',
+        tagline: 'Para clínicas en pleno crecimiento (Móviles o físicas).',
         price: 159,
         period: '/mes',
-        description: 'La solución completa para captar, retener y gestionar financieramente tu centro.',
+        description: 'La solución completa para captar, retener por salud y automatizar tu clínica veterinaria.',
         highlight: true,
         icon: Zap,
         features: [
             'Todo lo de Essence, más:',
-            'Hasta 5 usuarios',
-            'CRM Gestión de prospectos',
-            'Campañas WhatsApp masivas',
-            'Módulo de Finanzas',
-            'Gestión de servicios + upselling',
-            'Citas ilimitadas',
-            'IA avanzada + historial clínico',
-            'Analítica de conversaciones',
-            'Revenue Engine Totalmente Autónomo (o supervisado)',
-            'Métrica de ingresos recuperados'
+            'Hasta 5 usuarios (Adm, Prof, Recepcionista)',
+            '5 agendas independientes disponibles',
+            'Recordatorios de vacunas/desparasitación IA',
+            'Recordatorios confirmación (Hasta 50/mes)',
+            'CRM de ventas para prospectos',
+            'Campañas Marketing masivo (WhatsApp)',
+            'Sistema Inteligente de Referidos con IA',
+            'Módulo de Gestión Financiera',
+            'Citas Ilimitadas',
+            'Encuestas de satisfacción personalizadas',
         ],
         limitations: [],
         cta: 'Elegir Radiance',
@@ -56,29 +57,25 @@ const plans = [
     {
         id: 'prestige',
         name: 'Prestige',
-        tagline: 'Para clínicas consolidadas y expansión.',
+        tagline: 'Top de línea para redes veterinarias',
         price: 299,
         period: '/mes',
-        description: 'Infraestructura empresarial para controlar y escalar sedes automáticamente.',
+        description: 'Infraestructura empresarial absoluta para controlar y escalar múltiples sedes.',
         highlight: false,
         icon: Crown,
         features: [
             'Todo lo de Radiance, más:',
             'Usuarios ilimitados',
-            'Multi-sucursal',
-            'IA personalizada (manual de ventas)',
-            'Reportes ejecutivos avanzados',
-            'Concierge Onboarding',
-            'Revenue Engine totalmente autónomo',
-            'Ajuste dinámico por tratamiento',
-            'Proyección LTV',
-            'Benchmark entre sedes'
+            'Multi-sucursal / Multi-hospital',
+            'IA personalizada (especialidades)',
+            'Recordatorios confirmación ilimitados',
+            'Benchmark entre sedes. Super Administrador',
         ],
         limitations: [],
         cta: 'Contactar Ventas',
         gradient: 'from-charcoal to-charcoal/90',
     },
-]
+];
 
 const faqs = [
     {
@@ -141,7 +138,7 @@ export default function Pricing() {
                     </div>
                     <h1 className="text-display text-charcoal mb-6">
                         Tu asistente virtual para
-                        <span className="text-gradient-hero"> clínicas estéticas</span>
+                        <span className="text-gradient-hero"> clínicas veterinarias</span>
                     </h1>
                     <p className="text-xl text-charcoal/60 mb-8 max-w-2xl mx-auto">
                         Automatiza la gestión de citas por WhatsApp con un asistente de IA que entiende

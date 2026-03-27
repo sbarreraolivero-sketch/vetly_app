@@ -15,6 +15,7 @@ export default function Team() {
     const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist'>('professional')
     const [inviteName, setInviteName] = useState('')
     const [maxUsers, setMaxUsers] = useState(3) // Default to 3
+    const [maxAgendas, setMaxAgendas] = useState(1) // Default to 1
     const [planName, setPlanName] = useState('freemium')
 
     // Fallback to profile check if member context is missing
@@ -22,7 +23,12 @@ export default function Team() {
     const isAdmin = isOwner || member?.role === 'admin' || profile?.role === 'admin'
     const clinicId = member?.clinic_id || profile?.clinic_id
 
-    const canInvite = isAdmin && members.filter(m => m.status !== 'disabled').length < maxUsers
+    const activeMembers = members.filter(m => m.status !== 'disabled')
+    const currentUsers = activeMembers.length
+    const currentAgendas = activeMembers.filter(m => m.role === 'professional').length
+
+    const canInvite = isAdmin && currentUsers < maxUsers
+    const canAddAgenda = isAdmin && currentAgendas < maxAgendas
 
     useEffect(() => {
         console.log('Team Page - Clinic ID Changed:', clinicId)
@@ -96,14 +102,17 @@ export default function Team() {
                 // Subscription table is the ultimate authority
                 setPlanName(subData.plan)
                 if (subData.plan === 'prestige' || subData.plan === 'radiance_plus') {
-                    setMaxUsers(10000)
+                    setMaxUsers(1000)
+                    setMaxAgendas(1000)
                 } else {
                     // Fallback to settings or default
-                    setMaxUsers(settingsData?.max_users || 3)
+                    setMaxUsers(settingsData?.max_users || (subData.plan === 'essence' ? 2 : 5))
+                    setMaxAgendas(subData.max_agendas || (subData.plan === 'essence' ? 1 : 5))
                 }
             } else if (settingsData) {
                 // Fallback to clinic_settings
                 setMaxUsers(settingsData.max_users || 3)
+                setMaxAgendas(1) // Default
                 setPlanName(settingsData.subscription_plan || 'freemium')
             }
 
@@ -121,6 +130,11 @@ export default function Team() {
 
         if (!canInvite) {
             toast.error(`Has alcanzado el límite de ${maxUsers} usuarios de tu plan ${planName}.`)
+            return
+        }
+
+        if (inviteRole === 'professional' && !canAddAgenda) {
+            toast.error(`Has alcanzado el límite de ${maxAgendas} agendas (profesionales) de tu plan ${planName}.`)
             return
         }
 

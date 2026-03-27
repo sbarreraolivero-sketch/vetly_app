@@ -34,6 +34,10 @@ serve(async (req) => {
                     timezone,
                     ycloud_api_key,
                     ycloud_phone_number
+                ),
+                subscriptions:clinic_id (
+                    monthly_reminders_limit,
+                    monthly_reminders_used
                 )
             `)
             .eq('reminder_24h_before', true)
@@ -53,6 +57,16 @@ serve(async (req) => {
             // Skip if no API key
             if (!clinic?.ycloud_api_key) {
                 results.push({ clinicId: settings.clinic_id, status: 'skipped', reason: 'No YCloud API Key' })
+                continue
+            }
+
+            // Check Limits
+            const sub = Array.isArray(settings.subscriptions) ? settings.subscriptions[0] : settings.subscriptions
+            const limit = sub?.monthly_reminders_limit
+            const used = sub?.monthly_reminders_used || 0
+
+            if (limit !== null && limit !== undefined && used >= limit) {
+                results.push({ clinicId: settings.clinic_id, status: 'skipped', reason: 'Monthly reminder limit reached' })
                 continue
             }
 
@@ -208,6 +222,12 @@ serve(async (req) => {
                         reminder_sent_at: new Date().toISOString()
                     }).eq('id', appt.id)
 
+                    // Increment usage
+                    await supabaseClient.rpc('increment_subscription_usage', { 
+                        column_name: 'monthly_reminders_used', 
+                        clinic_uuid: clinic.id 
+                    })
+
                     sentCount++
 
                 } catch (err) {
@@ -233,6 +253,10 @@ serve(async (req) => {
                     timezone,
                     ycloud_api_key,
                     ycloud_phone_number
+                ),
+                subscriptions:clinic_id (
+                    monthly_reminders_limit,
+                    monthly_reminders_used
                 )
             `)
             .eq('reminder_2h_before', true)
@@ -243,6 +267,15 @@ serve(async (req) => {
             for (const settings of earlySettingsList) {
                 const clinic = settings.clinic_settings
                 if (!clinic?.ycloud_api_key) continue
+
+                // Check Limits
+                const sub = Array.isArray(settings.subscriptions) ? settings.subscriptions[0] : settings.subscriptions
+                const limit = sub?.monthly_reminders_limit
+                const used = sub?.monthly_reminders_used || 0
+
+                if (limit !== null && limit !== undefined && used >= limit) {
+                    continue
+                }
 
                 const timeZone = clinic.timezone || 'America/Mexico_City'
                 const now = new Date()
@@ -379,6 +412,13 @@ serve(async (req) => {
                                 reminder_sent: true,
                                 reminder_sent_at: new Date().toISOString()
                             }).eq('id', appt.id)
+
+                            // Increment usage
+                            await supabaseClient.rpc('increment_subscription_usage', { 
+                                column_name: 'monthly_reminders_used', 
+                                clinic_uuid: clinic.id 
+                            })
+
                             sentCount++
                         } else {
                             await supabaseClient.from('reminder_logs').insert({
@@ -413,6 +453,10 @@ serve(async (req) => {
                     timezone,
                     ycloud_api_key,
                     ycloud_phone_number
+                ),
+                subscriptions:clinic_id (
+                    monthly_reminders_limit,
+                    monthly_reminders_used
                 )
             `)
             .eq('reminder_1h_before', true)
@@ -423,6 +467,15 @@ serve(async (req) => {
             for (const settings of oneHourSettingsList) {
                 const clinic = settings.clinic_settings
                 if (!clinic?.ycloud_api_key) continue
+
+                // Check Limits
+                const sub = Array.isArray(settings.subscriptions) ? settings.subscriptions[0] : settings.subscriptions
+                const limit = sub?.monthly_reminders_limit
+                const used = sub?.monthly_reminders_used || 0
+
+                if (limit !== null && limit !== undefined && used >= limit) {
+                    continue
+                }
 
                 const timeZone = clinic.timezone || 'America/Mexico_City'
                 const now = new Date()
@@ -529,6 +582,14 @@ serve(async (req) => {
                                 reminder_sent: true,
                                 reminder_sent_at: new Date().toISOString()
                             }).eq('id', appt.id)
+
+                            // Increment usage
+                            await supabaseClient.rpc('increment_subscription_usage', { 
+                                column_name: 'monthly_reminders_used', 
+                                clinic_uuid: clinic.id 
+                            })
+
+                            sentCount++
                         } else {
                             await supabaseClient.from('reminder_logs').insert({
                                 clinic_id: clinic.id,
