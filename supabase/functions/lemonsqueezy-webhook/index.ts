@@ -151,6 +151,10 @@ Deno.serve(async (req: Request) => {
                 const status = payload.data.attributes.status;
                 const renewsAt = payload.data.attributes.renews_at;
 
+                const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 1000);
+                const maxAgendas = plan === "essence" ? 1 : (plan === "radiance" ? 5 : 1000);
+                const remindersLimit = plan === "radiance" ? 50 : (plan === "essence" ? 0 : 1000000);
+
                 await supabase.from("subscriptions").upsert({
                     clinic_id: clinicId,
                     plan: plan,
@@ -160,7 +164,10 @@ Deno.serve(async (req: Request) => {
                     current_period_end: renewsAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     trial_ends_at: null,
                     monthly_appointments_limit: plan === 'essence' ? 50 : null,
+                    max_agendas: maxAgendas,
+                    monthly_reminders_limit: remindersLimit,
                     monthly_appointments_used: 0,
+                    monthly_reminders_used: 0,
                 }, { onConflict: "clinic_id" });
 
                 // Update clinic settings
@@ -170,6 +177,7 @@ Deno.serve(async (req: Request) => {
                         subscription_plan: plan,
                         payment_provider: 'lemonsqueezy',
                         lemonsqueezy_customer_id: String(payload.data.attributes.customer_id || ''),
+                        max_users: maxUsers,
                     })
                     .eq('id', clinicId);
 
@@ -210,6 +218,7 @@ Deno.serve(async (req: Request) => {
                         current_period_start: new Date().toISOString(),
                         current_period_end: renewsAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                         monthly_appointments_used: 0, // Reset monthly counter
+                        monthly_reminders_used: 0,    // Reset monthly counter
                     })
                     .eq("clinic_id", clinicId);
 
