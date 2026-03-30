@@ -194,7 +194,7 @@ export default function Register() {
                         <div className="w-12 h-12 bg-hero-gradient rounded-soft flex items-center justify-center">
                             <Sparkles className="w-6 h-6 text-white" />
                         </div>
-                        <span className="text-2xl font-semibold text-charcoal">Vetly AI AI</span>
+                        <span className="text-2xl font-semibold text-charcoal">Vetly AI</span>
                     </div>
 
                     {/* Progress Indicator (Hidden in Join Mode) */}
@@ -588,9 +588,9 @@ export default function Register() {
                     <div className="mb-10">
                         <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
                             <Star className="w-3.5 h-3.5 text-yellow-300" />
-                            +500 clínicas confían en Citenly
+                            Tu clínica con Infraestructura Operativa de Éxito
                         </div>
-                        <h2 className="text-4xl font-bold mb-5 leading-tight">
+                        <h2 className="text-4xl font-bold mb-5 leading-tight" style={{ background: 'linear-gradient(135deg, #FFD700, #F5C842, #E8B830, #FFE066)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                             Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.
                         </h2>
                         <p className="text-white/75 text-lg leading-relaxed">
