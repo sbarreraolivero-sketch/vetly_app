@@ -15,17 +15,17 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
  */
 const VARIANT_IDS: Record<string, string> = {
     // Subscription Plans
-    'essence':     Deno.env.get("LS_VARIANT_ESSENCE") || "PLACEHOLDER_ESSENCE",
-    'radiance':    Deno.env.get("LS_VARIANT_RADIANCE") || "PLACEHOLDER_RADIANCE",
-    'prestige':    Deno.env.get("LS_VARIANT_PRESTIGE") || "PLACEHOLDER_PRESTIGE",
+    'essence':     Deno.env.get("LS_VARIANT_ESSENCE") || "1459505",
+    'radiance':    Deno.env.get("LS_VARIANT_RADIANCE") || "1459526",
+    'prestige':    Deno.env.get("LS_VARIANT_PRESTIGE") || "1459528",
     // AI Credit Packs (mini)
-    'pack_500':    Deno.env.get("LS_VARIANT_PACK_500") || "PLACEHOLDER_PACK_500",
-    'pack_1500':   Deno.env.get("LS_VARIANT_PACK_1500") || "PLACEHOLDER_PACK_1500",
-    'pack_4000':   Deno.env.get("LS_VARIANT_PACK_4000") || "PLACEHOLDER_PACK_4000",
+    'pack_500':    Deno.env.get("LS_VARIANT_PACK_500") || "1459837",
+    'pack_1500':   Deno.env.get("LS_VARIANT_PACK_1500") || "1459853",
+    'pack_4000':   Deno.env.get("LS_VARIANT_PACK_4000") || "1459858",
     // AI Credit Packs (4o premium)
-    'pack_500_4o':  Deno.env.get("LS_VARIANT_PACK_500_4O") || "PLACEHOLDER_PACK_500_4O",
-    'pack_1500_4o': Deno.env.get("LS_VARIANT_PACK_1500_4O") || "PLACEHOLDER_PACK_1500_4O",
-    'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "PLACEHOLDER_PACK_4000_4O",
+    'pack_500_4o':  Deno.env.get("LS_VARIANT_PACK_500_4O") || "1459861",
+    'pack_1500_4o': Deno.env.get("LS_VARIANT_PACK_1500_4O") || "1459869",
+    'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "1459872",
 };
 
 interface RequestBody {

@@ -171,6 +171,16 @@ ALTER TABLE public.medical_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vaccinations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dewormings ENABLE ROW LEVEL SECURITY;
 
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Tutors access" ON public.tutors;
+    DROP POLICY IF EXISTS "Patients access" ON public.patients;
+    DROP POLICY IF EXISTS "Clinical access" ON public.clinical_records;
+    DROP POLICY IF EXISTS "Medical access" ON public.medical_history;
+    DROP POLICY IF EXISTS "Vaccine access" ON public.vaccinations;
+    DROP POLICY IF EXISTS "Deworming access" ON public.dewormings;
+END $$;
+
 CREATE POLICY "Tutors access" ON public.tutors FOR ALL USING (auth.role() IN ('authenticated', 'service_role'));
 CREATE POLICY "Patients access" ON public.patients FOR ALL USING (auth.role() IN ('authenticated', 'service_role'));
 CREATE POLICY "Clinical access" ON public.clinical_records FOR ALL USING (auth.role() IN ('authenticated', 'service_role'));

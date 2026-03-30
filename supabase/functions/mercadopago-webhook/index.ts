@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
                 subscriptionStatus = "trial";
         }
 
-        // Update subscription in database
+        const plan = payment.metadata?.plan || 'essence';
         const updateData: Record<string, unknown> = {
             status: subscriptionStatus,
             mercadopago_subscription_id: payload.data.id,
@@ -149,6 +149,7 @@ Deno.serve(async (req: Request) => {
             updateData.trial_ends_at = null; // Clear trial
         }
 
+        // 1. Update subscription in database
         const { error } = await supabase
             .from("subscriptions")
             .update(updateData)
@@ -159,7 +160,22 @@ Deno.serve(async (req: Request) => {
             return new Response("Database error", { status: 500 });
         }
 
-        console.log(`Subscription updated: ${clinicId} -> ${subscriptionStatus}`);
+        // 2. Sync limits to clinic_settings
+        if (subscriptionStatus === 'active') {
+            const { error: syncError } = await supabase
+                .from("clinic_settings")
+                .update({
+                    subscription_plan: plan,
+                    ai_credits_monthly_limit: plan === 'prestige' ? 5000 : (plan === 'radiance' ? 2500 : 1000),
+                    ai_credits_monthly_4o_limit: plan === 'prestige' ? 300 : (plan === 'radiance' ? 200 : 100),
+                    max_users: plan === 'prestige' ? 10000 : (plan === 'radiance' ? 5 : 2),
+                })
+                .eq("id", clinicId);
+            
+            if (syncError) console.error("Error syncing limits from MP:", syncError);
+        }
+
+        console.log(`Subscription updated: ${clinicId} -> ${subscriptionStatus} (Plan: ${plan})`);
 
         return new Response("OK", { status: 200 });
     } catch (error) {

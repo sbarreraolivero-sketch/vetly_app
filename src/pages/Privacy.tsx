@@ -12,7 +12,7 @@ export default function Privacy() {
                         <Sparkles className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800">Vetly AI AI</h1>
+                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800">Vetly AI</h1>
                         <p className="text-gray-500 font-medium">Políticas de Privacidad</p>
                     </div>
                     <div className="ml-auto">
@@ -27,7 +27,7 @@ export default function Privacy() {
                     <p className="text-sm text-gray-500 mb-6">Última actualización: Marzo 2026</p>
 
                     <p className="text-lg leading-relaxed mb-6">
-                        En <strong>Vetly AI AI</strong>, valoramos su confianza y estamos comprometidos con la protección y el manejo responsable de sus datos personales. Esta Política de Privacidad describe cómo recopilamos, utilizamos y protegemos su información.
+                        En <strong>Vetly AI</strong>, valoramos su confianza y estamos comprometidos con la protección y el manejo responsable de sus datos personales. Esta Política de Privacidad describe cómo recopilamos, utilizamos y protegemos su información.
                     </p>
 
                     <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">1. Información que recopilamos</h2>
@@ -70,7 +70,7 @@ export default function Privacy() {
 
                 {/* Footer */}
                 <div className="mt-12 pt-8 border-t border-gray-100 flex justify-between items-center text-sm text-gray-500">
-                    <p>© {new Date().getFullYear()} Vetly AI AI. Todos los derechos reservados.</p>
+                    <p>© {new Date().getFullYear()} Vetly AI. Todos los derechos reservados.</p>
                     <Link to="/terms" className="hover:text-primary-600 transition-colors">Ver Términos y Condiciones</Link>
                 </div>
 

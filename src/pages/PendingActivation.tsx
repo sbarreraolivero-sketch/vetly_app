@@ -52,7 +52,7 @@ export function PendingActivation() {
                     <div className="w-8 h-8 bg-charcoal rounded-lg flex items-center justify-center">
                         <Sparkles className="w-4 h-4 text-primary-400" />
                     </div>
-                    <span className="font-extrabold text-xl tracking-tight text-charcoal">Vetly AI AI</span>
+                    <span className="font-extrabold text-xl tracking-tight text-charcoal">Vetly AI</span>
                 </div>
                 <button
                     onClick={handleLogout}

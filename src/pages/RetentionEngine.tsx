@@ -233,7 +233,7 @@ const RetentionEngine = () => {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-charcoal">Revenue Control Center</h1>
-                            <p className="text-sm text-charcoal/50">Revenue Retention Engine™ — Vetly AI AI</p>
+                            <p className="text-sm text-charcoal/50">Revenue Retention Engine™ — Vetly AI</p>
                         </div>
                     </div>
                 </div>
@@ -910,7 +910,7 @@ const RetentionEngine = () => {
                             <DollarSign className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs text-charcoal/50 uppercase tracking-wider font-medium">Ingresos Recuperados por Vetly AI AI</p>
+                            <p className="text-xs text-charcoal/50 uppercase tracking-wider font-medium">Ingresos Recuperados por Vetly AI</p>
                             <PremiumFeature requiredPlan="radiance" fallback={
                                 <p className="text-xl font-bold text-charcoal/30">Disponible en Radiance+</p>
                             }>

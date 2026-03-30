@@ -192,7 +192,7 @@ export function WhatsAppTemplates() {
                                     placeholder="Hola {{1}}, gracias por tu visita a {{2}}..."
                                     className="w-full px-4 py-2 bg-white border border-charcoal/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 text-charcoal min-h-[100px]"
                                 />
-                                <p className="text-xs text-charcoal/50 mt-1">Usa {"{{1}}"}, {"{{2}}"} para variables que rellenará Vetly AI AI de forma automática.</p>
+                                <p className="text-xs text-charcoal/50 mt-1">Usa {"{{1}}"}, {"{{2}}"} para variables que rellenará Vetly AI de forma automática.</p>
                             </div>
 
                             <div>

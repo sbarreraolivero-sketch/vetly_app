@@ -38,7 +38,7 @@ export default function ForgotPassword() {
                         <div className="w-12 h-12 bg-hero-gradient rounded-soft flex items-center justify-center transition-transform group-hover:scale-105">
                             <Sparkles className="w-6 h-6 text-white" />
                         </div>
-                        <span className="text-2xl font-semibold text-charcoal">Vetly AI AI</span>
+                        <span className="text-2xl font-semibold text-charcoal">Vetly AI</span>
                     </Link>
 
                     {/* Content */}

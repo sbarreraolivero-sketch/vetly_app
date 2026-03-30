@@ -115,7 +115,7 @@ export default function Pricing() {
                         <div className="w-10 h-10 bg-hero-gradient rounded-soft flex items-center justify-center">
                             <Sparkles className="w-5 h-5 text-white" />
                         </div>
-                        <span className="text-xl font-semibold text-charcoal">Vetly AI AI</span>
+                        <span className="text-xl font-semibold text-charcoal">Vetly AI</span>
                     </div>
                     <nav className="hidden md:flex items-center gap-8">
                         <a href="#features" className="text-charcoal/60 hover:text-charcoal transition-colors">Características</a>
@@ -350,7 +350,7 @@ export default function Pricing() {
                             <div className="w-10 h-10 bg-white/10 rounded-soft flex items-center justify-center">
                                 <Sparkles className="w-5 h-5 text-accent-500" />
                             </div>
-                            <span className="text-lg font-semibold text-white">Vetly AI AI</span>
+                            <span className="text-lg font-semibold text-white">Vetly AI</span>
                         </div>
                         <div className="flex items-center gap-6 text-sm">
                             <a href="#" className="hover:text-white transition-colors">Términos</a>
@@ -358,7 +358,7 @@ export default function Pricing() {
                             <a href="#" className="hover:text-white transition-colors">Contacto</a>
                         </div>
                         <p className="text-sm">
-                            © 2024 Vetly AI AI. Todos los derechos reservados.
+                            © 2024 Vetly AI. Todos los derechos reservados.
                         </p>
                     </div>
                 </div>
