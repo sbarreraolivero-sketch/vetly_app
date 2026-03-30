@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle } from 'lucide-react'
+import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react'
@@ -31,6 +31,7 @@ export default function Register() {
     const [loading, setLoading] = useState(false)
 
     const [jobTitle, setJobTitle] = useState('')
+    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
 
     const { signUp } = useAuth()
     const navigate = useNavigate()
@@ -143,7 +144,10 @@ export default function Register() {
         setError('')
         setLoading(true)
 
-        const { error } = await signUp(email, password, fullName, clinicName, selectedPlan, cardToken)
+        // IMPORT lemonsqueezy redirect
+        const { redirectToLemonCheckout } = await import('@/lib/lemonsqueezy')
+
+        const { error, data }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'lemonsqueezy' : 'mercadopago')
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email o revisa tu tarjeta.')
@@ -159,6 +163,21 @@ export default function Register() {
             });
         } catch (e) {
             console.error('Error enviando email de bienvenida:', e);
+        }
+
+        // If LemonSqueezy, redirect to checkout
+        if (paymentRegion === 'international') {
+            try {
+                const clinicId = data?.clinic_id
+                if (clinicId) {
+                    await redirectToLemonCheckout(clinicId, email, selectedPlan as any)
+                    return // Redirecting...
+                }
+            } catch (err: any) {
+                setError('Error al conectar con la pasarela de pago: ' + err.message)
+                setLoading(false)
+                return
+            }
         }
 
         // Success - redirect to pending activation for scheduling
@@ -209,13 +228,53 @@ export default function Register() {
                                     'Elige tu plan'
                         )}
                     </h1>
-                    <p className="text-charcoal/60 mb-8">
+                    <p className="text-charcoal/60 mb-6">
                         {isJoinMode ? 'Ingresa tus datos para aceptar la invitación' : (
-                            step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación gratuita de 7 días.' :
+                            step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
                                 step === 2 ? 'Configura los datos básicos de tu negocio' :
-                                    'Selecciona el plan que mejor se adapte a ti'
+                                    step === 3 ? 'Selecciona el plan que mejor se adapte a ti' :
+                                        'Finaliza tu registro'
                         )}
                     </p>
+
+                    {/* Value Prop Banner - Step 1 only */}
+                    {!isJoinMode && step === 1 && (
+                        <div className="bg-primary-50 border border-primary-100 rounded-soft p-4 mb-6">
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5 bg-primary-500 p-1 rounded flex-shrink-0">
+                                    <Star className="w-3.5 h-3.5 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-charcoal leading-snug">
+                                        La Regla de Éxito Citenly
+                                    </p>
+                                    <p className="text-xs text-charcoal/65 mt-1 leading-relaxed">
+                                        Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Region Selector (Only in creation mode) */}
+                    {!isJoinMode && step === 3 && (
+                        <div className="mb-6 flex p-1 bg-silk-beige rounded-soft">
+                            <button
+                                type="button"
+                                onClick={() => setPaymentRegion('chile')}
+                                className={`flex-1 py-2 text-sm font-medium rounded-soft transition-all ${paymentRegion === 'chile' ? 'bg-white shadow-sm text-charcoal' : 'text-charcoal/40'}`}
+                            >
+                                Chile (CLP)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPaymentRegion('international')}
+                                className={`flex-1 py-2 text-sm font-medium rounded-soft transition-all ${paymentRegion === 'international' ? 'bg-white shadow-sm text-charcoal' : 'text-charcoal/40'}`}
+                            >
+                                Internacional (USD)
+                            </button>
+                        </div>
+                    )}
 
                     {/* Error Message */}
                     {error && (
@@ -395,35 +454,57 @@ export default function Register() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="border border-gray-200 rounded-soft p-4 bg-white min-h-[400px]">
-                                    <CardPayment
-                                        initialization={{
-                                            amount: plans.find(p => p.id === selectedPlan)?.price || 159
-                                        }}
-                                        customization={{
-                                            visual: {
-                                                style: {
-                                                    theme: 'default'
+
+                                {paymentRegion === 'chile' ? (
+                                    <div className="border border-gray-200 rounded-soft p-4 bg-white min-h-[400px]">
+                                        <CardPayment
+                                            initialization={{
+                                                amount: plans.find(p => p.id === selectedPlan)?.price || 159
+                                            }}
+                                            customization={{
+                                                visual: {
+                                                    style: {
+                                                        theme: 'default'
+                                                    },
+                                                    texts: {
+                                                        formSubmit: 'Comenzar Prueba Gratis'
+                                                    }
                                                 },
-                                                texts: {
-                                                    formSubmit: 'Comenzar Prueba Gratis'
+                                                paymentMethods: {
+                                                    maxInstallments: 1
                                                 }
-                                            },
-                                            paymentMethods: {
-                                                maxInstallments: 1
-                                            }
-                                        }}
-                                        onSubmit={async (formData) => {
-                                            // Handle the token generated by Mercado Pago
-                                            // console.log("Card Token Generated:", formData.token)
-                                            await handleCreate(formData.token);
-                                        }}
-                                        onError={(error) => {
-                                            console.error("Mercado Pago Error:", error);
-                                            setError('Error al procesar la tarjeta. Revisa los datos ingresados.');
-                                        }}
-                                    />
-                                </div>
+                                            }}
+                                            onSubmit={async (formData) => {
+                                                await handleCreate(formData.token);
+                                            }}
+                                            onError={(error) => {
+                                                console.error("Mercado Pago Error:", error);
+                                                setError('Error al procesar la tarjeta. Revisa los datos ingresados.');
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="text-center p-8 border border-silk-beige rounded-soft bg-white shadow-soft">
+                                        <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Sparkles className="w-8 h-8 text-primary-500" />
+                                        </div>
+                                        <h3 className="text-lg font-semibold text-charcoal mb-2">Pago Internacional (USD)</h3>
+                                        <p className="text-sm text-charcoal/60 mb-6">
+                                            Serás redirigido a nuestra pasarela segura Lemon Squeezy para finalizar tu registro. 
+                                            Tu prueba gratuita de 7 días comenzará de inmediato.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCreate()}
+                                            disabled={loading}
+                                            className="btn-primary w-full py-4 flex items-center justify-center gap-2"
+                                        >
+                                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar y Pagar'}
+                                            <ArrowRight className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="mt-6 flex flex-col items-center gap-2">
                                     <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro o el pago?</p>
                                     <a
@@ -503,26 +584,47 @@ export default function Register() {
             {/* Right Panel - Hero */}
             <div className="hidden lg:flex flex-1 bg-hero-gradient items-center justify-center p-12">
                 <div className="max-w-lg text-white">
-                    <h2 className="text-3xl font-semibold mb-4">
-                        Únete a +500 clínicas que ya automatizan sus citas
-                    </h2>
-                    <p className="text-white/80 text-lg mb-8">
-                        En menos de 5 minutos tendrás tu asistente de IA configurado
-                        y listo para atender pacientes por WhatsApp.
-                    </p>
+                    {/* Main Value Proposition */}
+                    <div className="mb-10">
+                        <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
+                            <Star className="w-3.5 h-3.5 text-yellow-300" />
+                            +500 clínicas confían en Citenly
+                        </div>
+                        <h2 className="text-4xl font-bold mb-5 leading-tight">
+                            Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.
+                        </h2>
+                        <p className="text-white/75 text-lg leading-relaxed">
+                            No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.
+                        </p>
+                    </div>
+
+                    {/* The Rule Card */}
+                    <div className="bg-white/15 backdrop-blur-sm border border-white/20 rounded-softer p-5 mb-6">
+                        <div className="flex items-start gap-3">
+                            <div className="bg-yellow-400 text-charcoal rounded p-1 flex-shrink-0 mt-0.5">
+                                <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-white text-base mb-1">La Regla de Éxito Citenly</p>
+                                <p className="text-white/80 text-sm leading-relaxed">
+                                    Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Testimonial */}
-                    <div className="bg-white/10 backdrop-blur-sm rounded-softer p-6">
-                        <p className="text-white/90 italic mb-4">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-softer p-5">
+                        <p className="text-white/90 italic text-sm mb-4">
                             "Antes pasaba 3 horas diarias respondiendo mensajes.
-                            Ahora mi asistente de Vetly AI lo hace todo mientras
+                            Ahora mi asistente de Citenly lo hace todo mientras
                             yo me enfoco en mis pacientes."
                         </p>
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 rounded-full" />
+                            <div className="w-9 h-9 bg-white/20 rounded-full flex-shrink-0" />
                             <div>
-                                <p className="font-medium">Dra. Carolina Méndez</p>
-                                <p className="text-sm text-white/60">Clínica Derma Bella</p>
+                                <p className="font-medium text-sm">Dra. Carolina Méndez</p>
+                                <p className="text-xs text-white/60">Clínica Derma Bella</p>
                             </div>
                         </div>
                     </div>
