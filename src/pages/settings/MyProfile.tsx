@@ -37,33 +37,42 @@ export default function MyProfile() {
 
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
-    const [jobTitle, setJobTitle] = useState('')
+    // const [jobTitle, setJobTitle] = useState('') // Removed redundant state
     const [specialty, setSpecialty] = useState('')
     const [color, setColor] = useState('#8B5CF6')
     const [workingHours, setWorkingHours] = useState<Record<string, { enabled: boolean; start: string; end: string; lunch_break?: { enabled: boolean; start: string; end: string } }>>(DEFAULT_HOURS)
 
-    // Derived role string
-    const systemRoleString = (member?.role === 'owner' || member?.role === 'admin' || profile?.role === 'owner') ? 'Administrador' : 
-                             member?.role === 'professional' ? 'Profesional' : 
-                             member?.role === 'receptionist' ? 'Recepcionista' : jobTitle
+    // Derived role string with extremely robust detection
+    const getSystemRole = () => {
+        const r = (member?.role || profile?.role || '').toLowerCase()
+        if (r.includes('owner') || r.includes('dueño') || r.includes('admin')) return 'Administrador'
+        if (r.includes('professional') || r.includes('profesional') || r.includes('médico')) return 'Profesional'
+        if (r.includes('receptionist') || r.includes('recepción') || r.includes('secretaria')) return 'Recepcionista'
+        return 'Miembro del equipo'
+    }
+
+    const systemRoleString = getSystemRole()
 
     useEffect(() => {
         if (member) {
             setFirstName(member.first_name || '')
             setLastName(member.last_name || '')
-            setJobTitle(systemRoleString)
             setSpecialty(member.specialty || '')
             setColor(member.color || '#8B5CF6')
             setWorkingHours((member as any).working_hours || DEFAULT_HOURS)
         } else if (profile) {
-            // Fallback to profile data if member is not yet synced
             const names = profile.full_name?.split(' ') || []
             setFirstName(names[0] || '')
             setLastName(names.slice(1).join(' ') || '')
-            setJobTitle(systemRoleString)
         }
-        // Always stop loading after attempting to get member
         setLoading(false)
+
+        // KILL BROWSER AUTOFILL: If we detect an email in specialty on mount, clear it
+        // This is a last-resort defense against aggressive browser autofill
+        const timeout = setTimeout(() => {
+            setSpecialty(prev => (prev && prev.includes('@')) ? '' : prev)
+        }, 500)
+        return () => clearTimeout(timeout)
     }, [member, profile])
 
     const handleSave = async () => {
@@ -93,9 +102,6 @@ export default function MyProfile() {
                 working_hours: workingHours,
             })
             toast.success('Perfil actualizado correctamente')
-            
-            // Opcional: refrescar la página o el contexto para asegurar sincronía
-            // window.location.reload()
         } catch (error: any) {
             console.error('Error updating profile:', error)
             const errorMessage = error?.message || 'Error al actualizar el perfil'
@@ -154,8 +160,20 @@ export default function MyProfile() {
                     <Briefcase className="w-4 h-4 text-primary-500" />
                     Información Profesional
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
+                <div className="bg-white rounded-xl border border-charcoal/10 p-6 space-y-6">
+                {/* 
+                  POISON PILL FOR AUTOFILL:
+                  Many browsers (Chrome, Safari) ignore autocomplete="off" and try to find name/email fields.
+                  We add hidden fields at the top to "trap" the autofill here.
+                */}
+                <div className="sr-only" aria-hidden="true" style={{ position: 'absolute', top: -1000, left: -1000 }}>
+                    <input type="text" name="fake-username" tabIndex={-1} />
+                    <input type="email" name="fake-email" tabIndex={-1} />
+                    <input type="password" name="fake-password" tabIndex={-1} />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex flex-col gap-2">
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Nombre</label>
                         <input
                             type="text"
@@ -163,10 +181,10 @@ export default function MyProfile() {
                             onChange={(e) => setFirstName(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Tu nombre"
-                            autoComplete="off"
+                            autoComplete="new-password" // Stronger signal to disable autofill
                         />
                     </div>
-                    <div>
+                    <div className="flex flex-col gap-2">
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Apellido</label>
                         <input
                             type="text"
@@ -174,23 +192,21 @@ export default function MyProfile() {
                             onChange={(e) => setLastName(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Tu apellido"
-                            autoComplete="off"
+                            autoComplete="new-password"
                         />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Cargo</label>
                         <input
                             type="text"
-                            value={
-                                member?.role === 'owner' || member?.role === 'admin' ? 'Administrador' : 
-                                member?.role === 'professional' ? 'Profesional' : 
-                                member?.role === 'receptionist' ? 'Recepcionista' : 
-                                (member ? 'Miembro del equipo' : '')
-                            }
+                            value={systemRoleString} // Correctly using the derived string!
                             readOnly
-                            className="input-soft w-full bg-gray-50 cursor-not-allowed opacity-70"
+                            className="input-soft w-full bg-charcoal/5 cursor-not-allowed opacity-70"
                         />
-                        <p className="text-[10px] text-charcoal/40 mt-1 italic">Dato gestionado por el sistema (Rol: {member?.role || 'Buscando...'})</p>
+                        <p className="text-[10px] text-charcoal/40 mt-1 italic">
+                            Dato gestionado por el sistema 
+                            ({member?.role ? `Rol Miembro: ${member.role}` : `Rol Perfil: ${profile?.role || 'Buscando...'}`})
+                        </p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Especialidad</label>
@@ -200,11 +216,13 @@ export default function MyProfile() {
                             onChange={(e) => setSpecialty(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Ej: Ortodoncia, Rehabilitación"
-                            autoComplete="off"
+                            autoComplete="new-password"
+                            name={`specialty_field_${Math.random().toString(36).substring(7)}`} // Dynamic name to confuse autofill
                         />
                     </div>
                 </div>
             </div>
+        </div>
 
             {/* Color del Calendario */}
             <div className="card-soft p-6">
