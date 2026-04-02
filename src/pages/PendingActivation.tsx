@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Calendar, ShieldCheck, Sparkles, LogOut } from 'lucide-react';
 import { HQBookingForm } from '../components/HQBookingForm';
@@ -7,6 +7,24 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 export function PendingActivation() {
     const { user, profile, signOut } = useAuth();
+    const navigate = useNavigate();
+
+    console.log('PendingActivation Auth State:', { userId: user?.id, email: user?.email, profileEmail: profile?.email });
+
+    // NUCLEAR BYPASS FOR THE OWNER - Redirect to app immediately
+    useEffect(() => {
+        const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com'];
+        const userEmail = user?.email?.toLowerCase().trim();
+        const profileEmail = profile?.email?.toLowerCase().trim();
+
+        if (userEmail && ownerEmails.includes(userEmail)) {
+            console.log('✅ PendingActivation: Nuclear owner bypass triggered for:', userEmail);
+            navigate('/app', { replace: true });
+        } else if (profileEmail && ownerEmails.includes(profileEmail)) {
+            console.log('✅ PendingActivation: Profile-based owner bypass triggered for:', profileEmail);
+            navigate('/app', { replace: true });
+        }
+    }, [user, profile, navigate]);
 
     // Redirect if doesn't meet criteria
     if (!user) {
@@ -18,18 +36,24 @@ export function PendingActivation() {
     useEffect(() => {
         const checkStatus = async () => {
             if (profile?.clinic_id) {
+                console.log('PendingActivation: Checking status for clinic:', profile.clinic_id);
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data } = await (supabase as any)
+                const { data, error } = await (supabase as any)
                     .from('clinic_settings')
                     .select('activation_status')
                     .eq('id', profile.clinic_id)
                     .single()
 
+                if (error) {
+                    console.error('PendingActivation: Error fetching status:', error);
+                }
+
                 if (data) {
+                    console.log('PendingActivation: Current status:', data.activation_status);
                     setActivationStatus(data.activation_status)
                 }
             }
-        }
+        };
         checkStatus();
     }, [profile?.clinic_id])
 

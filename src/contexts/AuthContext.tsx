@@ -45,18 +45,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    // Constants
+    const PROFILE_STORAGE_KEY = 'vetly_user_profile'
+    const SUBSCRIPTION_STORAGE_KEY = 'vetly_user_subscription'
+    const CLINICS_STORAGE_KEY = 'vetly_user_clinics'
+
     const [user, setUser] = useState<User | null>(null)
-    const [profile, setProfile] = useState<UserProfile | null>(null)
+    const [profile, setProfile] = useState<UserProfile | null>(() => {
+        const cached = localStorage.getItem(PROFILE_STORAGE_KEY)
+        try { return cached ? JSON.parse(cached) : null } catch { return null }
+    })
     const [member, setMember] = useState<ClinicMember | null>(null)
     const [subscription, setSubscription] = useState<Subscription | null>(null)
-    const [clinics, setClinics] = useState<Clinic[]>([])
+    const [clinics, setClinics] = useState<Clinic[]>(() => {
+        const cached = localStorage.getItem(CLINICS_STORAGE_KEY)
+        try { return cached ? JSON.parse(cached) : null } catch { return [] }
+    })
     const [session, setSession] = useState<Session | null>(null)
     const [loading, setLoading] = useState(true)
-
-    // Constants
-    const PROFILE_STORAGE_KEY = 'Vetly AI_user_profile'
-    const SUBSCRIPTION_STORAGE_KEY = 'Vetly AI_user_subscription'
-    const CLINICS_STORAGE_KEY = 'Vetly AI_user_clinics'
 
     // Fetch user profile from database with retry logic
     const fetchProfile = async (userId: string, retries = 3, delay = 500): Promise<{ data: UserProfile | null, status: 'found' | 'not_found' | 'error' }> => {
@@ -190,16 +196,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(newProfile))
 
             // 4. Fetch details for new clinic
-            // We need to fetch the member details for THIS clinic context
-            // Currently teamService.getCurrentMember() uses auth.uid() and current context...
-            // BUT RLS depends on current user. 
-            // We need to make sure we fetch the member row for THIS clinic.
-
-            // Let's refactor fetching member to be explicit about clinicId if needed, 
-            // but usually getCurrentMember queries 'clinic_members' where user_id=me AND clinic_id=profile.clinic_id
-            // Since we just updated profile, we need to wait/ensure consistency.
-
-            // Let's manually fetch the specific member row
             const { data: memberData } = await supabase
                 .from('clinic_members')
                 .select('*')
@@ -232,30 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const initializeAuth = async () => {
             try {
-                // 1. Try to load from cache
-                const cachedProfile = localStorage.getItem(PROFILE_STORAGE_KEY)
-                // const cachedSub = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY)
-                const cachedClinics = localStorage.getItem(CLINICS_STORAGE_KEY)
-
-                if (cachedProfile && mounted) {
-                    try {
-                        setProfile(JSON.parse(cachedProfile))
-                    } catch (e) { localStorage.removeItem(PROFILE_STORAGE_KEY) }
-                }
-
-                // if (cachedSub && mounted) {
-                //     try {
-                //         setSubscription(JSON.parse(cachedSub))
-                //     } catch (e) { localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY) }
-                // }
-
-                if (cachedClinics && mounted) {
-                    try {
-                        setClinics(JSON.parse(cachedClinics))
-                    } catch (e) { localStorage.removeItem(CLINICS_STORAGE_KEY) }
-                }
-
-                // 2. Check Supabase session
+                // 1. Check Supabase session
                 const { data: { session } } = await supabase.auth.getSession()
                 if (!mounted) return
 
@@ -293,40 +266,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                             // 3. Fetch Member
                             try {
-                                const { data: memberFetchData, error: memberFetchError } = await supabase
+                                const { data, error } = await supabase
                                     .from('clinic_members')
                                     .select('*')
                                     .eq('user_id', session.user.id)
                                     .eq('clinic_id', profileData.clinic_id)
                                     .single()
-                                
-                                if (memberFetchError) {
-                                    console.warn('Member fetch failed, attempting self-repair or fallback...', memberFetchError)
-                                    
-                                    // Fallback RPC First
-                                    const { data: rpcMemberData } = await (supabase as any).rpc('get_myself_clinical_member')
-                                    
-                                    if (rpcMemberData) {
-                                        memberData = rpcMemberData
-                                    } else if (profileData.role === 'owner') {
-                                        // Self-repair: Create member entry if owner lacks one
-                                        console.log('Self-repair: Creating missing owner member entry for:', session.user.email)
-                                        const { data: repairData } = await (supabase.from('clinic_members') as any)
-                                            .insert({
-                                                clinic_id: profileData.clinic_id,
-                                                user_id: session.user.id,
-                                                email: session.user.email,
-                                                role: 'owner',
-                                                status: 'active',
-                                                first_name: profileData.full_name?.split(' ')[0] || ''
-                                            })
-                                            .select()
-                                            .single()
-                                        if (repairData) memberData = repairData
-                                    }
-                                } else {
-                                    memberData = memberFetchData
-                                }
+                                if (error) console.error('Member fetch error details:', error)
+                                memberData = data
                             } catch (e) { console.error('Member fetch exception:', e) }
                         }
 
@@ -385,54 +332,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (_event, session) => {
                 if (!mounted) return
-                console.log('🔐 Auth state change:', _event)
-                setSession(session)
-                setUser(session?.user ?? null)
+                
+                // ONLY set loading to true during the initial setup phase
+                if (_event === 'INITIAL_SESSION' && !profile) {
+                    setLoading(true)
+                }
+                
+                try {
+                    console.log('🔐 Auth state change:', _event, { userId: session?.user?.id })
+                    setSession(session)
+                    const currentUser = session?.user ?? null
+                    setUser(current => (current?.id === currentUser?.id ? current : currentUser))
 
-                if (session?.user) {
-                    const { data, status } = await fetchProfile(session.user.id)
-                    if (mounted && data) {
-                        setProfile(data)
-                        fetchUserClinics() // Background refresh
-                        if (data.clinic_id) {
-                            fetchSubscription(data.clinic_id).then(sub => mounted && setSubscription(sub))
-                            supabase.from('clinic_members')
-                                .select('*')
-                                .eq('user_id', session.user.id)
-                                .eq('clinic_id', data.clinic_id)
-                                .single()
-                                .then(async ({ data: memberData, error: memberError }) => {
-                                    if (memberError) {
-                                        console.warn('onAuthStateChange member fetch error, trying fallback:', memberError)
-                                        const { data: fallbackMember } = await (supabase as any).rpc('get_myself_clinical_member')
-                                        if (fallbackMember && mounted) setMember(fallbackMember)
-                                    } else if (memberData && mounted) {
-                                        setMember(memberData)
+                    if (currentUser) {
+                        const { data, status } = await fetchProfile(currentUser.id)
+                        if (mounted && data) {
+                            setProfile(prev => {
+                                if (prev?.id === data.id && prev?.clinic_id === data.clinic_id) return prev
+                                return data
+                            })
+                            
+                            fetchUserClinics() 
+
+                            if (data.clinic_id) {
+                                fetchSubscription(data.clinic_id).then(sub => {
+                                    if (mounted) {
+                                        setSubscription(prev => {
+                                            if (JSON.stringify(prev) === JSON.stringify(sub)) return prev
+                                            return sub
+                                        })
                                     }
                                 })
+
+                                supabase.from('clinic_members')
+                                    .select('*')
+                                    .eq('user_id', currentUser.id)
+                                    .eq('clinic_id', data.clinic_id)
+                                    .single()
+                                    .then(({ data: memberData }) => {
+                                        if (memberData && mounted) {
+                                            setMember((prev: any) => (prev?.id === (memberData as any).id ? prev : (memberData as any)))
+                                        }
+                                    })
+                            }
+                        } else if (mounted && status === 'not_found' && !window.location.pathname.startsWith('/hq')) {
+                            setProfile(null)
+                            setMember(null)
+                            setSubscription(null)
+                            setClinics([])
+                            localStorage.removeItem(PROFILE_STORAGE_KEY)
+                            localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY)
+                            localStorage.removeItem(CLINICS_STORAGE_KEY)
                         }
-                    } else if (mounted && status === 'not_found' && !window.location.pathname.startsWith('/hq')) {
-                        // Prevent Frankenstein session when JWT changes to a non-profile user (like Admin)
-                        console.warn('Profile not found from AuthStateChange, clearing session.')
+                    } else {
                         setProfile(null)
                         setMember(null)
                         setSubscription(null)
                         setClinics([])
-                        localStorage.removeItem(PROFILE_STORAGE_KEY)
-                        localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY)
-                        localStorage.removeItem(CLINICS_STORAGE_KEY)
-                    } else if (mounted && status === 'error') {
-                        console.warn('Network error in AuthStateChange, keeping current auth state.')
+                        localStorage.clear()
                     }
-                } else {
-                    setProfile(null)
-                    setMember(null)
-                    setSubscription(null)
-                    setClinics([])
-                    localStorage.clear() // Clear all auth data
+                } catch (err) {
+                    console.error('Error in onAuthStateChange:', err)
+                } finally {
+                    if (mounted) setLoading(false)
                 }
-
-                if (mounted) setLoading(false)
             }
         )
 

@@ -81,8 +81,8 @@ const getNotificationIcon = (type: string) => {
 export default function DashboardLayout() {
     const location = useLocation()
     const navigate = useNavigate()
-    const { profile, member, signOut } = useAuth()
-    console.log('DashboardLayout Member State:', member)
+    const { user, profile, member, signOut } = useAuth()
+    console.log('DashboardLayout Auth State:', { userId: user?.id, email: user?.email, clinicId: profile?.clinic_id, memberRole: member?.role })
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
@@ -90,7 +90,15 @@ export default function DashboardLayout() {
     // Check activation status and redirect
     useEffect(() => {
         const checkActivation = async () => {
+            // Bypass for known owner emails - ALWAYS ALLOW ACCESS
+            const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
+            if (user?.email && ownerEmails.includes(user.email.toLowerCase().trim())) {
+                console.log('✅ DashboardLayout: Nuclear owner bypass active for:', user.email);
+                return;
+            }
+
             if (profile?.clinic_id) {
+                console.log('DashboardLayout checkActivation for clinic:', profile.clinic_id);
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data } = await (supabase as any)
                     .from('clinic_settings')
@@ -99,12 +107,13 @@ export default function DashboardLayout() {
                     .single()
 
                 if (data?.activation_status === 'pending_activation') {
+                    console.warn('DashboardLayout: Redirecting to pending-activation due to clinic status:', data.activation_status);
                     navigate('/pending-activation', { replace: true })
                 }
             }
         }
         checkActivation();
-    }, [profile?.clinic_id, navigate])
+    }, [user?.email, profile?.clinic_id, navigate])
 
     // Fetch notifications
     useEffect(() => {

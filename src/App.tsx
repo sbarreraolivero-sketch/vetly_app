@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Loader2 } from 'lucide-react'
 
@@ -40,7 +40,7 @@ const AdminLogin = lazy(() => import('./pages/hq/AdminLogin'))
 const AdminCalendar = lazy(() => import('./pages/hq/AdminCalendar'))
 
 // Contexts & Guards
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AdminAuthProvider } from './contexts/AdminAuthContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import { SubscriptionGuard } from './components/auth/SubscriptionGuard'
@@ -80,143 +80,167 @@ function HQRoutes() {
 function MainRoutes() {
     return (
         <AuthProvider>
-            <Suspense fallback={<PageLoader />}>
-                <Routes>
-                    {/* Public Routes */}
-                    <Route path="/" element={<Landing />} />
-                    <Route path="/terminos" element={<Terms />} />
-                    <Route path="/terms" element={<Navigate to="/terminos" replace />} />
-                    <Route path="/privacidad" element={<Privacy />} />
-                    <Route path="/privacy" element={<Navigate to="/privacidad" replace />} />
-                    <Route path="/pricing" element={<Pricing />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/update-password" element={<UpdatePassword />} />
-                    <Route
-                        path="/login"
-                        element={
-                            <ProtectedRoute requireAuth={false}>
-                                <Login />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/register"
-                        element={
-                            <ProtectedRoute requireAuth={false}>
-                                <Register />
-                            </ProtectedRoute>
-                        }
-                    />
+            <AuthWrapper>
+                <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                        {/* Public Routes */}
+                        <Route path="/" element={<Landing />} />
+                        <Route path="/terminos" element={<Terms />} />
+                        <Route path="/terms" element={<Navigate to="/terminos" replace />} />
+                        <Route path="/privacidad" element={<Privacy />} />
+                        <Route path="/privacy" element={<Navigate to="/privacidad" replace />} />
+                        <Route path="/pricing" element={<Pricing />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/update-password" element={<UpdatePassword />} />
+                        <Route
+                            path="/login"
+                            element={
+                                <ProtectedRoute requireAuth={false}>
+                                    <Login />
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
+                            path="/register"
+                            element={
+                                <ProtectedRoute requireAuth={false}>
+                                    <Register />
+                                </ProtectedRoute>
+                            }
+                        />
 
-                    {/* Pending Activation Route */}
-                    <Route
-                        path="/pending-activation"
-                        element={
-                            <ProtectedRoute requireAuth={true}>
-                                <PendingActivation />
-                            </ProtectedRoute>
-                        }
-                    />
+                        {/* Pending Activation Route */}
+                        <Route
+                            path="/pending-activation"
+                            element={
+                                <ProtectedRoute requireAuth={true}>
+                                    <PendingActivation />
+                                </ProtectedRoute>
+                            }
+                        />
 
-                    {/* Protected Routes */}
-                    <Route
-                        path="/app"
-                        element={
-                            <ProtectedRoute>
-                                <DashboardLayout />
-                            </ProtectedRoute>
-                        }
-                    >
-                        <Route index element={<Navigate to="/app/dashboard" replace />} />
-                        <Route path="dashboard" element={
-                            <SubscriptionGuard>
-                                <Dashboard />
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="messages" element={
-                            <SubscriptionGuard>
-                                <Messages />
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="appointments" element={
-                            <SubscriptionGuard>
-                                <Appointments />
-                            </SubscriptionGuard>
-                        } />
-                        {/* Domain Tutors & Patients */}
-                        <Route path="tutors" element={
-                            <SubscriptionGuard>
-                                <Tutors />
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="patients" element={
-                            <SubscriptionGuard>
-                                <Patients />
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="patients/:id" element={
-                            <SubscriptionGuard>
-                                <PatientProfile />
-                            </SubscriptionGuard>
-                        } />
+                        {/* Protected Routes */}
+                        <Route
+                            path="/app"
+                            element={
+                                <ProtectedRoute>
+                                    <DashboardLayout />
+                                </ProtectedRoute>
+                            }
+                        >
+                            <Route index element={<Navigate to="/app/dashboard" replace />} />
+                            <Route path="dashboard" element={
+                                <SubscriptionGuard>
+                                    <Dashboard />
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="messages" element={
+                                <SubscriptionGuard>
+                                    <Messages />
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="appointments" element={
+                                <SubscriptionGuard>
+                                    <Appointments />
+                                </SubscriptionGuard>
+                            } />
+                            {/* Domain Tutors & Patients */}
+                            <Route path="tutors" element={
+                                <SubscriptionGuard>
+                                    <Tutors />
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="patients" element={
+                                <SubscriptionGuard>
+                                    <Patients />
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="patients/:id" element={
+                                <SubscriptionGuard>
+                                    <PatientProfile />
+                                </SubscriptionGuard>
+                            } />
 
-                        <Route path="knowledge-base" element={
-                            <SubscriptionGuard>
-                                <KnowledgeBase />
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="crm" element={
-                            <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner']}>
-                                    <CRM />
-                                </RoleGuard>
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="campaigns" element={
-                            <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner']}>
-                                    <Campaigns />
-                                </RoleGuard>
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="finance" element={
-                            <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner']}>
-                                    <Finance />
-                                </RoleGuard>
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="templates" element={
-                            <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner', 'admin']}>
-                                    <Templates />
-                                </RoleGuard>
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="loyalty" element={
-                            <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner', 'admin']}>
-                                    <Loyalty />
-                                </RoleGuard>
-                            </SubscriptionGuard>
-                        } />
-                        <Route path="settings" element={<Settings />} />
-                    </Route>
+                            <Route path="knowledge-base" element={
+                                <SubscriptionGuard>
+                                    <KnowledgeBase />
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="crm" element={
+                                <SubscriptionGuard>
+                                    <RoleGuard allowedRoles={['owner']}>
+                                        <CRM />
+                                    </RoleGuard>
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="campaigns" element={
+                                <SubscriptionGuard>
+                                    <RoleGuard allowedRoles={['owner']}>
+                                        <Campaigns />
+                                    </RoleGuard>
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="finance" element={
+                                <SubscriptionGuard>
+                                    <RoleGuard allowedRoles={['owner']}>
+                                        <Finance />
+                                    </RoleGuard>
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="templates" element={
+                                <SubscriptionGuard>
+                                    <RoleGuard allowedRoles={['owner', 'admin']}>
+                                        <Templates />
+                                    </RoleGuard>
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="loyalty" element={
+                                <SubscriptionGuard>
+                                    <RoleGuard allowedRoles={['owner', 'admin']}>
+                                        <Loyalty />
+                                    </RoleGuard>
+                                </SubscriptionGuard>
+                            } />
+                            <Route path="settings" element={<Settings />} />
+                        </Route>
 
-                    {/* Legacy redirects */}
-                    <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
-                    <Route path="/messages" element={<Navigate to="/app/messages" replace />} />
-                    <Route path="/appointments" element={<Navigate to="/app/appointments" replace />} />
-                    <Route path="/tutors" element={<Navigate to="/app/tutors" replace />} />
-                    <Route path="/patients" element={<Navigate to="/app/tutors" replace />} />
-                    <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
+                        {/* Legacy redirects */}
+                        <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+                        <Route path="/messages" element={<Navigate to="/app/messages" replace />} />
+                        <Route path="/appointments" element={<Navigate to="/app/appointments" replace />} />
+                        <Route path="/tutors" element={<Navigate to="/app/tutors" replace />} />
+                        <Route path="/patients" element={<Navigate to="/app/tutors" replace />} />
+                        <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
 
-                    {/* Catch all */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-            </Suspense>
+                        {/* Catch all */}
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                </Suspense>
+            </AuthWrapper>
         </AuthProvider>
     )
+}
+
+// Add AuthWrapper at the top of App.tsx or inside MainRoutes
+
+function AuthWrapper({ children }: { children: React.ReactNode }) {
+    const { user, profile } = useAuth()
+    const location = useLocation()
+    const navigate = useNavigate()
+
+    useEffect(() => {
+        const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
+        const userEmail = user?.email?.toLowerCase().trim()
+        
+        if (userEmail && ownerEmails.includes(userEmail)) {
+            if (location.pathname === '/pending-activation') {
+                console.log('✅ Global AuthWrapper: Owner bypass redirecting to /app');
+                navigate('/app', { replace: true })
+            }
+        }
+    }, [user, profile, location.pathname, navigate])
+
+    return <>{children}</>
 }
 
 function App() {
