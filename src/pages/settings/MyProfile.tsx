@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Loader2, Palette, Briefcase, Clock, AlertCircle } from 'lucide-react'
+import { Save, Loader2, Palette, Briefcase, Clock } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { teamService } from '@/services/teamService'
 import { supabase } from '@/lib/supabase'
@@ -32,7 +32,7 @@ const DEFAULT_HOURS = {
 }
 
 export default function MyProfile() {
-    const { member, profile } = useAuth()
+    const { user, member, profile } = useAuth()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
@@ -80,45 +80,57 @@ export default function MyProfile() {
         let currentMemberId = member?.id
 
         if (!currentMemberId) {
-            console.warn('Member ID not in context, attempting manual repair in handleSave...')
-            // Try to find it one last time directly
-            const { data: directFind } = await supabase
-                .from('clinic_members')
-                .select('id')
-                .eq('user_id', profile?.id)
-                .eq('clinic_id', profile?.clinic_id)
-                .single()
+            console.warn('Member ID not found, attempting repair...')
             
-            if (directFind?.id) {
-                currentMemberId = directFind.id
-            } else if (profile?.role === 'owner') {
-                // If still missing and owner, attempt to create it RIGHT NOW
-                const { data: repairData, error: repairError } = await (supabase.from('clinic_members') as any)
-                    .insert({
-                        clinic_id: profile.clinic_id,
-                        user_id: profile.id,
-                        email: profile.email,
-                        role: 'owner',
-                        status: 'active',
-                        first_name: firstName || profile.full_name?.split(' ')[0] || '',
-                        last_name: lastName || profile.full_name?.split(' ').slice(1).join(' ') || '',
-                        job_title: systemRoleString,
-                        specialty: specialty
-                    })
-                    .select()
-                    .single()
-                
-                if (repairError) {
-                    console.error('Manual repair failed during save:', repairError)
-                    toast.error(`Error de base de datos: ${repairError.message}. Asegúrate de haber ejecutado el script SQL proporcionado.`)
+            if (!user || !profile?.clinic_id) {
+                toast.error('Sesión no identificada. Refresca la página.')
+                return
+            }
+
+            // 1. Intentar insertar el registro (si no existe)
+            const { data: repairData, error: repairError } = await (supabase
+                .from('clinic_members')
+                .insert({
+                    clinic_id: profile.clinic_id,
+                    user_id: user.id,
+                    email: user.email!,
+                    first_name: firstName,
+                    last_name: lastName,
+                    role: 'owner',
+                    status: 'active'
+                })
+                .select()
+                .single() as any)
+
+            if (repairError) {
+                // 2. Si el error es por duplicado (code 23505), intentar vincular el existente
+                if (repairError.code === '23505') {
+                    console.log('Record exists, linking account...')
+                    const { data: linkedData, error: linkError } = await (supabase
+                        .from('clinic_members')
+                        .update({ user_id: user.id, status: 'active' })
+                        .eq('clinic_id', profile.clinic_id)
+                        .eq('email', user.email!)
+                        .select()
+                        .single() as any)
+                    
+                    if (linkError) {
+                        toast.error('Error al vincular: ' + linkError.message)
+                        return
+                    }
+                    currentMemberId = linkedData.id
+                } else {
+                    console.error('Repair failed:', repairError)
+                    toast.error(`Error DB: ${repairError.message}. Ejecuta el Script Maestro.`)
                     return
                 }
-                if (repairData) currentMemberId = repairData.id
+            } else if (repairData) {
+                currentMemberId = repairData.id
             }
         }
 
         if (!currentMemberId) {
-            toast.error('No se pudo encontrar ni crear tu registro profesional. Por seguridad, no podemos guardar sin identificar tu perfil. Refresca la página e intenta de nuevo.')
+            toast.error('No se pudo identificar tu perfil profesional.')
             return
         }
 
