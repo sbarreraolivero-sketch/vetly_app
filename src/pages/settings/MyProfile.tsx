@@ -79,15 +79,45 @@ export default function MyProfile() {
         let currentMemberId = member?.id
 
         if (!currentMemberId) {
-            console.warn('Member ID not in context, attempting direct fetch...')
-            const fallbackMember = await teamService.getCurrentMember()
-            if (fallbackMember?.id) {
-                currentMemberId = fallbackMember.id
+            console.warn('Member ID not in context, attempting manual repair in handleSave...')
+            // Try to find it one last time directly
+            const { data: directFind } = await supabase
+                .from('clinic_members')
+                .select('id')
+                .eq('user_id', profile?.id)
+                .eq('clinic_id', profile?.clinic_id)
+                .single()
+            
+            if (directFind?.id) {
+                currentMemberId = directFind.id
+            } else if (profile?.role === 'owner') {
+                // If still missing and owner, attempt to create it RIGHT NOW
+                const { data: repairData, error: repairError } = await (supabase.from('clinic_members') as any)
+                    .insert({
+                        clinic_id: profile.clinic_id,
+                        user_id: profile.id,
+                        email: profile.email,
+                        role: 'owner',
+                        status: 'active',
+                        first_name: firstName || profile.full_name?.split(' ')[0] || '',
+                        last_name: lastName || profile.full_name?.split(' ').slice(1).join(' ') || '',
+                        job_title: systemRoleString,
+                        specialty: specialty
+                    })
+                    .select()
+                    .single()
+                
+                if (repairError) {
+                    console.error('Manual repair failed during save:', repairError)
+                    toast.error(`Error de base de datos: ${repairError.message}. Asegúrate de haber ejecutado el script SQL proporcionado.`)
+                    return
+                }
+                if (repairData) currentMemberId = repairData.id
             }
         }
 
         if (!currentMemberId) {
-            toast.error('No se pudo encontrar tu registro profesional. Por seguridad, no podemos guardar los cambios sin identificar tu perfil. Intenta refrescar la página.')
+            toast.error('No se pudo encontrar ni crear tu registro profesional. Por seguridad, no podemos guardar sin identificar tu perfil. Refresca la página e intenta de nuevo.')
             return
         }
 
