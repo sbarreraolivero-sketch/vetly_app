@@ -327,6 +327,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
 
+        // Force emergency cleanup for old or poisoned session data
+        if (localStorage.getItem('citenly_user_profile') || localStorage.getItem('vetly_user_profile')) {
+            console.log('🧹 One-time emergency cleanup of session data...')
+            localStorage.clear() // Nuke everything to be 100% sure
+        }
+
         initializeAuth()
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
