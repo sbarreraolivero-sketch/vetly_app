@@ -901,6 +901,9 @@ export default function Settings() {
                 throw new Error('No se encontró la clínica para actualizar o no tienes permisos (ID: ' + profile.clinic_id + ')')
             }
 
+            // Log successful save for diagnostics
+            console.log('✅ Clinic settings saved successfully for ID:', profile.clinic_id)
+
             // Refresh clinics context to update header
             await refreshClinics()
 
