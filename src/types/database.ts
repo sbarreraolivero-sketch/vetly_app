@@ -44,6 +44,14 @@ export interface Database {
                     ai_credits_extra_4o: number
                     ai_active_model: 'mini' | '4o'
                     subscription_plan: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    address_references: string | null
+                    google_maps_url: string | null
+                    business_model: 'physical' | 'mobile' | 'hybrid' | null
+                    clinic_address: string | null
+                    address: string | null
+                    currency: string | null
+                    template_survey: string | null
+                    template_reactivation: string | null
                 }
                 Insert: {
                     id?: string
@@ -79,6 +87,14 @@ export interface Database {
                     ai_credits_extra_4o?: number
                     ai_active_model?: 'mini' | '4o'
                     subscription_plan?: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    address_references?: string | null
+                    google_maps_url?: string | null
+                    business_model?: 'physical' | 'mobile' | 'hybrid' | null
+                    clinic_address?: string | null
+                    address?: string | null
+                    currency?: string | null
+                    template_survey?: string | null
+                    template_reactivation?: string | null
                 }
                 Update: {
                     id?: string
@@ -114,6 +130,14 @@ export interface Database {
                     ai_credits_extra_4o?: number
                     ai_active_model?: 'mini' | '4o'
                     subscription_plan?: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    address_references?: string | null
+                    google_maps_url?: string | null
+                    business_model?: 'physical' | 'mobile' | 'hybrid' | null
+                    clinic_address?: string | null
+                    address?: string | null
+                    currency?: string | null
+                    template_survey?: string | null
+                    template_reactivation?: string | null
                 }
             }
             subscriptions: {
