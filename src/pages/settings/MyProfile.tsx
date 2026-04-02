@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Save, Loader2, Palette, Briefcase, Clock } from 'lucide-react'
+import { Save, Loader2, Palette, Briefcase, Clock, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { teamService } from '@/services/teamService'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 
