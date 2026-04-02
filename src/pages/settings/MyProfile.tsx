@@ -31,7 +31,7 @@ const DEFAULT_HOURS = {
 }
 
 export default function MyProfile() {
-    const { member } = useAuth()
+    const { member, profile } = useAuth()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
@@ -43,7 +43,7 @@ export default function MyProfile() {
     const [workingHours, setWorkingHours] = useState<Record<string, { enabled: boolean; start: string; end: string; lunch_break?: { enabled: boolean; start: string; end: string } }>>(DEFAULT_HOURS)
 
     // Derived role string
-    const systemRoleString = member?.role === 'owner' ? 'Administrador' : 
+    const systemRoleString = (member?.role === 'owner' || member?.role === 'admin' || profile?.role === 'owner') ? 'Administrador' : 
                              member?.role === 'professional' ? 'Profesional' : 
                              member?.role === 'receptionist' ? 'Recepcionista' : jobTitle
 
@@ -55,10 +55,16 @@ export default function MyProfile() {
             setSpecialty(member.specialty || '')
             setColor(member.color || '#8B5CF6')
             setWorkingHours((member as any).working_hours || DEFAULT_HOURS)
+        } else if (profile) {
+            // Fallback to profile data if member is not yet synced
+            const names = profile.full_name?.split(' ') || []
+            setFirstName(names[0] || '')
+            setLastName(names.slice(1).join(' ') || '')
+            setJobTitle(systemRoleString)
         }
         // Always stop loading after attempting to get member
         setLoading(false)
-    }, [member])
+    }, [member, profile])
 
     const handleSave = async () => {
         let currentMemberId = member?.id
