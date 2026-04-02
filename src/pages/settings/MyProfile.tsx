@@ -88,7 +88,8 @@ export default function MyProfile() {
             }
 
             // 1. Intentar insertar el registro (si no existe)
-            const { data: repairData, error: repairError } = await (supabase
+            // Usamos (supabase as any) para evitar errores de tipo 'never' en el build de Vercel
+            const { data: repairData, error: repairError } = await (supabase as any)
                 .from('clinic_members')
                 .insert({
                     clinic_id: profile.clinic_id,
@@ -100,19 +101,19 @@ export default function MyProfile() {
                     status: 'active'
                 })
                 .select()
-                .single() as any)
+                .single()
 
             if (repairError) {
                 // 2. Si el error es por duplicado (code 23505), intentar vincular el existente
                 if (repairError.code === '23505') {
                     console.log('Record exists, linking account...')
-                    const { data: linkedData, error: linkError } = await (supabase
+                    const { data: linkedData, error: linkError } = await (supabase as any)
                         .from('clinic_members')
                         .update({ user_id: user.id, status: 'active' })
                         .eq('clinic_id', profile.clinic_id)
                         .eq('email', user.email!)
                         .select()
-                        .single() as any)
+                        .single()
                     
                     if (linkError) {
                         toast.error('Error al vincular: ' + linkError.message)
