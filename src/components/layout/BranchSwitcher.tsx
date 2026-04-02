@@ -15,8 +15,11 @@ export default function BranchSwitcher() {
     const [isOpen, setIsOpen] = useState(false)
     const [showCreateModal, setShowCreateModal] = useState(false)
 
+    // Safeguard against null clinics
+    if (!clinics) return null;
+
     // Current active clinic
-    const currentClinic = clinics.find(c => c.clinic_id === profile?.clinic_id)
+    const currentClinic = clinics?.find(c => c.clinic_id === profile?.clinic_id)
 
     const handleSwitch = (clinicId: string) => {
         if (clinicId === profile?.clinic_id) return

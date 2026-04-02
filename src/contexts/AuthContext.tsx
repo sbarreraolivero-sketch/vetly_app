@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [subscription, setSubscription] = useState<Subscription | null>(null)
     const [clinics, setClinics] = useState<Clinic[]>(() => {
         const cached = localStorage.getItem(CLINICS_STORAGE_KEY)
-        try { return cached ? JSON.parse(cached) : null } catch { return [] }
+        try { return cached ? JSON.parse(cached) : [] } catch { return [] }
     })
     const [session, setSession] = useState<Session | null>(null)
     const [loading, setLoading] = useState(true)

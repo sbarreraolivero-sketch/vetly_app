@@ -283,7 +283,8 @@ export default function DashboardLayout() {
                         // Hide Finance, CRM, and Campaigns for non-owners
                         if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
                             // Check both member role and profile role to be safe
-                            const isOwnerOrAdmin = member?.role === 'owner' || profile?.role === 'owner' || member?.role === 'admin' || profile?.role === 'admin'
+                            const userRole = member?.role || (profile as any)?.role
+                            const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
                             if (!isOwnerOrAdmin) return false
                         }
                         return true
