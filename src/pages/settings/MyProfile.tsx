@@ -148,8 +148,23 @@ export default function MyProfile() {
             toast.success('Perfil actualizado correctamente')
         } catch (error: any) {
             console.error('Error updating profile:', error)
-            const errorMessage = error?.message || 'Error al actualizar el perfil'
-            if (errorMessage.includes('permission denied') || error?.code === '42501') {
+            
+            // SECONDARY RETRY: If columns 'color' or 'working_hours' are missing (PGRST204), try save without them
+            if (error?.code === 'PGRST204' || error?.message?.includes('color') || error?.message?.includes('working_hours')) {
+                console.warn('Database schema missing new columns, retrying basic save...')
+                try {
+                    await teamService.updateMemberProfile(currentMemberId, {
+                        first_name: firstName,
+                        last_name: lastName,
+                        job_title: systemRoleString,
+                        specialty,
+                    })
+                    toast.success('Perfil guardado (sin horarios ni color)')
+                    toast('Dato: Tu base de datos necesita una actualización de esquema.', { icon: '⚠️' })
+                } catch (retryError: any) {
+                    toast.error('Error al actualizar el perfil básico.')
+                }
+            } else if (error?.message?.includes('permission denied') || error?.code === '42501') {
                 toast.error('No tienes permisos suficientes para actualizar este perfil.')
             } else {
                 toast.error('Error al actualizar el perfil. Intenta de nuevo.')
