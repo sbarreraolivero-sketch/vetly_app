@@ -103,7 +103,7 @@ export default function Settings() {
     })
 
     const [activeTab, setActiveTab] = useState('profile') // Default to profile for non-owners safety
-    const [clinicName, setClinicName] = useState('Clínica Estética Demo')
+    const [clinicName, setClinicName] = useState('')
     const [clinicAddress, setClinicAddress] = useState('')
     const [addressReferences, setAddressReferences] = useState('')
     const [googleMapsUrl, setGoogleMapsUrl] = useState('')
@@ -133,8 +133,8 @@ export default function Settings() {
     const [primaryProfessional, setPrimaryProfessional] = useState<string>('')
 
     // Currency and templates
-    const [currency, setCurrency] = useState('MXN')
-    const [timezone, setTimezone] = useState('America/Mexico_City')
+    const [currency, setCurrency] = useState('CLP')
+    const [timezone, setTimezone] = useState('America/Santiago')
     const [templateSurvey, setTemplateSurvey] = useState('')
     const [templateReactivation, setTemplateReactivation] = useState('')
     const currencySymbols: Record<string, string> = {
@@ -389,8 +389,8 @@ export default function Settings() {
                     setFacebookUrl(data.facebook_url || '')
                     setTiktokUrl(data.tiktok_url || '')
                     setWebsiteUrl(data.website_url || '')
-                    setCurrency(data.currency || 'MXN')
-                    setTimezone(data.timezone || 'America/Mexico_City')
+                    setCurrency(data.currency || 'CLP')
+                    setTimezone(data.timezone || 'America/Santiago')
                     setTemplateSurvey(data.template_survey || '')
                     setTemplateReactivation(data.template_reactivation || '')
 
