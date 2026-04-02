@@ -855,8 +855,8 @@ export default function Settings() {
         }
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
+            console.log('Intentando guardar clínica con ID:', profile.clinic_id)
+            const { data, error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     clinic_name: clinicName,
@@ -875,8 +875,12 @@ export default function Settings() {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
+                .select()
 
             if (error) throw error
+            if (!data || data.length === 0) {
+                throw new Error('No se encontró la clínica para actualizar o no tienes permisos (ID: ' + profile.clinic_id + ')')
+            }
 
             // Refresh clinics context to update header
             await refreshClinics()
@@ -897,15 +901,19 @@ export default function Settings() {
         setScheduleSaved(false)
 
         try {
-            const { error } = await (supabase as any)
+            const { data, error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     working_hours: workingHours,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
+                .select()
 
             if (error) throw error
+            if (!data || data.length === 0) {
+                throw new Error('No se encontraron los horarios para actualizar o no tienes permisos.')
+            }
             setScheduleSaved(true)
             setTimeout(() => setScheduleSaved(false), 3000)
         } catch (error) {
@@ -926,7 +934,7 @@ export default function Settings() {
         }
 
         try {
-            const { error } = await (supabase as any)
+            const { data, error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     ai_auto_respond: aiAutoRespond,
@@ -934,8 +942,12 @@ export default function Settings() {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
+                .select()
 
             if (error) throw error
+            if (!data || data.length === 0) {
+                throw new Error('No se encontró la configuración de IA para actualizar o no tienes permisos.')
+            }
             setAiSaved(true)
             setTimeout(() => setAiSaved(false), 3000)
         } catch (error) {
