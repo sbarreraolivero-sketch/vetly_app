@@ -366,18 +366,37 @@ export default function Settings() {
                     })
                 }
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data, error } = await (supabase as any)
+                // Fetch clinic settings with auto-creation for stability (Citenly pattern)
+                let { data, error } = await (supabase as any)
                     .from('clinic_settings')
                     .select('*')
                     .eq('id', profile.clinic_id)
                     .single()
 
-                if (error) {
-                    // Ignore "Row not found" error (code PGRST116) as it just means no settings exist yet
-                    if (error.code !== 'PGRST116') {
-                        throw error
+                if (error && (error.code === 'PGRST116' || error.code === '406')) {
+                    console.log('No settings found for clinic, auto-creating defaults...')
+                    const { data: newData, error: insertError } = await (supabase as any)
+                        .from('clinic_settings')
+                        .upsert([{ 
+                            id: profile.clinic_id, 
+                            clinic_name: 'AnimalGrace Santiago',
+                            currency: 'CLP',
+                            timezone: 'America/Santiago',
+                            business_model: 'physical'
+                        }], { onConflict: 'id' })
+                        .select()
+                        .single()
+                    
+                    if (!insertError) {
+                        data = newData
+                        error = null
+                    } else {
+                        console.error('Failed to auto-create settings:', insertError)
                     }
+                }
+
+                if (error && error.code !== 'PGRST116') {
+                    throw error
                 }
 
                 if (data) {
