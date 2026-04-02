@@ -24,8 +24,8 @@ import {
     X,
     FileText,
     BellOff,
-    Dog,
-    Gift
+    Heart,
+    Award
 } from 'lucide-react'
 import { AIChatWidget } from '../AIChatWidget'
 import { cn, getInitials } from '@/lib/utils'
@@ -47,13 +47,13 @@ const navigation = [
     { name: 'Mensajes', href: '/app/messages', icon: MessageSquare },
     { name: 'Plantillas', href: '/app/templates', icon: FileText },
     { name: 'Tutores y Prospectos', href: '/app/tutors', icon: Users },
-    { name: 'Pacientes', href: '/app/patients', icon: Dog },
+    { name: 'Pacientes', href: '/app/patients', icon: Heart },
     { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
     { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
     { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
     { name: 'CRM', href: '/app/crm', icon: Target },
     { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
-    { name: 'Fidelización', href: '/app/loyalty', icon: Gift },
+    { name: 'Fidelización', href: '/app/loyalty', icon: Award },
     { name: 'Configuración', href: '/app/settings', icon: Settings },
 ]
 
