@@ -42,11 +42,16 @@ export default function MyProfile() {
     const [color, setColor] = useState('#8B5CF6')
     const [workingHours, setWorkingHours] = useState<Record<string, { enabled: boolean; start: string; end: string; lunch_break?: { enabled: boolean; start: string; end: string } }>>(DEFAULT_HOURS)
 
+    // Derived role string
+    const systemRoleString = member?.role === 'owner' ? 'Administrador' : 
+                             member?.role === 'professional' ? 'Profesional' : 
+                             member?.role === 'receptionist' ? 'Recepcionista' : jobTitle
+
     useEffect(() => {
         if (member) {
             setFirstName(member.first_name || '')
             setLastName(member.last_name || '')
-            setJobTitle((member as any).job_title || '')
+            setJobTitle(systemRoleString)
             setSpecialty(member.specialty || '')
             setColor(member.color || '#8B5CF6')
             setWorkingHours((member as any).working_hours || DEFAULT_HOURS)
@@ -76,7 +81,7 @@ export default function MyProfile() {
             await teamService.updateMemberProfile(currentMemberId, {
                 first_name: firstName,
                 last_name: lastName,
-                job_title: jobTitle,
+                job_title: systemRoleString, // Send the derived role string to DB
                 specialty,
                 color,
                 working_hours: workingHours,
@@ -170,12 +175,14 @@ export default function MyProfile() {
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Cargo</label>
                         <input
                             type="text"
-                            value={jobTitle}
-                            onChange={(e) => setJobTitle(e.target.value)}
-                            className="input-soft w-full"
-                            placeholder="Ej: Administrador"
-                            autoComplete="off"
+                            value={member?.role === 'owner' ? 'Administrador' : 
+                                   member?.role === 'professional' ? 'Profesional' : 
+                                   member?.role === 'receptionist' ? 'Recepcionista' : jobTitle}
+                            readOnly
+                            className="input-soft w-full bg-gray-50 cursor-not-allowed opacity-70"
+                            placeholder="Cargo del sistema"
                         />
+                        <p className="text-[10px] text-charcoal/40 mt-1 italic">Dato gestionado por el sistema</p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Especialidad</label>
