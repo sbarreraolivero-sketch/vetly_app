@@ -175,14 +175,16 @@ export default function MyProfile() {
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Cargo</label>
                         <input
                             type="text"
-                            value={member?.role === 'owner' ? 'Administrador' : 
-                                   member?.role === 'professional' ? 'Profesional' : 
-                                   member?.role === 'receptionist' ? 'Recepcionista' : jobTitle}
+                            value={
+                                member?.role === 'owner' || member?.role === 'admin' ? 'Administrador' : 
+                                member?.role === 'professional' ? 'Profesional' : 
+                                member?.role === 'receptionist' ? 'Recepcionista' : 
+                                (member ? 'Miembro del equipo' : '')
+                            }
                             readOnly
                             className="input-soft w-full bg-gray-50 cursor-not-allowed opacity-70"
-                            placeholder="Cargo del sistema"
                         />
-                        <p className="text-[10px] text-charcoal/40 mt-1 italic">Dato gestionado por el sistema</p>
+                        <p className="text-[10px] text-charcoal/40 mt-1 italic">Dato gestionado por el sistema (Rol: {member?.role || 'Buscando...'})</p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Especialidad</label>
