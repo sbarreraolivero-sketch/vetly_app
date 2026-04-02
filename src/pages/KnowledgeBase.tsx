@@ -133,7 +133,10 @@ export default function KnowledgeBase() {
     }, [profile?.clinic_id])
 
     const handleSaveMasterPrompt = async () => {
-        if (!profile?.clinic_id) return
+        if (!profile?.clinic_id) {
+            alert('No se pudo identificar tu clínica. Refresca la página e intenta de nuevo.')
+            return
+        }
         setSavingPrompt(true)
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,9 +152,14 @@ export default function KnowledgeBase() {
             if (error) throw error
             setPromptSaved(true)
             setTimeout(() => setPromptSaved(false), 3000)
-        } catch (e) {
+        } catch (e: any) {
             console.error('Error saving prompt settings:', e)
-            alert('Error al guardar la configuración. Inténtalo de nuevo.')
+            const errorMsg = e?.message || ''
+            if (errorMsg.includes('permission denied') || e?.code === '42501') {
+                alert('No tienes los permisos necesarios para modificar la configuración de la clínica. Solo los Administradores o Dueños pueden realizar esta acción.')
+            } else {
+                alert('Error al guardar la configuración. Por favor, verifica tu conexión e intenta de nuevo.')
+            }
         } finally {
             setSavingPrompt(false)
         }
@@ -206,7 +214,15 @@ export default function KnowledgeBase() {
     }
 
     const handleSave = async () => {
-        if (!profile?.clinic_id || !formTitle.trim() || !formContent.trim()) return
+        if (!profile?.clinic_id) {
+            alert('No se pudo identificar tu clínica. Refresca la página e intenta de nuevo.')
+            return
+        }
+        
+        if (!formTitle.trim() || !formContent.trim()) {
+            alert('Por favor, completa el título y el contenido del documento.')
+            return
+        }
 
         setSaving(true)
         try {
@@ -245,9 +261,14 @@ export default function KnowledgeBase() {
 
             closeModal()
             fetchDocuments()
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving document:', error)
-            alert('Error al guardar el documento. Inténtalo de nuevo.')
+            const errorMsg = error?.message || ''
+            if (errorMsg.includes('permission denied') || error?.code === '42501') {
+                alert('No tienes permisos suficientes para guardar cambios en la base de conocimiento.')
+            } else {
+                alert('Ocurrió un error al intentar guardar el documento. Por favor, verifica tu conexión e intenta de nuevo.')
+            }
         } finally {
             setSaving(false)
         }

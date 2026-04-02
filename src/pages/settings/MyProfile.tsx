@@ -59,7 +59,7 @@ export default function MyProfile() {
         let currentMemberId = member?.id
 
         if (!currentMemberId) {
-            // Intenta recuperar el ID directamente si se perdió en el contexto (múltiples sesiones/caché)
+            console.warn('Member ID not in context, attempting direct fetch...')
             const fallbackMember = await teamService.getCurrentMember()
             if (fallbackMember?.id) {
                 currentMemberId = fallbackMember.id
@@ -67,7 +67,7 @@ export default function MyProfile() {
         }
 
         if (!currentMemberId) {
-            toast.error('No se pudo encontrar tu registro profesional. Refresca la página.')
+            toast.error('No se pudo encontrar tu registro profesional. Por seguridad, no podemos guardar los cambios sin identificar tu perfil. Intenta refrescar la página.')
             return
         }
 
@@ -82,9 +82,17 @@ export default function MyProfile() {
                 working_hours: workingHours,
             })
             toast.success('Perfil actualizado correctamente')
-        } catch (error) {
+            
+            // Opcional: refrescar la página o el contexto para asegurar sincronía
+            // window.location.reload()
+        } catch (error: any) {
             console.error('Error updating profile:', error)
-            toast.error('Error al actualizar el perfil')
+            const errorMessage = error?.message || 'Error al actualizar el perfil'
+            if (errorMessage.includes('permission denied') || error?.code === '42501') {
+                toast.error('No tienes permisos suficientes para actualizar este perfil.')
+            } else {
+                toast.error('Error al actualizar el perfil. Intenta de nuevo.')
+            }
         } finally {
             setSaving(false)
         }
@@ -144,6 +152,7 @@ export default function MyProfile() {
                             onChange={(e) => setFirstName(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Tu nombre"
+                            autoComplete="off"
                         />
                     </div>
                     <div>
@@ -154,6 +163,7 @@ export default function MyProfile() {
                             onChange={(e) => setLastName(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Tu apellido"
+                            autoComplete="off"
                         />
                     </div>
                     <div>
@@ -164,6 +174,7 @@ export default function MyProfile() {
                             onChange={(e) => setJobTitle(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Ej: Administrador"
+                            autoComplete="off"
                         />
                     </div>
                     <div>
@@ -174,6 +185,7 @@ export default function MyProfile() {
                             onChange={(e) => setSpecialty(e.target.value)}
                             className="input-soft w-full"
                             placeholder="Ej: Ortodoncia, Rehabilitación"
+                            autoComplete="off"
                         />
                     </div>
                 </div>

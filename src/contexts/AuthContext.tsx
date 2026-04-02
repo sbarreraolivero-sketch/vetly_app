@@ -293,14 +293,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                             // 3. Fetch Member
                             try {
-                                const { data, error } = await supabase
+                                const { data: memberFetchData, error: memberFetchError } = await supabase
                                     .from('clinic_members')
                                     .select('*')
                                     .eq('user_id', session.user.id)
                                     .eq('clinic_id', profileData.clinic_id)
                                     .single()
-                                if (error) console.error('Member fetch error details:', error)
-                                memberData = data
+                                
+                                if (memberFetchError) {
+                                    console.warn('Member fetch failed, attempting self-repair or fallback...', memberFetchError)
+                                    
+                                    // Fallback RPC First
+                                    const { data: rpcMemberData } = await (supabase as any).rpc('get_myself_clinical_member')
+                                    
+                                    if (rpcMemberData) {
+                                        memberData = rpcMemberData
+                                    } else if (profileData.role === 'owner') {
+                                        // Self-repair: Create member entry if owner lacks one
+                                        console.log('Self-repair: Creating missing owner member entry for:', session.user.email)
+                                        const { data: repairData } = await (supabase.from('clinic_members') as any)
+                                            .insert({
+                                                clinic_id: profileData.clinic_id,
+                                                user_id: session.user.id,
+                                                email: session.user.email,
+                                                role: 'owner',
+                                                status: 'active',
+                                                first_name: profileData.full_name?.split(' ')[0] || ''
+                                            })
+                                            .select()
+                                            .single()
+                                        if (repairData) memberData = repairData
+                                    }
+                                } else {
+                                    memberData = memberFetchData
+                                }
                             } catch (e) { console.error('Member fetch exception:', e) }
                         }
 
@@ -375,9 +401,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                 .eq('user_id', session.user.id)
                                 .eq('clinic_id', data.clinic_id)
                                 .single()
-                                .then(({ data, error }) => {
-                                    if (error) console.error('Auth state change member fetch error:', error)
-                                    if (data && mounted) setMember(data)
+                                .then(async ({ data: memberData, error: memberError }) => {
+                                    if (memberError) {
+                                        console.warn('onAuthStateChange member fetch error, trying fallback:', memberError)
+                                        const { data: fallbackMember } = await (supabase as any).rpc('get_myself_clinical_member')
+                                        if (fallbackMember && mounted) setMember(fallbackMember)
+                                    } else if (memberData && mounted) {
+                                        setMember(memberData)
+                                    }
                                 })
                         }
                     } else if (mounted && status === 'not_found' && !window.location.pathname.startsWith('/hq')) {
