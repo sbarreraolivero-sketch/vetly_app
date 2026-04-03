@@ -853,12 +853,20 @@ export default function Settings() {
         }
 
         try {
-            console.log('Intentando guardar clínica con ID:', profile.clinic_id)
-            const { error } = await (supabase as any)
+            console.log('--- AUDITORÍA DE GUARDADO ---')
+            console.log('ID Clínica:', profile.clinic_id)
+            console.log('Payload:', {
+                clinic_name: clinicName,
+                business_model: businessModel,
+                clinic_address: clinicAddress
+            })
+
+            const { data, error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     clinic_name: clinicName,
                     clinic_address: clinicAddress,
+                    address: clinicAddress, // Sincronizar columna legacy
                     address_references: addressReferences,
                     google_maps_url: googleMapsUrl,
                     instagram_url: instagramUrl,
@@ -872,20 +880,27 @@ export default function Settings() {
                     template_reactivation: templateReactivation,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id);
-            if (error) throw error
+                .eq('id', profile.clinic_id)
+                .select();
 
-            // Log successful save for diagnostics
-            console.log('✅ Clinic settings saved successfully for ID:', profile.clinic_id)
+            if (error) {
+                console.error('ERROR SUPABASE:', error)
+                throw error
+            }
 
-            // Refresh clinics context to update header
-            await refreshClinics()
+            console.log('RESULTADO EXITOSO:', data)
+            
+            // Refrescar contexto global
+            if (refreshClinics) {
+                await refreshClinics()
+            }
 
             setClinicSaved(true)
             setTimeout(() => setClinicSaved(false), 3000)
-        } catch (error) {
-            console.error('Error saving clinic settings:', error)
-            alert('Error al guardar la configuración de la clínica')
+            toast.success('Configuración guardada correctamente')
+        } catch (error: any) {
+            console.error('ERROR AL GUARDAR:', error)
+            toast.error('Error al guardar: ' + (error.message || 'Error desconocido'))
         } finally {
             setSavingClinic(false)
         }
