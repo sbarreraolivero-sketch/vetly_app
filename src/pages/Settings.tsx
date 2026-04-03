@@ -374,6 +374,8 @@ export default function Settings() {
                     .eq('id', profile.clinic_id)
                     .single()
 
+                console.log('--- REVISANDO CONFIGURACIÓN RECUPERADA ---', data)
+                if (error) console.error('--- ERROR EN CONFIGURACIÓN ---', error)
 
                 if (error && error.code !== 'PGRST116') {
                     throw error
