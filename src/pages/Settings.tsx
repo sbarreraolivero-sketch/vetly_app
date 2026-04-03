@@ -373,27 +373,6 @@ export default function Settings() {
                     .eq('id', profile.clinic_id)
                     .single()
 
-                if (error && (error.code === 'PGRST116' || error.code === '406')) {
-                    console.log('No settings found for clinic, auto-creating defaults...')
-                    const { data: newData, error: insertError } = await (supabase as any)
-                        .from('clinic_settings')
-                        .upsert([{ 
-                            id: profile.clinic_id, 
-                            clinic_name: 'AnimalGrace Santiago',
-                            currency: 'CLP',
-                            timezone: 'America/Santiago',
-                            business_model: 'physical'
-                        }], { onConflict: 'id' })
-                        .select()
-                        .single()
-                    
-                    if (!insertError) {
-                        data = newData
-                        error = null
-                    } else {
-                        console.error('Failed to auto-create settings:', insertError)
-                    }
-                }
 
                 if (error && error.code !== 'PGRST116') {
                     throw error
@@ -415,7 +394,7 @@ export default function Settings() {
 
                     setYCloudApiKey(data.ycloud_api_key || '')
                     setYCloudPhoneNumber(data.ycloud_phone_number || '')
-                    
+
                     setAiCreditsMonthlyLimit(data.ai_credits_monthly_limit || 500)
                     setAiCreditsExtraBalance(data.ai_credits_extra_balance || 0)
                     setAiCreditsExtra4o(data.ai_credits_extra_4o || 0)
@@ -463,7 +442,7 @@ export default function Settings() {
                 } else {
                     // Fetch split counts
                     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-                    
+
                     // GPT-4o Messages
                     const { count: count4o } = await (supabase as any)
                         .from('messages')
@@ -893,13 +872,8 @@ export default function Settings() {
                     template_reactivation: templateReactivation,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id)
-                .select()
-
+                .eq('id', profile.clinic_id);
             if (error) throw error
-            if (!data || data.length === 0) {
-                throw new Error('No se encontró la clínica para actualizar o no tienes permisos (ID: ' + profile.clinic_id + ')')
-            }
 
             // Log successful save for diagnostics
             console.log('✅ Clinic settings saved successfully for ID:', profile.clinic_id)
@@ -923,19 +897,17 @@ export default function Settings() {
         setScheduleSaved(false)
 
         try {
-            const { data, error } = await (supabase as any)
+            const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     working_hours: workingHours,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id)
-                .select()
+                .eq('id', profile.clinic_id);
 
-            if (error) throw error
-            if (!data || data.length === 0) {
-                throw new Error('No se encontraron los horarios para actualizar o no tienes permisos.')
-            }
+
+            if (error) throw error;
+
             setScheduleSaved(true)
             setTimeout(() => setScheduleSaved(false), 3000)
         } catch (error) {
@@ -956,20 +928,18 @@ export default function Settings() {
         }
 
         try {
-            const { data, error } = await (supabase as any)
+            const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     ai_auto_respond: aiAutoRespond,
                     ai_active_model: aiActiveModel,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id)
-                .select()
+                .eq('id', profile.clinic_id);
 
-            if (error) throw error
-            if (!data || data.length === 0) {
-                throw new Error('No se encontró la configuración de IA para actualizar o no tienes permisos.')
-            }
+
+            if (error) throw error;
+
             setAiSaved(true)
             setTimeout(() => setAiSaved(false), 3000)
         } catch (error) {
@@ -1312,14 +1282,14 @@ export default function Settings() {
                                             <p className="text-xs text-charcoal/50">Define cómo opera tu clínica para optimizar al asistente IA</p>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                         <button
                                             onClick={() => setBusinessModel('physical')}
                                             className={cn(
                                                 "flex flex-col items-center gap-2 p-3 rounded-soft border transition-all",
-                                                businessModel === 'physical' 
-                                                    ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500" 
+                                                businessModel === 'physical'
+                                                    ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500"
                                                     : "bg-white/40 border-silk-beige hover:border-primary-200"
                                             )}
                                         >
@@ -1336,8 +1306,8 @@ export default function Settings() {
                                             onClick={() => setBusinessModel('mobile')}
                                             className={cn(
                                                 "flex flex-col items-center gap-2 p-3 rounded-soft border transition-all",
-                                                businessModel === 'mobile' 
-                                                    ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500" 
+                                                businessModel === 'mobile'
+                                                    ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500"
                                                     : "bg-white/40 border-silk-beige hover:border-primary-200"
                                             )}
                                         >
@@ -1354,8 +1324,8 @@ export default function Settings() {
                                             onClick={() => setBusinessModel('hybrid')}
                                             className={cn(
                                                 "flex flex-col items-center gap-2 p-3 rounded-soft border transition-all",
-                                                businessModel === 'hybrid' 
-                                                    ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500" 
+                                                businessModel === 'hybrid'
+                                                    ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500"
                                                     : "bg-white/40 border-silk-beige hover:border-primary-200"
                                             )}
                                         >
@@ -1896,11 +1866,11 @@ export default function Settings() {
                                     <div className={cn(
                                         "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider",
                                         subscription?.status === 'trial' ? 'bg-amber-100 text-amber-700' :
-                                        subscription?.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                                        'bg-charcoal/10 text-charcoal/60'
+                                            subscription?.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                                                'bg-charcoal/10 text-charcoal/60'
                                     )}>
                                         {subscription?.status === 'trial' ? 'En Prueba' :
-                                         subscription?.status === 'active' ? 'Plan Activo' : 'Inactivo'}
+                                            subscription?.status === 'active' ? 'Plan Activo' : 'Inactivo'}
                                     </div>
                                 </div>
 
@@ -1915,17 +1885,17 @@ export default function Settings() {
                                                 <Sparkles className="w-4 h-4 text-primary-500" />
                                                 <p className="text-sm font-medium text-charcoal/70">
                                                     {subscription?.plan === 'essence' ? 'Control Esencial y Automatización' :
-                                                     subscription?.plan === 'radiance' ? 'Escalamiento Profesional y Retención' :
-                                                     subscription?.plan === 'prestige' ? 'Potencia Empresarial Multi-Sede' :
-                                                     'Prueba gratuita - 7 días de acceso total'}
+                                                        subscription?.plan === 'radiance' ? 'Escalamiento Profesional y Retención' :
+                                                            subscription?.plan === 'prestige' ? 'Potencia Empresarial Multi-Sede' :
+                                                                'Prueba gratuita - 7 días de acceso total'}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-3xl font-black text-charcoal">
                                                 {paymentRegion === 'international' ? 'US$' : '$'}
-                                                {subscription?.plan && subscription.plan !== 'trial' 
-                                                    ? (paymentRegion === 'international' 
+                                                {subscription?.plan && subscription.plan !== 'trial'
+                                                    ? (paymentRegion === 'international'
                                                         ? LS_PLANS[subscription.plan as LSPlanId]?.price
                                                         : PLANS[subscription.plan as PlanId]?.price)
                                                     : '0'}
@@ -1947,16 +1917,16 @@ export default function Settings() {
 
                                 <div className="flex flex-wrap gap-4">
                                     {subscription?.status === 'trial' && (
-                                        <button 
+                                        <button
                                             onClick={() => document.getElementById('compare-plans')?.scrollIntoView({ behavior: 'smooth' })}
                                             className="btn-primary"
                                         >
                                             Activar Plan Premium
                                         </button>
                                     )}
-                                    <a 
-                                        href="https://www.mercadopago.com.mx/subscriptions" 
-                                        target="_blank" 
+                                    <a
+                                        href="https://www.mercadopago.com.mx/subscriptions"
+                                        target="_blank"
                                         rel="noopener noreferrer"
                                         className="btn-ghost"
                                     >
@@ -1965,7 +1935,7 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                             {/* Plan Cards */}
+                            {/* Plan Cards */}
                             <div id="compare-plans" className="space-y-4">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
                                     <div className="flex flex-col">
@@ -2023,7 +1993,7 @@ export default function Settings() {
                                         const isRadiance = planId === 'radiance'
 
                                         return (
-                                            <div 
+                                            <div
                                                 key={planId}
                                                 className={cn(
                                                     "relative flex flex-col p-6 rounded-soft border-2 transition-all duration-300",
@@ -2064,10 +2034,10 @@ export default function Settings() {
                                                     disabled={isCurrentPlan}
                                                     className={cn(
                                                         "w-full py-3 rounded-soft font-black text-sm uppercase tracking-widest transition-all",
-                                                        isCurrentPlan 
-                                                            ? "bg-charcoal/10 text-charcoal/40 cursor-not-allowed" 
-                                                            : isRadiance 
-                                                                ? "bg-hero-gradient text-white shadow-lg hover:shadow-xl hover:scale-[1.02]" 
+                                                        isCurrentPlan
+                                                            ? "bg-charcoal/10 text-charcoal/40 cursor-not-allowed"
+                                                            : isRadiance
+                                                                ? "bg-hero-gradient text-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
                                                                 : "bg-charcoal text-white hover:bg-primary-500"
                                                     )}
                                                 >
@@ -2938,7 +2908,7 @@ export default function Settings() {
                                             <p className="text-sm text-charcoal/50">Historial reciente de recordatorios enviados</p>
                                         </div>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             // Trigger reload
                                             setActiveTab('profile');
@@ -3338,10 +3308,10 @@ export default function Settings() {
                                         const currentPacks = paymentRegion === 'international' ? lsPacks : mpPacks;
                                         const currencySymbol = paymentRegion === 'international' ? 'US$' : '$';
                                         const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP';
-                                        
+
                                         return Object.keys(currentPacks).map((packId) => {
                                             const pack = (currentPacks as any)[packId]
-                                            
+
                                             return (
                                                 <div key={packId} className={cn(
                                                     "p-6 bg-white border rounded-soft hover:shadow-md transition-all flex flex-col",
