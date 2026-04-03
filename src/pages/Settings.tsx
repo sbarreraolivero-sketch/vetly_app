@@ -867,6 +867,7 @@ export default function Settings() {
                 .update({
                     clinic_name: clinicName,
                     clinic_address: clinicAddress,
+                    address: clinicAddress, // Sincronizar columna legacy
                     address_references: addressReferences,
                     google_maps_url: googleMapsUrl,
                     instagram_url: instagramUrl,
@@ -889,7 +890,7 @@ export default function Settings() {
             }
 
             console.log('RESULTADO EXITOSO:', data)
-            
+
             // Refrescar contexto global
             if (refreshClinics) {
                 await refreshClinics()
