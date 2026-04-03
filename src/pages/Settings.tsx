@@ -368,21 +368,18 @@ export default function Settings() {
                 }
 
                 // Fetch clinic settings with auto-creation for stability (Citenly pattern)
-                let { data, error } = await (supabase as any)
+                const { data, error } = await (supabase as any)
                     .from('clinic_settings')
                     .select('*')
                     .eq('id', profile.clinic_id)
                     .single()
-
-                console.log('--- REVISANDO CONFIGURACIÓN RECUPERADA ---', data)
-                if (error) console.error('--- ERROR EN CONFIGURACIÓN ---', error)
 
                 if (error && error.code !== 'PGRST116') {
                     throw error
                 }
 
                 if (data) {
-                    setClinicName(data.clinic_name)
+                    setClinicName(data.clinic_name || '')
                     setClinicAddress(data.clinic_address || '')
                     setAddressReferences(data.address_references || '')
                     setGoogleMapsUrl(data.google_maps_url || '')
@@ -403,7 +400,7 @@ export default function Settings() {
                     setAiCreditsExtra4o(data.ai_credits_extra_4o || 0)
                     setAiActiveModel(data.ai_active_model || 'mini')
 
-                    setAiAutoRespond(data.ai_auto_respond !== false) // default to true if undefined
+                    setAiAutoRespond(data.ai_auto_respond !== false) 
                     setBusinessModel(data.business_model || 'physical')
                     setPaymentRegion(data.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
                     if (data.working_hours) setWorkingHours(data.working_hours)
