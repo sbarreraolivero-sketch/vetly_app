@@ -47,6 +47,7 @@ import { TagManager } from '@/components/settings/TagManager'
 import Team from './settings/Team'
 import MyProfile from './settings/MyProfile'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
+import { toast } from 'react-hot-toast'
 
 // Get the Supabase URL for webhook display
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
