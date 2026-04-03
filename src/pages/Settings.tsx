@@ -854,7 +854,7 @@ export default function Settings() {
 
         try {
             console.log('Intentando guardar clínica con ID:', profile.clinic_id)
-            const { data, error } = await (supabase as any)
+            const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
                     clinic_name: clinicName,
