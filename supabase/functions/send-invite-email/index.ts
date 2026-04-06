@@ -132,16 +132,24 @@ Deno.serve(async (req) => {
         });
 
         const data = await res.json();
+        console.log("Resend API Response:", data);
 
         if (!res.ok) {
-            console.error("Resend API Error:", data);
-            return new Response(JSON.stringify({ error: data }), {
+            console.error("Resend API Full Error:", JSON.stringify(data));
+            return new Response(JSON.stringify({ 
+                error: "Resend Error", 
+                details: data,
+                status: res.status 
+            }), {
                 status: 400,
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
             });
         }
 
-        return new Response(JSON.stringify(data), {
+        return new Response(JSON.stringify({ 
+            success: true, 
+            messageId: data.id 
+        }), {
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
     } catch (error) {
