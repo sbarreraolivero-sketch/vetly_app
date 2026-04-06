@@ -39,7 +39,7 @@ serve(async (req) => {
                 Authorization: `Bearer ${RESEND_API_KEY}`,
             },
             body: JSON.stringify({
-                from: "Citenly AI <onboarding@resend.dev>", // Default until user verifies domain
+                from: "Vetly AI <hola@vetly.pro>",
                 to: email,
                 subject: `Te han invitado a ${clinicName}`,
                 html: `
@@ -48,7 +48,7 @@ serve(async (req) => {
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Invitación a Citenly AI</title>
+              <title>Invitación a Vetly AI</title>
             </head>
             <body style="margin: 0; padding: 0; background-color: #FAFAF8; font-family: 'Plus Jakarta Sans', Arial, sans-serif; color: #2E2E2E;">
               
@@ -61,10 +61,10 @@ serve(async (req) => {
                       
                       <!-- Header Gradient -->
                       <tr>
-                        <td style="padding: 32px; background: linear-gradient(135deg, #1F6F5C 0%, #7FA89A 100%); text-align: center;">
-                          <!-- Logo Placeholder (Sparkles Icon as text for email safety) -->
+                        <td style="padding: 32px; background: linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%); text-align: center;">
+                          <!-- Logo Placeholder -->
                           <div style="font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em; display: inline-flex; align-items: center; gap: 8px;">
-                             ✨ Citenly AI
+                             🐾 Vetly AI
                           </div>
                         </td>
                       </tr>
@@ -79,16 +79,16 @@ serve(async (req) => {
                           
                           <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #5a5a5a;">
                             Hola,<br><br>
-                            <strong>${inviterName || 'Un administrador'}</strong> te ha invitado a colaborar en la gestión de la clínica <strong>"${clinicName}"</strong> utilizando Citenly AI.
+                            <strong>${inviterName || 'Un administrador'}</strong> te ha invitado a colaborar en la gestión de la clínica <strong>"${clinicName}"</strong> utilizando Vetly AI.
                           </p>
 
                           <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6; color: #5a5a5a;">
-                            Accede ahora para configurar tu perfil profesional, gestionar tus citas y comenzar a utilizar nuestro asistente inteligente.
+                            Accede ahora para configurar tu perfil profesional, gestionar tus citas y comenzar a trabajar con nuestro asistente inteligente.
                           </p>
 
                           <!-- CTA Button -->
                           <div style="margin-bottom: 32px;">
-                            <a href="${inviteLink}" style="display: inline-block; background-color: #1F6F5C; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(31, 111, 92, 0.2); transition: background-color 0.2s;">
+                            <a href="${inviteLink}" style="display: inline-block; background-color: #7C3AED; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2); transition: background-color 0.2s;">
                               Aceptar Invitación
                             </a>
                           </div>
@@ -100,7 +100,7 @@ serve(async (req) => {
                             Si el botón no funciona, copia y pega este enlace en tu navegador:
                           </p>
                           <p style="margin: 8px 0 0 0; font-size: 14px; word-break: break-all;">
-                            <a href="${inviteLink}" style="color: #1F6F5C; text-decoration: underline;">${inviteLink}</a>
+                            <a href="${inviteLink}" style="color: #7C3AED; text-decoration: underline;">${inviteLink}</a>
                           </p>
 
                         </td>
@@ -110,11 +110,11 @@ serve(async (req) => {
                       <tr>
                         <td style="background-color: #FAFAF8; padding: 24px; text-align: center; border-top: 1px solid #EDE6DE;">
                           <p style="margin: 0; font-size: 12px; color: #888888;">
-                            Has recibido este mensaje porque fuiste invitado a Citenly AI.<br>
+                            Has recibido este mensaje porque fuiste invitado a Vetly AI.<br>
                             Si crees que esto es un error, puedes ignorar este correo.
                           </p>
-                          <p style="margin: 12px 0 0 0; font-size: 12px; font-weight: 600; color: #C8A96A;">
-                            Gestión Inteligente para Clínicas
+                          <p style="margin: 12px 0 0 0; font-size: 12px; font-weight: 600; color: #7C3AED;">
+                            Gestión Inteligente para Clínicas Veterinarias
                           </p>
                         </td>
                       </tr>

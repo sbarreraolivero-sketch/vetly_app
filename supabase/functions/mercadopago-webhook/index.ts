@@ -173,6 +173,40 @@ Deno.serve(async (req: Request) => {
                 .eq("id", clinicId);
             
             if (syncError) console.error("Error syncing limits from MP:", syncError);
+
+            // 3. Send Activation Email (Async)
+            try {
+                // Fetch owner profile for personalization
+                const { data: ownerProfile } = await supabase
+                    .from("clinic_members")
+                    .select("email, first_name")
+                    .eq("clinic_id", clinicId)
+                    .eq("role", "owner")
+                    .limit(1)
+                    .single();
+
+                if (ownerProfile) {
+                    const monthlyLimit = plan === 'prestige' ? 5000 : (plan === 'radiance' ? 2500 : 1000);
+                    const ai4oLimit = plan === 'prestige' ? 300 : (plan === 'radiance' ? 200 : 100);
+
+                    fetch(`${SUPABASE_URL}/functions/v1/send-plan-activated-email`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+                        },
+                        body: JSON.stringify({
+                            email: ownerProfile.email,
+                            full_name: ownerProfile.first_name,
+                            plan_name: plan,
+                            monthly_limit: monthlyLimit,
+                            ai_4o_limit: ai4oLimit
+                        })
+                    }).catch(err => console.error("Error triggering activation email:", err));
+                }
+            } catch (e) {
+                console.warn("Activation email trigger failed (skipping):", e);
+            }
         }
 
         console.log(`Subscription updated: ${clinicId} -> ${subscriptionStatus} (Plan: ${plan})`);

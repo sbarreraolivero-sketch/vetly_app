@@ -239,6 +239,24 @@ Deno.serve(async (req: Request) => {
             );
         }
 
+        // 5. Send Welcome Email (Async)
+        try {
+            fetch(`${SUPABASE_URL}/functions/v1/send-welcome-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+                },
+                body: JSON.stringify({
+                    email,
+                    full_name,
+                    clinic_name
+                })
+            }).catch(err => console.error("Error triggering welcome email:", err));
+        } catch (e) {
+            console.warn("Welcome email trigger failed (skipping):", e);
+        }
+
         // Note: Subscription is auto-created by trigger on clinic_settings insert
 
         // Return success

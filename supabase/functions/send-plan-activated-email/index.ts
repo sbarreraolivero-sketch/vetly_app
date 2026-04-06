@@ -14,9 +14,9 @@ serve(async (req) => {
     }
 
     try {
-        const { email, full_name, clinic_name } = await req.json();
+        const { email, full_name, plan_name, monthly_limit, ai_4o_limit } = await req.json();
 
-        if (!email || !clinic_name) {
+        if (!email || !plan_name) {
             return new Response(JSON.stringify({ error: "Missing required fields" }), {
                 status: 400,
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -24,7 +24,7 @@ serve(async (req) => {
         }
 
         if (!RESEND_API_KEY) {
-            console.warn("Missing RESEND_API_KEY. Simulating welcome email send.");
+            console.warn("Missing RESEND_API_KEY. Simulating activation email send.");
             return new Response(JSON.stringify({ message: "Email simulation successful" }), {
                 status: 200,
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -40,14 +40,14 @@ serve(async (req) => {
             body: JSON.stringify({
                 from: "Vetly AI <hola@vetly.pro>",
                 to: email,
-                subject: `¡Bienvenido a la familia Vetly, ${full_name.split(' ')[0]}! 🐾`,
+                subject: `¡Plan ${plan_name.toUpperCase()} Activado! 🚀 - Vetly AI`,
                 html: `
           <!DOCTYPE html>
           <html>
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Bienvenida a Vetly AI</title>
+              <title>Plan Activado - Vetly AI</title>
             </head>
             <body style="margin: 0; padding: 0; background-color: #FAFAF8; font-family: 'Plus Jakarta Sans', Arial, sans-serif; color: #2E2E2E;">
               
@@ -58,13 +58,13 @@ serve(async (req) => {
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #EDE6DE; box-shadow: 0 4px 12px rgba(46, 46, 46, 0.05); overflow: hidden;">
                       
                       <tr>
-                        <td style="padding: 40px 32px; background: linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%); text-align: center;">
-                          <div style="font-size: 32px; margin-bottom: 16px;">🐾</div>
+                        <td style="padding: 40px 32px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); text-align: center;">
+                          <div style="font-size: 32px; margin-bottom: 16px;">🚀</div>
                           <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">
-                            ¡Hola, ${full_name.split(' ')[0]}!
+                            ¡Plan Activado!
                           </h1>
                           <p style="margin: 8px 0 0 0; font-size: 18px; color: rgba(255, 255, 255, 0.9);">
-                            Estamos felices de acompañarte en <strong>${clinic_name}</strong>
+                            Tu suscripción <strong>${plan_name.toUpperCase()}</strong> ya está vigente.
                           </p>
                         </td>
                       </tr>
@@ -73,40 +73,44 @@ serve(async (req) => {
                         <td style="padding: 40px 32px;">
                           
                           <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #5a5a5a;">
-                            ¡Bienvenido a Vetly AI! Estamos emocionados de ayudarte a transformar la gestión de tu clínica con tecnología inteligente.
+                            Hola ${full_name ? full_name.split(' ')[0] : 'colega'},<br><br>
+                            ¡Gracias por confiar en Vetly AI! Tu pago ha sido procesado correctamente y todos los beneficios de tu nuevo plan ya están disponibles en tu cuenta.
                           </p>
 
-                          <h2 style="font-size: 18px; font-weight: 600; color: #2E2E2E; margin-bottom: 16px;">¿Por dónde empezar?</h2>
-                          
-                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                            <tr>
-                              <td style="padding: 0 0 20px 0;">
-                                <div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">1. Configura tu Agenda</div>
-                                <div style="font-size: 14px; color: #666;">Define tus horarios y servicios para empezar a recibir citas automáticamente.</div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 0 0 20px 0;">
-                                <div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">2. Conoce a tu Asistente IA</div>
-                                <div style="font-size: 14px; color: #666;">Entrena a tu IA con la información de tu clínica para que responda dudas de tus clientes.</div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 0 0 20px 0;">
-                                <div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">3. Invita a tu Equipo</div>
-                                <div style="font-size: 14px; color: #666;">Añade a tus veterinarios y recepcionistas para trabajar de forma sincronizada.</div>
-                              </td>
-                            </tr>
-                          </table>
+                          <div style="background-color: #F3F4F6; border-radius: 8px; padding: 24px; margin-bottom: 32px;">
+                            <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #2E2E2E; border-bottom: 1px solid #E5E7EB; padding-bottom: 8px;">Resumen de tu suscripción:</h3>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                              <tr>
+                                <td style="padding: 4px 0; color: #666;">Citas Mensuales:</td>
+                                <td style="padding: 4px 0; text-align: right; font-weight: 600;">${monthly_limit}</td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 4px 0; color: #666;">Créditos IA (Mini):</td>
+                                <td style="padding: 4px 0; text-align: right; font-weight: 600;">Ilimitados*</td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 4px 0; color: #666;">Créditos IA (GPT-4o):</td>
+                                <td style="padding: 4px 0; text-align: right; font-weight: 600;">${ai_4o_limit} mensuales</td>
+                              </tr>
+                            </table>
+                          </div>
 
-                          <div style="margin: 32px 0; text-align: center;">
-                            <a href="https://www.vetly.pro/app/dashboard" style="display: inline-block; background-color: #7C3AED; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);">
-                              Ir a mi Dashboard
+                          <h2 style="font-size: 18px; font-weight: 600; color: #2E2E2E; margin-bottom: 16px;">¿Qué sigue?</h2>
+                          
+                          <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #5a5a5a;">
+                            Ahora puedes disfrutar de todas las herramientas avanzadas sin interrupciones. Tu asistente IA está listo para atender a más pacientes y tu agenda está liberada para crecer.
+                          </p>
+
+                          <div style="text-align: center; margin-bottom: 32px;">
+                            <a href="https://www.vetly.pro/app/settings?tab=subscription" style="display: inline-block; background-color: #10B981; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+                              Ver mi Suscripción
                             </a>
                           </div>
 
-                          <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #5a5a5a;">
-                            Si tienes cualquier duda, simplemente responde a este correo. ¡Nuestro equipo (y sus mascotas) están listos para ayudarte!
+                          <hr style="border: none; border-top: 1px solid #EDE6DE; margin: 32px 0;">
+
+                          <p style="margin: 0; font-size: 14px; text-align: center; color: #888888;">
+                            Si tienes dudas sobre tu facturación o necesitas ayuda técnica, escríbenos a hola@vetly.pro
                           </p>
 
                         </td>
@@ -115,8 +119,7 @@ serve(async (req) => {
                       <tr>
                         <td style="background-color: #FAFAF8; padding: 24px; text-align: center; border-top: 1px solid #EDE6DE;">
                           <p style="margin: 0; font-size: 12px; color: #888888;">
-                            &copy; 2026 Vetly AI. Todos los derechos reservados.<br>
-                            Santiago, Chile.
+                            &copy; 2026 Vetly AI. Gestionando el futuro de la salud animal.<br>
                           </p>
                         </td>
                       </tr>
