@@ -170,7 +170,7 @@ Deno.serve(async (req: Request) => {
                 subscription_plan: selected_plan,
                 ai_credits_monthly_limit: selected_plan === 'prestige' ? 5000 : (selected_plan === 'radiance' ? 2500 : 1000),
                 ai_credits_monthly_4o_limit: selected_plan === 'prestige' ? 300 : (selected_plan === 'radiance' ? 200 : 100),
-                max_users: selected_plan === 'prestige' ? 10000 : (selected_plan === 'radiance' ? 5 : 2),
+                max_users: selected_plan === 'prestige' ? 999999 : (selected_plan === 'radiance' ? 5 : 2),
                 services: [
                     { id: "svc-1", name: "Consulta General", duration: 30, price: 500 },
                 ],

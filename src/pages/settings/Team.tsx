@@ -14,9 +14,16 @@ export default function Team() {
     const [inviteEmail, setInviteEmail] = useState('')
     const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist' | 'vet_assistant'>('professional')
     const [inviteName, setInviteName] = useState('')
-    const [maxUsers, setMaxUsers] = useState(3) // Default to 3
-    const [maxAgendas, setMaxAgendas] = useState(1) // Default to 1
+    const [maxUsers, setMaxUsers] = useState(2) // Default to Essence minimum
+    const [maxAgendas, setMaxAgendas] = useState(1) // Default to Essence minimum
     const [planName, setPlanName] = useState('freemium')
+
+    // Centralized plan limits — SINGLE SOURCE OF TRUTH
+    const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
+        essence:  { maxUsers: 2,      maxAgendas: 1 },
+        radiance: { maxUsers: 5,      maxAgendas: 5 },
+        prestige: { maxUsers: 999999, maxAgendas: 999999 },
+    }
 
     // Fallback to profile check if member context is missing
     const isOwner = member?.role === 'owner' || profile?.role === 'owner'
@@ -100,20 +107,31 @@ export default function Team() {
 
             if (subData) {
                 // Subscription table is the ultimate authority
-                setPlanName(subData.plan)
-                if (subData.plan === 'prestige' || subData.plan === 'radiance_plus') {
-                    setMaxUsers(1000)
-                    setMaxAgendas(1000)
+                const plan = subData.plan || 'essence'
+                setPlanName(plan)
+
+                // Use centralized PLAN_LIMITS as source of truth
+                const limits = PLAN_LIMITS[plan]
+                if (limits) {
+                    setMaxUsers(limits.maxUsers)
+                    setMaxAgendas(limits.maxAgendas)
                 } else {
-                    // Fallback to settings or default
-                    setMaxUsers(settingsData?.max_users || (subData.plan === 'essence' ? 2 : 5))
-                    setMaxAgendas(subData.max_agendas || (subData.plan === 'essence' ? 1 : 5))
+                    // Unknown plan — fallback to DB values or safe defaults
+                    setMaxUsers(settingsData?.max_users || 2)
+                    setMaxAgendas(subData.max_agendas || 1)
                 }
             } else if (settingsData) {
-                // Fallback to clinic_settings
-                setMaxUsers(settingsData.max_users || 3)
-                setMaxAgendas(1) // Default
-                setPlanName(settingsData.subscription_plan || 'freemium')
+                // No subscription row — use clinic_settings as fallback
+                const plan = settingsData.subscription_plan || 'freemium'
+                setPlanName(plan)
+                const limits = PLAN_LIMITS[plan]
+                if (limits) {
+                    setMaxUsers(limits.maxUsers)
+                    setMaxAgendas(limits.maxAgendas)
+                } else {
+                    setMaxUsers(settingsData.max_users || 2)
+                    setMaxAgendas(1)
+                }
             }
 
         } catch (error) {
@@ -175,7 +193,7 @@ export default function Team() {
                     <p className="text-gray-500">Administra los miembros de tu clínica y sus permisos.</p>
                     {!loading && (
                         <p className="text-sm mt-2 font-medium text-purple-600 bg-purple-50 inline-block px-3 py-1 rounded-full">
-                            {members.filter(m => m.status !== 'disabled').length} / {maxUsers > 100 ? 'Ilimitados' : maxUsers} usuarios activos
+                            {members.filter(m => m.status !== 'disabled').length} / {maxUsers >= 999 ? 'Ilimitados' : maxUsers} usuarios activos
                         </p>
                     )}
                 </div>

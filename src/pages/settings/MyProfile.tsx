@@ -255,6 +255,34 @@ export default function MyProfile() {
                         />
                     </div>
                     <div>
+                        <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Email de la cuenta</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="email"
+                                value={user?.email || ''}
+                                readOnly
+                                className="input-soft w-full bg-charcoal/5 cursor-not-allowed opacity-70"
+                            />
+                            <button 
+                                onClick={() => {
+                                    const newEmail = prompt('Ingresa tu nuevo correo electrónico. Se enviará un enlace de confirmación a ambos correos por seguridad:', user?.email || '');
+                                    if (newEmail && newEmail !== user?.email) {
+                                        supabase.auth.updateUser({ email: newEmail }).then(({ error }) => {
+                                            if (error) toast.error('Error: ' + error.message);
+                                            else toast.success('Revisa tu bandeja de entrada para confirmar el cambio.');
+                                        });
+                                    }
+                                }}
+                                className="btn-secondary whitespace-nowrap text-xs px-3"
+                            >
+                                Cambiar
+                            </button>
+                        </div>
+                        <p className="text-[10px] text-charcoal/40 mt-1 italic">
+                            Requiere verificación por correo para activarse.
+                        </p>
+                    </div>
+                    <div>
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Cargo</label>
                         <input
                             type="text"
@@ -267,7 +295,7 @@ export default function MyProfile() {
                             ({member?.role ? `Rol Miembro: ${member.role}` : `Rol Perfil: ${profile?.role || 'Buscando...'}`})
                         </p>
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Especialidad</label>
                         <input
                             type="text"

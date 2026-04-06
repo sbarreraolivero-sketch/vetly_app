@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
                     subscription_plan: plan,
                     ai_credits_monthly_limit: plan === 'prestige' ? 5000 : (plan === 'radiance' ? 2500 : 1000),
                     ai_credits_monthly_4o_limit: plan === 'prestige' ? 300 : (plan === 'radiance' ? 200 : 100),
-                    max_users: plan === 'prestige' ? 10000 : (plan === 'radiance' ? 5 : 2),
+                    max_users: plan === 'prestige' ? 999999 : (plan === 'radiance' ? 5 : 2),
                 })
                 .eq("id", clinicId);
             

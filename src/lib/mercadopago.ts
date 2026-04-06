@@ -149,8 +149,8 @@ export const PLANS = {
         price: 280000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: -1,
-        maxUsers: 1000,
-        maxAgendas: 1000,
+        maxUsers: 999999,
+        maxAgendas: 999999,
         features: [
             'Todo lo de Radiance, más:',
             'Usuarios ilimitados',

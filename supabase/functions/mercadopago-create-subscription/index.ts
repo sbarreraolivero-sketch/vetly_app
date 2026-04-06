@@ -164,7 +164,7 @@ Deno.serve(async (req: Request) => {
         });
 
         // Sync max_users to clinic_settings
-        const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 1000);
+        const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 999999);
         await supabase.from("clinic_settings").update({
             max_users: maxUsers
         }).eq("id", clinic_id);

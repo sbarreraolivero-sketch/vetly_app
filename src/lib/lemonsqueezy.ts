@@ -15,6 +15,8 @@ export const LS_PLANS = {
         price: 99,
         currency: 'USD',
         monthlyAppointments: 50,
+        maxUsers: 2,
+        maxAgendas: 1,
         features: [
             'Hasta 2 usuarios',
             'Agente de IA especializado',
@@ -32,6 +34,8 @@ export const LS_PLANS = {
         price: 159,
         currency: 'USD',
         monthlyAppointments: -1,
+        maxUsers: 5,
+        maxAgendas: 5,
         popular: true,
         features: [
             'Todo lo de Essence, más:',
@@ -50,6 +54,8 @@ export const LS_PLANS = {
         price: 297,
         currency: 'USD',
         monthlyAppointments: -1,
+        maxUsers: 999999,
+        maxAgendas: 999999,
         features: [
             'Todo lo de Radiance, más:',
             'Usuarios ilimitados',

@@ -151,8 +151,8 @@ Deno.serve(async (req: Request) => {
                 const status = payload.data.attributes.status;
                 const renewsAt = payload.data.attributes.renews_at;
 
-                const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 1000);
-                const maxAgendas = plan === "essence" ? 1 : (plan === "radiance" ? 5 : 1000);
+                const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 999999);
+                const maxAgendas = plan === "essence" ? 1 : (plan === "radiance" ? 5 : 999999);
                 const remindersLimit = plan === "radiance" ? 50 : (plan === "essence" ? 0 : 1000000);
 
                 await supabase.from("subscriptions").upsert({
