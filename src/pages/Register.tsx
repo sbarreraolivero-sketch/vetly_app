@@ -15,6 +15,14 @@ const plans = [
     { id: 'prestige', name: 'Prestige', price: 297, popular: false },
 ]
 
+const ROLE_TRANSLATIONS: Record<string, string> = {
+    'owner': 'Dueño',
+    'admin': 'Administrador',
+    'professional': 'Profesional',
+    'receptionist': 'Recepcionista',
+    'vet_assistant': 'Asistente Veterinario'
+}
+
 export default function Register() {
     const [searchParams] = useSearchParams()
     const isJoinMode = searchParams.get('mode') === 'join'
@@ -32,7 +40,7 @@ export default function Register() {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const [jobTitle, setJobTitle] = useState(inviteRole || '')
+    const [jobTitle, setJobTitle] = useState(ROLE_TRANSLATIONS[inviteRole as string] || inviteRole || '')
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
 
     const { signUp } = useAuth()
@@ -64,19 +72,33 @@ export default function Register() {
                     return
                 }
                 setLoading(true)
-                // Use new RPC that returns clinic details
-                const { data } = await (supabase as any).rpc('check_pending_invite_details', {
+                // Use new RPC that returns clinic details, first_name and role
+                const { data, error: rpcError } = await (supabase as any).rpc('check_pending_invite_details', {
                     p_email: email,
                     p_clinic_id: joinClinicId || null
                 })
                 setLoading(false)
 
-                // The RPC returns { valid, clinic_name }
-                const result: any = data && data.length > 0 ? data[0] : null; // Handle if it returns array
+                if (rpcError) {
+                    console.error('RPC Error:', rpcError)
+                    setError('Ocurrió un error al verificar tu invitación. Intenta nuevamente.')
+                    return
+                }
+
+                // The RPC returns { valid, clinic_name, first_name, role }
+                const result: any = data && data.length > 0 ? data[0] : null;
 
                 if (!result || !result.valid) {
                     setError('No encontramos una invitación pendiente para este correo.')
                     return
+                }
+
+                // Pre-fill from database if present (prioritize over URL params if they mismatch or are empty)
+                if (result.first_name && !fullName) {
+                    setFullName(result.first_name)
+                }
+                if (result.role && !jobTitle) {
+                    setJobTitle(ROLE_TRANSLATIONS[result.role] || result.role)
                 }
 
                 // Confirm join with clinic name
@@ -301,9 +323,10 @@ export default function Register() {
                                             type="text"
                                             value={fullName}
                                             onChange={(e) => setFullName(e.target.value)}
-                                            className="input-soft pl-12 w-full"
+                                            className={`input-soft pl-12 w-full ${(isJoinMode && fullName) ? 'bg-stone-100 cursor-not-allowed opacity-80' : ''}`}
                                             placeholder="María García"
                                             required
+                                            readOnly={isJoinMode && !!fullName}
                                         />
                                     </div>
                                 </div>
@@ -320,9 +343,10 @@ export default function Register() {
                                                 type="text"
                                                 value={jobTitle}
                                                 onChange={(e) => setJobTitle(e.target.value)}
-                                                className="input-soft pl-12 w-full"
+                                                className={`input-soft pl-12 w-full ${(isJoinMode && jobTitle) ? 'bg-stone-100 cursor-not-allowed opacity-80' : ''}`}
                                                 placeholder="Ej: Administrador"
                                                 required
+                                                readOnly={isJoinMode && !!jobTitle}
                                             />
                                         </div>
                                     </div>
@@ -339,9 +363,10 @@ export default function Register() {
                                             type="email"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
-                                            className="input-soft pl-12 w-full"
+                                            className={`input-soft pl-12 w-full ${(isJoinMode && email) ? 'bg-stone-100 cursor-not-allowed opacity-80' : ''}`}
                                             placeholder="maria@clinica.com"
                                             required
+                                            readOnly={isJoinMode && !!email}
                                         />
                                     </div>
                                 </div>
