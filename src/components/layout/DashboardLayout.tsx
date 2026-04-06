@@ -280,13 +280,21 @@ export default function DashboardLayout() {
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navigation.filter(item => {
-                        // Hide Finance, CRM, and Campaigns for non-owners
+                        const userRole = member?.role || (profile as any)?.role
+                        const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
+                        const isVetAssistant = userRole === 'vet_assistant'
+
+                        // Role-based restrictions
+                        if (isVetAssistant) {
+                            // Asistente Veterinario only sees: Dashboard, Tutores, Pacientes, Citas, Finanzas
+                            return ['Dashboard', 'Tutores y Prospectos', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
+                        }
+
+                        // Hide Finance, CRM, and Campaigns for non-owners/admins (everyone else)
                         if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
-                            // Check both member role and profile role to be safe
-                            const userRole = member?.role || (profile as any)?.role
-                            const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
                             if (!isOwnerOrAdmin) return false
                         }
+                        
                         return true
                     }).map((item) => {
                         const isActive = location.pathname === item.href
@@ -355,8 +363,15 @@ export default function DashboardLayout() {
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto w-full">
                     {navigation.filter(item => {
+                        const userRole = member?.role || (profile as any)?.role
+                        const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
+                        const isVetAssistant = userRole === 'vet_assistant'
+
+                        if (isVetAssistant) {
+                            return ['Dashboard', 'Tutores y Prospectos', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
+                        }
+
                         if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
-                            const isOwnerOrAdmin = member?.role === 'owner' || profile?.role === 'owner' || member?.role === 'admin' || profile?.role === 'admin'
                             if (!isOwnerOrAdmin) return false
                         }
                         return true

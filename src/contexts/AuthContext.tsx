@@ -9,7 +9,7 @@ interface UserProfile {
     email: string
     full_name: string
     clinic_id: string
-    role: 'owner' | 'admin' | 'staff' | 'super_admin'
+    role: 'owner' | 'admin' | 'staff' | 'super_admin' | 'vet_assistant'
     activation_status: 'pending_activation' | 'active' | 'inactive'
     avatar_url?: string
 }
@@ -17,7 +17,7 @@ interface UserProfile {
 export interface Clinic {
     clinic_id: string
     clinic_name: string
-    role: 'owner' | 'professional' | 'receptionist'
+    role: 'owner' | 'professional' | 'receptionist' | 'admin' | 'vet_assistant'
     status: 'active' | 'invited' | 'disabled'
     plan: string
     address?: string

@@ -1679,7 +1679,7 @@ export default function Settings() {
                                                 <label className="block text-sm font-medium text-charcoal mb-2">Nombre del Servicio</label>
                                                 <input
                                                     type="text"
-                                                    placeholder="Ej: Limpieza Facial Profunda"
+                                                    placeholder="Ej: Consulta Médica General"
                                                     value={newServiceName}
                                                     onChange={(e) => setNewServiceName(e.target.value)}
                                                     className="input-soft"

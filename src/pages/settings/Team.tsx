@@ -12,7 +12,7 @@ export default function Team() {
     const [loading, setLoading] = useState(true)
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [inviteEmail, setInviteEmail] = useState('')
-    const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist'>('professional')
+    const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist' | 'vet_assistant'>('professional')
     const [inviteName, setInviteName] = useState('')
     const [maxUsers, setMaxUsers] = useState(3) // Default to 3
     const [maxAgendas, setMaxAgendas] = useState(1) // Default to 1
@@ -247,7 +247,7 @@ export default function Team() {
                                             {(m.role === 'owner' || m.role === 'admin') && <Shield size={12} />}
                                             {m.role === 'professional' && <User size={12} />}
                                             {m.role === 'receptionist' && <Clock size={12} />}
-                                            {m.role === 'owner' ? 'Dueño' : m.role === 'admin' ? 'Administrador' : m.role === 'professional' ? 'Profesional' : 'Recepción'}
+                                            {m.role === 'owner' ? 'Dueño' : m.role === 'admin' ? 'Administrador' : m.role === 'professional' ? 'Profesional' : m.role === 'vet_assistant' ? 'Asistente' : 'Recepción'}
                                         </span>
                                     </td>
                                     <td className="py-4 px-6">
@@ -313,7 +313,7 @@ export default function Team() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 gap-3">
                                     {isOwner && (
                                         <button
                                             type="button"
@@ -339,6 +339,14 @@ export default function Team() {
                                     >
                                         <div className="font-medium text-gray-900 mb-1">Recepción</div>
                                         <div className="text-xs text-gray-500">Gestiona citas de todo el equipo.</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setInviteRole('vet_assistant')}
+                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'vet_assistant' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        <div className="font-medium text-gray-900 mb-1">Asistente</div>
+                                        <div className="text-xs text-gray-500">Agendas, pacientes y finanzas.</div>
                                     </button>
                                 </div>
                             </div>

@@ -1,7 +1,7 @@
 
 import { supabase } from '@/lib/supabase'
 
-export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist'
+export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant'
 export type MemberStatus = 'active' | 'invited' | 'disabled'
 
 export interface ClinicMember {
