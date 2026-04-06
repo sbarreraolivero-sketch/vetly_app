@@ -49,6 +49,16 @@ export const teamService = {
 
         // Trigger Send Email Edge Function
         try {
+            // Get current user's name for the email
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: inviter } = await (supabase as any)
+                .from('clinic_members')
+                .select('first_name')
+                .eq('user_id', user?.id)
+                .eq('clinic_id', clinicId)
+                .maybeSingle()
+
+            const inviterName = inviter?.first_name || 'Un administrador'
             const { data: settings } = await (supabase as any)
                 .from('clinic_settings')
                 .select('clinic_name')
@@ -56,16 +66,23 @@ export const teamService = {
                 .single()
 
             const clinicName = settings?.clinic_name || 'tu clínica'
-            const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.Vetly AI.com'
+            const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.vetly.pro'
             const inviteLink = `${origin}/register?mode=join&clinic=${clinicId}&email=${encodeURIComponent(email)}`
 
-            await supabase.functions.invoke('send-invite-email', {
+            const { data: inviteRes, error: inviteErr } = await supabase.functions.invoke('send-invite-email', {
                 body: {
                     email,
                     clinicName,
                     inviteLink,
+                    inviterName
                 }
             })
+
+            if (inviteErr) {
+                console.error('Edge Function Error:', inviteErr)
+            } else {
+                console.log('Invite email triggered successfully:', inviteRes)
+            }
         } catch (emailErr) {
             console.error('Error triggering invite email:', emailErr)
         }
