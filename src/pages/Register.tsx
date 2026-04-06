@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'react-hot-toast'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -138,29 +139,44 @@ export default function Register() {
         setError('')
         setLoading(true)
 
-        // Metadata for trigger to pick up
-        const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    full_name: fullName,
-                    job_title: jobTitle, // Trigger will use this
-                    ...(joinClinicId ? { join_clinic_id: joinClinicId } : {})
+        try {
+            // 1. Call specialized Edge Function to create/link user without email confirmation friction
+            const { data: functionData, error: functionError } = await supabase.functions.invoke('join-handler', {
+                body: { 
+                    email, 
+                    password, 
+                    fullName, 
+                    jobTitle, 
+                    clinicId: joinClinicId 
                 }
+            })
+
+            if (functionError || functionData?.error) {
+                console.error('Join Error:', functionError || functionData?.error)
+                setError(functionData?.error || 'No se pudo completar el registro. Intente nuevamente.')
+                setLoading(false)
+                return
             }
-        })
 
-        if (error) {
-            setError(error.message)
+            // 2. Log in directly after successful creation (since it's auto-confirmed)
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            })
+
+            if (signInError) {
+                console.error('Sign In Error after Join:', signInError)
+                toast.error('Registro exitoso, pero ocurrió un error al iniciar sesión. Por favor intente ingresar normalmente.')
+                navigate('/login')
+            } else {
+                navigate('/app/dashboard?welcome=joined')
+            }
+
+        } catch (err: any) {
+            console.error('Unexpected error during join:', err)
+            setError('Ocurrió un error inesperado. Por favor intente más tarde.')
+        } finally {
             setLoading(false)
-            return
-        }
-
-        if (data.session) {
-            navigate('/app/dashboard?welcome=joined')
-        } else {
-            navigate('/login?message=check_email')
         }
     }
 
