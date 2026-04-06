@@ -165,7 +165,9 @@ export default function Team() {
             loadData()
         } catch (error: unknown) {
             console.error('Error inviting member:', error)
-            const errMsg = error instanceof Error ? error.message : String(error)
+            // Supabase RPC errors are objects with .message, not Error instances
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const errMsg = (error as any)?.message || (error instanceof Error ? error.message : JSON.stringify(error))
             // Show real error from RPC if available
             if (errMsg.includes('Plan limit')) {
                 toast.error(`Has alcanzado el límite de usuarios de tu plan.`)
