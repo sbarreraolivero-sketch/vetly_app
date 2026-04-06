@@ -190,9 +190,11 @@ export default function Team() {
             await teamService.deleteMember(id)
             toast.success('Miembro eliminado')
             loadData()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error deleting member:', error)
-            toast.error('Error al eliminar miembro')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const errMsg = (error as any)?.message || (error instanceof Error ? error.message : JSON.stringify(error))
+            toast.error(`Error al eliminar miembro: ${errMsg}`)
         }
     }
 
