@@ -67,7 +67,7 @@ export const teamService = {
 
             const clinicName = settings?.clinic_name || 'tu clínica'
             const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.vetly.pro'
-            const inviteLink = `${origin}/register?mode=join&clinic=${clinicId}&email=${encodeURIComponent(email)}`
+            const inviteLink = `${origin}/register?mode=join&clinic=${clinicId}&email=${encodeURIComponent(email)}&role=${encodeURIComponent(role)}&first_name=${encodeURIComponent(firstName || '')}`
 
             const { data: inviteRes, error: inviteErr } = await supabase.functions.invoke('send-invite-email', {
                 body: {

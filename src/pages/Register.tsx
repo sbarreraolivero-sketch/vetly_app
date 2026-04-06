@@ -20,17 +20,19 @@ export default function Register() {
     const isJoinMode = searchParams.get('mode') === 'join'
     const inviteEmail = searchParams.get('email')
     const joinClinicId = searchParams.get('clinic')
+    const firstNameParam = searchParams.get('first_name')
+    const inviteRole = searchParams.get('role')
 
     const [step, setStep] = useState(1)
     const [email, setEmail] = useState(inviteEmail || '')
     const [password, setPassword] = useState('')
-    const [fullName, setFullName] = useState('')
+    const [fullName, setFullName] = useState(firstNameParam || '')
     const [clinicName, setClinicName] = useState('')
     const [selectedPlan, setSelectedPlan] = useState('radiance')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const [jobTitle, setJobTitle] = useState('')
+    const [jobTitle, setJobTitle] = useState(inviteRole || '')
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
 
     const { signUp } = useAuth()
@@ -187,7 +189,7 @@ export default function Register() {
     return (
         <div className="min-h-screen bg-subtle-gradient flex">
             {/* Left Panel - Form */}
-            <div className="flex-1 flex items-center justify-center p-8">
+            <div className={`flex-1 flex items-center justify-center p-8 ${isJoinMode ? 'w-full' : ''}`}>
                 <div className="w-full max-w-md">
                     {/* Logo */}
                     <div className="flex items-center gap-3 mb-8">
@@ -581,55 +583,57 @@ export default function Register() {
                 </div>
             </div>
 
-            {/* Right Panel - Hero */}
-            <div className="hidden lg:flex flex-1 bg-hero-gradient items-center justify-center p-12">
-                <div className="max-w-lg text-white">
-                    {/* Main Value Proposition */}
-                    <div className="mb-10">
-                        <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
-                            <Star className="w-3.5 h-3.5 text-yellow-300" />
-                            Tu clínica con Infraestructura Operativa de Éxito
-                        </div>
-                        <h2 className="text-4xl font-bold mb-5 leading-tight" style={{ background: 'linear-gradient(135deg, #FFD700, #F5C842, #E8B830, #FFE066)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                            Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.
-                        </h2>
-                        <p className="text-white/75 text-lg leading-relaxed">
-                            No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.
-                        </p>
-                    </div>
-
-                    {/* The Rule Card */}
-                    <div className="bg-white/15 backdrop-blur-sm border border-white/20 rounded-softer p-5 mb-6">
-                        <div className="flex items-start gap-3">
-                            <div className="bg-yellow-400 text-charcoal rounded p-1 flex-shrink-0 mt-0.5">
-                                <ShieldCheck className="w-4 h-4" />
+            {/* Right Panel - Hero (Hidden in Join Mode) */}
+            {!isJoinMode && (
+                <div className="hidden lg:flex flex-1 bg-hero-gradient items-center justify-center p-12">
+                    <div className="max-w-lg text-white">
+                        {/* Main Value Proposition */}
+                        <div className="mb-10">
+                            <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
+                                <Star className="w-3.5 h-3.5 text-yellow-300" />
+                                Tu clínica con Infraestructura Operativa de Éxito
                             </div>
-                            <div>
-                                <p className="font-bold text-white text-base mb-1">La Regla de Éxito Citenly</p>
-                                <p className="text-white/80 text-sm leading-relaxed">
-                                    Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
-                                </p>
+                            <h2 className="text-4xl font-bold mb-5 leading-tight" style={{ background: 'linear-gradient(135deg, #FFD700, #F5C842, #E8B830, #FFE066)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                                Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.
+                            </h2>
+                            <p className="text-white/75 text-lg leading-relaxed">
+                                No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.
+                            </p>
+                        </div>
+
+                        {/* The Rule Card */}
+                        <div className="bg-white/15 backdrop-blur-sm border border-white/20 rounded-softer p-5 mb-6">
+                            <div className="flex items-start gap-3">
+                                <div className="bg-yellow-400 text-charcoal rounded p-1 flex-shrink-0 mt-0.5">
+                                    <ShieldCheck className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-white text-base mb-1">La Regla de Éxito Citenly</p>
+                                    <p className="text-white/80 text-sm leading-relaxed">
+                                        Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Testimonial */}
-                    <div className="bg-white/10 backdrop-blur-sm rounded-softer p-5">
-                        <p className="text-white/90 italic text-sm mb-4">
-                            "Antes pasaba 3 horas diarias respondiendo mensajes.
-                            Ahora mi asistente de Citenly lo hace todo mientras
-                            yo me enfoco en mis pacientes."
-                        </p>
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-white/20 rounded-full flex-shrink-0" />
-                            <div>
-                                <p className="font-medium text-sm">Dra. Carolina Méndez</p>
-                                <p className="text-xs text-white/60">Clínica Derma Bella</p>
+                        {/* Testimonial */}
+                        <div className="bg-white/10 backdrop-blur-sm rounded-softer p-5">
+                            <p className="text-white/90 italic text-sm mb-4">
+                                "Antes pasaba 3 horas diarias respondiendo mensajes.
+                                Ahora mi asistente de Citenly lo hace todo mientras
+                                yo me enfoco en mis pacientes."
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 bg-white/20 rounded-full flex-shrink-0" />
+                                <div>
+                                    <p className="font-medium text-sm">Dra. Carolina Méndez</p>
+                                    <p className="text-xs text-white/60">Clínica Derma Bella</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }
