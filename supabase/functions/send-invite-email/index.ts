@@ -25,7 +25,6 @@ Deno.serve(async (req) => {
 
         if (!RESEND_API_KEY) {
             console.warn("Missing RESEND_API_KEY. Simulating email send.");
-            console.log(`[SIMULATED EMAIL] To: ${email}, Subject: Invitación a ${clinicName}, Link: ${inviteLink}`);
             return new Response(JSON.stringify({ message: "Email simulation successful (API key missing)" }), {
                 status: 200,
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
