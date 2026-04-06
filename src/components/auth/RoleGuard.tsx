@@ -6,7 +6,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 interface RoleGuardProps {
     children: ReactNode
-    allowedRoles: ('owner' | 'admin' | 'professional' | 'receptionist')[]
+    allowedRoles: ('owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant')[]
     fallbackPath?: string
 }
 
