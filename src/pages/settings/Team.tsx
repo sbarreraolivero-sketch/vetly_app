@@ -163,10 +163,19 @@ export default function Team() {
             setInviteEmail('')
             setInviteName('')
             loadData()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error inviting member:', error)
-            // Error handling improved in service/RPC but good to keep fallback
-            toast.error('Error al enviar invitación. Verifica el límite de tu plan.')
+            const errMsg = error instanceof Error ? error.message : String(error)
+            // Show real error from RPC if available
+            if (errMsg.includes('Plan limit')) {
+                toast.error(`Has alcanzado el límite de usuarios de tu plan.`)
+            } else if (errMsg.includes('ya tiene una invitación') || errMsg.includes('miembro activo')) {
+                toast.error('Este correo ya fue invitado o es miembro activo.')
+            } else if (errMsg.includes('Access denied')) {
+                toast.error('No tienes permisos para invitar miembros.')
+            } else {
+                toast.error(`Error al enviar invitación: ${errMsg}`)
+            }
         }
     }
 
