@@ -167,21 +167,21 @@ function MainRoutes() {
                         } />
                         <Route path="crm" element={
                             <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner']}>
+                                <RoleGuard allowedRoles={['owner', 'admin']}>
                                     <CRM />
                                 </RoleGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="campaigns" element={
                             <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner']}>
+                                <RoleGuard allowedRoles={['owner', 'admin']}>
                                     <Campaigns />
                                 </RoleGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="finance" element={
                             <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner']}>
+                                <RoleGuard allowedRoles={['owner', 'admin', 'vet_assistant']}>
                                     <Finance />
                                 </RoleGuard>
                             </SubscriptionGuard>
