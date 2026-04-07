@@ -488,7 +488,8 @@ export default function Settings() {
                             enabled: s.upselling_enabled,
                             daysAfter: s.upselling_days_after || 0,
                             message: s.upselling_message || ''
-                        }
+                        },
+                        ai_description: s.ai_description
                     })))
                 } else {
                     console.warn('servicesData was empty or null')
@@ -999,6 +1000,7 @@ export default function Settings() {
         }
     }
 
+    const [newServiceAiDescription, setNewServiceAiDescription] = useState('')
     const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
 
     const handleEditService = async (service: any) => {
@@ -1009,6 +1011,7 @@ export default function Settings() {
         setNewUpsellEnabled(service.upselling?.enabled || false)
         setNewUpsellDays(service.upselling?.daysAfter?.toString() || '7')
         setNewUpsellMessage(service.upselling?.message || '')
+        setNewServiceAiDescription(service.ai_description || '')
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
@@ -1044,7 +1047,8 @@ export default function Settings() {
                 price: parseFloat(newServicePrice) || 0,
                 upselling_enabled: newUpsellEnabled,
                 upselling_days_after: parseInt(newUpsellDays) || 0,
-                upselling_message: newUpsellMessage
+                upselling_message: newUpsellMessage,
+                ai_description: newServiceAiDescription
             }
 
             let savedServiceId = editingServiceId
@@ -1092,7 +1096,8 @@ export default function Settings() {
                         enabled: data.upselling_enabled,
                         daysAfter: data.upselling_days_after || 0,
                         message: data.upselling_message || ''
-                    }
+                    },
+                    ai_description: data.ai_description
                 }])
             }
 
@@ -1134,6 +1139,7 @@ export default function Settings() {
             setNewServiceName('')
             setNewServiceDuration('30')
             setNewServicePrice('')
+            setNewServiceAiDescription('') // Clear AI field
             setNewUpsellEnabled(false)
             setNewUpsellDays('7')
             setNewUpsellMessage('')
@@ -1760,6 +1766,24 @@ export default function Settings() {
                                                     </div>
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* AI Information Section */}
+                                        <div className="border-t border-silk-beige pt-4 mt-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+                                                    <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                                                </div>
+                                                <p className="text-sm font-semibold text-charcoal">Información para la IA (Ary)</p>
+                                            </div>
+                                            <p className="text-xs text-charcoal/50 mb-3">Detalla inclusiones, dosis, ayunos o datos que Ary deba saber de este servicio.</p>
+                                            <textarea
+                                                placeholder="Ej: Incluye la vacuna + visita médica. Se recomiendan 3 dosis con 21 días de diferencia. No requiere ayuno."
+                                                value={newServiceAiDescription}
+                                                onChange={(e) => setNewServiceAiDescription(e.target.value)}
+                                                rows={3}
+                                                className="input-soft resize-none text-sm bg-emerald-50/30 border-emerald-100 focus:border-emerald-300"
+                                            />
                                         </div>
 
                                         {/* Professional Assignment Section */}

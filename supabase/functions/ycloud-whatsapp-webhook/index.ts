@@ -1516,13 +1516,18 @@ Deno.serve(async (req) => {
                 // Fetch knowledge base summary for system prompt
                 const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
 
-                // Fetch REAL services from the 'services' table (not the legacy JSON field)
+                // Fetch REAL services from the 'clinic_services' table (not the legacy JSON field)
                 const { data: realServices } = await sb.from("clinic_services")
-                    .select("name, duration, price")
+                    .select("name, duration, price, ai_description")
                     .eq("clinic_id", clinic.id);
 
                 const servicesForPrompt = realServices && realServices.length > 0
-                    ? realServices.map(s => ({ name: s.name, duration: `${s.duration} min`, price: `$${s.price.toLocaleString('es-CL')}` }))
+                    ? realServices.map(s => ({ 
+                        nombre: s.name, 
+                        duracion: `${s.duration} min`, 
+                        precio: `$${s.price.toLocaleString('es-CL')}`,
+                        info_importante: s.ai_description || "Sin detalles específicos." 
+                      }))
                     : clinic.services || [];
 
                 // Build a readable string of hours in SPANISH to match the AI rules and context
