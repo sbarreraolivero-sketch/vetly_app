@@ -1026,8 +1026,11 @@ export default function Settings() {
                 const assigned: Record<string, boolean> = {}
                 let primary = ''
                 data.forEach((sp: any) => {
-                    assigned[sp.member_id] = true
-                    if (sp.is_primary) primary = sp.member_id
+                    const profId = sp.member_id || sp.id
+                    if (profId) {
+                        assigned[profId] = true
+                        if (sp.is_primary) primary = profId
+                    }
                 })
                 setAssignedProfessionals(assigned)
                 setPrimaryProfessional(primary)
@@ -1809,8 +1812,9 @@ export default function Settings() {
                                                 <p className="text-xs text-charcoal/50 mb-3">Selecciona quién realiza este servicio. Marca ⭐ al profesional principal.</p>
                                                 <div className="space-y-2">
                                                     {clinicProfessionals.map((prof: any) => {
-                                                        const isAssigned = assignedProfessionals[prof.member_id] || false
-                                                        const isPrimary = primaryProfessional === prof.member_id
+                                                        const pId = prof.member_id || prof.id
+                                                        const isAssigned = assignedProfessionals[pId] || false
+                                                        const isPrimary = primaryProfessional === pId
                                                         return (
                                                             <div
                                                                 key={prof.member_id}
@@ -1821,7 +1825,7 @@ export default function Settings() {
                                                                 onClick={() => {
                                                                     setAssignedProfessionals(prev => ({
                                                                         ...prev,
-                                                                        [prof.member_id]: !prev[prof.member_id]
+                                                                        [pId]: !prev[pId]
                                                                     }))
                                                                     // Clear primary if unassigning
                                                                     if (isAssigned && isPrimary) {
@@ -1848,7 +1852,7 @@ export default function Settings() {
                                                                         type="button"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation()
-                                                                            setPrimaryProfessional(isPrimary ? '' : prof.member_id)
+                                                                            setPrimaryProfessional(isPrimary ? '' : pId)
                                                                         }}
                                                                         className={cn(
                                                                             "text-sm transition-colors",
