@@ -1117,12 +1117,16 @@ export default function Settings() {
 
                     if (assignments.length > 0) {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        await (supabase as any)
+                        const { error: insertError } = await (supabase as any)
                             .from('service_professionals')
                             .insert(assignments)
+                        
+                        if (insertError) {
+                            console.error('Error in service_professionals insert:', insertError);
+                        }
                     }
                 } catch (err) {
-                    console.error('Error saving professional assignments:', err)
+                    console.error('Critical Professional Saving Error:', err)
                 }
             }
 
