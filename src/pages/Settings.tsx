@@ -153,14 +153,13 @@ export default function Settings() {
     // Integration settings
     const [yCloudApiKey, setYCloudApiKey] = useState('')
     const [yCloudPhoneNumber, setYCloudPhoneNumber] = useState('')
-    const [openaiModel] = useState('gpt-4o-mini')
     const [aiCreditsMonthlyLimit, setAiCreditsMonthlyLimit] = useState(500)
     const [aiCreditsExtraBalance, setAiCreditsExtraBalance] = useState(0)
     const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
     const [aiMessagesUsed, setAiMessagesUsed] = useState(0)
     const [aiMessagesUsed4o, setAiMessagesUsed4o] = useState(0)
     const [aiAutoRespond, setAiAutoRespond] = useState(true)
-    const [aiActiveModel, setAiActiveModel] = useState<'mini' | '4o'>('mini')
+    const [aiActiveModel, setAiActiveModel] = useState<'mini' | '4o'>('4o')
     const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For the purchase cards selector
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
     const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
@@ -398,7 +397,7 @@ export default function Settings() {
                     setAiCreditsMonthlyLimit(data.ai_credits_monthly_limit || 500)
                     setAiCreditsExtraBalance(data.ai_credits_extra_balance || 0)
                     setAiCreditsExtra4o(data.ai_credits_extra_4o || 0)
-                    setAiActiveModel(data.ai_active_model || 'mini')
+                    setAiActiveModel(data.ai_active_model || '4o')
 
                     setAiAutoRespond(data.ai_auto_respond !== false) 
                     setBusinessModel(data.business_model || 'physical')
@@ -597,7 +596,7 @@ export default function Settings() {
                 .update({
                     ycloud_api_key: yCloudApiKey || null,
                     ycloud_phone_number: yCloudPhoneNumber || null,
-                    ai_active_model: openaiModel,
+                    ai_active_model: aiActiveModel,
                 })
                 .eq('id', profile.clinic_id)
 
@@ -947,7 +946,7 @@ export default function Settings() {
                 .from('clinic_settings')
                 .update({
                     ai_auto_respond: aiAutoRespond,
-                    openai_model: aiActiveModel,
+                    ai_active_model: aiActiveModel,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id);
