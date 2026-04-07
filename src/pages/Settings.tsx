@@ -597,7 +597,7 @@ export default function Settings() {
                 .update({
                     ycloud_api_key: yCloudApiKey || null,
                     ycloud_phone_number: yCloudPhoneNumber || null,
-                    openai_model: openaiModel,
+                    ai_model: openaiModel,
                 })
                 .eq('id', profile.clinic_id)
 
