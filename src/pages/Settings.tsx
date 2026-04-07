@@ -947,7 +947,7 @@ export default function Settings() {
                 .from('clinic_settings')
                 .update({
                     ai_auto_respond: aiAutoRespond,
-                    ai_active_model: aiActiveModel,
+                    openai_model: aiActiveModel,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id);
