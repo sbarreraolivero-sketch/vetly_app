@@ -180,7 +180,7 @@ export default function CRM() {
             // Services
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: svcData } = await (supabase as any)
-                .from('services')
+                .from("clinic_services")
                 .select('id, name')
                 .eq('clinic_id', profile.clinic_id)
                 .order('name')

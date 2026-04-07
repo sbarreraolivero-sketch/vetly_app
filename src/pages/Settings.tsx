@@ -1053,7 +1053,7 @@ export default function Settings() {
                 // Update existing service
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error } = await (supabase as any)
-                    .from('services')
+                    .from("clinic_services")
                     .update(serviceData)
                     .eq('id', editingServiceId)
 
@@ -1074,7 +1074,7 @@ export default function Settings() {
                 // Insert new service
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data, error } = await (supabase as any)
-                    .from('services')
+                    .from("clinic_services")
                     .insert(serviceData)
                     .select()
                     .single()
@@ -1138,9 +1138,10 @@ export default function Settings() {
             setEditingServiceId(null)
             setShowServiceModal(false)
 
-        } catch (error) {
-            console.error('Error saving service:', error)
-            alert('Error al guardar el servicio')
+        } catch (error: any) {
+            console.error('Error detallado de guardado:', error)
+            const errorMessage = error.message || error.details || 'Error desconocido';
+            alert('Error al guardar el servicio: ' + errorMessage)
         }
     }
 
@@ -1150,7 +1151,7 @@ export default function Settings() {
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
-                .from('services')
+                .from("clinic_services")
                 .delete()
                 .eq('id', id)
 

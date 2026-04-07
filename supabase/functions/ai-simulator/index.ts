@@ -81,7 +81,7 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
         // 1. Fetch REAL service data
         if (serviceName) {
-            const { data: svc } = await sb.from("services")
+            const { data: svc } = await sb.from("clinic_services")
                 .select("id, duration")
                 .eq("clinic_id", clinicId)
                 .ilike("name", `%${serviceName}%`)
@@ -201,7 +201,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         // Fetch price/duration from real services table
         let price = 0;
         let duration = 60;
-        const { data: realServices } = await sb.from("services")
+        const { data: realServices } = await sb.from("clinic_services")
             .select("name, duration, price")
             .eq("clinic_id", clinicId);
 
@@ -273,7 +273,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
 const getServices = async (sb: ReturnType<typeof createClient>, clinicId: string) => {
     // Fetch from the real 'services' table first
-    const { data: realServices } = await sb.from("services")
+    const { data: realServices } = await sb.from("clinic_services")
         .select("name, duration, price")
         .eq("clinic_id", clinicId);
 
@@ -580,7 +580,7 @@ Deno.serve(async (req: Request) => {
         const simulatedPhone = "+56900000000"; // Simulated test phone
 
         // Fetch REAL services from the 'services' table (not the legacy JSON field)
-        const { data: realServices } = await sb.from("services")
+        const { data: realServices } = await sb.from("clinic_services")
             .select("name, duration, price")
             .eq("clinic_id", clinic_id);
 

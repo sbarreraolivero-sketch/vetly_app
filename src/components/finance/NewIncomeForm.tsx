@@ -59,7 +59,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
 
             // Load Services
             const { data: servicesData } = await supabase
-                .from('services')
+                .from("clinic_services")
                 .select('id, name, price')
                 .eq('clinic_id', clinicId)
                 .order('name', { ascending: true })

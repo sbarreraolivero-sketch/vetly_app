@@ -105,7 +105,7 @@ export default function Appointments() {
         const fetchServices = async () => {
             if (!profile?.clinic_id) return
             const { data } = await supabase
-                .from('services')
+                .from("clinic_services")
                 .select('*')
                 .eq('clinic_id', profile.clinic_id)
                 .order('name', { ascending: true })

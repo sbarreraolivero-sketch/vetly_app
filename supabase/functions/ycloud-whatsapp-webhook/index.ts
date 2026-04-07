@@ -314,7 +314,7 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
     if (serviceName) {
         // Try to find service duration and ID
-        const { data: svc } = await sb.from("services")
+        const { data: svc } = await sb.from("clinic_services")
             .select("id, duration")
             .eq("clinic_id", clinicId)
             .ilike("name", `%${serviceName}%`)
@@ -529,7 +529,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
     let serviceId: string | null = null;
 
     if (args.service_name) {
-        const { data: svc } = await sb.from("services")
+        const { data: svc } = await sb.from("clinic_services")
             .select("id, name, duration, price")
             .eq("clinic_id", clinicId)
             .ilike("name", `%${args.service_name}%`)
@@ -685,7 +685,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
 };
 
 const getServices = async (sb: ReturnType<typeof createClient>, clinicId: string) => {
-    const { data: svcRows } = await sb.from("services").select("name, duration, price").eq("clinic_id", clinicId);
+    const { data: svcRows } = await sb.from("clinic_services").select("name, duration, price").eq("clinic_id", clinicId);
     if (svcRows && svcRows.length > 0) {
         const msg = `Servicios:\n\n${svcRows.map((s: { name: string; duration: number; price: number }) => `• ${s.name} (${s.duration}min) - $${s.price}`).join("\n")}`;
         return { services: svcRows, message: msg };
@@ -1517,7 +1517,7 @@ Deno.serve(async (req) => {
                 const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
 
                 // Fetch REAL services from the 'services' table (not the legacy JSON field)
-                const { data: realServices } = await sb.from("services")
+                const { data: realServices } = await sb.from("clinic_services")
                     .select("name, duration, price")
                     .eq("clinic_id", clinic.id);
 
