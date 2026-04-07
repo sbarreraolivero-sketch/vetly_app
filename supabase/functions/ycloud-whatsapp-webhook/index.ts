@@ -1689,7 +1689,7 @@ ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
                     msgs.push({ role: "user", content: userContentBlocks });
                 }
 
-                const targetModel = clinic.ai_model === '4o' ? 'gpt-4o' : clinic.ai_model === 'mini' ? 'gpt-4o-mini' : (clinic.ai_model || clinic.openai_model || 'gpt-4o-mini');
+                const targetModel = clinic.ai_active_model === '4o' ? 'gpt-4o' : clinic.ai_active_model === 'mini' ? 'gpt-4o-mini' : (clinic.ai_active_model || clinic.openai_model || 'gpt-4o-mini');
                 let res = await callOpenAI(openaiApiKey, targetModel, msgs);
                 let assistant = res.choices[0].message;
                 let funcResult: Record<string, unknown> | null = null;

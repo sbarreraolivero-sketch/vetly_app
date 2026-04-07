@@ -597,7 +597,7 @@ export default function Settings() {
                 .update({
                     ycloud_api_key: yCloudApiKey || null,
                     ycloud_phone_number: yCloudPhoneNumber || null,
-                    ai_model: openaiModel,
+                    ai_active_model: openaiModel,
                 })
                 .eq('id', profile.clinic_id)
 
@@ -947,7 +947,7 @@ export default function Settings() {
                 .from('clinic_settings')
                 .update({
                     ai_auto_respond: aiAutoRespond,
-                    ai_model: aiActiveModel,
+                    ai_active_model: aiActiveModel,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id);
