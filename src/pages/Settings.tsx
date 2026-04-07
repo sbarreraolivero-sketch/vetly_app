@@ -1774,9 +1774,9 @@ export default function Settings() {
                                                 <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
                                                     <Zap className="w-3.5 h-3.5 text-emerald-600" />
                                                 </div>
-                                                <p className="text-sm font-semibold text-charcoal">Información para la IA (Ary)</p>
+                                                <p className="text-sm font-semibold text-charcoal">Información para la IA</p>
                                             </div>
-                                            <p className="text-xs text-charcoal/50 mb-3">Detalla inclusiones, dosis, ayunos o datos que Ary deba saber de este servicio.</p>
+                                            <p className="text-xs text-charcoal/50 mb-3">Detalla inclusiones, dosis, ayunos o datos que el asistente deba saber de este servicio.</p>
                                             <textarea
                                                 placeholder="Ej: Incluye la vacuna + visita médica. Se recomiendan 3 dosis con 21 días de diferencia. No requiere ayuno."
                                                 value={newServiceAiDescription}
