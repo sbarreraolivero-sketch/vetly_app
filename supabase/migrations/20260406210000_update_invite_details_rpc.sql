@@ -1,6 +1,8 @@
-
 -- Migration: update_invite_details_rpc
 -- Description: Updates check_pending_invite_details to return first_name and role.
+
+-- DROP first to handle changed return columns (CREATE OR REPLACE doesn't allow changing TABLE columns)
+DROP FUNCTION IF EXISTS public.check_pending_invite_details(TEXT, UUID);
 
 CREATE OR REPLACE FUNCTION public.check_pending_invite_details(
   p_email TEXT,

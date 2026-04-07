@@ -10,45 +10,60 @@ interface SubscriptionGuardProps {
 }
 
 export function SubscriptionGuard({ children, fallback }: SubscriptionGuardProps) {
-    const { subscription, loading } = useAuth()
+    const { user, subscription, loading } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
 
     useEffect(() => {
         if (!loading) {
-            const isTrial = subscription?.status === 'trial'
-            const isActive = subscription?.status === 'active' || (subscription?.status as string) === 'converted' || (subscription?.status as string) === 'freemium'
+            // Bypass for known owner emails - ALWAYS ALLOW ACCESS
+            const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
+            if (user?.email && ownerEmails.includes(user.email.toLowerCase().trim())) {
+                return;
+            }
 
-            // Check if trial expired based on date
-            const trialExpired = isTrial && subscription?.trial_ends_at && new Date(subscription.trial_ends_at) < new Date()
+            // PERMISSIVE LOGIC: We only block if we are ABSOLUTELY SURE it's expired/canceled
+            // Valid statuses for full access
+            const validStatuses = ['active', 'converted', 'freemium', 'trial', 'trialing', 'on_hold']
+            const currentStatus = (subscription?.status as string || '').toLowerCase()
+            
+            const isActive = validStatuses.includes(currentStatus)
+            const trialExpired = currentStatus === 'trial' && subscription?.trial_ends_at && new Date(subscription.trial_ends_at) < new Date()
 
-            // Block ONLY if there is a subscription and it's explicitly not active/trial OR if trial is expired.
-            // If subscription is null (no row in DB), assume Freemium/Legacy and do not block.
-            const isBlocked = subscription !== null && ((!isActive && !isTrial) || trialExpired)
+            // Do NOT block if status is null or not found (default to free/limited access instead of total block)
+            const isBlocked = subscription !== null && (!isActive || trialExpired)
 
-            if (isBlocked) {
-                // If fallback provided, don't redirect, just let parent decide (or render fallback)
-                if (!fallback && location.pathname !== '/app/settings') {
-                    navigate('/app/settings?tab=subscription', {
-                        state: {
-                            from: location.pathname,
-                            message: 'Tu suscripción ha expirado. Por favor actualiza tu plan para continuar.'
-                        }
-                    })
-                }
+            if (isBlocked && location.pathname !== '/app/settings') {
+                // If it's blocked, we only force redirect if they are not in settings already
+                navigate('/app/settings?tab=subscription', {
+                    state: {
+                        from: location.pathname,
+                        message: 'Tu suscripción requiere atención. Por favor revisa los detalles de tu plan.'
+                    }
+                })
             }
         }
-    }, [subscription, loading, navigate, location, fallback])
+    }, [subscription, loading, navigate, location, fallback, user?.email])
 
     if (loading) {
         return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>
     }
 
-    const isTrial = subscription?.status === 'trial'
-    const isActive = subscription?.status === 'active' || (subscription?.status as string) === 'converted' || (subscription?.status as string) === 'freemium'
-    const trialExpired = isTrial && subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) < new Date() : false
+    // Apply bypass for rendering as well
+    const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
+    const isOwner = user?.email && ownerEmails.includes(user.email.toLowerCase().trim())
 
-    const isBlocked = subscription !== null && ((!isActive && !isTrial) || trialExpired)
+    if (isOwner) {
+        return <>{children}</>
+    }
+
+    // Determine current status for blocking decision
+    const validStatuses = ['active', 'converted', 'freemium', 'trial', 'trialing', 'on_hold']
+    const currentStatus = (subscription?.status as string || '').toLowerCase()
+    const isActive = validStatuses.includes(currentStatus)
+    const trialExpired = (currentStatus === 'trial' || currentStatus === 'trialing') && subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) < new Date() : false
+
+    const isBlocked = subscription !== null && (!isActive || trialExpired)
 
     if (isBlocked) {
         if (fallback) return <>{fallback}</>

@@ -302,7 +302,7 @@ export default function MyProfile() {
                             value={specialty}
                             onChange={(e) => setSpecialty(e.target.value)}
                             className="input-soft w-full"
-                            placeholder="Ej: Ortodoncia, Rehabilitación"
+                            placeholder="Ej: Cirugía, Dermatología, Fisioterapia"
                             autoComplete="new-password"
                             name={`specialty_field_${Math.random().toString(36).substring(7)}`} // Dynamic name to confuse autofill
                         />

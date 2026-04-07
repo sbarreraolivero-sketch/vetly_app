@@ -89,20 +89,23 @@ const geocodeAddress = async (address: string): Promise<{ lat: number, lng: numb
     }
 };
 
-// ====== Helper: Get Travel Distance/Time between points ======
-const getTravelDistance = async (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }): Promise<number> => {
-    if (!GOOGLE_MAPS_API_KEY) return 999999; // Fallback to large distance
+// ====== Helper: Get Travel Duration and Distance between points ======
+const getTravelDetails = async (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }): Promise<{ duration: number; distance: number }> => {
+    if (!GOOGLE_MAPS_API_KEY) return { duration: 0, distance: 0 };
     try {
         const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}&destinations=${destination.lat},${destination.lng}&key=${GOOGLE_MAPS_API_KEY}`;
         const res = await fetch(url);
         const data = await res.json();
         if (data.status === "OK" && data.rows[0].elements[0].status === "OK") {
-            return data.rows[0].elements[0].distance.value; // meters
+            return {
+                duration: data.rows[0].elements[0].duration.value, // seconds
+                distance: data.rows[0].elements[0].distance.value   // meters
+            };
         }
-        return 999999;
+        return { duration: 0, distance: 0 };
     } catch (e) {
         console.error("[DistanceMatrix] Exception:", e);
-        return 999999;
+        return { duration: 0, distance: 0 };
     }
 };
 
@@ -301,6 +304,10 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
         await sb.from("crm_prospects").update(updates).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
     }
 
+    const { data: clinic } = await sb.from("clinic_settings").select("business_model, latitude, longitude").eq("id", clinicId).single();
+    const isMobile = clinic?.business_model !== 'physical';
+    const clinicBase = clinic?.latitude && clinic?.longitude ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) } : null;
+
     let duration = 60; // Default
     let serviceId: string | null = null;
     let professionalId: string | null = null;
@@ -394,46 +401,79 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
         }
     }
 
-    const isMobile = clinicId && (await sb.from("clinic_settings").select("business_model").eq("id", clinicId).single()).data?.business_model !== 'physical';
-
-    // 6. IF MOBILE CLINIC: Logic for route optimization
+    // 6. IF MOBILE CLINIC: Filter slots based on Travel Time (Travel Block)
+    let filteredSlots = slots.filter((s: { is_available: boolean }) => s.is_available);
     let recommendedSlot = "";
+
     if (isMobile && tutorCoords) {
-        // Fetch appointments for that day with coordinates
+        // Fetch appointments for that day with coordinates and duration
         const { data: dayAppts } = await sb.from("appointments")
-            .select("latitude, longitude, appointment_date")
+            .select("id, latitude, longitude, appointment_date, duration")
             .eq("clinic_id", clinicId)
             .gte("appointment_date", `${date}T00:00:00`)
             .lte("appointment_date", `${date}T23:59:59`)
-            .not("latitude", "is", null);
+            .neq("status", "cancelled")
+            .not("latitude", "is", null)
+            .order("appointment_date", { ascending: true });
 
-        if (dayAppts && dayAppts.length > 0) {
-            // Find closest appointment
-            let minDistance = 999999;
-            let closestApptTime = "";
+        const TRAVEL_BUFFER_MINUTES = 10; // Extra buffer for parking, etc.
 
-            for (const appt of dayAppts) {
-                const dist = await getTravelDistance(tutorCoords, { lat: appt.latitude, lng: appt.longitude });
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    closestApptTime = appt.appointment_date;
+        // For each available slot, verify if there's enough time to travel to/from it
+        const finalValidSlots = [];
+        for (const slot of filteredSlots) {
+            const slotStart = new Date(`${date}T${slot.slot_time}`);
+            const slotEnd = new Date(slotStart.getTime() + (duration * 60000));
+            
+            // 1. Find Prev and Next appointment relative to this slot
+            const prevAppt = dayAppts?.filter(a => new Date(a.appointment_date) < slotStart).slice(-1)[0];
+            const nextAppt = dayAppts?.filter(a => new Date(a.appointment_date) >= slotEnd)[0];
+
+            // 2. Determine Origins and Destinations
+            const originLocation = prevAppt ? { lat: Number(prevAppt.latitude), lng: Number(prevAppt.longitude) } : clinicBase;
+            const destinationLocation = nextAppt ? { lat: Number(nextAppt.latitude), lng: Number(nextAppt.longitude) } : clinicBase;
+
+            let isPossible = true;
+
+            // 3. Check Travel from Origin (Prev Appt or Clinic Base)
+            if (originLocation) {
+                const { duration: travelTime } = await getTravelDetails(originLocation, tutorCoords);
+                const availableGapSecs = prevAppt 
+                    ? (slotStart.getTime() - (new Date(prevAppt.appointment_date).getTime() + (prevAppt.duration * 60000))) / 1000
+                    : (slotStart.getTime() - new Date(`${date}T08:00:00`).getTime()) / 1000; // Assume 8 AM start if no prev
+
+                if (availableGapSecs < (travelTime + (TRAVEL_BUFFER_MINUTES * 60))) {
+                    isPossible = false;
                 }
             }
 
-            if (minDistance < 15000) { // If closer than 15km, prioritize that day/sector
-                const hRec = new Date(closestApptTime).getHours();
-                const mRec = new Date(closestApptTime).getMinutes();
-                recommendedSlot = `(Sugerido por cercanía a otro paciente)`;
+            // 4. Check Travel to Next (Next Appt or Clinic Base)
+            if (isPossible && destinationLocation) {
+                const { duration: travelTime } = await getTravelDetails(tutorCoords, destinationLocation);
+                const availableGapSecs = nextAppt
+                    ? (new Date(nextAppt.appointment_date).getTime() - slotEnd.getTime()) / 1000
+                    : (new Date(`${date}T20:00:00`).getTime() - slotEnd.getTime()) / 1000; // Assume 8 PM end if no next
+
+                if (availableGapSecs < (travelTime + (TRAVEL_BUFFER_MINUTES * 60))) {
+                    isPossible = false;
+                }
+            }
+
+            if (isPossible) {
+                finalValidSlots.push(slot);
+                // Heuristic for recommendation (closer = better)
+                if (prevAppt || nextAppt) {
+                    recommendedSlot = `(Optimizado para su zona)`;
+                }
             }
         }
+        filteredSlots = finalValidSlots;
     }
 
     const dow = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][new Date(date + 'T12:00:00').getDay()];
     const dayConfig = clinicWorkingHours?.[dow];
     const lunch = dayConfig?.lunch_break;
 
-    const availableSlots = slots
-        .filter((s: { is_available: boolean, slot_time: string }) => s.is_available)
+    const availableSlots = filteredSlots
         .filter(s => {
             if (!lunch || !lunch.enabled) return true;
 
@@ -593,6 +633,14 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         return { success: false, message: "Lo siento, ese horario se acaba de ocupar. Por favor consulta la disponibilidad nuevamente para elegir otro momento." };
     }
 
+    // Get coordinates from tutor/CRM if they exist
+    const { data: tutorGeo } = await sb.from("crm_prospects")
+        .select("latitude, longitude")
+        .eq("clinic_id", clinicId)
+        .eq("phone", normalizedPhone)
+        .limit(1)
+        .maybeSingle();
+
     const { data, error } = await sb.from("appointments").insert({
         clinic_id: clinicId,
         patient_name: args.patient_name,
@@ -602,7 +650,9 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         status: "pending",
         duration: duration,
         price: price,
-        professional_id: professionalId
+        professional_id: professionalId,
+        latitude: tutorGeo?.latitude || null,
+        longitude: tutorGeo?.longitude || null
     }).select().single();
 
     if (error) {

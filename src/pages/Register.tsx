@@ -421,7 +421,7 @@ export default function Register() {
                                         value={clinicName}
                                         onChange={(e) => setClinicName(e.target.value)}
                                         className="input-soft pl-12 w-full"
-                                        placeholder="Clínica Estética Bella"
+                                        placeholder="Clínica Veterinaria AnimalGrace"
                                         required
                                     />
                                 </div>
@@ -668,7 +668,7 @@ export default function Register() {
                                 <div className="w-9 h-9 bg-white/20 rounded-full flex-shrink-0" />
                                 <div>
                                     <p className="font-medium text-sm">Dra. Carolina Méndez</p>
-                                    <p className="text-xs text-white/60">Clínica Derma Bella</p>
+                                    <p className="text-xs text-white/60">Clínica Veterinaria AnimalGrace</p>
                                 </div>
                             </div>
                         </div>

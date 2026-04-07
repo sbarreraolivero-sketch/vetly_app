@@ -1679,7 +1679,7 @@ export default function Settings() {
                                                 <label className="block text-sm font-medium text-charcoal mb-2">Nombre del Servicio</label>
                                                 <input
                                                     type="text"
-                                                    placeholder="Ej: Consulta Médica General"
+                                                    placeholder="Ej: Consulta Veterinaria General"
                                                     value={newServiceName}
                                                     onChange={(e) => setNewServiceName(e.target.value)}
                                                     className="input-soft"
@@ -1746,7 +1746,7 @@ export default function Settings() {
                                                     <div>
                                                         <label className="block text-sm font-medium text-charcoal mb-2">Mensaje de seguimiento</label>
                                                         <textarea
-                                                            placeholder="Ej: ¿Te gustaría agendar tu próxima sesión? Los mejores resultados se obtienen con tratamientos periódicos."
+                                                            placeholder="Ej: ¿Te gustaría agendar la próxima desparasitación? Los mejores resultados se obtienen con tratamientos periódicos."
                                                             value={newUpsellMessage}
                                                             onChange={(e) => setNewUpsellMessage(e.target.value)}
                                                             rows={3}
