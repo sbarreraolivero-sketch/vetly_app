@@ -1689,7 +1689,8 @@ ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
                     msgs.push({ role: "user", content: userContentBlocks });
                 }
 
-                let res = await callOpenAI(openaiApiKey, clinic.openai_model, msgs);
+                const targetModel = clinic.ai_model === '4o' ? 'gpt-4o' : clinic.ai_model === 'mini' ? 'gpt-4o-mini' : (clinic.ai_model || clinic.openai_model || 'gpt-4o-mini');
+                let res = await callOpenAI(openaiApiKey, targetModel, msgs);
                 let assistant = res.choices[0].message;
                 let funcResult: Record<string, unknown> | null = null;
                 let allFuncResults: Record<string, unknown>[] = [];
@@ -1706,7 +1707,7 @@ ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
                         { role: "function", name: assistant.function_call.name, content: JSON.stringify(funcResult) }
                     );
 
-                    res = await callOpenAI(openaiApiKey, clinic.openai_model, msgs);
+                    res = await callOpenAI(openaiApiKey, targetModel, msgs);
                     assistant = res.choices[0].message;
                     maxCalls--;
                 }
