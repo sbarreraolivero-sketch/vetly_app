@@ -468,11 +468,11 @@ export default function Settings() {
             }
 
             try {
-                // Fetch services
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: servicesData, error: servicesError } = await (supabase as any).rpc('get_clinic_services_secure', {
-                    p_clinic_id: profile.clinic_id
-                })
+                // Fetch services directly from the table to ensure we get the latest schema (bypassing RPC cache)
+                const { data: servicesData, error: servicesError } = await (supabase as any)
+                    .from("clinic_services")
+                    .select("id, name, duration, price, upselling_enabled, upselling_days_after, upselling_message, ai_description")
+                    .eq("clinic_id", profile.clinic_id);
 
                 if (servicesError) {
                     console.error('Error fetching services:', servicesError)
