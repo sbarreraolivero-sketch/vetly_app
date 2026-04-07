@@ -1001,6 +1001,7 @@ export default function Settings() {
     }
 
     const [newServiceAiDescription, setNewServiceAiDescription] = useState('')
+    const [serviceSaved, setServiceSaved] = useState(false) // Success state
     const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
 
     const handleEditService = async (service: any) => {
@@ -1072,7 +1073,8 @@ export default function Settings() {
                         enabled: serviceData.upselling_enabled,
                         daysAfter: serviceData.upselling_days_after,
                         message: serviceData.upselling_message
-                    }
+                    },
+                    ai_description: serviceData.ai_description
                 } : s))
             } else {
                 // Insert new service
@@ -1146,6 +1148,11 @@ export default function Settings() {
             setAssignedProfessionals({})
             setPrimaryProfessional('')
             setEditingServiceId(null)
+            
+            // Show success message
+            setServiceSaved(true)
+            setTimeout(() => setServiceSaved(false), 3000)
+            
             setShowServiceModal(false)
 
         } catch (error: any) {
@@ -1607,6 +1614,12 @@ export default function Settings() {
                             <div className="card-soft p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-lg font-semibold text-charcoal">Servicios</h2>
+                                    {serviceSaved && (
+                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft border border-emerald-100">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            ¡Servicio guardado exitosamente!
+                                        </div>
+                                    )}
                                     <button
                                         onClick={() => {
                                             setAssignedProfessionals({})
