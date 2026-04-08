@@ -247,8 +247,6 @@ export default function Settings() {
     // AI settings state
     const [savingModel, setSavingModel] = useState(false)
     const [savingAutoRespond, setSavingAutoRespond] = useState(false)
-    const [savingPersonality, setSavingPersonality] = useState(false)
-    const [aiSaved, setAiSaved] = useState(false)
 
     // Profile settings state
     const [newPassword, setNewPassword] = useState('')
@@ -1041,7 +1039,6 @@ export default function Settings() {
         }
     }
 
-    const [newServiceAiDescription, setNewServiceAiDescription] = useState('')
     const [serviceSaved, setServiceSaved] = useState(false) // Success state
     const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
 
@@ -1053,7 +1050,6 @@ export default function Settings() {
         setNewUpsellEnabled(service.upselling?.enabled || false)
         setNewUpsellDays(service.upselling?.daysAfter?.toString() || '7')
         setNewUpsellMessage(service.upselling?.message || '')
-        setNewServiceAiDescription(service.ai_description || '')
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
