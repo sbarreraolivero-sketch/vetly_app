@@ -28,6 +28,8 @@ CREATE POLICY "Users can update services of their clinic" ON public.clinic_servi
 CREATE POLICY "Users can delete services of their clinic" ON public.clinic_services FOR DELETE USING (clinic_id IN (SELECT clinic_id FROM public.user_profiles WHERE id = auth.uid()));
 
 -- 3. Actualizar RPC Secure Fetch
+DROP FUNCTION IF EXISTS public.get_clinic_services_secure(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_clinic_services_secure(p_clinic_id uuid)
 RETURNS TABLE (
     id uuid,

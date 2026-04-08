@@ -1092,8 +1092,7 @@ export default function Settings() {
                 price: parseFloat(newServicePrice) || 0,
                 upselling_enabled: newUpsellEnabled,
                 upselling_days_after: parseInt(newUpsellDays) || 0,
-                upselling_message: newUpsellMessage,
-                ai_description: newServiceAiDescription
+                upselling_message: newUpsellMessage
             }
 
             let savedServiceId = editingServiceId
@@ -1117,8 +1116,7 @@ export default function Settings() {
                         enabled: serviceData.upselling_enabled,
                         daysAfter: serviceData.upselling_days_after,
                         message: serviceData.upselling_message
-                    },
-                    ai_description: serviceData.ai_description
+                    }
                 } : s))
             } else {
                 // Insert new service
@@ -1823,24 +1821,6 @@ export default function Settings() {
                                                     </div>
                                                 </div>
                                             )}
-                                        </div>
-
-                                        {/* AI Information Section */}
-                                        <div className="border-t border-silk-beige pt-4 mt-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
-                                                    <Zap className="w-3.5 h-3.5 text-emerald-600" />
-                                                </div>
-                                                <p className="text-sm font-semibold text-charcoal">Información para la IA</p>
-                                            </div>
-                                            <p className="text-xs text-charcoal/50 mb-3">Detalla inclusiones, dosis, ayunos o datos que el asistente deba saber de este servicio.</p>
-                                            <textarea
-                                                placeholder="Ej: Incluye la vacuna + visita médica. Se recomiendan 3 dosis con 21 días de diferencia. No requiere ayuno."
-                                                value={newServiceAiDescription}
-                                                onChange={(e) => setNewServiceAiDescription(e.target.value)}
-                                                rows={3}
-                                                className="input-soft resize-none text-sm bg-emerald-50/30 border-emerald-100 focus:border-emerald-300"
-                                            />
                                         </div>
 
                                         {/* Professional Assignment Section */}

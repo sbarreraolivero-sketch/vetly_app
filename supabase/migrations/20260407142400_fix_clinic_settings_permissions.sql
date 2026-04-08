@@ -60,7 +60,8 @@ DROP POLICY IF EXISTS "Owners can update clinic_settings" ON public.clinic_setti
 DROP POLICY IF EXISTS "Authenticated users can update clinic_settings" ON public.clinic_settings;
 DROP POLICY IF EXISTS "Members can update clinic_settings" ON public.clinic_settings;
 
-CREATE POLICY "Allow Admins to update clinic_settings"
+DROP POLICY IF EXISTS "Allow Members to update clinic_settings" ON public.clinic_settings;
+CREATE POLICY "Allow Members to update clinic_settings"
   ON public.clinic_settings FOR UPDATE
   USING (public.is_clinic_admin(id))
   WITH CHECK (public.is_clinic_admin(id));
@@ -69,6 +70,7 @@ CREATE POLICY "Allow Admins to update clinic_settings"
 DROP POLICY IF EXISTS "Members can read clinic_settings" ON public.clinic_settings;
 DROP POLICY IF EXISTS "Authenticated users can read clinic_settings" ON public.clinic_settings;
 
+DROP POLICY IF EXISTS "Allow Members to read clinic_settings" ON public.clinic_settings;
 CREATE POLICY "Allow Members to read clinic_settings"
   ON public.clinic_settings FOR SELECT
   USING (

@@ -6,6 +6,8 @@ ALTER TABLE public.clinic_services
 ADD COLUMN IF NOT EXISTS ai_description text;
 
 -- 2. Update secure fetch RPC to include the new field
+DROP FUNCTION IF EXISTS public.get_clinic_services_secure(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_clinic_services_secure(p_clinic_id uuid)
 RETURNS TABLE (
     id uuid,
