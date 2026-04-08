@@ -865,7 +865,7 @@ export default function KnowledgeBase() {
                                 <textarea
                                     value={formContent}
                                     onChange={(e) => setFormContent(e.target.value)}
-                                    placeholder="Escribe aquí la información que el agente IA utilizará para responder a los clientes...&#10;&#10;Ejemplo:&#10;- Plan Básico: $99/mes — Incluye 100 conversaciones&#10;- Plan Pro: $199/mes — Incluye 500 conversaciones&#10;- Plan Enterprise: Contactar para precio"
+                                    placeholder="Escribe aquí la información que el agente IA utilizará para responder a los clientes...&#10;&#10;Ejemplo:&#10;- Vacuna Óctuple: $23.000 — Previene Distemper, Parvo y otros.&#10;- Consulta Médica: $20.000 — Revisión completa a domicilio.&#10;- Desparasitación Interna: Desde $3.000 según peso."
                                     rows={12}
                                     className="input-soft w-full resize-none font-mono text-sm leading-relaxed"
                                 />
