@@ -1179,7 +1179,7 @@ export default function Settings() {
             setNewServiceName('')
             setNewServiceDuration('30')
             setNewServicePrice('')
-            setNewServiceAiDescription('') // Clear AI field
+
             setNewUpsellEnabled(false)
             setNewUpsellDays('7')
             setNewUpsellMessage('')
