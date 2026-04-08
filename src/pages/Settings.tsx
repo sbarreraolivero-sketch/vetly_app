@@ -92,7 +92,7 @@ const dayNames: Record<string, string> = {
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 export default function Settings() {
-    const { user, profile, member, refreshClinics } = useAuth()
+    const { user, profile, member, clinics, refreshClinics } = useAuth()
     const [searchParams] = useSearchParams()
 
     const availableTabs = tabs.filter(tab => {
@@ -245,7 +245,9 @@ export default function Settings() {
     const [scheduleSaved, setScheduleSaved] = useState(false)
 
     // AI settings state
-    const [savingAI, setSavingAI] = useState(false)
+    const [savingModel, setSavingModel] = useState(false)
+    const [savingAutoRespond, setSavingAutoRespond] = useState(false)
+    const [savingPersonality, setSavingPersonality] = useState(false)
     const [aiSaved, setAiSaved] = useState(false)
 
     // Profile settings state
@@ -593,12 +595,13 @@ export default function Settings() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .update({
+                .upsert({
+                    id: profile.clinic_id,
+                    clinic_name: clinicName || clinics?.find(c => c.clinic_id === profile.clinic_id)?.clinic_name || 'Clínica Veterinaria',
                     ycloud_api_key: yCloudApiKey || null,
                     ycloud_phone_number: yCloudPhoneNumber || null,
                     ai_active_model: aiActiveModel,
                 })
-                .eq('id', profile.clinic_id)
 
             if (error) throw error
             setSaveStatus('success')
@@ -853,17 +856,28 @@ export default function Settings() {
         }
 
         try {
-            console.log('--- AUDITORÍA DE GUARDADO ---')
-            console.log('ID Clínica:', profile.clinic_id)
-            console.log('Payload:', {
+            console.log('UPDATING CLINIC SETTINGS:', {
+                id: profile.clinic_id,
                 clinic_name: clinicName,
+                clinic_address: clinicAddress,
+                address_references: addressReferences,
+                google_maps_url: googleMapsUrl,
+                instagram_url: instagramUrl,
+                facebook_url: facebookUrl,
+                tiktok_url: tiktokUrl,
+                website_url: websiteUrl,
+                currency,
+                timezone,
                 business_model: businessModel,
-                clinic_address: clinicAddress
+                template_survey: templateSurvey,
+                template_reactivation: templateReactivation,
+                updated_at: new Date().toISOString()
             })
 
             const { data, error } = await (supabase as any)
                 .from('clinic_settings')
-                .update({
+                .upsert({
+                    id: profile.clinic_id,
                     clinic_name: clinicName,
                     clinic_address: clinicAddress,
                     address_references: addressReferences,
@@ -872,14 +886,13 @@ export default function Settings() {
                     facebook_url: facebookUrl,
                     tiktok_url: tiktokUrl,
                     website_url: websiteUrl,
-                    currency: currency,
-                    timezone: timezone,
+                    currency,
+                    timezone,
                     business_model: businessModel,
                     template_survey: templateSurvey,
                     template_reactivation: templateReactivation,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id)
                 .select();
 
             if (error) {
@@ -913,11 +926,11 @@ export default function Settings() {
         try {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .update({
+                .upsert({
+                    id: profile.clinic_id,
                     working_hours: workingHours,
                     updated_at: new Date().toISOString()
-                })
-                .eq('id', profile.clinic_id);
+                });
 
 
             if (error) throw error;
@@ -932,35 +945,64 @@ export default function Settings() {
         }
     }
 
-    const handleSaveAI = async () => {
-        setSavingAI(true)
-        setAiSaved(false)
+    const toggleAutoRespond = async () => {
+        if (!profile?.clinic_id || savingAutoRespond) return
+        
+        const newValue = !aiAutoRespond
+        setSavingAutoRespond(true)
+        console.log('Attempting to toggle AI Auto-Respond to:', newValue, 'for clinic:', profile.clinic_id)
+        
+        try {
+            const { error } = await (supabase as any)
+                .from('clinic_settings')
+                .upsert({ 
+                    id: profile.clinic_id,
+                    clinic_name: clinicName || clinics?.find(c => c.clinic_id === profile.clinic_id)?.clinic_name || 'Clínica Veterinaria',
+                    ai_auto_respond: newValue 
+                })
 
-        if (!profile?.clinic_id) {
-            setSavingAI(false)
-            return
+            if (error) {
+                console.error('Error toggling AI auto-respond:', error)
+                toast.error('Error al cambiar atención automática: ' + error.message)
+                return
+            }
+            
+            setAiAutoRespond(newValue)
+            toast.success(newValue ? 'Atención automática activada' : 'Atención automática desactivada')
+        } catch (err) {
+            console.error('Exception in toggleAutoRespond:', err)
+            toast.error('Ocurrió un error inesperado')
+        } finally {
+            setSavingAutoRespond(false)
         }
+    }
+
+    const handleSaveAI = async () => {
+        if (!profile?.clinic_id) return
+        setSavingModel(true)
+        console.log('Attempting to save AI Model:', aiActiveModel, 'for clinic:', profile.clinic_id)
 
         try {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .update({
-                    ai_auto_respond: aiAutoRespond,
-                    ai_active_model: aiActiveModel,
-                    updated_at: new Date().toISOString()
+                .upsert({
+                    id: profile.clinic_id,
+                    clinic_name: clinicName || clinics?.find(c => c.clinic_id === profile.clinic_id)?.clinic_name || 'Clínica Veterinaria',
+                    ai_active_model: aiActiveModel
                 })
-                .eq('id', profile.clinic_id);
 
+            if (error) {
+                console.error('Error saving AI model:', error)
+                toast.error('Error al guardar el modelo de IA: ' + error.message)
+                return
+            }
 
-            if (error) throw error;
-
-            setAiSaved(true)
-            setTimeout(() => setAiSaved(false), 3000)
-        } catch (error) {
-            console.error('Error saving AI settings:', error)
-            alert('Error al guardar la configuración de IA')
+            toast.success('Modelo de IA actualizado correctamente')
+        } catch (err) {
+            console.error('Exception in handleSaveAI:', err)
+            toast.error('Ocurrió un error inesperado al guardar')
         } finally {
-            setSavingAI(false)
+            setSavingModel(false)
         }
     }
 
@@ -3109,22 +3151,16 @@ export default function Settings() {
 
                                 <div className="pt-4 flex items-center gap-4">
                                     <button
-                                        onClick={handleSaveAI}
-                                        disabled={savingAI}
+                                        onClick={toggleAutoRespond}
+                                        disabled={savingAutoRespond}
                                         className="btn-primary flex items-center gap-2"
                                     >
-                                        {savingAI ? (
+                                        {savingAutoRespond ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
                                         ) : (
-                                            <><Save className="w-4 h-4" /> Guardar</>
+                                            <><Zap className="w-4 h-4" /> {aiAutoRespond ? 'Desactivar Atención' : 'Activar Atención'}</>
                                         )}
                                     </button>
-                                    {aiSaved && (
-                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            ¡Guardado!
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
@@ -3186,21 +3222,15 @@ export default function Settings() {
                                 <div className="mt-4 flex items-center gap-4">
                                     <button
                                         onClick={handleSaveAI}
-                                        disabled={savingAI}
+                                        disabled={savingModel}
                                         className="btn-primary flex items-center gap-2"
                                     >
-                                        {savingAI ? (
+                                        {savingModel ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
                                         ) : (
-                                            <><Save className="w-4 h-4" /> Guardar</>
+                                            <><Save className="w-4 h-4" /> Guardar Selección</>
                                         )}
                                     </button>
-                                    {aiSaved && (
-                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft border border-emerald-100">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            ¡Cambio de modelo guardado!
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 

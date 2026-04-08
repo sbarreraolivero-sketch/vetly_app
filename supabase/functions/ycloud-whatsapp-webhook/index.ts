@@ -436,7 +436,15 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
             // 3. Check Travel from Origin (Prev Appt or Clinic Base)
             if (originLocation) {
-                const { duration: travelTime } = await getTravelDetails(originLocation, tutorCoords);
+                let travelTimeMinutes = 30; // Default fallback
+                try {
+                    const travelDetails = await getTravelDetails(originLocation, tutorCoords);
+                    travelTimeMinutes = Math.ceil(travelDetails.duration / 60);
+                } catch (err) {
+                    console.error("[checkAvail] Google Maps API failed, using fallback:", err);
+                }
+                const travelTime = travelTimeMinutes * 60;
+                
                 const availableGapSecs = prevAppt 
                     ? (slotStart.getTime() - (new Date(prevAppt.appointment_date).getTime() + (prevAppt.duration * 60000))) / 1000
                     : (slotStart.getTime() - new Date(`${date}T08:00:00`).getTime()) / 1000; // Assume 8 AM start if no prev
@@ -1252,7 +1260,7 @@ const getKnowledgeSummary = async (sb: ReturnType<typeof createClient>, clinicId
 
         return "\n\nBase de Conocimiento de la Clínica:\n" +
             docs.map((d: { title: string; content: string; category: string }) =>
-                `- ${d.title} (${d.category}): ${d.content.substring(0, 300)}`
+                `- ${d.title} (${d.category}): ${d.content.substring(0, 4000)}`
             ).join("\n");
     } catch {
         return "";
@@ -1449,10 +1457,7 @@ Deno.serve(async (req) => {
 
         const msgRowId = await saveMsg(sb, clinic.id, from, body, "inbound", {
             ycloud_message_id: msgId,
-            message_type: msgObj.type,
-            payload: { ...msgObj, ...payloadExtra },
-            campaign_id: msgObj.referral?.source_id || null,
-            is_read: false
+            message_type: msgObj.type
         });
 
         // Auto-create prospect in CRM (best-effort, non-blocking)
@@ -1478,8 +1483,8 @@ Deno.serve(async (req) => {
 
         const asyncProcess = async () => {
             try {
-                // DEBOUNCE - WAIT FOR 30 SECONDS (Reverted from 10s as requested)
-                await new Promise(r => setTimeout(r, 30000));
+                // DEBOUNCE - WAIT FOR 2 SECONDS (More human-like responsiveness)
+                await new Promise(r => setTimeout(r, 2000));
 
                 // CHECK IF A NEWER USER MESSAGE ARRIVED WHILE WE WAITED
                 const { data: latestMsg } = await sb.from("messages")
@@ -1498,6 +1503,29 @@ Deno.serve(async (req) => {
                 }
 
                 // --- AT THIS POINT, WE ARE THE LATEST MESSAGE. BEGIN PROCESSING. ---
+
+                // FETCH CONVERSATION HISTORY (Last 15 messages for context)
+                // We use a robust phone lookup to handle variations with/without +
+                const searchPhone = from.startsWith("+") ? from : `+${from}`;
+                const searchPhoneNoPlus = from.startsWith("+") ? from.substring(1) : from;
+
+                const { data: rawHistory } = await sb.from("messages")
+                    .select("content, direction, created_at, ai_generated")
+                    .eq("clinic_id", clinic.id)
+                    .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
+                    .order("created_at", { ascending: false })
+                    .limit(15);
+
+                const history = (rawHistory || []).reverse();
+
+                // Check if we already answered this exact same prompt recently to avoid loops
+                if (history.length >= 2) {
+                    const lastMsg = history[history.length - 1];
+                    const prevMsg = history[history.length - 2];
+                    if (lastMsg.direction === "outbound" && lastMsg.content === "¡Hola! ¿En qué puedo ayudarle hoy?") {
+                         // Potencial loop detectado - forzar un comportamiento más directo
+                    }
+                }
 
                 const clinicTz = clinic.timezone || "America/Santiago";
                 const now = new Date();
@@ -1558,9 +1586,9 @@ ${clinic.google_maps_url ? `Mapa Google Maps: ${clinic.google_maps_url}` : ""}
 Modelo de Negocio: ${clinic.business_model === 'mobile' ? 'DOMICILIO (Móvil)' : clinic.business_model === 'hybrid' ? 'HÍBRIDO (Local y Domicilio)' : 'FÍSICO (Local fijo)'}
 
 ${clinic.business_model === 'mobile' || clinic.business_model === 'hybrid' ? ` REGLAS CLÍNICA MÓVIL:
-- Obligatorio: Solicitar la DIRECCIÓN del paciente antes de confirmar disponibilidad.
-- Usa la dirección en 'check_availability' cuando la tengas.
-- No digas "estamos cerca", di "revisaré el cupo más próximo para su zona".` : ''}
+- Obligatorio: Solicitar la DIRECCIÓN COMPLETA del paciente antes de intentar verificar disponibilidad.
+- NUNCA llames a la herramienta 'check_availability' si no tienes una dirección guardada o proporcionada por el usuario.
+- Si el usuario pregunta por disponibilidad sin dar su dirección, responde: "¡Con gusto! Para poder decirte qué horarios tengo libres en tu zona, ¿me podrías indicar tu dirección exacta?"` : ''}
 ${clinic.instagram_url ? `- Instagram: ${clinic.instagram_url}` : ""}
 ${clinic.facebook_url ? `- Facebook: ${clinic.facebook_url}` : ""}
 ${clinic.tiktok_url ? `- TikTok: ${clinic.tiktok_url}` : ""}
@@ -1575,84 +1603,60 @@ Servicios OFICIALES (SOLO ESTOS EXISTEN): ${JSON.stringify(servicesForPrompt)}
 
 ${knowledgeSummary}
 
-IMPORTANTE SOBRE IMÁGENES: TIENES capacidad visual. Si el usuario envía una imagen, vela, analízala profesionalmente y NO digas que no puedes ver imágenes.
+REGLAS DE ORO DE CONVERSACIÓN (MODO CONSULTOR VETERINARIO):
+1. **MÁXIMO UNA PREGUNTA POR TURNO (ESTRICTO)**: Nunca abrumes al tutor con múltiples preguntas. Una a la vez, con tono humano.
+2. **ENFOQUE EN EDUCACIÓN ANTES QUE EN VENTA**: Eres un asesor de salud, no un bot de ventas. Si preguntan por un servicio, primero explica brevemente su importancia clínica antes de hablar de logística o precios.
+3. **NO PIDAS DIRECCIÓN PREMATURAMENTE**: Solo solicita la comuna o dirección cuando el usuario demuestre una intención CLARA de ver disponibilidad o agendar. No la pidas en el primer mensaje de saludo o información general.
+4. **EMPATÍA Y CONEXIÓN**: Usa el nombre de la mascota y demuestra que te importa su bienestar. Por ejemplo: "Lo más importante es proteger a [Nombre] ahora que tiene [Edad]...".
+5. **TRIAGE SECUENCIAL Y ANÁLISIS**: Identifica el caso antes de proponer. Sigue este orden orgánico:
+   a) Saludo empático y conexión.
+   b) Nombre de la mascota y especie.
+   c) Edad y peso aproximado (esto determina dosis y vacunas).
+   d) Explicación del servicio/vacuna que le toca.
+   e) (Opcional si hay interés) Disponibilidad y logística.
+6. **PRECIOS CONVALOR**: Cuando des un precio, acompáñalo de lo que incluye (ej: "La vacuna Octuple tiene un valor de $X e incluye la revisión clínica preventiva de [Nombre]").
+
+PROTOCOLO CLÍNICO DE VACUNACIÓN (DETERMINACIÓN POR EDAD):
+1. **Distemper / Vacunas Iniciales**:
+   - **Puppy DP (Distemper + Parvo)**: Se puede aplicar **SOLO** entre las 4 y 6 semanas de vida de la mascota.
+   - **Octuple / Séxtuple**: Se aplica **SOLO** a mascotas mayores a 2 meses (8 semanas) de vida. 
+   - SI el usuario pregunta por "vacuna de perro de 3 meses" para Distemper, DEBES sugerir la **Octuple / Séxtuple**, nunca la Puppy DP.
+   - SI el usuario pregunta por un cachorro de 5 semanas, DEBES sugerir la **Puppy DP**.
+   - Siempre explica brevemente por qué sugieres una u otra basándote en su edad.
 
 REGLAS CRÍTICAS DE FECHAS Y HORARIOS:
-0. NO HAY LÍMITES DE ANTICIPACIÓN: Puedes agendar citas para cualquier semana o mes futuro. NUNCA digas que no es posible agendar con anticipación o que está muy lejos.
-1. SI el paciente pregunta por disponibilidad en un día que aparece EXPLÍCITAMENTE como 'CERRADO' en el 'Horario General' (ej: sábado o domingo), DEBES responder inmediatamente que la clínica está cerrada ese día y ofrece alternativas de los días que sí están abiertos. NO asumas que un día está cerrado si no aparece en la lista; si no aparece, pregunta disponibilidad con 'check_availability'.
-2. SIEMPRE verifica disponibilidad con 'check_availability' antes de confirmar un horario, INCLUSO si el usuario pide un horario específico. No asumas que está disponible.
-3. SI el paciente pregunta por "mañana" o "pasado mañana", usa las fechas ISO proporcionadas arriba.
-4. CONFÍA plenamente en el nombre del día y disponibilidad devueltos por 'check_availability'.
-5. El Horario General es tu guía; la herramienta es tu confirmación final.
-6. NUNCA digas que una cita está confirmada si no has recibido 'success: true' de la función 'create_appointment'.
-7. ERRORES DE HERRAMIENTA: No inventes ni asumas que una herramienta falló. Llama a la herramienta y lee su respuesta real. Si 'create_appointment' devuelve un error (ej. DB-AG-01 o DB-CONFLICT), díselo explícitamente al usuario.
-8. OBTENCIÓN DE DATOS: Asegúrate de tener el NOMBRE del paciente antes de agendar o verifica su identidad.
-9. FLUJO DE RESERVA Y COBRO (ORDEN OBLIGATORIO):
-   a) Ofrecer Slots: Llama a 'check_availability', muestra opciones y menciona el abono de $10.000.
-   b) Selección y Nombre: Pide el horario que más le acomode y su NOMBRE COMPLETO.
-   c) Registro: CUANDO TENGAS EL NOMBRE Y EL HORARIO, OBLIGATORIAMENTE DEBES LLAMAR a la herramienta 'create_appointment' con 'patient_name', 'date', 'time' y 'service_name'. NO ENVÍES TEXTO CONFIRMANDO LA CITA AÚN.
-   d) Datos de Pago: NUNCA envíes los datos de transferencia bancaria ANTES de que la herramienta 'create_appointment' te haya devuelto 'success: true'. Es una regla estricta.
-      LOS DATOS OFICIALES PARA EL ABONO ($10.000) SON:
-      - Nombre: Elizabeth Hernández
-      - RUT: 18.342.131-k
-      - Banco: Banco Estado
-      - Tipo de cuenta: Cuenta Vista / Chequera electrónica
-      - Número de cuenta: 80070001890
-   e) Validación: Si envía comprobante, agradece y confirma que está pendiente de validación.
-10. SEGMENTACIÓN Y CRM (PROACTIVIDAD):
-    - Cada vez que el usuario mencione interés en un servicio (ej: '¿precio microblading?', 'me gustaron las cejas'), DEBES llamar a 'tag_patient' con el nombre del servicio (ej: 'Microblading').
-    - Si el usuario menciona su nombre, correo o algún detalle importante (ej: alergias, contraindicaciones), DEBES llamar a 'upsert_prospect' para guardar estos datos en el CRM inmediatamente. NO esperes a que agende una cita.
-    - Usa 'Interés [Nombre del Servicio]' como formato preferido para etiquetas de servicio.
-11. SÓLO si 'create_appointment' devuelve 'Error DB-CONFLICT', sugiere amablemente agregar un segundo apellido para diferenciarlo en la base de datos.
-12. UBICACIÓN Y MAPA: Para responder sobre la ubicación, usa EXCLUSIVAMENTE los campos 'Dirección', 'Referencias de Dirección' y 'Mapa Google Maps' proporcionados arriba. Ignora cualquier dirección distinta o incompleta de la base de conocimiento.
-13. REDES SOCIALES Y WEB: Si el paciente solicita nuestras redes sociales (Instagram, Facebook o TikTok) o nuestro sitio web, proporciónale los enlaces oficiales listados arriba. Si no están configurados en la parte superior, búscalos en la base de conocimiento (\`get_knowledge\`) antes de informar que no están disponibles.
+1. SI el paciente pregunta por disponibilidad en un día que aparece EXPLÍCITAMENTE como 'CERRADO' en el 'Horario General', DEBES responder inmediatamente que la clínica está cerrada ese día y ofrece alternativas.
+2. SIEMPRE verifica disponibilidad con 'check_availability' antes de confirmar un horario.
+3. NUNCA digas que una cita está confirmada si no has recibido 'success: true' de la función 'create_appointment'.
 
+FLUJO DE RESERVA Y COBRO (ORDEN OBLIGATORIO):
+   a) Ofrecer Slots: Llama a 'check_availability', muestra opciones y menciona el abono de $10.000 (obligatorio para reservar).
+   b) Registro: CUANDO TENGAS EL NOMBRE Y EL HORARIO, OBLIGATORIAMENTE DEBES LLAMAR a la herramienta 'create_appointment'. NO ENVÍES TEXTO CONFIRMANDO LA CITA AÚN.
+   c) Datos de Pago: NUNCA envíes los datos de transferencia ANTES de que la herramienta 'create_appointment' te haya devuelto 'success: true'.
+      DATOS DE ABONO ($10.000): Elizabeth Hernández, RUT 18.342.131-k, Banco Estado, Cuenta Vista / Chequera electrónica, Cuenta: 80070001890.
 
-REGLAS SOBRE SERVICIOS Y TRIAGE VETERINARIO:
-1. Solo ofrece los servicios listados en "Servicios OFICIALES".
-2. PROTOCOLO DE TRIAGE (OBLIGATORIO): Si el usuario pregunta por vacunas, precios o servicios generales, NO des una lista de precios de inmediato. Sigue este flujo:
-   a) Identificación: Pregunta amablemente si la mascota es un perro o un gato y su nombre.
-   b) Edad y Estado: Consulta la edad de la mascota y si tiene sus vacunas al día o cuándo fue la última.
-   c) Asesoría Médica: Una vez identificado el caso, sugiere SOLO los servicios relevantes. Usa la "info_importante" de cada servicio para dar recomendaciones profesionales (ayuno, dosis, frecuencia).
-   d) Empatía: Usa un tono cálido, profesional y veterinario. No eres una vendedora, eres una asistente de salud animal.
-3. REGLA DE ORO DE PRECIOS: Nunca listes todos los precios de golpe si el usuario pregunta algo general como "¿qué valor tienen las vacunas?". Primero identifica qué vacuna necesita realmente.
-4. INFORMACIÓN ESPECÍFICA: Usa siempre 'get_knowledge' si el usuario pregunta detalles técnicos profundos o temas no listados en los servicios oficiales.
-5. PROACTIVIDAD: Usa 'tag_patient' para etiquetar la especie (Especie: Canino / Especie: Felino) y el interés del servicio.
+ETIQUETADO Y CRM (PROACTIVIDAD):
+- Usa 'tag_patient' PROACTIVAMENTE para segmentar al paciente (ej: 'Interés Vacunas', 'Canino', 'VIP').
+- Usa 'upsert_prospect' para guardar el nombre del tutor, de la mascota y notas relevantes de salud inmediatamente.
+- NUNCA menciones al paciente que lo estás etiquetando o registrando.
 
-REGLAS CRÍTICAS PARA PRECIOS:
-1. Si falta un precio en la lista de arriba, USA 'get_knowledge' antes de decir que no sabes.
+7. **PROHIBIDO INVENTAR (ANTI-ALUCINACIÓN)**: Está TERMINANTEMENTE PROHIBIDO inventar precios, recargos por comuna, o protocolos que no estén explícitamente en la Base de Conocimiento. Si el usuario pregunta por el costo de una comuna que NO aparece en tu lista de recargos, di: "No tengo el valor exacto del recargo para esa zona en este momento, pero lo consultaré de inmediato con el equipo para confirmarte". Es preferible decir "No lo sé" a dar información falsa.
 
-ETIQUETADO AUTOMÁTICO INTELIGENTE:
-Usa la función 'tag_patient' PROACTIVAMENTE para segmentar al paciente.
-Etiquetas por INTERÉS: "Interés [NombreServicio]" (azul #3B82F6)
-Etiquetas por CICLO: "Primera Vez", "Cliente [NombreServicio]", "Cliente Frecuente" (verde #10B981)
-Etiquetas por CONDICIÓN: "Piel Sensible", "Embarazada", "Condición Médica" (rojo #EF4444)
-Etiquetas por COMPORTAMIENTO: "Consulta Precio", "Referidor" (amarillo #F59E0B)
-Etiquetas ESPECIALES: "VIP", "Promoción" (morado #8B5CF6)
+8. **REGLA DE LOGÍSTICA (COSTO $0)**: Si el usuario menciona una comuna que aparece en la lista de "VISITA INCLUIDA" o sectores generales y NO está en la lista de "RECARGO ESPECIAL", el costo de la visita es **$0** (GRATIS) siempre que agende un servicio médico (Vacuna, Consulta, etc). No menciones el "costo base" de $6.000 a menos que sea una comuna con recargo.
 
-REGLAS DE ETIQUETADO Y CRM:
-1. Etiqueta INMEDIATAMENTE cuando detectes la señal de interés en un servicio.
-2. Un prospecto se considera "CALIFICADO" únicamente cuando consulta DISPONIBILIDAD de horarios. Llama a 'check_availability' solo cuando el paciente lo pida.
-3. Si el paciente revela su NOMBRE real durante la charla, llama a 'upsert_prospect' inmediatamente para corregir su ficha en el CRM.
-4. NUNCA menciones al paciente que lo estás etiquetando o registrando en el CRM.
-
-RESUMEN CLÍNICO Y NOTAS:
-1. Usa la herramienta 'upsert_prospect' para guardar notas internas con hallazgos relevantes de la conversación (ej: condiciones médicas, trabajos previos, dudas específicas, o lo que identifiques como clave).
-2. Sé conciso, profesional y directo. Ejemplo: "Cejas pigmentadas en otro lugar, muy negras, interesada en evaluación".
-3. Llama a esta función cada vez que el paciente revele algo importante para el historial clínico.
-
+${clinic.clinic_name?.includes('AnimalGrace Linares') ? ` REGLAS ESPECIALES DE LOGÍSTICA (LINARES/TALCA):
+1. BASE LINARES: El recorrido inicia y termina en Linares. Si el paciente es de Linares o radio urbano cercano, prioriza ofrecer primera hora (ej. 09:30) o última hora (ej. 17:30) de la jornada si están disponibles.
+2. RUTAS A TALCA: Se viaja a Talca de forma intercalada (día por medio aprox). 
+   - La prioridad es AGRUPAR. Si el paciente quiere agenda en Talca, intenta ofrecerle opciones y fíjate si el cliente acepta un día en particular. 
+   - Trata de no ofrecer Talca todos los días continuos. Si acabas de agendar para un Lunes, sugiere el Miércoles para el próximo paciente de Talca.
+3. COMUNAS PUENTE (San Javier, Villa Alegre, Ruta 5 Sur): Pueden agendarse aprovechando la ruta hacia o desde Talca (a media mañana o media tarde), o desde Linares abonando el recargo por distancia correspondiente.
+4. TARIFAS Y DISTANCIAS ANCLA: Linares urbano y Talca urbano tienen costo de visita $0. Fuera del urbano: a 10 min ($6.000), a 20 min ($8.000), a 30 min ($10.000). A más de 30 minutos de tiempo de viaje de estas anclas, indica que la visita técnica requerirá factibilidad. Niégate a inventar recargos.` : ''}
 
 ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
 
-                // Build conversation context WITH GROUPING
-                const { data: recentMsgs } = await sb.from("messages")
-                    .select("direction, content, message_type, payload")
-                    .eq("clinic_id", clinic.id)
-                    .or(`phone_number.eq.${from},phone_number.eq.+${from}`)
-                    .order("created_at", { ascending: false })
-                    .limit(15);
 
-                const orderedMsgs = recentMsgs?.reverse() || [];
+                // The 'history' variable is already fetched and reversed at the top of the asyncProcess.
+                const orderedMsgs = history;
 
                 // Find where the last outbound message is so we can group all recent inbound ones
                 let lastOutboundIndex = -1;
