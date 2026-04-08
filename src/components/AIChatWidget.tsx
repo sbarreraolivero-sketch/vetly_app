@@ -50,7 +50,7 @@ export function AIChatWidget({ variant = 'sales', clinicId }: AIChatWidgetProps)
                     {
                         id: 'init-sales',
                         sender: 'ai',
-                        text: '¡Hola! ✨ Soy asesor de Vetly AI.\n\nEstoy aquí para ayudarte a transformar la rentabilidad de tu clínica estética con nuestra Infraestructura Inteligente. ¿Tienes alguna duda sobre nuestras funciones o quieres agendar una asesoría de implementación?',
+                        text: '¡Hola! ✨ Soy asesor de Vetly AI.\n\nEstoy aquí para ayudarte a transformar la rentabilidad de tu clínica veterinaria con nuestra Infraestructura Inteligente. ¿Tienes alguna duda sobre nuestras funciones o quieres agendar una asesoría de implementación?',
                         timestamp: formatTime()
                     }
                 ]);

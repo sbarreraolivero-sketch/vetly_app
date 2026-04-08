@@ -415,7 +415,7 @@ export default function KnowledgeBase() {
                                 <textarea
                                     value={masterPrompt}
                                     onChange={(e) => setMasterPrompt(e.target.value)}
-                                    placeholder={`Ej: Eres un asistente amable y profesional para una clínica estética.\n\nReglas:\n- Responde de manera cordial, breve y clara\n- Nunca inventes horarios o servicios que no existan\n- Usa emojis con moderación para dar calidez\n- Siempre sugiere agendar una cita cuando el paciente muestre interés\n- Si no sabes algo, ofrece comunicar al paciente con el equipo humano`}
+                                    placeholder={`Ej: Eres Ary, una asistente amable y experta para una clínica veterinaria móvil.\n\nReglas:\n- Responde de manera empática, profesional y clara\n- Nunca inventes precios o servicios que no existan\n- Usa emojis como 🐶 o 🐱 para dar calidez\n- Siempre sugiere agendar una cita cuando el tutor muestre interés real\n- Si no sabes algo, ofrece comunicar al cliente con el equipo médico`}
                                     rows={8}
                                     className="input-soft w-full resize-none font-mono text-sm leading-relaxed"
                                 />
@@ -428,14 +428,14 @@ export default function KnowledgeBase() {
                                         <p className="font-bold mb-1.5 flex items-center gap-1.5 text-primary-700 text-[11px]">
                                             <Check className="w-3.5 h-3.5" /> EJEMPLO RECOMENDADO:
                                         </p>
-                                        <p className="italic text-[11.5px] leading-relaxed text-charcoal/80">"Eres un asesor experto en estética médica. Habla de manera empática pero profesional. Usa 'nosotros' para referirte a la clínica y enfócate siempre en resolver dudas sobre bienestar."</p>
+                                        <p className="italic text-[11.5px] leading-relaxed text-charcoal/80">"Eres un asesor experto en salud veterinaria. Habla de manera empática y profesional sobre el cuidado de las mascotas. Usa 'nosotros' para referirte a la clínica y enfócate siempre en resolver dudas sobre bienestar animal."</p>
                                     </div>
                                     <div className="mt-3 grid grid-cols-2 gap-2 text-[10.5px]">
                                         <div className="p-2 bg-silk-beige/20 rounded border border-silk-beige/30">
-                                            <b>🎩 Formal:</b> Ideal para clínicas quirúrgicas o de alta complejidad.
+                                            <b>🎩 Formal:</b> Ideal para hospitales veterinarios o centros quirúrgicos.
                                         </div>
                                         <div className="p-2 bg-silk-beige/20 rounded border border-silk-beige/30">
-                                            <b>✨ Cercana:</b> Ideal para centros de estética, spas o kinesiología.
+                                            <b>✨ Cercana:</b> Ideal para clínicas veterinarias móviles, peluquerías caninas o pet shops.
                                         </div>
                                     </div>
                                 </GuideBox>
@@ -464,7 +464,7 @@ export default function KnowledgeBase() {
                                             <ul className="text-[10.5px] space-y-1 text-emerald-800/80">
                                                 <li>• Saludar preguntando el nombre.</li>
                                                 <li>• Sugerir cita ante cualquier interés.</li>
-                                                <li>• Usar emojis de bienestar (✨💆‍♀️).</li>
+                                                <li>• Usar emojis amigables (🐶🐱🐾).</li>
                                                 <li>• Confirmar disponibilidad antes de citar.</li>
                                             </ul>
                                         </div>
@@ -472,8 +472,8 @@ export default function KnowledgeBase() {
                                             <p className="font-bold text-red-700 text-xs font-bold uppercase tracking-wider mb-1.5">❌ LO QUE NO DEBE HACER:</p>
                                             <ul className="text-[10.5px] space-y-1 text-red-800/80">
                                                 <li>• No dar precios sin explicar el valor.</li>
-                                                <li>• No discutir ni usar lenguaje técnico.</li>
-                                                <li>• No prometer resultados médicos finales.</li>
+                                                <li>• No discutir ni usar lenguaje demasiado técnico.</li>
+                                                <li>• No prometer resultados médicos garantizados.</li>
                                                 <li>• No agendar sin el abono requerido.</li>
                                             </ul>
                                         </div>
