@@ -1445,6 +1445,14 @@ Deno.serve(async (req) => {
             } else if (interactive.type === "list_reply") {
                 body = interactive.list_reply?.title || "";
             }
+        } else if (msgObj.type === "location" && msgObj.location) {
+            const loc = msgObj.location;
+            const lat = loc.latitude;
+            const lng = loc.longitude;
+            const locName = loc.name || "";
+            const locAddr = loc.address || "";
+            body = `[UBICACIÓN COMPARTIDA] Latitud: ${lat}, Longitud: ${lng}${locName ? ` - Nombre: ${locName}` : ""}${locAddr ? ` - Dirección: ${locAddr}` : ""}. (Dato para el agente: Usa estas coordenadas para confirmar la zona de servicio rural si es necesario).`;
+            await debugLog(sb, `Location received`, { lat, lng });
         }
 
         // Add context from Facebook Ad referral if present
@@ -1586,9 +1594,10 @@ ${clinic.google_maps_url ? `Mapa Google Maps: ${clinic.google_maps_url}` : ""}
 Modelo de Negocio: ${clinic.business_model === 'mobile' ? 'DOMICILIO (Móvil)' : clinic.business_model === 'hybrid' ? 'HÍBRIDO (Local y Domicilio)' : 'FÍSICO (Local fijo)'}
 
 ${clinic.business_model === 'mobile' || clinic.business_model === 'hybrid' ? ` REGLAS CLÍNICA MÓVIL:
-- Obligatorio: Solicitar la DIRECCIÓN COMPLETA del paciente antes de intentar verificar disponibilidad.
-- NUNCA llames a la herramienta 'check_availability' si no tienes una dirección guardada o proporcionada por el usuario.
-- Si el usuario pregunta por disponibilidad sin dar su dirección, responde: "¡Con gusto! Para poder decirte qué horarios tengo libres en tu zona, ¿me podrías indicar tu dirección exacta?"` : ''}
+- Eres una clínica móvil, por lo que la ubicación es CRÍTICA. 
+- PROTOCOLO DE UBICACIÓN: Primero pide amablemente que el tutor te comparta su **"Ubicación actual"** (un pin de WhatsApp) para saber exactamente dónde se encuentra. Si no sabe o no puede enviarla, solicita la **dirección exacta con referencias**. 
+- SECTORES RURALES: En estos casos, insiste en que compartan la **ubicación actual** (no en tiempo real, solo el pin del punto) porque eso te permite calcular el recargo por distancia correctamente.
+- NUNCA llames a 'check_availability' si no tienes una ubicación clara confirmada por el usuario.` : ''}
 ${clinic.instagram_url ? `- Instagram: ${clinic.instagram_url}` : ""}
 ${clinic.facebook_url ? `- Facebook: ${clinic.facebook_url}` : ""}
 ${clinic.tiktok_url ? `- TikTok: ${clinic.tiktok_url}` : ""}
