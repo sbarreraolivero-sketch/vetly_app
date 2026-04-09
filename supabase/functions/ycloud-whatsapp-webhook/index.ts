@@ -1463,11 +1463,16 @@ Deno.serve(async (req) => {
             let urbanDeductionNote = "";
 
             // Opción 1: Cálculo Automático desde el Borde (Solo para AnimalGrace)
-            if (clinic?.name?.toLowerCase().includes("animal") || clinic?.name?.toLowerCase().includes("grace")) {
+            if (clinic?.clinic_name?.toLowerCase().includes("animal") || clinic?.clinic_name?.toLowerCase().includes("grace")) {
                 const urbanRadiusKm = 3.5;
                 const ruralKm = Math.max(0, distanceKmRaw - urbanRadiusKm);
                 distanceKmStr = ruralKm.toFixed(1);
-                urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor ya le restó 3.5 KM del radio urbano por ti. El paciente está a exactamente ${distanceKmStr} Kilómetros FUERA del perímetro urbano. Usa esta cantidad para calcular tu tarifa de inmediato.)`;
+                
+                if (ruralKm === 0) {
+                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor analizó el Pin. El paciente está DENTRO del límite urbano ($0 recargo). Informa al paciente que su domicilio se considera dentro del radio Urbano y por tanto no tiene costo extra por kilometraje, pero que igual necesitas saber su calle y número para confirmar la disponibilidad.)`;
+                } else {
+                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor ya le restó 3.5 KM del radio urbano por ti. El paciente está a exactamente ${distanceKmStr} Kilómetros FUERA del perímetro urbano. Usa tu tabla de precios para este kilometraje rural extra.)`;
+                }
             } else {
                 urbanDeductionNote = `(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKmStr} Kilómetros del centro de la ciudad.)`;
             }
