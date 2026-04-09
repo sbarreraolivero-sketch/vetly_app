@@ -72,10 +72,10 @@ const getOffset = (timeZone: string = "America/Santiago", date: Date) => {
     } catch (e) { return "-03:00"; }
 };
 
-const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string, date: string, serviceName?: string, timezone?: string, professionalName?: string, clinicWorkingHours?: any) => {
+const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string, date: string, serviceName?: string, timezone: string = "America/Santiago", professionalName?: string, clinicWorkingHours?: any) => {
     try {
-        const tz = timezone || "America/Santiago";
-        let duration = 60;
+        const searchInterval = 30; // 30 min search interval for flexible scheduling
+        let duration = 60; // Default
         let serviceId: string | null = null;
         let professionalId: string | null = null;
 
@@ -93,12 +93,14 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             }
         }
 
-        // 2. Try to find the professional
-        if (professionalName) {
+        const professionalNameTrimmed = professionalName ? professionalName.trim() : null;
+
+        // 2. Try to find the professional BY NAME
+        if (professionalNameTrimmed) {
             const { data: prof } = await sb.from("clinic_members")
                 .select("id")
-                .eq("clinic_id", clinicId)
-                .or(`first_name.ilike.%${professionalName}%,last_name.ilike.%${professionalName}%,job_title.ilike.%${professionalName}%`)
+                .eq("clinic_id", clinicId.trim())
+                .or(`first_name.ilike.%${professionalNameTrimmed}%,last_name.ilike.%${professionalNameTrimmed}%,job_title.ilike.%${professionalNameTrimmed}%`)
                 .limit(1)
                 .maybeSingle();
             if (prof) professionalId = prof.id;
@@ -110,89 +112,65 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
                 .select("member_id")
                 .eq("service_id", serviceId)
                 .eq("is_primary", true)
+                .limit(1)
                 .maybeSingle();
             if (sp) professionalId = sp.member_id;
         }
 
-        console.log(`[Simulator checkAvail] Date: ${date}, Service: ${serviceName}, Prof: ${professionalId || 'Global'}`);
+        console.log(`[Simulator checkAvail] Date: ${date}, Dur: ${duration}, Prof: ${professionalId || 'Global'}`);
 
         let slots: { slot_time: string, is_available: boolean }[] = [];
 
-        // 4. Call RPCs for specific slots
-        // Note: Even if RPC is old, we will filter lunch break in JS below.
+        // 4. Call RPCs (Relying on the new unified logic)
         if (professionalId) {
             const { data, error } = await sb.rpc("get_professional_available_slots", {
-                p_clinic_id: clinicId,
+                p_clinic_id: clinicId.trim(),
                 p_member_id: professionalId,
                 p_date: date,
                 p_duration: duration,
-                p_timezone: tz,
-                p_interval: duration
+                p_interval: searchInterval,
+                p_timezone: timezone
             });
             if (!error && data) slots = data;
+            else if (error) console.error("[Simulator] Professional RPC error:", error);
         }
 
         if (slots.length === 0) {
             const { data, error } = await sb.rpc("get_available_slots", {
-                p_clinic_id: clinicId,
+                p_clinic_id: clinicId.trim(),
                 p_date: date,
                 p_duration: duration,
-                p_timezone: tz,
-                p_interval: duration
+                p_interval: searchInterval,
+                p_timezone: timezone
             });
             if (!error && data) slots = data;
+            else if (error) console.error("[Simulator] Global RPC error:", error);
         }
 
-        if (slots.length === 0) {
-            return { available: false, message: `No hay disponibilidad para el ${date}. Sugiere otro día de lunes a viernes.` };
-        }
-
-        // 5. MANUALLY FILTER SLOTS FOR CLINIC LUNCH BREAK (Double-protection)
-        const dow = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][new Date(date + 'T12:00:00').getDay()];
-        const dayConfig = clinicWorkingHours?.[dow];
-        const lunch = dayConfig?.lunch_break;
-
+        // 5. Filter and Format
         const availableSlots = slots
             .filter(s => s.is_available)
-            .filter(s => {
-                if (!lunch || !lunch.enabled) return true;
-
-                // Compare times as HH:MM
-                const tStart = s.slot_time.substring(0, 5);
-
-                // Calculate end time
-                const [h, m] = tStart.split(':').map(Number);
-                const endDate = new Date(2000, 0, 1, h, m + duration);
-                const tEnd = endDate.toTimeString().substring(0, 5);
-
-                const lStart = lunch.start;
-                const lEnd = lunch.end;
-
-                // Overlap logic: T_Start < L_End AND T_End > L_Start
-                const isOverlapping = (tStart < lEnd && tEnd > lStart);
-                return !isOverlapping;
-            })
             .map(s => {
                 const t = s.slot_time.substring(0, 5);
                 const h = parseInt(t.split(":")[0]);
-                return `${h > 12 ? h - 12 : h}:${t.split(":")[1]} ${h >= 12 ? "PM" : "AM"}`;
+                const m = t.split(":")[1];
+                return `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${m} ${h >= 12 ? "PM" : "AM"}`;
             });
 
         if (availableSlots.length === 0) {
-            return { available: false, message: `Lo siento, no hay espacios libres disponibles para el ${date}.` };
+            return { available: false, message: `Lamentablemente no hay disponibilidad para el ${date}. ¿Deseas revisar otro día?` };
         }
 
-        const displaySlots = availableSlots.slice(0, 10);
-
+        const displaySlots = availableSlots.slice(0, 8); // Top 8 slots
         return {
             available: true,
             date,
             slots: displaySlots,
-            message: `Para el ${date}, tenemos estos espacios disponibles para ${serviceName || 'tu cita'}: ${displaySlots.join(", ")}. ¿A qué hora te gustaría agendar?`
+            message: `Para el ${date}, encontramos estos horarios: ${displaySlots.join(", ")}. ¿Cuál te acomoda más?`
         };
     } catch (e) {
-        console.error("checkAvail error:", e);
-        return { error: "Error verificando disponibilidad." };
+        console.error("[Simulator checkAvail] Error:", e);
+        return { error: "Hubo un problema técnico al verificar horarios." };
     }
 };
 

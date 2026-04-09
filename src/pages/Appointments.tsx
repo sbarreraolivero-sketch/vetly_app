@@ -37,6 +37,7 @@ import { GuideBox } from '@/components/ui/GuideBox'
 interface Appointment {
     id: string
     patient_name: string
+    tutor_name?: string | null
     phone_number: string
     service: string
     appointment_date: string
@@ -83,6 +84,7 @@ export default function Appointments() {
     const [googleEvents] = useState<CalendarEvent[]>([])
     const [newAppointment, setNewAppointment] = useState({
         patient_name: '',
+        tutor_name: '',
         phone_number: '',
         service: '',
         appointment_date: '',
@@ -305,6 +307,7 @@ export default function Appointments() {
                     .from('appointments')
                     .update({
                         patient_name: newAppointment.patient_name,
+                        tutor_name: newAppointment.tutor_name,
                         phone_number: newAppointment.phone_number,
                         service: newAppointment.service,
                         appointment_date: appointmentDate,
@@ -331,6 +334,7 @@ export default function Appointments() {
                         {
                             clinic_id: profile.clinic_id,
                             patient_name: newAppointment.patient_name,
+                            tutor_name: newAppointment.tutor_name,
                             phone_number: newAppointment.phone_number,
                             service: newAppointment.service,
                             appointment_date: appointmentDate,
@@ -407,6 +411,7 @@ export default function Appointments() {
             setShowModal(false)
             setNewAppointment({
                 patient_name: '',
+                tutor_name: '',
                 phone_number: '',
                 service: '',
                 appointment_date: '',
@@ -917,6 +922,7 @@ export default function Appointments() {
                                 setEditingId(event.id)
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
+                                    tutor_name: event.resource.tutor_name || '',
                                     phone_number: event.resource.phone_number,
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
@@ -944,6 +950,7 @@ export default function Appointments() {
                                 setEditingId(event.id)
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
+                                    tutor_name: event.resource.tutor_name || '',
                                     phone_number: event.resource.phone_number,
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
@@ -979,6 +986,7 @@ export default function Appointments() {
                                 setEditingId(event.id)
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
+                                    tutor_name: event.resource.tutor_name || '',
                                     phone_number: event.resource.phone_number,
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
@@ -1006,6 +1014,7 @@ export default function Appointments() {
                         <table className="w-full min-w-[800px]">
                             <thead>
                                 <tr className="border-b border-silk-beige bg-ivory/50">
+                                    <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Tutor</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Paciente</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Servicio</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Fecha y Hora</th>
@@ -1022,6 +1031,9 @@ export default function Appointments() {
                                             index === filteredAppointments.length - 1 && 'border-b-0'
                                         )}
                                     >
+                                        <td className="py-4 px-6 text-sm font-medium text-charcoal">
+                                            {appointment.tutor_name || 'Desconocido'}
+                                        </td>
                                         <td className="py-4 px-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-silk-beige rounded-full flex items-center justify-center">
@@ -1118,6 +1130,7 @@ export default function Appointments() {
                                                                     setEditingId(appointment.id) // Set editing mode
                                                                     setNewAppointment({
                                                                         patient_name: appointment.patient_name,
+                                                                        tutor_name: appointment.tutor_name || '',
                                                                         phone_number: appointment.phone_number,
                                                                         service: appointment.service,
                                                                         appointment_date: appointment.appointment_date.split('T')[0],
@@ -1168,9 +1181,12 @@ export default function Appointments() {
                                             <User className="w-5 h-5 text-charcoal/50" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-bold text-charcoal truncate text-sm sm:text-base leading-tight">
-                                                {appointment.patient_name}
-                                            </p>
+                                            <div className="flex flex-col">
+                                                <p className="text-[10px] font-bold text-primary-600 uppercase tracking-widest mb-0.5">Tutor: {appointment.tutor_name || 'Desconocido'}</p>
+                                                <p className="font-bold text-charcoal truncate text-sm sm:text-base leading-tight">
+                                                    {appointment.patient_name}
+                                                </p>
+                                            </div>
                                             <div className="flex flex-col gap-1 mt-1">
                                                 <p className="text-xs font-bold sm:text-xs text-charcoal/40 flex items-center gap-1">
                                                     <Phone className="w-3 h-3" />
@@ -1255,6 +1271,7 @@ export default function Appointments() {
                                             setEditingId(appointment.id)
                                             setNewAppointment({
                                                 patient_name: appointment.patient_name,
+                                                tutor_name: appointment.tutor_name || '',
                                                 phone_number: appointment.phone_number,
                                                 service: appointment.service,
                                                 appointment_date: appointment.appointment_date.split('T')[0],
@@ -1393,13 +1410,26 @@ export default function Appointments() {
                             <div className="p-6 space-y-4 overflow-y-auto flex-1">
                                 <div>
                                     <label className="block text-sm font-medium text-charcoal mb-2">
-                                        Nombre del Paciente *
+                                        Nombre del Tutor (Dueño) *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={newAppointment.tutor_name}
+                                        onChange={(e) => setNewAppointment({ ...newAppointment, tutor_name: e.target.value })}
+                                        placeholder="Ej: Seba Barrera"
+                                        className="input-soft w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-charcoal mb-2">
+                                        Nombre del Paciente (Mascota) *
                                     </label>
                                     <input
                                         type="text"
                                         value={newAppointment.patient_name}
                                         onChange={(e) => setNewAppointment({ ...newAppointment, patient_name: e.target.value })}
-                                        placeholder="Ej: María García"
+                                        placeholder="Ej: Sammy"
                                         className="input-soft w-full"
                                     />
                                 </div>

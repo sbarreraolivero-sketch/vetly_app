@@ -291,7 +291,7 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
     // 2. If address provided, geocode and save it
     let tutorCoords: { lat: number, lng: number } | null = null;
     if (address) {
-        const normalizedPhone = normalizePhone(phone);
+        const normalizedPhone = normalizePhone(phone).trim();
         tutorCoords = await geocodeAddress(address);
         
         const updates: any = { address: address };
@@ -300,8 +300,8 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             updates.longitude = tutorCoords.lng;
         }
         
-        await sb.from("tutors").update(updates).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
-        await sb.from("crm_prospects").update(updates).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
+        await sb.from("tutors").update(updates).eq("clinic_id", clinicId.trim()).eq("phone", normalizedPhone);
+        await sb.from("crm_prospects").update(updates).eq("clinic_id", clinicId.trim()).eq("phone", normalizedPhone);
     }
 
     const { data: clinic } = await sb.from("clinic_settings").select("business_model, latitude, longitude").eq("id", clinicId).single();
@@ -354,19 +354,23 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
     }
 
     console.log(`[checkAvail] Service: '${serviceName}' (ID: ${serviceId}), Duration: ${duration}min, Professional: ${professionalId || 'Global'}`);
+    await debugLog(sb, "Check Avail Params", { clinicId, date, serviceName, professionalId, duration });
 
     let slots: { slot_time: string, is_available: boolean }[] = [];
 
     // Strategy: Try professional-specific slots first if we have a professional
+    // Use a fixed 30-min interval to provide more starting options even for long services
+    const searchInterval = 30; 
+
     if (professionalId) {
         try {
             const { data, error } = await sb.rpc("get_professional_available_slots", {
-                p_clinic_id: clinicId,
-                p_member_id: professionalId,
-                p_date: date,
+                p_clinic_id: clinicId.trim(),
+                p_member_id: professionalId.trim(),
+                p_date: date.trim(),
                 p_duration: duration,
-                p_interval: duration, // Step by duration (no flexible intervals)
-                p_timezone: timezone
+                p_interval: searchInterval,
+                p_timezone: timezone.trim()
             });
 
             if (!error && data) {
@@ -380,16 +384,15 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
     }
 
     if (slots.length === 0) {
-        // We use 30 as interval. If the RPC doesn't support it, we'll get a DB error.
-        // But we are updating it in the migration.
         const { data, error } = await sb.rpc("get_available_slots", {
-            p_clinic_id: clinicId,
-            p_date: date,
+            p_clinic_id: clinicId.trim(),
+            p_date: date.trim(),
             p_duration: duration,
-            p_interval: duration // Step by duration (no flexible intervals)
+            p_interval: searchInterval,
+            p_timezone: timezone.trim()
         });
         if (error) {
-            console.error("[checkAvail] get_available_slots failed, trying without interval param:", error);
+            console.error("[checkAvail] get_available_slots failed:", error);
             const { data: data2, error: error2 } = await sb.rpc("get_available_slots", {
                 p_clinic_id: clinicId,
                 p_date: date,
@@ -402,11 +405,12 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
         }
     }
 
-    // 6. IF MOBILE CLINIC: Filter slots based on Travel Time (Travel Block)
+    // Filter available slots
     let filteredSlots = slots.filter((s: { is_available: boolean }) => s.is_available);
     let recommendedSlot = "";
 
-    if (isMobile && tutorCoords) {
+    // 6. IF MOBILE CLINIC: Filter slots based on Travel Time (Travel Block)
+    if (isMobile && tutorCoords && filteredSlots.length > 0) {
         // Fetch appointments for that day with coordinates and duration
         const { data: dayAppts } = await sb.from("appointments")
             .select("id, latitude, longitude, appointment_date, duration")
@@ -469,7 +473,6 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
             if (isPossible) {
                 finalValidSlots.push(slot);
-                // Heuristic for recommendation (closer = better)
                 if (prevAppt || nextAppt) {
                     recommendedSlot = `(Optimizado para su zona)`;
                 }
@@ -478,39 +481,20 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
         filteredSlots = finalValidSlots;
     }
 
-    const dow = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][new Date(date + 'T12:00:00').getDay()];
-    const dayConfig = clinicWorkingHours?.[dow];
-    const lunch = dayConfig?.lunch_break;
+    await debugLog(sb, "Check Avail Results", { totalSlots: slots.length, availableCount: filteredSlots.length });
 
-    const availableSlots = filteredSlots
-        .filter(s => {
-            if (!lunch || !lunch.enabled) return true;
-
-            // Compare times as HH:MM
-            const tStart = s.slot_time.substring(0, 5);
-
-            // Calculate end time
-            const [h, m] = tStart.split(':').map(Number);
-            const endDate = new Date(2000, 0, 1, h, m + duration);
-            const tEnd = endDate.toTimeString().substring(0, 5);
-
-            const lStart = lunch.start;
-            const lEnd = lunch.end;
-
-            // Overlap logic: T_Start < L_End AND T_End > L_Start
-            const isOverlapping = (tStart < lEnd && tEnd > lStart);
-            return !isOverlapping;
-        })
+    // Format for display
+    const availableFormatted = filteredSlots
         .map((s: { slot_time: string }) => {
             const t = s.slot_time.substring(0, 5);
             const h = parseInt(t.split(":")[0]);
             return `${h > 12 ? h - 12 : h}:${t.split(":")[1]} ${h >= 12 ? "PM" : "AM"}`;
         });
 
-    const displaySlots = availableSlots.slice(0, 8);
+    const displaySlots = availableFormatted.slice(0, 8);
     const routingMsg = recommendedSlot ? `📍 Contamos con disponibilidad ese día en su zona. ` : "";
 
-    return availableSlots.length
+    return availableFormatted.length
         ? { available: true, slots: displaySlots, duration_used: duration, message: `${routingMsg}Disponibilidad el ${date}: ${displaySlots.join(", ")}` }
         : { available: false, message: `No hay disponibilidad para ${date}` };
 };
