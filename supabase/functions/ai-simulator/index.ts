@@ -207,11 +207,21 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         // Fix Timezone: Construct ISO string with offset
         const offset = getOffset(timezone, new Date(`${args.date}T12:00:00`));
         const appointmentDateWithOffset = `${args.date}T${normalizedTime}:00${offset}`;
+
+        // Fetch tutor name for consistency
+        const { data: tutorInfo } = await sb.from("crm_prospects")
+            .select("full_name")
+            .eq("clinic_id", clinicId)
+            .eq("phone", simulatedPhone)
+            .limit(1)
+            .maybeSingle();
+
         console.log(`[Simulator createAppt] Final ISO: ${appointmentDateWithOffset}`);
 
         const { data, error } = await sb.from("appointments").insert({
             clinic_id: clinicId,
             patient_name: args.patient_name,
+            tutor_name: tutorInfo?.full_name || null,
             phone_number: simulatedPhone,
             service: args.service_name,
             appointment_date: appointmentDateWithOffset,

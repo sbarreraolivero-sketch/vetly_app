@@ -628,7 +628,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
     // Get coordinates from tutor/CRM if they exist
     const { data: tutorGeo } = await sb.from("crm_prospects")
-        .select("latitude, longitude")
+        .select("latitude, longitude, full_name")
         .eq("clinic_id", clinicId)
         .eq("phone", normalizedPhone)
         .limit(1)
@@ -637,6 +637,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
     const { data, error } = await sb.from("appointments").insert({
         clinic_id: clinicId,
         patient_name: args.patient_name,
+        tutor_name: tutorGeo?.full_name || null,
         phone_number: normalizedPhone,
         service: args.service_name,
         appointment_date: appointmentDateWithOffset,
