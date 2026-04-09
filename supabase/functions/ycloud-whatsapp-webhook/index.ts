@@ -1449,10 +1449,38 @@ Deno.serve(async (req) => {
             const loc = msgObj.location;
             const lat = loc.latitude;
             const lng = loc.longitude;
-            const locName = loc.name || "";
-            const locAddr = loc.address || "";
-            body = `[UBICACIÓN COMPARTIDA] Latitud: ${lat}, Longitud: ${lng}${locName ? ` - Nombre: ${locName}` : ""}${locAddr ? ` - Dirección: ${locAddr}` : ""}. (Dato para el agente: Usa estas coordenadas para confirmar la zona de servicio rural si es necesario).`;
-            await debugLog(sb, `Location received`, { lat, lng });
+            
+            // Haversine Distance to Linares Center (Plaza de Armas)
+            const baseLat = -35.8454;
+            const baseLng = -71.5979;
+            const R = 6371;
+            const dLat = (lat - baseLat) * (Math.PI / 180);
+            const dLng = (lng - baseLng) * (Math.PI / 180);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(baseLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.sin(dLng/2) * Math.sin(dLng/2);
+            const distanceKm = (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))).toFixed(1);
+
+            // Best-effort Reverse Geocoding
+            let formattedAddress = "";
+            try {
+                const mapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
+                if (mapsKey) {
+                    const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${mapsKey}&language=es`);
+                    const geoData = await geoRes.json();
+                    if (geoData.status === "OK" && geoData.results && geoData.results.length > 0) {
+                        formattedAddress = geoData.results[0].formatted_address;
+                    }
+                }
+            } catch (e) {
+                console.error("Geocoding failed", e);
+            }
+
+            body = `[UBICACIÓN COMPARTIDA] Pin de Mapa Recibido: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada GPS: ${formattedAddress}. ` : ""}
+(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKm} Kilómetros del centro de Linares. 
+REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. PROHIBIDO decir "Permítame un momento para calcular".
+REGLA ESTRICTA 2: USA este kilometraje para calcular el recargo rural inmediatamente e informa el precio AHORA.
+REGLA ESTRICTA 3: Luego, pide la numeración exacta de la casa y referencias visuales (portón, reja, etc) para armar la ficha.)`;
+            
+            await debugLog(sb, `Location analyzed`, { lat, lng, distanceKm, address: formattedAddress });
         }
 
         // Add context from Facebook Ad referral if present
