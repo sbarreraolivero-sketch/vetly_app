@@ -1457,7 +1457,20 @@ Deno.serve(async (req) => {
             const dLat = (lat - baseLat) * (Math.PI / 180);
             const dLng = (lng - baseLng) * (Math.PI / 180);
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(baseLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.sin(dLng/2) * Math.sin(dLng/2);
-            const distanceKm = (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))).toFixed(1);
+            let distanceKmRaw = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+
+            let distanceKmStr = distanceKmRaw.toFixed(1);
+            let urbanDeductionNote = "";
+
+            // Opción 1: Cálculo Automático desde el Borde (Solo para AnimalGrace)
+            if (clinic?.name?.toLowerCase().includes("animal") || clinic?.name?.toLowerCase().includes("grace")) {
+                const urbanRadiusKm = 3.5;
+                const ruralKm = Math.max(0, distanceKmRaw - urbanRadiusKm);
+                distanceKmStr = ruralKm.toFixed(1);
+                urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor ya le restó 3.5 KM del radio urbano por ti. El paciente está a exactamente ${distanceKmStr} Kilómetros FUERA del perímetro urbano. Usa esta cantidad para calcular tu tarifa de inmediato.)`;
+            } else {
+                urbanDeductionNote = `(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKmStr} Kilómetros del centro de la ciudad.)`;
+            }
 
             // Best-effort Reverse Geocoding
             let formattedAddress = "";
@@ -1475,12 +1488,12 @@ Deno.serve(async (req) => {
             }
 
             body = `[UBICACIÓN COMPARTIDA] Pin de Mapa Recibido: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada GPS: ${formattedAddress}. ` : ""}
-(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKm} Kilómetros del centro de Linares. 
+${urbanDeductionNote}
 REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. PROHIBIDO decir "Permítame un momento para calcular".
 REGLA ESTRICTA 2: USA este kilometraje para calcular el recargo rural inmediatamente e informa el precio AHORA.
-REGLA ESTRICTA 3: Luego, pide la numeración exacta de la casa y referencias visuales (portón, reja, etc) para armar la ficha.)`;
+REGLA ESTRICTA 3: Luego, pide la numeración exacta de la casa y referencias visuales (portón, reja, etc) para armar la ficha.`;
             
-            await debugLog(sb, `Location analyzed`, { lat, lng, distanceKm, address: formattedAddress });
+            await debugLog(sb, `Location analyzed`, { lat, lng, distanceKm: distanceKmStr, address: formattedAddress });
         }
 
         // Add context from Facebook Ad referral if present
