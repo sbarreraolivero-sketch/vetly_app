@@ -655,6 +655,7 @@ export default function Appointments() {
                                     const now = new Date()
                                     setNewAppointment({
                                         patient_name: '',
+                                        tutor_name: '',
                                         phone_number: '',
                                         service: '',
                                         appointment_date: format(now, 'yyyy-MM-dd'),
@@ -1393,6 +1394,7 @@ export default function Appointments() {
                                         setEditingId(null)
                                         setNewAppointment({
                                             patient_name: '',
+                                            tutor_name: '',
                                             phone_number: '',
                                             service: '',
                                             appointment_date: '',
@@ -1652,6 +1654,7 @@ export default function Appointments() {
                                             setEditingId(null)
                                             setNewAppointment({
                                                 patient_name: '',
+                                                tutor_name: '',
                                                 phone_number: '',
                                                 service: '',
                                                 appointment_date: '',
