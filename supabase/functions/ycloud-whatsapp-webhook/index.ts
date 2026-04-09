@@ -1537,8 +1537,8 @@ REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Apenas es
 
         const asyncProcess = async () => {
             try {
-                // DEBOUNCE - WAIT FOR 3.5 SECONDS (More human-like responsiveness)
-                await new Promise(r => setTimeout(r, 3500));
+                // DEBOUNCE - WAIT FOR 10 SECONDS (More human-like responsiveness)
+                await new Promise(r => setTimeout(r, 10000));
 
                 // CHECK IF A NEWER USER MESSAGE ARRIVED WHILE WE WAITED
                 const { data: latestMsg } = await sb.from("messages")
