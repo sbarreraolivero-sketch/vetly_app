@@ -1469,12 +1469,12 @@ Deno.serve(async (req) => {
                 distanceKmStr = ruralKm.toFixed(1);
                 
                 if (ruralKm === 0) {
-                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor analizó el Pin. El paciente está DENTRO del límite urbano ($0 recargo). Informa al paciente que su domicilio se considera dentro del radio Urbano y por tanto no tiene costo extra por kilometraje, pero que igual necesitas saber su calle y número para confirmar la disponibilidad.)`;
+                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor analizó el Pin. El paciente está DENTRO del límite urbano ($0 recargo). Informa al paciente alegremente que su domicilio se considera urbano y no tiene costo extra.)`;
                 } else {
-                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor ya le restó 3.5 KM del radio urbano por ti. El paciente está a exactamente ${distanceKmStr} Kilómetros FUERA del perímetro urbano. Usa tu tabla de precios para este kilometraje rural extra.)`;
+                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor ya le restó 3.5 KM del radio urbano por ti. El paciente está a exactamente ${distanceKmStr} Kilómetros FUERA del perímetro urbano. Usa tu tabla de precios para este kilometraje rural extra e infórmalo.)`;
                 }
             } else {
-                urbanDeductionNote = `(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKmStr} Kilómetros del centro de la ciudad.)`;
+                urbanDeductionNote = `(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKmStr} Kilómetros del centro de la ciudad e implica recargo si aplica.)`;
             }
 
             // Best-effort Reverse Geocoding
@@ -1494,9 +1494,9 @@ Deno.serve(async (req) => {
 
             body = `[UBICACIÓN COMPARTIDA] Pin de Mapa Recibido: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada GPS: ${formattedAddress}. ` : ""}
 ${urbanDeductionNote}
-REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. PROHIBIDO decir "Permítame un momento para calcular".
-REGLA ESTRICTA 2: USA este kilometraje para calcular el recargo rural inmediatamente e informa el precio AHORA.
-REGLA ESTRICTA 3: Luego, pide la numeración exacta de la casa y referencias visuales (portón, reja, etc) para armar la ficha.`;
+REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. PROHIBIDO decir "Permítame un momento para calcular". Incorpóralo a tu próxima respuesta.
+REGLA ESTRICTA 2: Informa el valor del recargo o si es $0.
+REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Apenas estás dando la información de cobertura. Luego de darle el valor, pregúntale en qué servicio veterinario está interesado o qué mascota tiene. Solo pide detalles exactos de su dirección al final, si el cliente realmente quiere agendar.`;
             
             await debugLog(sb, `Location analyzed`, { lat, lng, distanceKm: distanceKmStr, address: formattedAddress });
         }
