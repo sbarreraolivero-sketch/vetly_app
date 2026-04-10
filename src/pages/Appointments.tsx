@@ -1020,6 +1020,7 @@ export default function Appointments() {
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Tutor</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Paciente</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Servicio</th>
+                                    <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Dirección</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Fecha y Hora</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Estado</th>
                                     <th className="text-right py-4 px-6 text-sm font-medium text-charcoal/60">Acciones</th>
@@ -1056,6 +1057,16 @@ export default function Appointments() {
                                             {appointment.notes && (
                                                 <p className="text-sm text-charcoal/50 mt-0.5">{appointment.notes}</p>
                                             )}
+                                        </td>
+                                        <td className="py-4 px-6 text-sm text-charcoal max-w-[200px] truncate" title={appointment.address || ''}>
+                                            <div className="flex flex-col">
+                                                <span className="truncate">{appointment.address || 'Linares Base'}</span>
+                                                {appointment.address_references && (
+                                                    <span className="text-[10px] text-charcoal/40 italic truncate">
+                                                        Ref: {appointment.address_references}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="py-4 px-6">
                                             <div className="flex items-center gap-2">
@@ -1206,6 +1217,16 @@ export default function Appointments() {
 
                                 {/* Body: Service & Time */}
                                 <div className="bg-ivory/80 rounded-xl p-3 flex flex-col gap-2.5">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <span className="text-xs font-bold font-semibold text-charcoal/50 uppercase tracking-widest flex-shrink-0 mt-0.5">Dirección</span>
+                                        <div className="text-right min-w-0">
+                                            <p className="text-sm font-medium text-charcoal leading-tight truncate">{appointment.address || 'Linares Base'}</p>
+                                            {appointment.address_references && (
+                                                <p className="text-[10px] text-charcoal/40 italic mt-0.5 line-clamp-1">{appointment.address_references}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="h-px w-full bg-silk-beige/50"></div>
                                     <div className="flex justify-between items-center gap-2">
                                         <span className="text-xs font-bold font-semibold text-charcoal/50 uppercase tracking-widest flex-shrink-0">Servicio</span>
                                         <span className="text-sm font-medium text-charcoal text-right truncate">{appointment.service}</span>

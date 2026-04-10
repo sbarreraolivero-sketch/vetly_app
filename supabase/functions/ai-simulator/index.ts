@@ -39,6 +39,7 @@ const functions = [
         parameters: { 
             type: "object", 
             properties: { 
+                tutor_name: { type: "string", description: "Nombre completo del tutor/dueño" },
                 patient_name: { type: "string", description: "Nombre de la mascota" }, 
                 date: { type: "string" }, 
                 time: { type: "string" }, 
@@ -46,7 +47,7 @@ const functions = [
                 address: { type: "string", description: "Dirección completa de atención (Calle, Número, Referencias)" },
                 professional_name: { type: "string", description: "Profesional solicitado (opcional)" } 
             }, 
-            required: ["patient_name", "date", "time", "service_name", "address"] 
+            required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"] 
         }
     },
     {
@@ -286,7 +287,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         const { data, error } = await sb.from("appointments").insert({
             clinic_id: clinicId,
             patient_name: args.patient_name,
-            tutor_name: tutorInfo?.full_name || null,
+            tutor_name: args.tutor_name || tutorInfo?.full_name || null,
             phone_number: simulatedPhone,
             address: args.address || tutorInfo?.address || "No especificada",
             service: args.service_name,
@@ -391,7 +392,7 @@ Deno.serve(async (req: Request) => {
         const now = new Date();
         const localDateISO = now.toLocaleDateString("en-CA", { timeZone: clinicTz });
         
-        const msgs: Msg[] = [{ role: "system", content: `${clinic.ai_personality}\n\nHoy es ${localDateISO}` }];
+        const msgs: Msg[] = [{ role: "system", content: `${clinic.ai_personality}\n\nHoy es ${localDateISO}\n\n# PROTOCOLO DE AGENDAMIENTO\n1. Verifica disponibilidad con check_availability enviando la dirección.\n2. Si hay cupo, pide: Nombre completo del tutor (obligatorio), Dirección exacta, Nombre mascota.\n3. NO AGENDES sin el nombre del tutor.` }];
         if (conversation_history) conversation_history.forEach((m: any) => msgs.push({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
         msgs.push({ role: "user", content: message });
 

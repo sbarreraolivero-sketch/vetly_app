@@ -133,6 +133,7 @@ const functions = [
         parameters: {
             type: "object",
             properties: {
+                tutor_name: { type: "string", description: "Nombre completo del tutor/dueño" },
                 patient_name: { type: "string", description: "Nombre de la mascota" },
                 date: { type: "string", description: "Fecha YYYY-MM-DD" },
                 time: { type: "string", description: "Hora HH:MM (24h)" },
@@ -140,7 +141,7 @@ const functions = [
                 professional_name: { type: "string", description: "Nombre del profesional (opcional)" },
                 address: { type: "string", description: "Dirección completa de atención (requerida para móviles)" }
             },
-            required: ["patient_name", "date", "time", "service_name", "address"]
+            required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"]
         }
     },
     {
@@ -734,7 +735,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
     const { data, error } = await sb.from("appointments").insert({
         clinic_id: clinicId,
         patient_name: args.patient_name,
-        tutor_name: tutorGeo?.full_name || null,
+        tutor_name: args.tutor_name || tutorGeo?.full_name || null,
         phone_number: normalizedPhone,
         service: args.service_name,
         appointment_date: appointmentDateWithOffset,
@@ -1750,7 +1751,7 @@ Solo después de completar el triage y que el cliente confirme que desea agendar
     - **Linares**: Solo slots con inicio ≥ 60 min de la HORA ACTUAL.
     - **Talca, Maule, San Javier, Villa Alegre**: Solo slots con inicio ≥ 120 min (2 horas) de la HORA ACTUAL (para permitir el viaje desde la base).
 *   **PASO B (Advertencia de Rango)**: Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
-*   **PASO C (Ficha Médica)**: Solo tras aceptar el horario y el rango de 2 horas, pide los datos: Nombre tutor, Dirección exacta (calle+número+referencias), Nombre mascota (solo un nombre), Especie/Sexo.
+*   **PASO C (Ficha Médica)**: Solo tras aceptar el horario y el rango de 2 horas, pide los datos: Nombre completo del tutor (obligatorio), Dirección exacta (calle+número+referencias), Nombre de la mascota, Especie/Sexo. ¡NO AGENDES SI NO TIENES EL NOMBRE DEL TUTOR!
 
 ${clinic.clinic_name?.includes('AnimalGrace Linares') ? `# 🚐 LOGÍSTICA DE RUTA DINÁMICA (ANIMALGRACE LINARES):
 *   **BASE OPERATIVA (LINARES):** Salimos de Linares en la mañana y volvemos en la tarde. Linares SIEMPRE puede tener disponibilidad en la primera hora de la mañana y la última de la tarde.
