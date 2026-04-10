@@ -23,6 +23,8 @@ import {
     ChevronRight,
     Trash2,
     MessageCircle,
+    MapPin,
+    ExternalLink,
 } from 'lucide-react'
 import { cn, formatPhoneNumber, getStatusColor, getStatusLabel } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -93,7 +95,9 @@ export default function Appointments() {
         appointment_date: '',
         appointment_time: '',
         notes: '',
-        professional_id: ''
+        professional_id: '',
+        address: '',
+        address_references: ''
     })
     const [services, setServices] = useState<any[]>([])
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
@@ -316,6 +320,8 @@ export default function Appointments() {
                         appointment_date: appointmentDate,
                         notes: newAppointment.notes,
                         professional_id: newAppointment.professional_id || null,
+                        address: newAppointment.address,
+                        address_references: newAppointment.address_references,
                         // Don't update clinic_id or user_id
                     })
                     .eq('id', editingId)
@@ -344,6 +350,8 @@ export default function Appointments() {
                             status: 'confirmed',
                             notes: newAppointment.notes,
                             professional_id: newAppointment.professional_id || null,
+                            address: newAppointment.address,
+                            address_references: newAppointment.address_references,
                         },
                     ])
                     .select()
@@ -1424,7 +1432,9 @@ export default function Appointments() {
                                             appointment_date: '',
                                             appointment_time: '',
                                             notes: '',
-                                            professional_id: ''
+                                            professional_id: '',
+                                            address: '',
+                                            address_references: ''
                                         })
                                     }}
                                     className="p-2 hover:bg-ivory rounded-soft transition-colors"
@@ -1538,6 +1548,50 @@ export default function Appointments() {
                                             })()}
                                         </div>
                                     )}
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-sm font-medium text-charcoal">
+                                                Dirección
+                                            </label>
+                                            {newAppointment.address && (
+                                                <a 
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(newAppointment.address)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" />
+                                                    Ver en Maps
+                                                </a>
+                                            )}
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={newAppointment.address || ''}
+                                                onChange={(e) => setNewAppointment({ ...newAppointment, address: e.target.value })}
+                                                placeholder="Ej: Calle 123, Talca"
+                                                className="input-soft w-full pl-10"
+                                            />
+                                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-charcoal mb-2">
+                                            Referencias de Ubicación
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newAppointment.address_references || ''}
+                                            onChange={(e) => setNewAppointment({ ...newAppointment, address_references: e.target.value })}
+                                            placeholder="Ej: Portón verde, frente al parque"
+                                            className="input-soft w-full"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
