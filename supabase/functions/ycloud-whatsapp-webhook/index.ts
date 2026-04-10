@@ -133,14 +133,14 @@ const functions = [
         parameters: {
             type: "object",
             properties: {
-                patient_name: { type: "string" },
+                patient_name: { type: "string", description: "Nombre de la mascota" },
                 date: { type: "string", description: "Fecha YYYY-MM-DD" },
                 time: { type: "string", description: "Hora HH:MM (24h)" },
                 service_name: { type: "string" },
                 professional_name: { type: "string", description: "Nombre del profesional (opcional)" },
                 address: { type: "string", description: "Dirección completa de atención (requerida para móviles)" }
             },
-            required: ["patient_name", "date", "time", "service_name"]
+            required: ["patient_name", "date", "time", "service_name", "address"]
         }
     },
     {
@@ -407,6 +407,94 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
     // Filter available slots
     let filteredSlots = slots.filter((s: { is_available: boolean }) => s.is_available);
+
+    // Filter slots in the past if targeted date is TODAY
+    const now = new Date();
+    const localDate = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    
+    // Get current local time in minutes for comparison
+    const timeParts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now);
+    const currentH = parseInt(timeParts.find(p => p.type === 'hour')?.value || "0");
+    const currentM = parseInt(timeParts.find(p => p.type === 'minute')?.value || "0");
+    const nowLocalMinutes = currentH * 60 + currentM;
+
+    if (date === localDate) {
+        // Determine buffer based on address/zone
+        const addressLower = (address || "").toLowerCase();
+        const isRemote = ["talca", "maule", "san javier", "villa alegre"].some(z => addressLower.includes(z));
+        const bufferMinutes = isRemote ? 120 : 60;
+        const cutoffMinutes = nowLocalMinutes + bufferMinutes;
+        
+        filteredSlots = filteredSlots.filter((s: any) => {
+            const [h, m] = s.slot_time.split(":").map(Number);
+            const slotMinutes = h * 60 + m;
+            return slotMinutes >= cutoffMinutes;
+        });
+        
+        console.log(`[checkAvail] Today detected. LocalTime: ${currentH}:${currentM}. Buffer: ${bufferMinutes}m. Filtered same-day slots. Remaining: ${filteredSlots.length}`);
+    }
+
+    // Fetch day summary for better routing logic
+    const { data: dayApptsSummary } = await sb.from("appointments")
+        .select("address, status")
+        .eq("clinic_id", clinicId)
+        .gte("appointment_date", `${date}T00:00:00`)
+        .lte("appointment_date", `${date}T23:59:59`)
+        .neq("status", "cancelled");
+
+    const activeZones = [...new Set((dayApptsSummary || []).map((a: any) => {
+        const addr = (a.address || "").toLowerCase();
+        if (addr.includes("talca")) return "Talca";
+        if (addr.includes("maule")) return "Maule";
+        if (addr.includes("san javier")) return "San Javier";
+        if (addr.includes("villa alegre")) return "Villa Alegre";
+        return "Linares";
+    }))];
+
+    const dayContext = activeZones.length > 0 
+        ? `Ruta existente el ${date}: ${activeZones.join(", ")}.` 
+        : "Sin rutas previas para este día.";
+
+    // SMART ROUTING: Check Neighboring Days (Alternating Pattern)
+    const d = new Date(date + 'T12:00:00');
+    const dayBefore = new Intl.DateTimeFormat("en-CA").format(new Date(d.getTime() - 86400000));
+    const dayAfter = new Intl.DateTimeFormat("en-CA").format(new Date(d.getTime() + 86400000));
+
+    const { data: neighborAppts } = await sb.from("appointments")
+        .select("address, appointment_date")
+        .in("appointment_date", [
+            `${dayBefore}T00:00:00`, `${dayBefore}T23:59:59`,
+            `${dayAfter}T00:00:00`, `${dayAfter}T23:59:59`
+        ])
+        .neq("status", "cancelled");
+
+    const addressLower = (address || "").toLowerCase();
+    const isTalcaZone = ["talca", "maule", "san javier", "villa alegre"].some(z => addressLower.includes(z));
+    
+    const hasTalcaYesterday = (neighborAppts || []).some((a: any) => 
+        a.appointment_date.startsWith(dayBefore) && 
+        ["talca", "maule", "san javier", "villa alegre"].some(z => (a.address || "").toLowerCase().includes(z))
+    );
+    const hasTalcaTomorrow = (neighborAppts || []).some((a: any) => 
+        a.appointment_date.startsWith(dayAfter) && 
+        ["talca", "maule", "san javier", "villa alegre"].some(z => (a.address || "").toLowerCase().includes(z))
+    );
+
+    const hasTalcaToday = activeZones.includes("Talca") || activeZones.includes("Maule");
+    const hasLinaresToday = activeZones.includes("Linares") && activeZones.length === 1;
+
+    let routingAdvice = "";
+    if (isTalcaZone) {
+        if ((hasTalcaYesterday || hasTalcaTomorrow) && !hasTalcaToday) {
+            routingAdvice = "⚠️ Sugerencia: Normalmente vamos a Talca día por medio. Ayer o mañana ya tenemos ruta allá. ";
+        }
+        if (hasLinaresToday && !hasTalcaToday) {
+            routingAdvice = "⚠️ Nota: Ya hay citas en Linares este día. Sumar Talca implica tiempos de traslado significativos. ";
+        }
+    } else if (hasTalcaToday) {
+        routingAdvice = "ℹ️ Nota: Estaremos en Talca. Disponible Linares al inicio/final del día. ";
+    }
+
     let recommendedSlot = "";
 
     // 6. IF MOBILE CLINIC: Filter slots based on Travel Time (Travel Block)
@@ -491,12 +579,21 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             return `${h > 12 ? h - 12 : h}:${t.split(":")[1]} ${h >= 12 ? "PM" : "AM"}`;
         });
 
-    const displaySlots = availableFormatted.slice(0, 8);
+    const displaySlots = availableFormatted.slice(0, 15);
     const routingMsg = recommendedSlot ? `📍 Contamos con disponibilidad ese día en su zona. ` : "";
 
     return availableFormatted.length
-        ? { available: true, slots: displaySlots, duration_used: duration, message: `${routingMsg}Disponibilidad el ${date}: ${displaySlots.join(", ")}` }
-        : { available: false, message: `No hay disponibilidad para ${date}` };
+        ? { 
+            available: true, 
+            day_context: dayContext,
+            slots: displaySlots, 
+            duration_used: duration, 
+          }
+        : { 
+            available: false, 
+            day_context: dayContext,
+            message: `No hay disponibilidad para ${date}` 
+          };
 };
 
 // Helper to get timezone offset (e.g. "-03:00")
@@ -628,7 +725,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
     // Get coordinates from tutor/CRM if they exist
     const { data: tutorGeo } = await sb.from("crm_prospects")
-        .select("latitude, longitude, full_name")
+        .select("latitude, longitude, full_name, address")
         .eq("clinic_id", clinicId)
         .eq("phone", normalizedPhone)
         .limit(1)
@@ -641,6 +738,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         phone_number: normalizedPhone,
         service: args.service_name,
         appointment_date: appointmentDateWithOffset,
+        address: args.address || tutorGeo?.address || null,
         status: "pending",
         duration: duration,
         price: price,
@@ -649,12 +747,12 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         longitude: tutorGeo?.longitude || null
     }).select().single();
 
-    if (error) {
-        console.error("[createAppt] DB Error:", error);
-        let errorMsg = "Error DB-AG-01: No pudimos registrar tu cita en el sistema. Por favor intenta con otro nombre completo o contacta soporte.";
-        if (error.code === '23505') {
-            errorMsg = "Error DB-CONFLICT: Ya existe una cita con este teléfono y un nombre similar. Por favor intenta usando tu nombre completo real o contacta soporte.";
-        }
+        if (error) {
+            console.error("[createAppt] DB Error:", error);
+            let errorMsg = "Error DB-AG-01: No pudimos registrar la cita. Por favor confirma el nombre de tu mascota y vuelve a intentarlo.";
+            if (error.code === '23505') {
+                errorMsg = "Error DB-CONFLICT: Ya existe una cita para esta mascota a esta misma hora.";
+            }
         await debugLog(sb, "DB Create Appt Error", { error, args, clinicId });
         return { success: false, message: errorMsg };
     }
@@ -1623,76 +1721,66 @@ Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
 ${clinic.address_references ? `Referencias de Dirección: ${clinic.address_references}` : ""}
 ${clinic.google_maps_url ? `Mapa Google Maps: ${clinic.google_maps_url}` : ""}
-Modelo de Negocio: ${clinic.business_model === 'mobile' ? 'DOMICILIO (Móvil)' : clinic.business_model === 'hybrid' ? 'HÍBRIDO (Local y Domicilio)' : 'FÍSICO (Local fijo)'}
-
-${clinic.business_model === 'mobile' || clinic.business_model === 'hybrid' ? ` REGLAS CLÍNICA MÓVIL:
-- Eres una clínica móvil, por lo que la ubicación es CRÍTICA. 
-- PROTOCOLO DE UBICACIÓN: Primero pide amablemente que el tutor te comparta su **"Ubicación actual"** (un pin de WhatsApp) para saber exactamente dónde se encuentra. Si no sabe o no puede enviarla, solicita la **dirección exacta con referencias**. 
-- SECTORES RURALES: En estos casos, insiste en que compartan la **ubicación actual** (no en tiempo real, solo el pin del punto) porque eso te permite calcular el recargo por distancia correctamente.
-- NUNCA llames a 'check_availability' si no tienes una ubicación clara confirmada por el usuario.` : ''}
-${clinic.instagram_url ? `- Instagram: ${clinic.instagram_url}` : ""}
-${clinic.facebook_url ? `- Facebook: ${clinic.facebook_url}` : ""}
-${clinic.tiktok_url ? `- TikTok: ${clinic.tiktok_url}` : ""}
-${clinic.website_url ? `- Sitio Web: ${clinic.website_url}` : ""}
-Horario General de la Clínica: ${hoursSummary}
+Horarios: ${hoursSummary}
 
 CONTEXTO DE FECHAS (FUENTE DE VERDAD):
 - HOY: ${todayDay}, ${localDateISO}
+- HORA ACTUAL: ${localTime}
 - MAÑANA: ${tomorrowDay}, ${tomorrowISO}
 - PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
-Servicios OFICIALES (SOLO ESTOS EXISTEN): ${JSON.stringify(servicesForPrompt)}
 
+Servicios OFICIALES: ${JSON.stringify(servicesForPrompt)}
 ${knowledgeSummary}
 
-REGLAS DE ORO DE CONVERSACIÓN (MODO VET-CONSULTOR):
-1. **MODO CONSULTOR PASIVO**: Si el usuario te hace una pregunta clínica o sobre un servicio, LIMITATE ÚNICAMENTE a responder su duda. ¡NUNCA pidas agendar ni pidas su ubicación a menos que el cliente muestre intención explícita de compra!
-2. **UBICACIÓN**: Solo pide el "Pin de WhatsApp de Ubicación" para calcular recargos si el cliente quiere agendar o pide factibilidad.
-3. **ORDEN ESTRICTO PARA AGENDAR (SIGUE ESTOS PASOS)**:
-   - **PASO A (Verificar Fechas)**: Pregúntale *qué día* le acomoda. Luego, invoca INMEDIATAMENTE tu herramienta 'check_availability' para ver las horas. NO PIDAS datos de la mascota o dueño todavía.
-   - **PASO B (Informar Disponibilidad y Rango)**: Muéstrale los horarios disponibles y **ADVIERTE OBLIGATORIAMENTE** que el móvil exige considerar un "Rango de llegada de 2 horas desde la hora acordada debido al tráfico y eventualidades".
-   - **PASO C (Recopilar Ficha Médica)**: Cuando el cliente Acepte un horario, recién en ese momento recolectas los datos finales: Nombre y apellido del tutor, Nombre, Raza y Sexo de la mascota, y Dirección escrita (calle, número y referencia de la casa).
-4. **PRECIOS CONTEXTUALIZADOS**: Nunca des valores secos, siempre aclara que falta sumar el recargo rural si aplica.
-5. **TRIAJE VITAL**: Emergencias rojas y críticas no se atienden a domicilio por falta de pabellón. Redirigir a clínica.
+# PROTOCOLOS CLÍNICOS Y DE ATENCIÓN (MANDATORIOS)
 
-PROTOCOLOS CLÍNICOS Y TÁCTICOS:
-- **Evaluación Inicial**: Vacunas: Indaga historial. Cachorros nuevos requieren 1 semana de observación en casa. Consultas: Distingue entre control sano o enfermedad.
-- **Reglas de Vacunación**: Prohibido aplicar 3 dosis juntas. No juntar Óctuple con KC. Mezclas permitidas: Antirrábica+KC o Sextuple/Octuple+Antirrábica.
-- **Protocolo Quirúrgico (Esterilización/Castración)**: Retiro AM (10-11 hrs), traslado a colaboradora y devolución PM (14-17 hrs) recuperada. Ayuno: 6-8 hrs. Sugiere perfil prequirúrgico ($50.000). Recargo por Celo/Preñez: $20.000 por alto riesgo.
-- **Imagenología (Eco/RX)**: Pide datos de a poco (Nombre, especie, edad, peso -> Titular, RUT y dirección) para la ficha.
-- **Políticas de Cancelación**: Tras agendar, advierte que si no se encuentra la mascota o está agresiva, de todas formas se cobra la visita extra urbana.
-   - **Puppy DP (Distemper + Parvo)**: Se puede aplicar **SOLO** entre las 4 y 6 semanas de vida de la mascota.
-   - **Octuple / Séxtuple**: Se aplica **SOLO** a mascotas mayores a 2 meses (8 semanas) de vida. 
-   - SI el usuario pregunta por "vacuna de perro de 3 meses" para Distemper, DEBES sugerir la **Octuple / Séxtuple**, nunca la Puppy DP.
-   - SI el usuario pregunta por un cachorro de 5 semanas, DEBES sugerir la **Puppy DP**.
-   - Siempre explica brevemente por qué sugieres una u otra basándote en su edad.
+# 🩺 EVALUACIÓN INICIAL Y TRIAGE (PASO 1)
+*   **CONSULTA MÉDICA**: Si el usuario pregunta por una "consulta médica", **ESTÁ PROHIBIDO** sugerir fechas o pedir ubicación de inmediato. Primero debes indagar el contexto clínico: "¿Su mascota está enfermita o decaída, o necesita una revisión de control sano/prevención?". Muchos tutores confunden servicios, por lo que este triage es obligatorio.
+*   **VACUNACIÓN**: Antes de dar precios, pregunta: "¿Para orientarte mejor, es la primera vez que se vacuna o ya tiene vacunas anteriores? ¿Recuerdas hace cuánto fue la última vez?". Explica que el valor de $23.000 es integral e incluye la revisión médica del doctor.
 
-REGLAS CRÍTICAS DE FECHAS Y HORARIOS:
-1. SI el paciente pregunta por disponibilidad en un día que aparece EXPLÍCITAMENTE como 'CERRADO' en el 'Horario General', DEBES responder inmediatamente que la clínica está cerrada ese día y ofrece alternativas.
-2. SIEMPRE verifica disponibilidad con 'check_availability' antes de confirmar un horario.
-3. NUNCA digas que una cita está confirmada si no has recibido 'success: true' de la función 'create_appointment'.
+# 🚫 REGLAS DE ORO DE CONVERSACIÓN (VET-CONSULTOR)
+*   **MODO CONSULTOR PASIVO**: Si el usuario solo hace una pregunta técnica o clínica, LIMITATE a responder. ¡NUNCA pidas agendar ni pidas ubicación si no hay intención clara de compra!
+*   **NO AGRESIVIDAD**: No presiones con el agendamiento en el primer mensaje. Primero educa, responde y verifica si podemos ayudar.
 
-FLUJO DE RESERVA Y COBRO (ORDEN OBLIGATORIO):
-   a) Ofrecer Slots: Llama a 'check_availability', muestra opciones y menciona el abono de $10.000 (obligatorio para reservar).
-   b) Registro: CUANDO TENGAS EL NOMBRE Y EL HORARIO, OBLIGATORIAMENTE DEBES LLAMAR a la herramienta 'create_appointment'. NO ENVÍES TEXTO CONFIRMANDO LA CITA AÚN.
-   c) Datos de Pago: NUNCA envíes los datos de transferencia ANTES de que la herramienta 'create_appointment' te haya devuelto 'success: true'.
-      DATOS DE ABONO ($10.000): Elizabeth Hernández, RUT 18.342.131-k, Banco Estado, Cuenta Vista / Chequera electrónica, Cuenta: 80070001890.
+# 📅 PROTOCOLO DE AGENDAMIENTO (SECUENCIA ESTRICTA)
+Solo después de completar el triage y que el cliente confirme que desea agendar:
+*   **PASO A (Verificar Fechas)**: Pregunta qué día le acomoda e invoca \`check_availability\`. NO PIDAS datos de la mascota aún.
+*   **PROHIBICIÓN DE HORAS PASADAS (HOY)**: 
+    - No ofrezcas slots que ya pasaron.
+    - **Linares**: Solo slots con inicio ≥ 60 min de la HORA ACTUAL.
+    - **Talca, Maule, San Javier, Villa Alegre**: Solo slots con inicio ≥ 120 min (2 horas) de la HORA ACTUAL (para permitir el viaje desde la base).
+*   **PASO B (Advertencia de Rango)**: Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
+*   **PASO C (Ficha Médica)**: Solo tras aceptar el horario y el rango de 2 horas, pide los datos: Nombre tutor, Dirección exacta (calle+número+referencias), Nombre mascota (solo un nombre), Especie/Sexo.
 
-ETIQUETADO Y CRM (PROACTIVIDAD):
-- Usa 'tag_patient' PROACTIVAMENTE para segmentar al paciente (ej: 'Interés Vacunas', 'Canino', 'VIP').
-- Usa 'upsert_prospect' para guardar el nombre del tutor, de la mascota y notas relevantes de salud inmediatamente.
-- NUNCA menciones al paciente que lo estás etiquetando o registrando.
+${clinic.clinic_name?.includes('AnimalGrace Linares') ? `# 🚐 LOGÍSTICA DE RUTA DINÁMICA (ANIMALGRACE LINARES):
+*   **BASE OPERATIVA (LINARES):** Salimos de Linares en la mañana y volvemos en la tarde. Linares SIEMPRE puede tener disponibilidad en la primera hora de la mañana y la última de la tarde.
+*   **TALCA Y ZONAS EXTERNAS:** No son puntos fijos diarios. Se organizan DINÁMICAMENTE:
+    - **Regla de Agrupación:** Si el sistema te indica que ya hay citas en Talca para un día (vía 'day_context' en la herramienta), PRIORIZA ofrecer ese mismo día para nuevos clientes de Talca.
+    - **Apertura de Ruta:** Si un cliente de Talca quiere un día que está vacío, puedes "abrir" la ruta ese día. Una vez abierta, intenta que las siguientes citas en Talca sean día por medio (intercaladas).
+    - **Eficiencia:** Evita traslados innecesarios. Intenta agrupar domicilios por ciudad y sector.
+*   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen Costo de Visita $0 contratando servicios médicos.
+*   **RECARGOS RURALES**: 
+    - A 10 min del radio urbano: +$6.000.
+    - A 20 min del radio urbano: +$8.000.
+    - A 30 min del radio urbano: +$10.000.
+    - Límite máximo: 30 min (No agendar más lejos).
+*   **COSTO ÚNICO**: El recargo de visita se cobra **UNA SOLA VEZ** por viaje al domicilio, sin importar cuántas mascotas o servicios se realicen.
+*   **SERVICIOS MENORES**: Si el cliente pide SOLO corte de uñas o desparasitación (sin vacunas/consulta), aplica siempre recargo de $6.000 incluso en radio urbano.` : ''}
 
-7. **PROHIBIDO INVENTAR (ANTI-ALUCINACIÓN)**: Está TERMINANTEMENTE PROHIBIDO inventar precios, recargos por comuna, o protocolos que no estén explícitamente en la Base de Conocimiento. Si el usuario pregunta por el costo de una comuna que NO aparece en tu lista de recargos, di: "No tengo el valor exacto del recargo para esa zona en este momento, pero lo consultaré de inmediato con el equipo para confirmarte". Es preferible decir "No lo sé" a dar información falsa.
+# 🩹 SEGUIMIENTO Y PACIENTES ANTIGUOS
+*   Si reportan evolución de salud: "Entiendo. Para que la Doctora revise su ficha rápido, ¿podrías contarme en detalle la evolución o duda exacta? ¿Cómo se llama tu mascota?". 
+*   **PROHIBIDO DIAGNOSTICAR**: Bajo ninguna circunstancia sugieras tratamientos. Escala a la doctora: "Ya le dejé la nota a la Doctora, te responderá apenas termine sus visitas en ruta".
 
-8. **REGLA DE LOGÍSTICA (COSTO $0)**: Si el usuario menciona una comuna que aparece en la lista de "VISITA INCLUIDA" o sectores generales y NO está en la lista de "RECARGO ESPECIAL", el costo de la visita es **$0** (GRATIS) siempre que agende un servicio médico (Vacuna, Consulta, etc). No menciones el "costo base" de $6.000 a menos que sea una comuna con recargo.
+# 💉 REGLAS MÉDICAS DE RUTA
+*   Cachorros: 1 semana de observación antes de vacunar.
+*   Prohibido: 3 dosis juntas. No juntar Óctuple con KC.
+*   Emergencias: Si es crítica (atropello, asfixia), deriva a clínica fija (no tenemos pabellón/oxígeno).
+*   Cirugías: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). Ayuno 6-8 hrs.
 
-${clinic.clinic_name?.includes('AnimalGrace Linares') ? ` REGLAS ESPECIALES DE LOGÍSTICA (LINARES/TALCA):
-1. BASE LINARES: El recorrido inicia y termina en Linares. Si el paciente es de Linares o radio urbano cercano, prioriza ofrecer primera hora (ej. 09:30) o última hora (ej. 17:30) de la jornada si están disponibles.
-2. RUTAS A TALCA: Se viaja a Talca de forma intercalada (día por medio aprox). 
-   - La prioridad es AGRUPAR. Si el paciente quiere agenda en Talca, intenta ofrecerle opciones y fíjate si el cliente acepta un día en particular. 
-   - Trata de no ofrecer Talca todos los días continuos. Si acabas de agendar para un Lunes, sugiere el Miércoles para el próximo paciente de Talca.
-3. COMUNAS PUENTE (San Javier, Villa Alegre, Ruta 5 Sur): Pueden agendarse aprovechando la ruta hacia o desde Talca (a media mañana o media tarde), o desde Linares abonando el recargo por distancia correspondiente.
-4. TARIFAS Y DISTANCIAS ANCLA: Linares urbano y Talca urbano tienen costo de visita $0. Fuera del urbano: a 10 min ($6.000), a 20 min ($8.000), a 30 min ($10.000). A más de 30 minutos de tiempo de viaje de estas anclas, indica que la visita técnica requerirá factibilidad. Niégate a inventar recargos.` : ''}
+# 💳 FLUJO DE COBRO
+* No se solicita abono previo para agendar (el pago se realiza al finalizar la visita).
+*   NUNCA envíes datos de pago antes de que \`create_appointment\` devuelva 'success'.
+* DATOS: [Solicitar datos de pago a la administración si no están en el flujo automático].
 
 ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
 

@@ -206,6 +206,8 @@ export interface Database {
                     updated_at: string
                     tutor_id: string | null
                     pet_id: string | null
+                    address: string | null
+                    duration_minutes: number
                 }
                 Insert: {
                     id?: string

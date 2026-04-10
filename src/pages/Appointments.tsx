@@ -46,6 +46,8 @@ interface Appointment {
     notes: string | null
     google_event_id?: string | null
     professional_id?: string | null
+    address?: string | null
+    duration_minutes?: number
 }
 
 interface ClinicProfessional {
@@ -553,60 +555,60 @@ export default function Appointments() {
 
     // Map appointments to calendar events (excluding cancelled ones for visual clarity)
     const mappedAppointments = appointments
-        .filter(apt => apt.status !== 'cancelled')
+        .filter(apt => apt.status !== 'cancelled' && apt.appointment_date)
         .map(apt => {
-            // Validation
-            if (!apt.appointment_date) return null
+            try {
+                let start: Date
 
-            let start: Date
+                // Extract date part safely (handling T or space separator)
+                const datePart = apt.appointment_date.includes('T') 
+                    ? apt.appointment_date.split('T')[0] 
+                    : apt.appointment_date.split(' ')[0]
 
-            // Check if we have an explicit time column (newer records)
-            // If appointment_time is present and not just "00:00" or empty
-            const hasExplicitTime = apt.appointment_time && apt.appointment_time !== '00:00' && apt.appointment_time !== '00:00:00';
+                // Check if we have an explicit time column (newer records)
+                const hasExplicitTime = apt.appointment_time && 
+                                      apt.appointment_time !== '00:00' && 
+                                      apt.appointment_time !== '00:00:00';
 
-            if (hasExplicitTime) {
-                // Safe extraction of YYYY-MM-DD
-                const datePart = apt.appointment_date.split('T')[0].split(' ')[0]
-
-                // Ensure HH:mm format (sanitize)
-                let timeStr = apt.appointment_time || '00:00'
-                const timeParts = timeStr.split(':')
-                const hour = (timeParts[0] || '00').padStart(2, '0')
-                const minute = (timeParts[1] || '00').padStart(2, '0')
-                const safeTimeStr = `${hour}:${minute}`
-
-                start = new Date(`${datePart}T${safeTimeStr}:00`)
-            } else {
-                // Fallback: Try parsing appointment_date directly (legacy records often include time)
-                // e.g. "2026-02-18T09:30:00"
-                start = new Date(apt.appointment_date)
-            }
-
-            // Debug check for invalid dates
-            if (isNaN(start.getTime())) {
-                console.error('Invalid Date created for:', apt)
-                return null
-            }
-
-            // Find service duration
-            const service = services.find(s => s.name === apt.service)
-            const duration = service ? service.duration : 60
-            const end = new Date(start.getTime() + (duration * 60 * 1000))
-
-            // Get professional color
-            const prof = apt.professional_id ? professionals.find(p => p.member_id === apt.professional_id) : null
-
-            return {
-                id: apt.id,
-                title: `${apt.patient_name} - ${apt.service}`,
-                start,
-                end,
-                resource: {
-                    type: 'local',
-                    ...apt,
-                    professionalColor: prof?.color || undefined,
-                    professionalName: prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() : undefined
+                if (hasExplicitTime) {
+                    // Ensure HH:mm format (sanitize)
+                    const timeStr = apt.appointment_time || '00:00'
+                    const [hour, minute] = timeStr.split(':').map(p => p.padStart(2, '0'))
+                    start = new Date(`${datePart}T${hour}:${minute}:00`)
+                } else {
+                    // Fallback: Try parsing appointment_date directly
+                    start = new Date(apt.appointment_date)
                 }
+
+                // Debug check for invalid dates
+                if (isNaN(start.getTime())) {
+                    console.error('Invalid Date created for appointment:', apt.id, apt.appointment_date)
+                    return null
+                }
+
+                // Find service duration (favor duration_minutes if present)
+                const service = services.find(s => s.name === apt.service)
+                const duration = apt.duration_minutes || (service ? service.duration : 60)
+                const end = new Date(start.getTime() + (duration * 60 * 1000))
+
+                // Get professional color
+                const prof = apt.professional_id ? professionals.find(p => p.member_id === apt.professional_id) : null
+
+                return {
+                    id: apt.id,
+                    title: `${apt.patient_name} - ${apt.service}${apt.address ? ` (${apt.address})` : ''}`,
+                    start,
+                    end,
+                    resource: {
+                        type: 'local',
+                        ...apt,
+                        professionalColor: prof?.color || undefined,
+                        professionalName: prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() : undefined
+                    }
+                }
+            } catch (err) {
+                console.error('Error mapping appointment for calendar:', apt.id, err)
+                return null
             }
         }).filter(Boolean) as CalendarEvent[]
 
@@ -1418,7 +1420,7 @@ export default function Appointments() {
                                         type="text"
                                         value={newAppointment.tutor_name}
                                         onChange={(e) => setNewAppointment({ ...newAppointment, tutor_name: e.target.value })}
-                                        placeholder="Ej: Seba Barrera"
+                                        placeholder="Ej: Claudio González"
                                         className="input-soft w-full"
                                     />
                                 </div>
