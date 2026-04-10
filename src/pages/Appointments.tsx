@@ -47,6 +47,7 @@ interface Appointment {
     google_event_id?: string | null
     professional_id?: string | null
     address?: string | null
+    address_references?: string | null
     duration_minutes?: number
 }
 

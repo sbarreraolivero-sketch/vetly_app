@@ -28,6 +28,9 @@ interface Appointment {
     service: string
     appointment_date: string
     status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
+    tutor_name?: string | null
+    address?: string | null
+    address_references?: string | null
 }
 
 interface Message {

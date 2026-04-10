@@ -207,6 +207,11 @@ export interface Database {
                     tutor_id: string | null
                     pet_id: string | null
                     address: string | null
+                    address_references: string | null
+                    tutor_name: string | null
+                    price: number
+                    latitude: number | null
+                    longitude: number | null
                     duration_minutes: number
                 }
                 Insert: {
@@ -227,6 +232,12 @@ export interface Database {
                     updated_at?: string
                     tutor_id?: string | null
                     pet_id?: string | null
+                    address?: string | null
+                    address_references?: string | null
+                    tutor_name?: string | null
+                    price?: number
+                    latitude?: number | null
+                    longitude?: number | null
                 }
                 Update: {
                     id?: string
@@ -246,6 +257,12 @@ export interface Database {
                     updated_at?: string
                     tutor_id?: string | null
                     pet_id?: string | null
+                    address?: string | null
+                    address_references?: string | null
+                    tutor_name?: string | null
+                    price?: number
+                    latitude?: number | null
+                    longitude?: number | null
                 }
             }
             tutors: {
