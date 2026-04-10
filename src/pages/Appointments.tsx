@@ -72,6 +72,19 @@ const tabs = [
     { id: 'completed', label: 'Completadas' },
 ]
 
+const INITIAL_FORM_STATE = {
+    patient_name: '',
+    tutor_name: '',
+    phone_number: '',
+    service: '',
+    appointment_date: '',
+    appointment_time: '',
+    notes: '',
+    professional_id: '',
+    address: '',
+    address_references: ''
+}
+
 export default function Appointments() {
     const { user, profile, session, member } = useAuth()
     const isProfessional = member?.role === 'professional'
@@ -87,18 +100,7 @@ export default function Appointments() {
     const [editingId, setEditingId] = useState<string | null>(null)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [googleEvents] = useState<CalendarEvent[]>([])
-    const [newAppointment, setNewAppointment] = useState({
-        patient_name: '',
-        tutor_name: '',
-        phone_number: '',
-        service: '',
-        appointment_date: '',
-        appointment_time: '',
-        notes: '',
-        professional_id: '',
-        address: '',
-        address_references: ''
-    })
+    const [newAppointment, setNewAppointment] = useState(INITIAL_FORM_STATE)
     const [services, setServices] = useState<any[]>([])
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
@@ -420,16 +422,7 @@ export default function Appointments() {
             }
 
             setShowModal(false)
-            setNewAppointment({
-                patient_name: '',
-                tutor_name: '',
-                phone_number: '',
-                service: '',
-                appointment_date: '',
-                appointment_time: '',
-                notes: '',
-                professional_id: ''
-            })
+            setNewAppointment(INITIAL_FORM_STATE)
             setEditingId(null)
 
             // Refresh list
@@ -665,14 +658,9 @@ export default function Appointments() {
                                 onClick={() => {
                                     const now = new Date()
                                     setNewAppointment({
-                                        patient_name: '',
-                                        tutor_name: '',
-                                        phone_number: '',
-                                        service: '',
+                                        ...INITIAL_FORM_STATE,
                                         appointment_date: format(now, 'yyyy-MM-dd'),
                                         appointment_time: '09:00',
-                                        notes: '',
-                                        professional_id: ''
                                     })
                                     setShowModal(true)
                                 }}
@@ -940,7 +928,9 @@ export default function Appointments() {
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
                                     notes: event.resource.notes || '',
-                                    professional_id: event.resource.professional_id || ''
+                                    professional_id: event.resource.professional_id || '',
+                                    address: event.resource.address || '',
+                                    address_references: event.resource.address_references || ''
                                 })
                                 setShowModal(true)
                             }}
@@ -968,7 +958,9 @@ export default function Appointments() {
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
                                     notes: event.resource.notes || '',
-                                    professional_id: event.resource.professional_id || ''
+                                    professional_id: event.resource.professional_id || '',
+                                    address: event.resource.address || '',
+                                    address_references: event.resource.address_references || ''
                                 })
                                 setShowModal(true)
                             }}
@@ -1004,7 +996,9 @@ export default function Appointments() {
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
                                     notes: event.resource.notes || '',
-                                    professional_id: event.resource.professional_id || ''
+                                    professional_id: event.resource.professional_id || '',
+                                    address: event.resource.address || '',
+                                    address_references: event.resource.address_references || ''
                                 })
                                 setShowModal(true)
                             }}
@@ -1159,7 +1153,9 @@ export default function Appointments() {
                                                                         appointment_date: appointment.appointment_date.split('T')[0],
                                                                         appointment_time: appointment.appointment_date.split('T')[1].slice(0, 5),
                                                                         notes: appointment.notes || '',
-                                                                        professional_id: appointment.professional_id || ''
+                                                                        professional_id: appointment.professional_id || '',
+                                                                        address: appointment.address || '',
+                                                                        address_references: appointment.address_references || ''
                                                                     })
                                                                     setShowModal(true) // Open modal
                                                                 }}
@@ -1310,7 +1306,9 @@ export default function Appointments() {
                                                 appointment_date: appointment.appointment_date.split('T')[0],
                                                 appointment_time: appointment.appointment_date.split('T')[1].slice(0, 5),
                                                 notes: appointment.notes || '',
-                                                professional_id: appointment.professional_id || ''
+                                                professional_id: appointment.professional_id || '',
+                                                address: appointment.address || '',
+                                                address_references: appointment.address_references || ''
                                             })
                                             setShowModal(true)
                                         }}
@@ -1730,16 +1728,7 @@ export default function Appointments() {
                                         onClick={() => {
                                             setShowModal(false)
                                             setEditingId(null)
-                                            setNewAppointment({
-                                                patient_name: '',
-                                                tutor_name: '',
-                                                phone_number: '',
-                                                service: '',
-                                                appointment_date: '',
-                                                appointment_time: '',
-                                                notes: '',
-                                                professional_id: ''
-                                            })
+                                            setNewAppointment(INITIAL_FORM_STATE)
                                         }}
                                         className="btn-ghost"
                                     >
