@@ -32,7 +32,6 @@ export default function AdminDashboard() {
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
             const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-            // Usamos una consulta protegida. Si falla el Join de miembros, intentamos una carga simple.
             const response = await fetch(
                 `${supabaseUrl}/rest/v1/clinic_settings?activation_status=eq.pending_activation&select=id,clinic_name,created_at,activation_status,subscription_plan,clinic_members(email,first_name,role)&clinic_members.role=eq.owner&order=created_at.desc`,
                 {
@@ -46,10 +45,6 @@ export default function AdminDashboard() {
 
             if (!response.ok) {
                 const errBody = await response.text()
-                // Si el error es una recursión RLS (42P17), mostramos un aviso claro
-                if (errBody.includes('42P17')) {
-                    throw new Error('RECURSION_ERROR: La base de datos tiene un bucle de seguridad. Por favor aplica el fix SQL proporcionado.')
-                }
                 throw new Error(`Error ${response.status}: ${errBody}`)
             }
             
@@ -79,12 +74,14 @@ export default function AdminDashboard() {
         fetchPendingClinics()
     }, [fetchPendingClinics])
 
-    const handleActivate = async (clinicId: string) => {
-        if (!confirm('¿Estás seguro de que quieres activar esta clínica? Esto iniciará su trial de 7 días.')) {
-            return
-        }
+    const handleActivate = async (clinic: PendingClinic) => {
+        const msg = clinic.subscription_plan === 'prestige' 
+            ? `¿Activar ${clinic.clinic_name} en Plan Prestige? El sistema buscará si este dueño ya tiene otra sucursal para unificar el cobro.`
+            : `¿Activar trial de 7 días para ${clinic.clinic_name}?`
+            
+        if (!confirm(msg)) return
 
-        setActivating(clinicId)
+        setActivating(clinic.id)
         try {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session?.access_token) throw new Error('No session')
@@ -98,11 +95,28 @@ export default function AdminDashboard() {
                 'Prefer': 'return=minimal',
             }
 
+            // 1. Lógica Prestige: Chequear si ya existe otra sucursal del mismo dueño activa
+            let billingStatus = 'trial' // Default
+            
+            if (clinic.subscription_plan === 'prestige' && clinic.owner_email) {
+                const checkRes = await fetch(
+                    `${supabaseUrl}/rest/v1/clinic_settings?select=id,activation_status&clinic_members!inner(email)&clinic_members.email=eq.${clinic.owner_email}&activation_status=eq.active&limit=1`,
+                    { headers }
+                )
+                const existingClinics = await checkRes.json()
+                if (Array.isArray(existingClinics) && existingClinics.length > 0) {
+                    billingStatus = 'linked' // Ya hay una sucursal principal cobrando
+                } else {
+                    billingStatus = 'active' // Es la sucursal principal
+                }
+            }
+
             const now = new Date()
             const trialEnd = new Date()
             trialEnd.setDate(trialEnd.getDate() + 7)
 
-            await fetch(`${supabaseUrl}/rest/v1/clinic_settings?id=eq.${clinicId}`, {
+            // 2. Actualizar ajustes de clínica
+            await fetch(`${supabaseUrl}/rest/v1/clinic_settings?id=eq.${clinic.id}`, {
                 method: 'PATCH',
                 headers,
                 body: JSON.stringify({
@@ -110,11 +124,12 @@ export default function AdminDashboard() {
                     trial_status: 'running',
                     trial_start_date: now.toISOString(),
                     trial_end_date: trialEnd.toISOString(),
+                    billing_status: billingStatus
                 }),
             })
 
-            setClinics(clinics.filter(c => c.id !== clinicId))
-            alert('✅ Clínica activada exitosamente.')
+            setClinics(clinics.filter(c => c.id !== clinic.id))
+            alert(`✅ Clínica activada como ${billingStatus === 'linked' ? 'VINCULADA (Cobro único)' : 'PRINCIPAL'}. Trial de 7 días iniciado.`)
         } catch (error) {
             console.error('Error activating clinic:', error)
             alert('Error al activar la clínica.')
@@ -154,7 +169,7 @@ export default function AdminDashboard() {
                         <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                         <div className="min-w-0">
                             <p className="text-xs font-black text-red-700 uppercase leading-none mb-1">Error de Sistema</p>
-                            <p className="text-[10px] text-red-600 font-bold leading-tight">{error}</p>
+                            <p className="text-[10px] text-red-600 font-bold leading-tight truncate">{error}</p>
                         </div>
                         <button onClick={fetchPendingClinics} className="p-2 bg-red-100 text-red-700 rounded-lg"><RefreshCw className="w-3.5 h-3.5" /></button>
                     </div>
@@ -190,7 +205,7 @@ export default function AdminDashboard() {
                             <p className="text-sm text-gray-500 font-medium mt-2">No hay clínicas esperando validación.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-0 divide-y divide-gray-50">
+                        <div className="grid grid-cols-1 gap-0 divide-y divide-gray-50">
                             {filteredClinics.map((clinic) => (
                                 <div key={clinic.id} className="group p-6 lg:px-8 lg:py-6 lg:grid lg:grid-cols-12 lg:items-center hover:bg-primary-50/30 transition-all duration-300">
                                     <div className="col-span-4 flex items-center gap-5 mb-4 lg:mb-0">
@@ -220,13 +235,13 @@ export default function AdminDashboard() {
 
                                     <div className="col-span-2 mb-6 lg:mb-0 lg:text-center text-center">
                                         <span className="inline-flex px-3 py-1 font-black text-[10px] uppercase tracking-widest bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
-                                            Plan {clinic.subscription_plan}
+                                            {clinic.subscription_plan}
                                         </span>
                                     </div>
 
                                     <div className="col-span-2 text-right">
                                         <button
-                                            onClick={() => handleActivate(clinic.id)}
+                                            onClick={() => handleActivate(clinic)}
                                             disabled={activating === clinic.id}
                                             className={cn(
                                                 "w-full lg:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest text-white transition-all transform active:scale-95 shadow-xl",
