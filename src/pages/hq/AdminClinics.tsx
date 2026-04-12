@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import {
     Search, Building2, Users, Shield, ChevronUp,
     CheckCircle, Clock, XCircle, Loader2, RefreshCw, CreditCard, Eye,
-    Sparkles, Plus
+    Sparkles, Plus, MoreVertical, ExternalLink
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -39,10 +39,10 @@ interface ClinicData {
     }[]
 }
 
-const statusColors: Record<string, { bg: string; text: string; label: string }> = {
-    active: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'Activa' },
-    pending_activation: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Pendiente' },
-    inactive: { bg: 'bg-red-50', text: 'text-red-700', label: 'Inactiva' },
+const statusColors: Record<string, { bg: string; text: string; border: string; label: string }> = {
+    active: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', label: 'Activa' },
+    pending_activation: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100', label: 'Pendiente' },
+    inactive: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100', label: 'Inactiva' },
 }
 
 const planLabels: Record<string, string> = {
@@ -69,9 +69,8 @@ export default function AdminClinics() {
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
             const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-            // Fetch clinics with members and subscriptions
             const response = await fetch(
-                `${supabaseUrl}/rest/v1/clinic_settings?select=id,clinic_name,created_at,activation_status,subscription_plan,trial_status,billing_status,trial_start_date,trial_end_date,currency,timezone,ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_active_model,clinic_members(id,email,first_name,last_name,role,status),subscriptions(plan,status,current_period_end,trial_ends_at)&order=created_at.desc`,
+                `${supabaseUrl}/rest/v1/clinic_settings?select=*,clinic_members(id,email,first_name,last_name,role,status),subscriptions(plan,status,current_period_end,trial_ends_at)&order=created_at.desc`,
                 {
                     headers: {
                         'apikey': supabaseKey,
@@ -110,7 +109,10 @@ export default function AdminClinics() {
     const getStatusBadge = (status: string) => {
         const s = statusColors[status] || statusColors.inactive
         return (
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
+            <span className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm",
+                s.bg, s.text, s.border
+            )}>
                 {status === 'active' && <CheckCircle className="w-3.5 h-3.5" />}
                 {status === 'pending_activation' && <Clock className="w-3.5 h-3.5" />}
                 {status === 'inactive' && <XCircle className="w-3.5 h-3.5" />}
@@ -128,281 +130,274 @@ export default function AdminClinics() {
 
     if (loading) {
         return (
-            <div className="p-8 flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+            <div className="flex-1 flex flex-col items-center justify-center h-full p-20">
+                <div className="relative">
+                    <div className="w-16 h-16 border-4 border-primary-100 rounded-full animate-pulse" />
+                    <Loader2 className="w-8 h-8 animate-spin text-primary-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
+                <p className="mt-4 text-gray-500 font-medium animate-pulse">Cargando clínicas...</p>
             </div>
         )
     }
 
     return (
-        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="p-4 lg:p-8 space-y-6">
             {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Clínicas</h1>
-                <p className="text-gray-500 mt-1">Gestiona todas las clínicas registradas en la plataforma.</p>
+            <div>
+                <h1 className="text-2xl lg:text-3xl font-black text-gray-900 tracking-tight">Clínicas</h1>
+                <p className="text-sm text-gray-500 mt-1 font-medium">Control global de la red Vetly AI.</p>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg">
-                            <Building2 className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                            <p className="text-xs text-gray-500">Total</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-50 rounded-lg">
-                            <CheckCircle className="w-5 h-5 text-emerald-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-                            <p className="text-xs text-gray-500">Activas</p>
+            {/* Stats Cards - Horizontal Scroll en Móvil */}
+            <div className="flex lg:grid lg:grid-cols-4 gap-4 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 scrollbar-none">
+                {[
+                    { label: 'Total', count: stats.total, icon: Building2, color: 'blue' },
+                    { label: 'Activas', count: stats.active, icon: CheckCircle, color: 'emerald' },
+                    { label: 'Pendientes', count: stats.pending, icon: Clock, color: 'amber' },
+                    { label: 'Inactivos', count: stats.inactive, icon: XCircle, color: 'red' },
+                ].map((stat) => (
+                    <div key={stat.label} className="min-w-[150px] flex-1 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="flex items-center gap-3">
+                            <div className={cn("p-2 rounded-xl", `bg-${stat.color}-50`)}>
+                                <stat.icon className={cn("w-5 h-5", `text-${stat.color}-600`)} />
+                            </div>
+                            <div>
+                                <p className="text-xl font-black text-gray-900 leading-none">{stat.count}</p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">{stat.label}</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-50 rounded-lg">
-                            <Clock className="w-5 h-5 text-amber-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
-                            <p className="text-xs text-gray-500">Pendientes</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-red-50 rounded-lg">
-                            <XCircle className="w-5 h-5 text-red-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">{stats.inactive}</p>
-                            <p className="text-xs text-gray-500">Inactivas</p>
-                        </div>
-                    </div>
-                </div>
+                ))}
             </div>
 
             {/* Filters */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-                <div className="flex flex-col sm:flex-row gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <div className="flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Buscar por nombre o email..."
+                            placeholder="Buscar clínica o email..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                         />
                     </div>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-                    >
-                        <option value="all">Todos los estados</option>
-                        <option value="active">Activas</option>
-                        <option value="pending_activation">Pendientes</option>
-                        <option value="inactive">Inactivas</option>
-                    </select>
-                    <button
-                        onClick={fetchClinics}
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                        Actualizar
-                    </button>
+                    <div className="flex gap-2">
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="flex-1 md:w-48 px-4 py-3 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-gray-50/50"
+                        >
+                            <option value="all">Filtro: Todos</option>
+                            <option value="active">Activas</option>
+                            <option value="pending_activation">Pendientes</option>
+                            <option value="inactive">Inactivas</option>
+                        </select>
+                        <button
+                            onClick={fetchClinics}
+                            className="p-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all border border-gray-200 shadow-sm active:scale-95"
+                        >
+                            <RefreshCw className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Clinics Table */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-100">
-                                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Clínica</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Owner</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Miembros</th>
-                                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
-                                <th className="px-6 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Detalles</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {filteredClinics.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500 text-sm">
-                                        {search || statusFilter !== 'all'
-                                            ? 'No se encontraron clínicas con estos filtros.'
-                                            : 'No hay clínicas registradas.'}
-                                    </td>
-                                </tr>
-                            ) : (
-                                filteredClinics.map((clinic) => {
-                                    const owner = getOwner(clinic)
-                                    const isExpanded = expandedClinic === clinic.id
-                                    return (
-                                        <tr key={clinic.id}>
-                                            <td colSpan={7} className="p-0">
-                                                <div>
-                                                    <div className="flex items-center px-6 py-4 hover:bg-gray-50/50 transition-colors">
-                                                        <div className="flex-1 min-w-0 flex items-center">
-                                                            <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center mr-3 flex-shrink-0">
-                                                                <Building2 className="w-5 h-5 text-primary-600" />
-                                                            </div>
+            {/* Mobile Cards / Desktop Table */}
+            <div className="space-y-4">
+                {/* Desktop Header (Hidden on Mobile) */}
+                <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50/50 rounded-t-2xl border-x border-t border-gray-200">
+                    <div className="col-span-4">Clínica / ID</div>
+                    <div className="col-span-3">Owner / Contacto</div>
+                    <div className="col-span-2 text-center">Plan</div>
+                    <div className="col-span-2 text-center">Estado</div>
+                    <div className="col-span-1 text-right">Opciones</div>
+                </div>
+
+                {filteredClinics.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-gray-200 p-20 text-center shadow-sm">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Building2 className="w-8 h-8 text-gray-300" />
+                        </div>
+                        <p className="text-gray-500 font-bold">No se encontraron resultados.</p>
+                    </div>
+                ) : (
+                    filteredClinics.map((clinic) => {
+                        const owner = getOwner(clinic)
+                        const isExpanded = expandedClinic === clinic.id
+                        return (
+                            <div 
+                                key={clinic.id} 
+                                className={cn(
+                                    "bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm transition-all duration-300 hover:border-primary-500/30",
+                                    isExpanded ? "ring-2 ring-primary-500/5 shadow-lg" : "hover:shadow-md"
+                                )}
+                            >
+                                {/* Base Item */}
+                                <div className="p-4 lg:p-0 lg:grid lg:grid-cols-12 lg:items-center">
+                                    {/* Info Clínica */}
+                                    <div className="lg:col-span-4 lg:px-6 lg:py-5 flex items-center mb-4 lg:mb-0">
+                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center mr-4 shrink-0 shadow-inner group">
+                                            <Building2 className="w-6 h-6 text-primary-600 group-hover:scale-110 transition-transform" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h3 className="text-sm font-black text-gray-900 truncate leading-tight">{clinic.clinic_name || 'Sin nombre'}</h3>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[10px] font-bold text-gray-400 font-mono tracking-tighter bg-gray-50 px-1.5 rounded">{clinic.id.slice(0, 13)}...</span>
+                                                <span className="text-[10px] text-gray-400 font-medium">• {new Date(clinic.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Owner - Hidden Label on Desktop */}
+                                    <div className="lg:col-span-3 lg:px-6 lg:py-5 mb-4 lg:mb-0 border-t lg:border-t-0 pt-4 lg:pt-5">
+                                        <div className="flex items-center lg:block">
+                                            <div className="lg:hidden text-[10px] font-black text-gray-400 uppercase w-20 shrink-0">Dueño:</div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-bold text-gray-700 truncate">{owner?.email || 'Pendiente'}</p>
+                                                <p className="text-xs text-gray-400 font-medium capitalize">{owner?.first_name || 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Plan */}
+                                    <div className="lg:col-span-2 lg:px-6 lg:py-5 mb-4 lg:mb-0 lg:text-center shrink-0">
+                                        <div className="flex items-center lg:justify-center">
+                                            <div className="lg:hidden text-[10px] font-black text-gray-400 uppercase w-20 shrink-0">Plan:</div>
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider border border-indigo-100 shadow-sm">
+                                                <CreditCard className="w-3 h-3" />
+                                                {planLabels[clinic.subscription_plan] || clinic.subscription_plan}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Estado */}
+                                    <div className="lg:col-span-2 lg:px-6 lg:py-5 mb-4 lg:mb-0 lg:text-center shrink-0">
+                                        <div className="flex items-center lg:justify-center">
+                                            <div className="lg:hidden text-[10px] font-black text-gray-400 uppercase w-20 shrink-0">Estado:</div>
+                                            {getStatusBadge(clinic.activation_status)}
+                                        </div>
+                                    </div>
+
+                                    {/* Detalle Trigger */}
+                                    <div className="lg:col-span-1 lg:px-6 lg:py-5 text-right flex justify-end gap-2 pt-4 lg:pt-5 border-t lg:border-t-0 border-gray-100">
+                                        <button
+                                            onClick={() => setExpandedClinic(isExpanded ? null : clinic.id)}
+                                            className={cn(
+                                                "p-2.5 rounded-xl transition-all active:scale-95 shadow-sm border",
+                                                isExpanded ? "bg-primary-500 text-white border-primary-600" : "bg-white text-gray-400 hover:text-gray-600 border-gray-200"
+                                            )}
+                                        >
+                                            <Eye className="w-5 h-5 lg:w-4 lg:h-4" />
+                                        </button>
+                                        <button className="p-2.5 lg:hidden bg-gray-50 border border-gray-200 rounded-xl text-gray-400">
+                                            <MoreVertical className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Expanded Content */}
+                                {isExpanded && (
+                                    <div className="bg-gray-50/50 border-t border-gray-100 p-4 lg:p-6 space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {/* Subscription Card */}
+                                            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                                        <CreditCard className="w-3.5 h-3.5" /> Suscripción
+                                                    </h4>
+                                                    <ExternalLink className="w-3.5 h-3.5 text-gray-300" />
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
+                                                        <span className="text-xs text-gray-500 font-bold">Plan</span>
+                                                        <span className="text-sm font-black text-primary-600 uppercase">{planLabels[clinic.subscription_plan] || clinic.subscription_plan}</span>
+                                                    </div>
+                                                    {[
+                                                        { label: 'Trial', val: clinic.trial_status?.replace('_', ' ') },
+                                                        { label: 'Facturación', val: clinic.billing_status?.replace('_', ' ') },
+                                                        { label: 'Moneda', val: clinic.currency || 'USD' },
+                                                    ].map(row => (
+                                                        <div key={row.label} className="flex justify-between items-center px-2">
+                                                            <span className="text-xs text-gray-400 font-bold uppercase tracking-tight">{row.label}</span>
+                                                            <span className="text-xs font-bold text-gray-700 capitalize">{row.val}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Team Card */}
+                                            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex flex-col">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                                        <Users className="w-3.5 h-3.5" /> Equipo ({clinic.clinic_members?.length || 0})
+                                                    </h4>
+                                                </div>
+                                                <div className="space-y-2 flex-1 overflow-y-auto max-h-[160px] scrollbar-thin">
+                                                    {clinic.clinic_members?.map((member) => (
+                                                        <div key={member.id} className="flex items-center justify-between p-2 rounded-xl border border-gray-50 bg-gray-50/30 group hover:border-primary-100 transition-colors">
                                                             <div className="min-w-0">
-                                                                <p className="text-sm font-semibold text-gray-900 truncate">{clinic.clinic_name || 'Sin nombre'}</p>
-                                                                <p className="text-xs text-gray-400">{clinic.id.slice(0, 8)}...</p>
+                                                                <p className="text-[10px] font-black text-gray-800 truncate">{member.email}</p>
+                                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mt-0.5">{member.role}</p>
                                                             </div>
+                                                            <div className={cn(
+                                                                "w-2 h-2 rounded-full shrink-0",
+                                                                member.status === 'active' ? "bg-emerald-400" : "bg-gray-300"
+                                                            )} />
                                                         </div>
-                                                        <div className="w-44 px-3">
-                                                            <p className="text-sm text-gray-700 truncate">{owner?.email || 'N/A'}</p>
-                                                            <p className="text-xs text-gray-400">{owner?.first_name || ''} {owner?.last_name || ''}</p>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Tech Card */}
+                                            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+                                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                    <Shield className="w-3.5 h-3.5" /> Setup Técnico
+                                                </h4>
+                                                <div className="space-y-4">
+                                                    <div className="bg-gray-900 rounded-xl p-3">
+                                                        <p className="text-[9px] text-gray-500 font-black uppercase mb-1">Clinic ID</p>
+                                                        <p className="text-[10px] text-primary-400 font-mono break-all">{clinic.id}</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4 h-full">
+                                                        <div className="bg-blue-50/50 p-2 rounded-xl border border-blue-100">
+                                                            <p className="text-[9px] text-blue-400 font-black uppercase">Zona Horaria</p>
+                                                            <p className="text-[10px] font-bold text-blue-900 truncate tracking-tight">{clinic.timezone || 'UTC'}</p>
                                                         </div>
-                                                        <div className="w-24 px-3">
-                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-purple-50 text-purple-700 text-xs font-medium">
-                                                                <CreditCard className="w-3 h-3" />
-                                                                {planLabels[clinic.subscription_plan] || clinic.subscription_plan}
-                                                            </span>
-                                                        </div>
-                                                        <div className="w-28 px-3">
-                                                            {getStatusBadge(clinic.activation_status)}
-                                                        </div>
-                                                        <div className="w-20 px-3 text-center">
-                                                            <span className="inline-flex items-center gap-1 text-sm text-gray-600">
-                                                                <Users className="w-3.5 h-3.5" />
-                                                                {clinic.clinic_members?.length || 0}
-                                                            </span>
-                                                        </div>
-                                                        <div className="w-28 px-3">
-                                                            <p className="text-xs text-gray-500">
-                                                                {new Date(clinic.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                            </p>
-                                                        </div>
-                                                        <div className="w-16 px-3 text-center">
-                                                            <button
-                                                                onClick={() => setExpandedClinic(isExpanded ? null : clinic.id)}
-                                                                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
-                                                            >
-                                                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                            </button>
+                                                        <div className="bg-purple-50/50 p-2 rounded-xl border border-purple-100">
+                                                            <p className="text-[9px] text-purple-400 font-black uppercase">Registro</p>
+                                                            <p className="text-[10px] font-bold text-purple-900">{new Date(clinic.created_at).toLocaleDateString()}</p>
                                                         </div>
                                                     </div>
-
-                                                    {/* Expanded Details */}
-                                                    {isExpanded && (
-                                                        <div className="px-6 pb-4 bg-gray-50/80 border-t border-gray-100">
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-                                                                {/* Subscription Info */}
-                                                                <div className="bg-white rounded-lg p-4 border border-gray-100">
-                                                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1.5">
-                                                                        <CreditCard className="w-3.5 h-3.5" /> Suscripción
-                                                                    </h4>
-                                                                    <div className="space-y-2 text-sm">
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">Plan</span>
-                                                                            <span className="font-medium">{planLabels[clinic.subscription_plan] || clinic.subscription_plan}</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">Trial</span>
-                                                                            <span className="font-medium capitalize">{clinic.trial_status?.replace('_', ' ')}</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">Facturación</span>
-                                                                            <span className="font-medium capitalize">{clinic.billing_status?.replace('_', ' ')}</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">Moneda</span>
-                                                                            <span className="font-medium">{clinic.currency || 'MXN'}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Members */}
-                                                                <div className="bg-white rounded-lg p-4 border border-gray-100">
-                                                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1.5">
-                                                                        <Users className="w-3.5 h-3.5" /> Miembros ({clinic.clinic_members?.length || 0})
-                                                                    </h4>
-                                                                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                                                                        {clinic.clinic_members?.map((member) => (
-                                                                            <div key={member.id} className="flex items-center justify-between text-sm">
-                                                                                <span className="text-gray-700 truncate mr-2">{member.email}</span>
-                                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${member.role === 'owner' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                                                    {member.role}
-                                                                                </span>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Technical */}
-                                                                <div className="bg-white rounded-lg p-4 border border-gray-100">
-                                                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1.5">
-                                                                        <Shield className="w-3.5 h-3.5" /> Información Técnica
-                                                                    </h4>
-                                                                    <div className="space-y-2 text-sm">
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">ID</span>
-                                                                            <span className="font-mono text-xs text-gray-600">{clinic.id.slice(0, 12)}...</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">Timezone</span>
-                                                                            <span className="font-medium text-xs">{clinic.timezone || 'N/A'}</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-gray-500">Creada</span>
-                                                                            <span className="font-medium text-xs">
-                                                                                {new Date(clinic.created_at).toLocaleDateString('es-ES')}
-                                                                            </span>
-                                                                        </div>
-                                                                        {clinic.trial_end_date && (
-                                                                            <div className="flex justify-between">
-                                                                                <span className="text-gray-500">Trial hasta</span>
-                                                                                <span className="font-medium text-xs">
-                                                                                    {new Date(clinic.trial_end_date).toLocaleDateString('es-ES')}
-                                                                                </span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* AI Usage */}
-                                                                <div className="bg-white rounded-lg p-4 border border-gray-200/60 md:col-span-3 shadow-sm bg-gradient-to-br from-white to-gray-50/30">
-                                                                    <h4 className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest flex items-center gap-2">
-                                                                        <div className="p-1 bg-primary-50 rounded-md">
-                                                                            <Sparkles className="w-3.5 h-3.5 text-primary-600" />
-                                                                        </div>
-                                                                        Uso de Inteligencia Artificial (Mes Actual)
-                                                                    </h4>
-                                                                    <AdminAIUsage 
-                                                                        clinicId={clinic.id} 
-                                                                        monthlyLimit={clinic.ai_credits_monthly_limit} 
-                                                                        extraBalance={clinic.ai_credits_extra_balance} 
-                                                                        extraBalance4o={clinic.ai_credits_extra_4o} 
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                            </div>
+
+                                            {/* AI Panel - Full width on lg */}
+                                            <div className="lg:col-span-3 bg-white rounded-2xl p-5 border border-gray-200 shadow-md ring-4 ring-primary-50/30">
+                                                <div className="flex items-center gap-2 mb-6">
+                                                    <div className="p-2 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl shadow-lg shadow-primary-500/20">
+                                                        <Sparkles className="w-4 h-4 text-white" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">IA Usage Intelligence</h4>
+                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Análisis y recarga de créditos globales</p>
+                                                    </div>
+                                                </div>
+                                                <AdminAIUsage 
+                                                    clinicId={clinic.id} 
+                                                    monthlyLimit={clinic.ai_credits_monthly_limit} 
+                                                    extraBalance={clinic.ai_credits_extra_balance} 
+                                                    extraBalance4o={clinic.ai_credits_extra_4o} 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })
+                )}
             </div>
         </div>
     )
@@ -425,7 +420,6 @@ function AdminAIUsage({ clinicId, monthlyLimit, extraBalance, extraBalance4o }: 
                 startOfMonth.setDate(1)
                 startOfMonth.setHours(0, 0, 0, 0)
 
-                // Fetch Mini count
                 const { count: countMini, error: errorMini } = await (supabase as any)
                     .from('messages')
                     .select('*', { count: 'exact', head: true })
@@ -436,7 +430,6 @@ function AdminAIUsage({ clinicId, monthlyLimit, extraBalance, extraBalance4o }: 
                 
                 if (errorMini) throw errorMini
 
-                // Fetch 4o count
                 const { count: count4o, error: error4o } = await (supabase as any)
                     .from('messages')
                     .select('*', { count: 'exact', head: true })
@@ -479,7 +472,7 @@ function AdminAIUsage({ clinicId, monthlyLimit, extraBalance, extraBalance4o }: 
             if (is4o) setCurrentExtra4o(prev => prev + amount)
             else setCurrentExtraMini(prev => prev + amount)
             
-            alert(`Créditos (${chargeTarget === 'mini' ? 'Mini' : 'GPT-4o'}) cargados correctamente`)
+            alert(`Créditos cargados correctamente`)
         } catch (err) {
             console.error('Error adding credits:', err)
             alert('Error al cargar créditos')
@@ -488,123 +481,126 @@ function AdminAIUsage({ clinicId, monthlyLimit, extraBalance, extraBalance4o }: 
         }
     }
 
-    if (loading) return <div className="animate-pulse space-y-4 text-center py-4">
-        <div className="h-4 bg-gray-100 rounded-full w-3/4 mx-auto"></div>
-        <div className="h-4 bg-gray-100 rounded-full w-1/2 mx-auto"></div>
-    </div>
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center py-6 space-y-2 opacity-50">
+            <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+            <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Calculando tráfico...</p>
+        </div>
+    )
 
     const totalMini = (monthlyLimit || 500) + currentExtraMini
     const percentMini = Math.min(100, Math.round(((usedMini || 0) / totalMini) * 100))
-    
-    // GPT-4o typically doesn't have a plan limit, only extra balance in this logic
     const total4o = currentExtra4o
     const percent4o = total4o > 0 ? Math.min(100, Math.round(((used4o || 0) / total4o) * 100)) : 0
 
     return (
-        <div className="space-y-6">
-            {/* GPT-4o mini Dashboard */}
-            <div className="space-y-3 bg-emerald-50/30 p-3 rounded-lg border border-emerald-100/50 shadow-sm">
-                <div className="flex justify-between items-end">
-                    <div className="flex gap-4">
-                        <div className="text-center">
-                            <p className="text-[10px] text-emerald-600 uppercase font-extrabold text-left tracking-wider">GPT-4o-mini (Usados)</p>
-                            <p className="text-sm font-black text-gray-900 text-left">{usedMini}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+                {/* 4o Mini Tracking */}
+                <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest">GPT-4o Mini (Producción)</p>
+                            <div className="flex items-baseline gap-2 mt-1">
+                                <span className="text-2xl font-black text-gray-900 leading-none">{usedMini}</span>
+                                <span className="text-xs text-gray-400 font-bold uppercase tracking-tight">/ {totalMini} usados</span>
+                            </div>
                         </div>
-                        <div className="text-center border-l border-emerald-100 pl-4">
-                            <p className="text-[10px] text-emerald-600 uppercase font-extrabold text-left tracking-wider">Límite Total</p>
-                            <p className="text-sm font-semibold text-gray-600 text-left">{monthlyLimit || 500} <span className="text-[10px] font-normal text-gray-400">(plan)</span> + {currentExtraMini} <span className="text-[10px] font-normal text-gray-400">(extra)</span> = {totalMini}</p>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <span className={cn(
-                            "text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm",
-                            percentMini > 90 ? "bg-red-50 text-red-600 border border-red-100" : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                        <div className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-black border tracking-widest uppercase",
+                            percentMini > 85 ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
                         )}>
-                            {percentMini}%
-                        </span>
-                    </div>
-                </div>
-                <div className="w-full bg-emerald-100/30 rounded-full h-2.5 overflow-hidden shadow-inner border border-emerald-100/50">
-                    <div 
-                        className={cn(
-                            "h-full transition-all duration-700 ease-out rounded-full shadow-sm",
-                            percentMini > 90 ? "bg-red-500" : "bg-emerald-500"
-                        )}
-                        style={{ width: `${percentMini}%` }}
-                    />
-                </div>
-            </div>
-
-            {/* GPT-4o Dashboard */}
-            <div className="space-y-3 bg-violet-50/30 p-3 rounded-lg border border-violet-100/50 shadow-sm">
-                <div className="flex justify-between items-end">
-                    <div className="flex gap-4">
-                        <div className="text-center">
-                            <p className="text-[10px] text-violet-600 uppercase font-extrabold text-left tracking-wider">GPT-4o Premium (Usados)</p>
-                            <p className="text-sm font-black text-gray-900 text-left">{used4o}</p>
-                        </div>
-                        <div className="text-center border-l border-violet-100 pl-4">
-                            <p className="text-[10px] text-violet-600 uppercase font-extrabold text-left tracking-wider">Límite Extra</p>
-                            <p className="text-sm font-semibold text-gray-600 text-left">{currentExtra4o}</p>
+                            {percentMini}% Cap
                         </div>
                     </div>
-                    <div className="text-right">
-                        <span className={cn(
-                            "text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm",
-                            percent4o > 90 ? "bg-red-50 text-red-600 border border-red-100" : "bg-violet-100 text-violet-700 border border-violet-200"
-                        )}>
-                            {percent4o}%
-                        </span>
-                    </div>
-                </div>
-                <div className="w-full bg-violet-100/30 rounded-full h-2.5 overflow-hidden shadow-inner border border-violet-100/50">
-                    <div 
-                        className={cn(
-                            "h-full transition-all duration-700 ease-out rounded-full shadow-sm",
-                            percent4o > 90 ? "bg-red-500" : "bg-violet-500"
-                        )}
-                        style={{ width: `${percent4o}%` }}
-                    />
-                </div>
-            </div>
-
-            {/* Manual Credit Loader */}
-            <div className="pt-4 border-t border-dashed border-gray-200">
-                <p className="text-[10px] text-gray-400 font-extrabold uppercase mb-3 tracking-widest flex items-center gap-1.5">
-                    <Shield className="w-3 h-3" /> Carga Manual de Créditos HQ
-                </p>
-                <div className="flex flex-wrap items-center gap-3">
-                    <select 
-                        value={chargeTarget}
-                        onChange={(e) => setChargeTarget(e.target.value as any)}
-                        className="text-xs font-bold px-3 py-2 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-sm transition-all"
-                    >
-                        <option value="mini">Model: Mini</option>
-                        <option value="4o">Model: GPT-4o</option>
-                    </select>
-                    <div className="relative flex-1 min-w-[120px]">
-                        <input 
-                            type="number"
-                            value={addAmount}
-                            onChange={(e) => setAddAmount(e.target.value)}
-                            placeholder="Cantidad..."
-                            className="w-full pl-4 pr-10 py-2 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm transition-all"
+                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden shadow-inner border border-gray-200/50 p-0.5">
+                        <div 
+                            className={cn(
+                                "h-full rounded-full transition-all duration-1000 shadow-sm",
+                                percentMini > 85 ? "bg-red-500" : "bg-emerald-500"
+                            )}
+                            style={{ width: `${percentMini}%` }}
                         />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">CR</div>
                     </div>
-                    <button
-                        onClick={handleAddCredits}
-                        disabled={isUpdating}
-                        className={cn(
-                            "flex items-center gap-1.5 px-5 py-2 text-[10px] font-black uppercase text-white rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 tracking-wider",
-                            chargeTarget === '4o' ? "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700" : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
-                        )}
-                    >
-                        {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 stroke-[3]" />}
-                        Cargar HQ
-                    </button>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-2 italic font-medium">Nota: Esta carga es manual y no genera factura en Mercado Pago. Use solo para cortesías o correcciones.</p>
+
+                {/* 4o Premium Tracking */}
+                <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <p className="text-[10px] text-purple-600 font-black uppercase tracking-widest">GPT-4o Premium (High-End)</p>
+                            <div className="flex items-baseline gap-2 mt-1">
+                                <span className="text-2xl font-black text-gray-900 leading-none">{used4o}</span>
+                                <span className="text-xs text-gray-400 font-bold uppercase tracking-tight">/ {total4o || 0} disponibles</span>
+                            </div>
+                        </div>
+                        <div className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-black border tracking-widest uppercase",
+                            percent4o > 85 ? "bg-red-50 text-red-600 border-red-100" : "bg-purple-50 text-purple-600 border-purple-100"
+                        )}>
+                            {total4o > 0 ? `${percent4o}% Load` : 'Depleted'}
+                        </div>
+                    </div>
+                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden shadow-inner border border-gray-200/50 p-0.5">
+                        <div 
+                            className={cn(
+                                "h-full rounded-full transition-all duration-1000 shadow-sm",
+                                percent4o > 85 ? "bg-red-500" : "bg-purple-500"
+                            )}
+                            style={{ width: `${percent4o}%` }}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="lg:border-l lg:pl-6 pt-6 lg:pt-0 border-t lg:border-t-0 border-gray-100 border-dashed">
+                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Plus className="w-3.5 h-3.5 fill-gray-400" /> Inyección Manual de Créditos
+                </p>
+                <div className="space-y-4">
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setChargeTarget('mini')}
+                            className={cn(
+                                "flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95",
+                                chargeTarget === 'mini' ? "bg-emerald-600 text-white border-emerald-700 shadow-emerald-500/20" : "bg-white text-gray-400 border-gray-200"
+                            )}
+                        >
+                            Mini Model
+                        </button>
+                        <button 
+                            onClick={() => setChargeTarget('4o')}
+                            className={cn(
+                                "flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95",
+                                chargeTarget === '4o' ? "bg-purple-600 text-white border-purple-700 shadow-purple-500/20" : "bg-white text-gray-400 border-gray-200"
+                            )}
+                        >
+                            4o Premium
+                        </button>
+                    </div>
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <input 
+                                type="number"
+                                value={addAmount}
+                                onChange={(e) => setAddAmount(e.target.value)}
+                                className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-sm font-black focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500 transition-all outline-none shadow-inner bg-gray-50/50"
+                            />
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300">CREDITS</div>
+                        </div>
+                        <button
+                            onClick={handleAddCredits}
+                            disabled={isUpdating}
+                            className="px-6 rounded-2xl bg-gray-900 text-white hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                        >
+                            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                        </button>
+                    </div>
+                </div>
+                <div className="mt-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3">
+                    <Shield className="w-4 h-4 text-blue-400 mt-0.5" />
+                    <p className="text-[10px] text-blue-600 leading-normal font-bold">Estos créditos se registran como balance extra y no expiran al final del mes. No se genera cobro automático.</p>
+                </div>
             </div>
         </div>
     )
