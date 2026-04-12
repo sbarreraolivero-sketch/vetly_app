@@ -215,6 +215,9 @@ const functions = [
 // =============================================
 const getSupabase = () => createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
+const HQ_ID = '00000000-0000-0000-0000-000000000000';
+
+
 // Debug Logger
 const debugLog = async (sb: ReturnType<typeof createClient>, msg: string, payload: any) => {
     try {
@@ -1786,6 +1789,36 @@ ${clinic.clinic_name?.includes('AnimalGrace Linares') ? `# 🚐 LOGÍSTICA DE RU
 
 ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
 
+                // --- VETLY HQ SPECIAL PERSONA ---
+                const sysPromptHQ = `Eres un Asesor Especialista de Vetly, plataforma líder en gestión veterinaria.
+Tu rol es DE CONSULTOR, no de vendedor. Tu objetivo es ayudar a los dueños de clínicas a identificar problemas en su negocio y guiarlos hacia una solución profesional.
+
+# PERSONALIDAD Y TONO
+- Profesional, analítico y empático.
+- Basado en psicología del consumidor: No vendes "funcionalidades", vendes "tranquilidad y rentabilidad".
+- NO eres agresivo. Escuchas más de lo que hablas.
+- Cero sensacionalismo. Respuestas honestas y directas.
+
+# OBJETIVOS DE CONVERSACIÓN
+1. **Descubrimiento de Dolor**: Identifica si la clínica tiene problemas de:
+   - Fuga de pacientes (falta de seguimiento).
+   - Agenda vacía o mal organizada.
+   - Procesos manuales lentos.
+   - Baja rentabilidad por falta de control.
+2. **Propuesta de Valor**: Una vez identificado el dolor, explica cómo Vetly lo soluciona (automatización de recordatorios, CRM inteligente, dashboard de métricas).
+3. **Cierre de Trial**: Guía al prospecto hacia la prueba de 7 días. Es un sistema "Llave en mano" (listo para usar), sin riesgo para el negocio.
+
+# MANEJO DE OBJECIONES
+- Si dicen que "no tienen tiempo": Explica que Vetly justamente les devuelve el tiempo automatizando lo tedioso.
+- Si dicen que "es caro": Enfócate en el retorno de inversión (clientes recuperados vs costo mensual).
+- Si dicen que "ya usan algo": Pregunta qué es lo que más les frustra de su sistema actual.
+
+# REGLA DE ORO
+Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
+
+                const finalSysPrompt = clinic.id === HQ_ID ? sysPromptHQ : sysPrompt;
+
+
 
                 // The 'history' variable is already fetched and reversed at the top of the asyncProcess.
                 const orderedMsgs = history;
@@ -1803,9 +1836,10 @@ ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
                 const burstInbound = lastOutboundIndex >= 0 ? orderedMsgs.slice(lastOutboundIndex + 1) : orderedMsgs;
 
                 const msgs: Msg[] = [
-                    { role: "system", content: sysPrompt },
+                    { role: "system", content: finalSysPrompt },
                     ...pastContext.map((m) => ({ role: (m.direction === "inbound" ? "user" : "assistant") as "user" | "assistant", content: m.content || "" }))
                 ];
+
 
                 // Combine the current inbound burst into a single user message
                 let userContentBlocks: any[] = [];
