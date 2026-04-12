@@ -94,12 +94,11 @@ export default function AdminClinics() {
             const clinic = clinics.find(c => c.id === clinicId)
             const currentVal = chargeModel === 'mini' ? (clinic?.ai_credits_extra_balance || 0) : (clinic?.ai_credits_extra_gpt4o || 0)
             
-            const updatePayload: Record<string, number> = {
+            const updatePayload = {
                 [column]: currentVal + chargeAmount
             }
 
-            const { error } = await supabase
-                .from('clinic_settings')
+            const { error } = await (supabase.from('clinic_settings') as any)
                 .update(updatePayload)
                 .eq('id', clinicId)
 
