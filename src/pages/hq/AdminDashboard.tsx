@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, Clock, Search, Loader2, RefreshCw, ShieldCheck, Mail, Calendar as CalendarIcon, AlertCircle } from 'lucide-react'
+import { CheckCircle, Search, Loader2, RefreshCw, ShieldCheck, Mail, Calendar as CalendarIcon, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { cn } from '@/lib/utils'
