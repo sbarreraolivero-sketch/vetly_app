@@ -199,12 +199,12 @@ const functions = [
     },
     {
         name: "tag_patient",
-        description: "Asigna una etiqueta al paciente para segmentación y marketing. ÚSALA PROACTIVAMENTE cuando: (1) El paciente muestra interés en un servicio específico → etiqueta 'Interés [Servicio]' (ej: 'Interés Microblading'). (2) El paciente agenda una cita → etiqueta 'Cliente [Servicio]'. (3) Detectas una condición relevante → etiqueta descriptiva (ej: 'Piel Sensible', 'Primera Vez'). (4) El paciente es recurrente → 'Cliente Frecuente'. (5) El paciente refiere a alguien → 'Referidor'. Puedes llamar esta función múltiples veces para asignar varias etiquetas. La etiqueta se crea automáticamente si no existe.",
+        description: "Asigna una etiqueta al paciente para segmentación y marketing médico. ÚSALA PROACTIVAMENTE cuando: (1) El paciente muestra interés en un servicio específico → etiqueta 'Interés [Servicio]' (ej: 'Interés Cirugía'). (2) Se agenda una cita → etiqueta 'Cliente [Servicio]'. (3) Detectas condiciones o comportamientos → ej: 'Agresivo', 'Mascota Senior', 'Rescatado', 'Alérgico'. (4) Es la primera vez → 'Primera Vez'. Puedes llamar esta función múltiples veces. La etiqueta se crea automáticamente si no existe.",
         parameters: {
             type: "object",
             properties: {
-                tag_name: { type: "string", description: "Nombre de la etiqueta. Usa formato capitalizado y descriptivo. Ej: 'Interés Microblading', 'Cliente Frecuente', 'VIP', 'Piel Sensible', 'Primera Vez'" },
-                tag_color: { type: "string", description: "Color hex de la etiqueta. Usa: #10B981 (verde) para clientes activos, #3B82F6 (azul) para intereses, #F59E0B (amarillo) para alertas, #EF4444 (rojo) para condiciones médicas, #8B5CF6 (morado) para VIP/especiales, #EC4899 (rosado) para servicios estéticos. Opcional, default azul." }
+                tag_name: { type: "string", description: "Nombre de la etiqueta. Ej: 'Interés Vacunación', 'Agresivo', 'Mascota Senior', 'Primera Vez', 'Control Sano'" },
+                tag_color: { type: "string", description: "Color hex. Sugerencias: #10B981 (verde/positivo), #3B82F6 (azul/interés), #F59E0B (amarillo/cuidado), #EF4444 (rojo/médico-alerta), #8B5CF6 (morado/VIP). Opcional, default azul." }
             },
             required: ["tag_name"]
         }
@@ -996,16 +996,16 @@ const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string,
         let tagName = args.tag_name.trim();
         if (!tagName) return { success: false, message: "Nombre de etiqueta vacío." };
 
-        // Normalization Layer: Consolidate common interest variants
+        // Normalization Layer: Consolidate common veterinary interest variants
         const lowerName = tagName.toLowerCase();
-        if (lowerName.includes("microblading") && (lowerName.includes("ceja") || lowerName.includes("interés"))) {
-            tagName = "Interés Microblading";
-        } else if (lowerName.includes("perfilado") && (lowerName.includes("ceja") || lowerName.includes("interés"))) {
-            tagName = "Interés Perfilado";
-        } else if (lowerName.includes("labio") && (lowerName.includes("interés") || lowerName.includes("micropigmentación"))) {
-            tagName = "Interés Labios";
-        } else if (lowerName.includes("pestaña") || lowerName.includes("lifting") || lowerName.includes("lash")) {
-            tagName = "Interés Pestañas";
+        if (lowerName.includes("cirug") || lowerName.includes("operaci")) {
+            tagName = "Interés Cirugía";
+        } else if (lowerName.includes("vacun") || lowerName.includes("vacunaci")) {
+            tagName = "Interés Vacunación";
+        } else if (lowerName.includes("despar") || lowerName.includes("pipeta")) {
+            tagName = "Interés Desparasitación";
+        } else if (lowerName.includes("agresivo") || lowerName.includes("mord") || lowerName.includes("bravo")) {
+            tagName = "Agresivo";
         }
 
         const defaultColor = "#3B82F6"; // Blue
@@ -1083,9 +1083,9 @@ const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string,
                 // Determine color based on common tag names
                 let color = "#3B82F6"; // Default blue
                 const lowerName = tagName.toLowerCase();
-                if (lowerName.includes("piel") || lowerName.includes("médica") || lowerName.includes("embarazada")) color = "#EF4444";
-                if (lowerName.includes("vez") || lowerName.includes("frecuente")) color = "#10B981";
-                if (lowerName.includes("precio")) color = "#F59E0B";
+                if (lowerName.includes("médica") || lowerName.includes("alerta") || lowerName.includes("agresivo") || lowerName.includes("alerg")) color = "#EF4444";
+                if (lowerName.includes("vez") || lowerName.includes("frecuente") || lowerName.includes("alta")) color = "#10B981";
+                if (lowerName.includes("urgencia") || lowerName.includes("prioridad")) color = "#F59E0B";
 
                 const { data: newCrmTag, error: createError } = await sb.from("crm_tags")
                     .insert({ clinic_id: clinicId, name: tagName, color })
@@ -1862,7 +1862,7 @@ Prohibido pedir datos personales antes de validar factibilidad.
 *   **MODALIDAD DE TRABAJO (EXCLUSIVIDAD)**: Si el cliente consulta por llevar a la mascota personalmente o pregunta por la dirección de la "clínica" para asistir ellos mismos, aclara educadamente que AnimalGrace es una clínica 100% móvil diseñada para brindar comodidad en casa. Explica que operamos exclusivamente bajo el protocolo establecido de retiro a domicilio (AM) y entrega (PM), y que no contamos con atención de pacientes en un local físico.
 
 # 🏷️ ETIQUETADO Y CRM (AUTOMATIZACIÓN)
-*   **ETIQUETADO PROACTIVO:** Usa \`tag_patient\` cada vez que detectes un interés o condición (ej: 'Interés Cirugía', 'Piel Sensible', 'Primera Vez').
+*   **ETIQUETADO PROACTIVO:** Usa \`tag_patient\` INMEDIATAMENTE al detectar interés (ej: 'Interés Cirugía') o condiciones (ej: 'Agresivo', 'Mascota Senior', 'Primera Vez').
 *   **MOTIVO DE CITA:** Al usar \`create_appointment\`, es **OBLIGATORIO** incluir en el campo 'notes' un resumen del triaje (ej: "Perro decaído, no come hace 2 días" o "Cachorro para primera óctuple"). Esto es vital para que la Dra. sepa el motivo de la visita.` : ''}
 
 # 🩹 SEGUIMIENTO Y PACIENTES ANTIGUOS
