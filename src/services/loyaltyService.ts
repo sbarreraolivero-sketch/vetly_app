@@ -10,7 +10,7 @@ export interface LoyaltyStats {
 
 export interface LoyaltyTransaction {
     id: string
-    patient_id: string
+    tutor_id: string
     type: 'earn' | 'redeem' | 'adjustment' | 'referral_bonus'
     points: number
     description: string
@@ -39,35 +39,35 @@ export interface LoyaltyReward {
 }
 
 export const loyaltyService = {
-    // Get stats for a patient
-    async getPatientLoyalty(patientId: string) {
+    // Get stats for a tutor
+    async getTutorLoyalty(tutorId: string) {
         const { data, error } = await supabase
-            .from('patients')
+            .from('tutors')
             .select('loyalty_points, referral_code, referral_count')
-            .eq('id', patientId)
+            .eq('id', tutorId)
             .single()
         if (error) throw error
         return data
     },
 
-    // Get transactions for a patient
-    async getTransactions(patientId: string): Promise<LoyaltyTransaction[]> {
+    // Get transactions for a tutor
+    async getTransactions(tutorId: string): Promise<LoyaltyTransaction[]> {
         const { data, error } = await supabase
             .from('loyalty_transactions')
             .select('*')
-            .eq('patient_id', patientId)
+            .eq('tutor_id', tutorId)
             .order('created_at', { ascending: false })
         if (error) throw error
         return data as LoyaltyTransaction[]
     },
 
     // Add or Remove points (Adjustment)
-    async adjustPoints(clinicId: string, patientId: string, points: number, description: string) {
+    async adjustPoints(clinicId: string, tutorId: string, points: number, description: string) {
         const { error: txError } = await (supabase as any)
             .from('loyalty_transactions')
             .insert({
                 clinic_id: clinicId,
-                patient_id: patientId,
+                tutor_id: tutorId,
                 type: 'adjustment',
                 points: points,
                 description: description
@@ -115,10 +115,10 @@ export const loyaltyService = {
 
     // Generate WhatsApp message with variables for points
     // This is a helper for the trigger logic
-    formatLoyaltyMessage(template: string, patientName: string, points: number, treatment?: string) {
+    formatLoyaltyMessage(template: string, tutorName: string, points: number, treatment?: string) {
         // Simple client-side preview, actual replacement happens in Supabase Edge Function
         return template
-            .replace('{{1}}', patientName)
+            .replace('{{1}}', tutorName)
             .replace('{{7}}', points.toString())
             .replace('{{4}}', treatment || 'tu tratamiento')
     }

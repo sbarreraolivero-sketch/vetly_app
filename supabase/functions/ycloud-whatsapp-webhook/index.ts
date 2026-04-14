@@ -139,9 +139,10 @@ const functions = [
                 time: { type: "string", description: "Hora HH:MM (24h)" },
                 service_name: { type: "string" },
                 professional_name: { type: "string", description: "Nombre del profesional (opcional)" },
-                address: { type: "string", description: "Dirección completa de atención (requerida para móviles)" }
+                address: { type: "string", description: "Dirección completa de atención (requerida para móviles)" },
+                notes: { type: "string", description: "Breve resumen del motivo de la visita o síntomas (triaje)" }
             },
-            required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"]
+            required: ["tutor_name", "patient_name", "date", "time", "service_name", "address", "notes"]
         }
     },
     {
@@ -538,7 +539,7 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
                     const travelDetails = await getTravelDetails(originLocation, tutorCoords);
                     travelTimeMinutes = Math.ceil(travelDetails.duration / 60);
                 } catch (err) {
-                    console.error("[checkAvail] Google Maps API failed, using fallback:", err);
+                    console.error("[checkAvail] Google Maps API failed (Origin), using fallback:", err);
                 }
                 const travelTime = travelTimeMinutes * 60;
                 
@@ -553,7 +554,15 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
 
             // 4. Check Travel to Next (Next Appt or Clinic Base)
             if (isPossible && destinationLocation) {
-                const { duration: travelTime } = await getTravelDetails(tutorCoords, destinationLocation);
+                let travelTimeMinutes = 30; // Default fallback
+                try {
+                    const travelDetails = await getTravelDetails(tutorCoords, destinationLocation);
+                    travelTimeMinutes = Math.ceil(travelDetails.duration / 60);
+                } catch (err) {
+                    console.error("[checkAvail] Google Maps API failed (Destination), using fallback:", err);
+                }
+                const travelTime = travelTimeMinutes * 60;
+                
                 const availableGapSecs = nextAppt
                     ? (new Date(nextAppt.appointment_date).getTime() - slotEnd.getTime()) / 1000
                     : (new Date(`${date}T20:00:00`).getTime() - slotEnd.getTime()) / 1000; // Assume 8 PM end if no next
@@ -609,7 +618,7 @@ const getOffset = (timeZone: string = "America/Santiago", date: Date) => {
     } catch (e) { console.error("getOffset error", e); return "-03:00"; }
 };
 
-const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { patient_name: string; date: string; time: string; service_name: string; address?: string }, timezone: string = "America/Santiago") => {
+const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { patient_name: string; date: string; time: string; service_name: string; address?: string; tutor_name?: string; professional_name?: string; notes?: string }, timezone: string = "America/Santiago") => {
     const normalizedPhone = normalizePhone(phone);
     
     // Save address if provided in creation
@@ -748,7 +757,8 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         price: price,
         professional_id: professionalId,
         latitude: tutorGeo?.latitude || null,
-        longitude: tutorGeo?.longitude || null
+        longitude: tutorGeo?.longitude || null,
+        notes: args.notes || null
     }).select().single();
 
         if (error) {
@@ -1549,21 +1559,7 @@ Deno.serve(async (req) => {
 
             let distanceKmStr = distanceKmRaw.toFixed(1);
             let urbanDeductionNote = "";
-
-            // Opción 1: Cálculo Automático desde el Borde (Solo para AnimalGrace)
-            if (clinic?.clinic_name?.toLowerCase().includes("animal") || clinic?.clinic_name?.toLowerCase().includes("grace")) {
-                const urbanRadiusKm = 3.5;
-                const ruralKm = Math.max(0, distanceKmRaw - urbanRadiusKm);
-                distanceKmStr = ruralKm.toFixed(1);
-                
-                if (ruralKm === 0) {
-                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor analizó el Pin. El paciente está DENTRO del límite urbano ($0 recargo). Informa al paciente alegremente que su domicilio se considera urbano y no tiene costo extra.)`;
-                } else {
-                    urbanDeductionNote = `(IMPORTANTE AGENTE: El servidor ya le restó 3.5 KM del radio urbano por ti. El paciente está a exactamente ${distanceKmStr} Kilómetros FUERA del perímetro urbano. Usa tu tabla de precios para este kilometraje rural extra e infórmalo.)`;
-                }
-            } else {
-                urbanDeductionNote = `(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKmStr} Kilómetros del centro de la ciudad e implica recargo si aplica.)`;
-            }
+            let detectedCity = "";
 
             // Best-effort Reverse Geocoding
             let formattedAddress = "";
@@ -1574,19 +1570,72 @@ Deno.serve(async (req) => {
                     const geoData = await geoRes.json();
                     if (geoData.status === "OK" && geoData.results && geoData.results.length > 0) {
                         formattedAddress = geoData.results[0].formatted_address;
+                        
+                        // Extract City (Locality)
+                        const addressComponents = geoData.results[0].address_components;
+                        const locality = addressComponents.find((c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2"));
+                        if (locality) {
+                            detectedCity = locality.long_name;
+                        }
                     }
                 }
             } catch (e) {
                 console.error("Geocoding failed", e);
             }
 
-            body = `[UBICACIÓN COMPARTIDA] Pin de Mapa Recibido: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada GPS: ${formattedAddress}. ` : ""}
+            // Opción 1: Cálculo Automático desde el Borde (Solo para AnimalGrace)
+            if (clinic?.clinic_name?.toLowerCase().includes("animal") || clinic?.clinic_name?.toLowerCase().includes("grace")) {
+                const urbanRadiusKm = 3.5;
+                const ruralKm = Math.max(0, distanceKmRaw - urbanRadiusKm);
+                distanceKmStr = ruralKm.toFixed(1);
+                
+                if (ruralKm === 0) {
+                    urbanDeductionNote = `ESTADO_MOVILIDAD_GENERAL: URBANO (Radio 0-3.5km)`;
+                } else {
+                    urbanDeductionNote = `ESTADO_MOVILIDAD_GENERAL: RURAL (+${distanceKmStr} KM fuera de radio)`;
+                }
+            } else {
+                urbanDeductionNote = `(IMPORTANTE AGENTE: Ya calculé la distancia por ti. El paciente está a ${distanceKmStr} Kilómetros del centro de la ciudad e implica recargo si aplica.)`;
+            }
+
+            // CITY ANCHOR & SURGERY GEOGRAPHY
+            const cityAnchor = detectedCity ? `[UBICACIÓN DETECTADA: ${detectedCity.toUpperCase()}] ` : "";
+            let surgeryContext = "";
+            if (lat && lng) {
+                // SURGERY PARTNER CALCULATION (AnimalGrace Linares context)
+                // Partner 1: Yerbas Buenas
+                // Partner 2: Talca
+                const partnerYB = { lat: -35.7502492, lng: -71.5863814 };
+                const partnerTalca = { lat: -35.4536205, lng: -71.6825327 };
+                const userLoc = { lat: Number(lat), lng: Number(lng) };
+
+                try {
+                    const travelYB = await getTravelDetails(partnerYB, userLoc);
+                    const travelTalca = await getTravelDetails(partnerTalca, userLoc);
+
+                    const minTravelMinutes = Math.ceil(Math.min(travelYB.duration, travelTalca.duration) / 60);
+                    let tramo = "Tramo 1 (0-25 min)";
+                    if (minTravelMinutes > 45) tramo = "Fuera de Rango (>45 min)";
+                    else if (minTravelMinutes > 35) tramo = "Tramo 3 (36-45 min)";
+                    else if (minTravelMinutes > 25) tramo = "Tramo 2 (26-35 min)";
+
+                    surgeryContext = `[CONTEXTO CIRUGÍA: Tiempo de respuesta ${minTravelMinutes} min. TRAMO: ${tramo}] `;
+                } catch (err) {
+                    console.error("Error calculating surgery travel times:", err);
+                }
+            }
+
+            body = `📍 Ubicación compartida`;
+            payloadExtra = { 
+                ...payloadExtra, 
+                ai_context: `[UBICACIÓN COMPARTIDA] ${cityAnchor}${surgeryContext}Pin de Mapa Recibido: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada GPS: ${formattedAddress}. ` : ""}
 ${urbanDeductionNote}
-REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. PROHIBIDO decir "Permítame un momento para calcular". Incorpóralo a tu próxima respuesta.
-REGLA ESTRICTA 2: Informa el valor del recargo o si es $0.
-REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Apenas estás dando la información de cobertura. Luego de darle el valor, pregúntale en qué servicio veterinario está interesado o qué mascota tiene. Solo pide detalles exactos de su dirección al final, si el cliente realmente quiere agendar.`;
+REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. Incorpóralo a tu próxima respuesta.
+REGLA ESTRICTA 2: Si es servicio general, informa el valor del recargo movilidad o si es $0. SI ES CIRUGÍA, NO menciones limites urbanos ni costos de movilidad; limítate a dar el valor de la cirugía según su Tramo.
+REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Solo pide detalles exactos al final si el cliente quiere agendar.`
+            };
             
-            await debugLog(sb, `Location analyzed`, { lat, lng, distanceKm: distanceKmStr, address: formattedAddress });
+            await debugLog(sb, `Location analyzed`, { lat, lng, distanceKm: distanceKmStr, address: formattedAddress, city: detectedCity });
         }
 
         // Add context from Facebook Ad referral if present
@@ -1599,7 +1648,8 @@ REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Apenas es
 
         const msgRowId = await saveMsg(sb, clinic.id, from, body, "inbound", {
             ycloud_message_id: msgId,
-            message_type: msgObj.type
+            message_type: msgObj.type,
+            payload: payloadExtra
         });
 
         // Auto-create prospect in CRM (best-effort, non-blocking)
@@ -1652,7 +1702,7 @@ REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Apenas es
                 const searchPhoneNoPlus = from.startsWith("+") ? from.substring(1) : from;
 
                 const { data: rawHistory } = await sb.from("messages")
-                    .select("content, direction, created_at, ai_generated")
+                    .select("content, direction, created_at, ai_generated, payload")
                     .eq("clinic_id", clinic.id)
                     .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
                     .order("created_at", { ascending: false })
@@ -1757,20 +1807,63 @@ Solo después de completar el triage y que el cliente confirme que desea agendar
 *   **PASO B (Advertencia de Rango)**: Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
 *   **PASO C (Ficha Médica)**: Solo tras aceptar el horario y el rango de 2 horas, pide los datos: Nombre completo del tutor (obligatorio), Dirección exacta (calle+número+referencias), Nombre de la mascota, Especie/Sexo. ¡NO AGENDES SI NO TIENES EL NOMBRE DEL TUTOR!
 
-${clinic.clinic_name?.includes('AnimalGrace Linares') ? `# 🚐 LOGÍSTICA DE RUTA DINÁMICA (ANIMALGRACE LINARES):
-*   **BASE OPERATIVA (LINARES):** Salimos de Linares en la mañana y volvemos en la tarde. Linares SIEMPRE puede tener disponibilidad en la primera hora de la mañana y la última de la tarde.
-*   **TALCA Y ZONAS EXTERNAS:** No son puntos fijos diarios. Se organizan DINÁMICAMENTE:
-    - **Regla de Agrupación:** Si el sistema te indica que ya hay citas en Talca para un día (vía 'day_context' en la herramienta), PRIORIZA ofrecer ese mismo día para nuevos clientes de Talca.
-    - **Apertura de Ruta:** Si un cliente de Talca quiere un día que está vacío, puedes "abrir" la ruta ese día. Una vez abierta, intenta que las siguientes citas en Talca sean día por medio (intercaladas).
-    - **Eficiencia:** Evita traslados innecesarios. Intenta agrupar domicilios por ciudad y sector.
-*   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen Costo de Visita $0 contratando servicios médicos.
-*   **RECARGOS RURALES**: 
-    - A 10 min del radio urbano: +$6.000.
-    - A 20 min del radio urbano: +$8.000.
-    - A 30 min del radio urbano: +$10.000.
-    - Límite máximo: 30 min (No agendar más lejos).
-*   **COSTO ÚNICO**: El recargo de visita se cobra **UNA SOLA VEZ** por viaje al domicilio, sin importar cuántas mascotas o servicios se realicen.
-*   **SERVICIOS MENORES**: Si el cliente pide SOLO corte de uñas o desparasitación (sin vacunas/consulta), aplica siempre recargo de $6.000 incluso en radio urbano.` : ''}
+${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - VETLY AI (LINARES/TALCA)
+
+# 1. 🚜 PROTOCOLO DE AGENDAMIENTO (ORDEN MATEMÁTICO)
+Prohibido pedir datos personales antes de validar factibilidad.
+*   **PASO A (Disponibilidad y Tiempos):** Pregunta el día. Invoca 'check_availability'.
+    - *Linares:* Slots > 60 min desde la hora actual.
+    - *Zonas Externas (Talca/Otras):* Slots > 120 min desde la hora actual.
+*   **PASO B (Advertencia de Rango):** Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
+*   **PASO C (Ficha Médica):** Solo tras aceptar el horario y rango, solicita: Nombre tutor, Dirección exacta + referencias, Nombre mascota, Especie/Sexo.
+
+# 2. 📍 LOGÍSTICA, UBICACIÓN Y COSTOS
+*   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen **Costo de Visita $0** contratando servicios médicos.
+*   **UBICACIÓN REAL:** Solicita siempre el "Pin de WhatsApp" para validar recargos rurales:
+    - 10 min: +$6.000 | 20 min: +$8.000 | 30 min: +$10.000 (Límite).
+*   **COSTO ÚNICO:** El recargo se cobra una sola vez por domicilio, sin importar el número de mascotas.
+*   **SERVICIOS MENORES:** Si solo piden corte mascota o desparasitación (sin vacunas/consulta), aplica siempre recargo de $6.000 incluso en radio urbano.
+
+# 💉 PROTOCOLO DE VACUNACIÓN (STRICT)
+*   **Cachorros:** Requieren 1 semana de observación en casa antes de vacunar. Indaga historial.
+*   **Reglas de Aplicación:**
+    - Prohibido aplicar 3 dosis juntas. Permite: Antirrábica+KC o Sextuple/Octuple+Antirrábica.
+    - Edad 3 meses: Sugiere Óctuple/Sextuple (NUNCA Puppy DP).
+*   **REFUERZO EN ADULTOS (>1 AÑO):** Si el perro tiene más de 1 año y se ha vacunado **solo una vez** en su vida o **nunca**, RECOMIENDA obligatoriamente aplicar 2 dosis de Octuple/Sextuple separadas por 21 días para reforzar el sistema inmune.
+*   **VALOR AGREGADO:** El precio de $23.000 incluye revisión médica, pesaje y carnet. El traslado es un ítem aparte (una sola vez).
+
+# 🏥 PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES) - REGLAS ESTRICTAS
+*   **OBJETIVO**: Guiar al tutor para obtener datos, dar valor exacto y derivar a Claudia.
+*   **DATOS NECESARIOS PARA COTIZAR**: Jamás cotices sin tener: 1. Especie (perro/gato), 2. Sexo, 3. Peso aproximado (kg), 4. Ubicación o dirección. Al solicitarlos, indica que la ubicación es para "indicarte el valor exacto según la distancia de traslado". **PROHIBIDO** decir "recargo rural" o "radio urbano" en cirugías.
+*   **MENSAJE INICIAL SUGERIDO**: "¡Hola! Gracias por escribirnos 💙🐾 Para indicarte el valor de la cirugía necesito algunos datitos: ¿Es perrito o gatito? ¿Es hembra o macho? ¿Cuánto pesa aprox.? ¿Me compartes tu dirección o ubicación para poder indicarte el valor exacto según la distancia de traslado?"
+*   **REGLA DE ORO CIRUGÍAS**: Si el usuario pregunta por cirugía o esterilización, **IGNORA TOTALMENTE** la nota de 'ESTADO_MOVILIDAD_GENERAL'. Esa nota es solo para vacunas. Para cirugías solo existen los Tramos T1, T2 y T3. **ESTÁ PROHIBIDO** decir "no hay costo adicional por movilidad" en una cirugía.
+*   **MATRIZ DE PRECIOS (VALORES BASE T1 0-25 min)**:
+    - FELINO HEMBRA: $65.000 | MACHO: $58.000
+    - CANINO HEMBRA: 1-5kg ($80k), 5-12kg ($85k), 12-17kg ($90k), 17-22kg ($95k), 22-28kg ($105k), 28-35kg ($115k), 35-40kg ($122k).
+    - CANINO MACHO: 1-10kg ($70k), 10.1-15kg ($75k), 15.1-22kg ($80k), 22.1-30kg ($85k), 30.1-40kg ($90k), 40-100kg ($100k).
+*   **REGLAS DE DISTANCIA/UBICACIÓN**:
+    1. **Con Ubicación (Tramos)**: Usa el [CONTEXTO CIRUGÍA] inyectado.
+       - T1 (0-25 min): Usa valor base. Respuesta: "El valor de la cirugía de acuerdo a su ubicación es de $_." (**PROHIBIDO** mencionar tramos o minutos de distancia).
+       - T2 (26-35 min): Suma +$8.000 al valor base. (**PROHIBIDO** explicar el recargo).
+       - T3 (36-45 min): Suma +$16.000 al valor base. (**PROHIBIDO** explicar el recargo).
+       - Fuera de Rango (>45 min): "Gracias por compartir tu ubicación 💙 En este caso la distancia supera nuestro rango habitual, por lo que necesitamos revisar tu caso directamente para confirmarte el valor."
+    2. **Sin Ubicacion (Referencial)**: Si insisten, entrega el valor BASE (T1). Respuesta: "Claro 💙 le puedo indicar un valor referencial. En ese caso, el valor base de la cirugía es de $_, y dependiendo de su ubicación podría tener un recargo por distancia de traslado."
+*   **RECOMENDACIÓN MÉDICA (MANDATORIA AL COTIZAR)**: En el MISMO mensaje donde entregas el valor de la cirugía, debes recomendar obligatoriamente el **Pack Prequirúrgico** (Perfil Bioquímico + Hemograma + Panel de Coagulación) por un valor de **$66.000**. Explica que es fundamental para la seguridad anestésica de la mascota.
+*   **PROHIBICIONES ABSOLUTAS**: 
+    - NUNCA digas: "clínica", "Talca", "Yerbas Buenas", "más cerca de", "según tu distancia", "desde tu domicilio", "recargo de movilidad", "límite urbano", "radio urbano", "dentro del límite".
+    - NUNCA inventes valores, cotices sin datos, des precios incorrectos o asumas peso.
+*   **DERIVACIÓN FINAL (MANDATORIA)**: Cuando el cliente acepte el valor y desee agendar, **ESTÁ PROHIBIDO** prometer que tú (la IA) verificarás la disponibilidad (NUNCA digas "procederé a verificar horarios"). Debes dejar claro que esa tarea es de un humano. Usa frases como: "Excelente, con estos datos derivaré su solicitud a Claudia de nuestro equipo para que ella coordine la fecha de la cirugía con usted personalmente".
+*   **PASOS FINALES**: 
+    1. Solicita los datos faltantes rápido (Nombre tutor, Nombre mascota, Dirección).
+    2. Una vez que el cliente responda con los datos (o si ya los tienes), INVOCA inmediatamente la función \`escalate_to_human\`.
+    3. Infórmale que Claudia le escribirá pronto.
+*   **LOGÍSTICA**: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). **AYUNO**: 6-8 hrs general (IMPORTANTE: Solo en **hembras caninas** el ayuno debe ser de **8 a 12 horas**). Pack Prequirúrgico: $66.000. Recargo Celo/Preñez: $20.000. Exclusión estricta de razas braquicéfalas (Pug, Bulldog, etc.).
+*   **ALERTA**: NUNCA uses \`check_availability\` para una cirugía. Ese tool es solo para vacunas y consultas. Para cirugías, Claudia lo hace manual.
+*   **MODALIDAD DE TRABAJO (EXCLUSIVIDAD)**: Si el cliente consulta por llevar a la mascota personalmente o pregunta por la dirección de la "clínica" para asistir ellos mismos, aclara educadamente que AnimalGrace es una clínica 100% móvil diseñada para brindar comodidad en casa. Explica que operamos exclusivamente bajo el protocolo establecido de retiro a domicilio (AM) y entrega (PM), y que no contamos con atención de pacientes en un local físico.
+
+# 🏷️ ETIQUETADO Y CRM (AUTOMATIZACIÓN)
+*   **ETIQUETADO PROACTIVO:** Usa \`tag_patient\` cada vez que detectes un interés o condición (ej: 'Interés Cirugía', 'Piel Sensible', 'Primera Vez').
+*   **MOTIVO DE CITA:** Al usar \`create_appointment\`, es **OBLIGATORIO** incluir en el campo 'notes' un resumen del triaje (ej: "Perro decaído, no come hace 2 días" o "Cachorro para primera óctuple"). Esto es vital para que la Dra. sepa el motivo de la visita.` : ''}
 
 # 🩹 SEGUIMIENTO Y PACIENTES ANTIGUOS
 *   Si reportan evolución de salud: "Entiendo. Para que la Doctora revise su ficha rápido, ¿podrías contarme en detalle la evolución o duda exacta? ¿Cómo se llama tu mascota?". 
@@ -1837,21 +1930,32 @@ Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gesti
 
                 const msgs: Msg[] = [
                     { role: "system", content: finalSysPrompt },
-                    ...pastContext.map((m) => ({ role: (m.direction === "inbound" ? "user" : "assistant") as "user" | "assistant", content: m.content || "" }))
+                    ...pastContext.map((m) => {
+                        let content = m.content || "";
+                        if (m.payload?.ai_context) {
+                            content = `${content}\n${m.payload.ai_context}`;
+                        }
+                        return { role: (m.direction === "inbound" ? "user" : "assistant") as "user" | "assistant", content };
+                    })
                 ];
 
 
                 // Combine the current inbound burst into a single user message
                 let userContentBlocks: any[] = [];
                 for (const msg of burstInbound) {
+                    let text = msg.content || "";
+                    if (msg.payload?.ai_context) {
+                        text = `${text}\n${msg.payload.ai_context}`;
+                    }
+
                     if (msg.message_type === "image" && msg.payload?.image_base64) {
-                        userContentBlocks.push({ type: "text", text: msg.content || "[Imagen]" });
+                        userContentBlocks.push({ type: "text", text: text || "[Imagen]" });
                         userContentBlocks.push({
                             type: "image_url",
                             image_url: { url: msg.payload.image_base64 }
                         });
                     } else {
-                        userContentBlocks.push({ type: "text", text: msg.content || "" });
+                        userContentBlocks.push({ type: "text", text: text || "" });
                     }
                 }
 

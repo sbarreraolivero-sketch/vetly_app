@@ -708,18 +708,19 @@ export default function Messages() {
                 )}
             </div>
 
-            {/* Contact Info Sidebar */}
             {showSidebar && sidebarPhone && profile?.clinic_id && (
-                <div className="fixed inset-0 z-50 md:relative md:inset-auto md:z-0 md:flex">
+                <div className="fixed inset-0 z-50 md:relative md:inset-auto md:z-0 flex justify-end">
                     <div 
                         className="absolute inset-0 bg-charcoal/20 backdrop-blur-sm md:hidden" 
                         onClick={() => setShowSidebar(false)}
                     />
-                    <ContactInfoSidebar 
-                        phoneNumber={sidebarPhone}
-                        clinicId={profile.clinic_id}
-                        onClose={() => setShowSidebar(false)}
-                    />
+                    <div className="relative z-10 h-full">
+                        <ContactInfoSidebar 
+                            phoneNumber={sidebarPhone}
+                            clinicId={profile.clinic_id}
+                            onClose={() => setShowSidebar(false)}
+                        />
+                    </div>
                 </div>
             )}
         </div>

@@ -1236,6 +1236,17 @@ export default function Appointments() {
                                         <span className="text-xs font-bold font-semibold text-charcoal/50 uppercase tracking-widest flex-shrink-0">Servicio</span>
                                         <span className="text-sm font-medium text-charcoal text-right truncate">{appointment.service}</span>
                                     </div>
+                                    {appointment.notes && (
+                                        <div className="p-2.5 bg-amber-50/50 border border-amber-100 rounded-xl">
+                                            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                <AlertCircle className="w-3 h-3" />
+                                                Motivo / Síntomas
+                                            </p>
+                                            <p className="text-xs text-charcoal/80 leading-relaxed italic">
+                                                "{appointment.notes}"
+                                            </p>
+                                        </div>
+                                    )}
                                     <div className="h-px w-full bg-silk-beige/50"></div>
                                     <div className="flex justify-between items-center gap-2">
                                         <span className="text-xs font-bold font-semibold text-charcoal/50 uppercase tracking-widest flex-shrink-0">Fecha / Hora</span>

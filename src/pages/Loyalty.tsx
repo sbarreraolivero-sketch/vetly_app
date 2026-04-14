@@ -35,7 +35,7 @@ export default function Loyalty() {
     const [loading, setLoading] = useState(true)
     const [settings, setSettings] = useState<LoyaltySettings | null>(null)
     const [rewards, setRewards] = useState<LoyaltyReward[]>([])
-    const [patients, setPatients] = useState<any[]>([])
+    const [tutors, setTutors] = useState<any[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [isRewardModalOpen, setIsRewardModalOpen] = useState(false)
     const [transactions, setTransactions] = useState<any[]>([])
@@ -47,39 +47,40 @@ export default function Loyalty() {
         activeAlerts: 0
     })
 
-    const [patientAmounts, setPatientAmounts] = useState<Record<string, string>>({});
+    const [tutorAmounts, setTutorAmounts] = useState<Record<string, string>>({});
     const [pendingAdjustments, setPendingAdjustments] = useState<Record<string, number>>({});
 
     const fetchData = async () => {
         if (!profile?.clinic_id) return
         setLoading(true)
         try {
-            const [s, pData, rData, tData] = await Promise.all([
+            const [s, tDataRes, rData, transDataRes] = await Promise.all([
                 loyaltyService.getSettings(profile.clinic_id),
                 (supabase as any)
-                    .from('patients')
+                    .from('tutors')
                     .select('*')
                     .eq('clinic_id', profile.clinic_id)
                     .order('loyalty_points', { ascending: false }),
                 loyaltyService.getRewards(profile.clinic_id),
                 (supabase as any)
                     .from('loyalty_transactions')
-                    .select('*, patients(name)')
+                    .select('*, tutors(name)')
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
                     .limit(50)
             ])
             setSettings(s)
-            setPatients(pData.data || [])
+            setTutors(tDataRes.data || [])
             setRewards(rData || [])
-            setTransactions(tData.data || [])
+            setTransactions(transDataRes.data || [])
 
             // Calculate basic stats
-            const totalPoints = (pData.data || []).reduce((acc: number, p: any) => acc + (p.loyalty_points || 0), 0)
+            const totalPoints = (tDataRes.data || []).reduce((acc: number, t: any) => acc + (t.loyalty_points || 0), 0)
+            const referralCount = (tDataRes.data || []).filter((t: any) => (t.referral_count || 0) > 0).length
 
             setStats({
                 totalPointsDist: totalPoints,
-                totalReferrals: (pData.data || []).filter((p: any) => (p.referral_count || 0) > 0).length,
+                totalReferrals: referralCount,
                 activeAlerts: (rData || []).filter((r: any) => r.is_active).length
             })
         } catch (error) {
@@ -103,27 +104,27 @@ export default function Loyalty() {
         }
     }
 
-    const handleAdjustPoints = (patientId: string, amountStr: string, isAdding: boolean) => {
+    const handleAdjustPoints = (tutorId: string, amountStr: string, isAdding: boolean) => {
         const amount = parseInt(amountStr || '0');
         if (!profile?.clinic_id || amount <= 0) return;
 
         const finalAmount = isAdding ? amount : -amount;
 
         // 1. UPDATE LOCAL UI IMMEDIATELY (Live Sum)
-        setPatients(prev => prev.map(p =>
-            p.id === patientId
-                ? { ...p, loyalty_points: (p.loyalty_points || 0) + finalAmount }
-                : p
+        setTutors(prev => prev.map(t =>
+            t.id === tutorId
+                ? { ...t, loyalty_points: (t.loyalty_points || 0) + finalAmount }
+                : t
         ));
 
         // 2. TRACK PENDING CHANGE (Do NOT call API yet)
         setPendingAdjustments(prev => ({
             ...prev,
-            [patientId]: (prev[patientId] || 0) + finalAmount
+            [tutorId]: (prev[tutorId] || 0) + finalAmount
         }));
 
-        // 3. Clear the input for this patient
-        setPatientAmounts(prev => ({ ...prev, [patientId]: '0' }));
+        // 3. Clear the input for this tutor
+        setTutorAmounts(prev => ({ ...prev, [tutorId]: '0' }));
 
         toast.success(`Ajuste local de ${finalAmount} listo para guardar`);
     };
@@ -132,19 +133,19 @@ export default function Loyalty() {
         if (!profile?.clinic_id || Object.keys(pendingAdjustments).length === 0) return;
 
         setLoading(true);
-        const patientIds = Object.keys(pendingAdjustments);
+        const tutorIds = Object.keys(pendingAdjustments);
 
         try {
             // Process all pending adjustments
-            for (const pId of patientIds) {
-                const points = pendingAdjustments[pId];
+            for (const tId of tutorIds) {
+                const points = pendingAdjustments[tId];
                 if (points === 0) continue;
 
                 const { error } = await (supabase as any)
                     .from('loyalty_transactions')
                     .insert({
                         clinic_id: profile.clinic_id,
-                        patient_id: pId,
+                        tutor_id: tId,
                         points: points,
                         type: 'adjustment',
                         description: points > 0 ? 'Ajuste manual (crédito)' : 'Ajuste manual (débito)'
@@ -179,9 +180,9 @@ export default function Loyalty() {
         )
     }
 
-    const filteredPatients = patients.filter(p =>
-    (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.phone_number?.includes(searchQuery))
+    const filteredTutors = tutors.filter(t =>
+    (t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.phone_number?.includes(searchQuery))
     )
 
     return (
@@ -198,7 +199,7 @@ export default function Loyalty() {
                             <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm uppercase">Fidelización & Referidos</h1>
                         </div>
                         <p className="text-amber-100 text-sm max-w-md">
-                            Gestiona el programa de lealtad de tu clínica. Premia a tus mejores pacientes y fomenta el crecimiento orgánico.
+                            Gestiona el programa de lealtad de tu clínica. Premia a tus mejores tutores y fomenta el crecimiento orgánico.
                         </p>
                     </div>
 
@@ -304,22 +305,22 @@ export default function Loyalty() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredPatients.map((patient) => (
-                            <div key={patient.id} className="bg-white rounded-softer p-5 border border-silk-beige shadow-soft-sm hover:shadow-soft-md transition-all group">
+                        {filteredTutors.map((tutor) => (
+                            <div key={tutor.id} className="bg-white rounded-softer p-5 border border-silk-beige shadow-soft-sm hover:shadow-soft-md transition-all group">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-ivory rounded-full flex items-center justify-center text-primary-600 font-bold border border-silk-beige">
-                                            {patient.name?.charAt(0) || '?'}
+                                            {tutor.name?.charAt(0) || '?'}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-charcoal">{patient.name}</p>
+                                            <p className="font-bold text-charcoal">{tutor.name}</p>
                                             <div className="flex flex-col">
-                                                <p className="text-xs text-charcoal/40 uppercase tracking-tight">{patient.phone_number}</p>
-                                                <p className="text-xs font-bold text-primary-500 uppercase tracking-tight">Cód: {patient.referral_code || '---'}</p>
+                                                <p className="text-xs text-charcoal/40 uppercase tracking-tight">{tutor.phone_number}</p>
+                                                <p className="text-xs font-bold text-primary-500 uppercase tracking-tight">Cód: {tutor.referral_code || '---'}</p>
                                             </div>
                                         </div>
                                     </div>
-                                    {patient.loyalty_points >= 5000 && (
+                                    {tutor.loyalty_points >= 5000 && (
                                         <Award className="w-5 h-5 text-amber-500" />
                                     )}
                                 </div>
@@ -328,11 +329,11 @@ export default function Loyalty() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-xs font-bold font-black text-charcoal/30 uppercase tracking-widest leading-none mb-1">Saldo Actual</p>
-                                            <p className="text-xl font-black text-charcoal">{patient.loyalty_points || 0} <span className="text-sm font-bold text-primary-500">{settings?.loyalty_currency_symbol || 'pts'}</span></p>
+                                            <p className="text-xl font-black text-charcoal">{tutor.loyalty_points || 0} <span className="text-sm font-bold text-primary-500">{settings?.loyalty_currency_symbol || 'pts'}</span></p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-xs font-bold font-black text-charcoal/20 uppercase tracking-widest leading-none mb-1">Referidos</p>
-                                            <p className="text-sm font-black text-charcoal">{patient.referral_count || 0}</p>
+                                            <p className="text-sm font-black text-charcoal">{tutor.referral_count || 0}</p>
                                         </div>
                                     </div>
 
@@ -340,10 +341,10 @@ export default function Loyalty() {
                                         <div className="relative flex-1">
                                             <input
                                                 type="number"
-                                                value={patientAmounts[patient.id] === '0' ? '' : (patientAmounts[patient.id] || '')}
-                                                onChange={(e) => setPatientAmounts(prev => ({ ...prev, [patient.id]: e.target.value }))}
+                                                value={tutorAmounts[tutor.id] === '0' ? '' : (tutorAmounts[tutor.id] || '')}
+                                                onChange={(e) => setTutorAmounts(prev => ({ ...prev, [tutor.id]: e.target.value }))}
                                                 onBlur={(e) => {
-                                                    if (!e.target.value) setPatientAmounts(prev => ({ ...prev, [patient.id]: '0' }));
+                                                    if (!e.target.value) setTutorAmounts(prev => ({ ...prev, [tutor.id]: '0' }));
                                                 }}
                                                 className="w-full h-9 pl-3 pr-2 bg-white border border-silk-beige rounded-soft text-xs font-black focus:ring-1 focus:ring-primary-500 outline-none placeholder:text-charcoal/20"
                                                 placeholder="Monto"
@@ -351,14 +352,14 @@ export default function Loyalty() {
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <button
-                                                onClick={() => handleAdjustPoints(patient.id, patientAmounts[patient.id] || '0', false)}
+                                                onClick={() => handleAdjustPoints(tutor.id, tutorAmounts[tutor.id] || '0', false)}
                                                 className="h-9 px-3 bg-white text-red-500 hover:bg-red-50 rounded-soft border border-silk-beige shadow-sm transition-all hover:scale-105 active:scale-95"
                                                 title="Quitar saldo personalizado"
                                             >
                                                 <Minus className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => handleAdjustPoints(patient.id, patientAmounts[patient.id] || '0', true)}
+                                                onClick={() => handleAdjustPoints(tutor.id, tutorAmounts[tutor.id] || '0', true)}
                                                 className="h-9 px-3 bg-white text-emerald-500 hover:bg-emerald-50 rounded-soft border border-silk-beige shadow-sm transition-all hover:scale-105 active:scale-95"
                                                 title="Sumar saldo personalizado"
                                             >
@@ -372,10 +373,10 @@ export default function Loyalty() {
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => {
-                                                copyReferralLink(patient.referral_code || '');
+                                                copyReferralLink(tutor.referral_code || '');
                                             }}
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-full text-xs font-bold hover:bg-primary-100 transition-colors"
-                                            title="Copiar enlace para el paciente"
+                                            title="Copiar enlace para el tutor"
                                         >
                                             <Share2 className="w-3 h-3" />
                                             Magic Link
@@ -402,7 +403,7 @@ export default function Loyalty() {
                             </div>
 
                             <div className="space-y-4">
-                                {patients.filter(p => p.referral_count > 0)
+                                {tutors.filter(t => t.referral_count > 0)
                                     .sort((a, b) => b.referral_count - a.referral_count)
                                     .slice(0, 10)
                                     .map((ambassador, idx) => (
@@ -431,7 +432,7 @@ export default function Loyalty() {
                                 <Target className="w-8 h-8 mb-4 text-indigo-200" />
                                 <h3 className="text-lg font-bold mb-2 text-amber-200">Manual de Embajadores</h3>
                                 <p className="text-sm text-indigo-50/80 mb-4">
-                                    Cada paciente tiene un código único. Cuando un amigo lo mencione o use su link en el Chat IA, ambos reciben beneficios.
+                                    Cada tutor tiene un código único. Cuando un amigo lo mencione o use su link en el Chat IA, ambos reciben beneficios.
                                 </p>
                                 <Link
                                     to="/app/templates"
@@ -446,7 +447,7 @@ export default function Loyalty() {
                                 <ul className="space-y-3">
                                     <li className="flex gap-2 text-xs text-charcoal/60">
                                         <span className="text-primary-500 font-bold">1.</span>
-                                        El paciente comparte su "Magic Link" con un amigo.
+                                        El tutor comparte su "Magic Link" con un amigo.
                                     </li>
                                     <li className="flex gap-2 text-xs text-charcoal/60">
                                         <span className="text-primary-500 font-bold">2.</span>
@@ -468,7 +469,7 @@ export default function Loyalty() {
                     <div className="flex items-center justify-between mb-8">
                         <div>
                             <h2 className="text-2xl font-black text-charcoal tracking-tight">Catálogo de Recompensas</h2>
-                            <p className="text-sm text-charcoal/50">Define lo que tus pacientes pueden canjear con su saldo acumulado.</p>
+                            <p className="text-sm text-charcoal/50">Define lo que tus tutores pueden canjear con su saldo acumulado.</p>
                         </div>
                         <button
                             onClick={() => setIsRewardModalOpen(true)}
@@ -509,7 +510,7 @@ export default function Loyalty() {
                             <div className="col-span-full py-12 flex flex-col items-center justify-center text-charcoal/30 border-2 border-dashed border-silk-beige rounded-softer bg-ivory">
                                 <ShoppingBag className="w-12 h-12 mb-4 opacity-20" />
                                 <p className="font-bold uppercase tracking-widest text-sm">No hay recompensas configuradas</p>
-                                <p className="text-xs">Crea tu primer beneficio para que los pacientes puedan canjear.</p>
+                                <p className="text-xs">Crea tu primer beneficio para que los tutores puedan canjear.</p>
                             </div>
                         )}
                     </div>
@@ -533,7 +534,7 @@ export default function Loyalty() {
                                             {tx.points > 0 ? <Plus className="w-5 h-5" /> : <Minus className="w-5 h-5" />}
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-charcoal">{tx.patients?.name || 'Paciente desconocido'}</p>
+                                            <p className="text-sm font-bold text-charcoal">{tx.tutors?.name || 'Tutor desconocido'}</p>
                                             <p className="text-xs text-charcoal/40">{tx.description} • {new Date(tx.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
@@ -655,7 +656,7 @@ export default function Loyalty() {
                             <Trophy className="w-8 h-8 mb-4 text-amber-200" />
                             <h3 className="text-lg font-bold mb-2">Reglas de Bienvenida</h3>
                             <p className="text-sm text-amber-100 mb-6">
-                                Define cuántos {settings?.loyalty_points_name} recibe un paciente la primera vez que agenda.
+                                Define cuántos {settings?.loyalty_points_name} recibe un tutor la primera vez que agenda.
                             </p>
                             <div className="bg-white/10 rounded-soft p-4 border border-white/20">
                                 <label className="text-xs uppercase font-black mb-2 block tracking-widest opacity-70">Bono Actual</label>
