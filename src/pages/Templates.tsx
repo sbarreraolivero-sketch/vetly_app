@@ -42,27 +42,23 @@ export default function Templates() {
     }
 
     const QUICK_VARIABLES = [
-        { label: 'Paciente', icon: '👤', example: 'Juan Pérez', num: 1 },
-        { label: 'Especialista', icon: '👨‍⚕️', example: 'Dr. López', num: 2 },
-        { label: 'Fecha/Hora', icon: '📅', example: 'Lunes 15 de Mayo a las 10:00', num: 3 },
-        { label: 'Servicio', icon: '💉', example: 'Vacunación', num: 4 },
-        { label: 'Clínica', icon: '🏥', example: 'FixSalud Clínica', num: 5 },
-        { label: 'Link', icon: '🔗', example: 'https://citenly.ai/reserva', num: 6 },
-        { label: 'Puntos', icon: '⭐', example: '1,500 pts', num: 7 },
-        { label: 'Ref. Code', icon: '🎟️', example: 'JUAN-1234', num: 8 },
+        { label: 'Nombre Mascota', icon: '🐾', example: 'Roco', num: 1 },
+        { label: 'Servicio / Vacuna', icon: '💉', example: 'Vacunación', num: 2 },
+        { label: 'Fecha recordatorio', icon: '📅', example: 'Lunes 15 de Mayo', num: 3 },
+        { label: 'Horario', icon: '⏰', example: 'Durante el día', num: 4 },
+        { label: 'Nombre Clínica', icon: '🏥', example: 'AnimalGrace', num: 5 },
+        { label: 'Link de Interés', icon: '🔗', example: 'https://vetly.app/reserva', num: 6 },
     ]
 
     const [variableExamples, setVariableExamples] = useState<Record<number, string>>({})
 
     const genericExamples = [
-        "Juan Pérez",
-        "Dr. López",
-        "Lunes 15 de Mayo a las 10:00",
+        "Roco",
         "Vacunación",
-        "FixSalud Clínica",
-        "https://citenly.ai/reserva",
-        "1,500 pts",
-        "JUAN-1234"
+        "Lunes 15 de Mayo",
+        "Durante el día",
+        "AnimalGrace",
+        "https://vetly.app/reserva"
     ]
 
     const loadTemplates = async () => {
@@ -242,62 +238,60 @@ export default function Templates() {
                             <button
                                 onClick={() => {
                                     setNewTemplate({
-                                        name: 'reactivacion_mensual',
+                                        name: 'reactivacion_mascota',
                                         category: 'MARKETING',
-                                        body: 'Hola {{1}}, el especialista {{2}} de la clínica {{4}} te extraña. Ha pasado tiempo desde tu último control. Responde para agendar.',
+                                        body: 'Hola {{1}}, en {{5}} te extrañamos. Ya te toca tu próximo control de {{2}}. Responde este mensaje para agendar tu cupo.',
                                         buttons: ['Agendar Cita']
                                     })
                                     setVariableExamples({
-                                        1: 'Juan Pérez',
-                                        2: 'Dr. López',
-                                        5: 'FixSalud Clínica'
+                                        1: 'Roco',
+                                        2: 'Vacunación',
+                                        5: 'AnimalGrace'
                                     })
                                 }}
                                 className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
                                 <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Reactivación</div>
-                                <div className="text-charcoal/60 text-xs line-clamp-2">Hola {'{{1}}'}, el especialista {'{{2}}'} te extraña...</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">Hola {'{{1}}'}, en {'{{5}}'} te extrañamos...</div>
                             </button>
                             <button
                                 onClick={() => {
                                     setNewTemplate({
                                         name: 'recordatorio_cita',
                                         category: 'UTILITY',
-                                        body: 'Hola {{1}}, te escribimos de {{5}} para recordar tu cita de {{4}} el día {{3}} con el especialista {{2}}. Por favor confirma respondiendo "Sí" o "No".',
+                                        body: 'Hola {{1}}, te recordamos tu cita de {{2}} para el día {{3}} en {{5}}. Por favor confirma respondiendo "Sí" o "No".',
                                         buttons: ['Sí, confirmo', 'No podré asistir']
                                     })
                                     setVariableExamples({
-                                        1: 'Juan Pérez',
-                                        2: 'Dr. López',
-                                        3: 'Lunes 15 de Mayo a las 10:00',
-                                        4: 'Limpieza Dental',
-                                        5: 'FixSalud Clínica'
+                                        1: 'Roco',
+                                        2: 'Vacunación',
+                                        3: 'Lunes 15 de Mayo',
+                                        5: 'AnimalGrace'
                                     })
                                 }}
                                 className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
                                 <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Recordatorio</div>
-                                <div className="text-charcoal/60 text-xs line-clamp-2">Hola {'{{1}}'}, tu cita con {'{{2}}'} el {'{{3}}'}...</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">Hola {'{{1}}'}, te recordamos tu cita...</div>
                             </button>
                             <button
                                 onClick={() => {
                                     setNewTemplate({
-                                        name: 'oferta_especial',
+                                        name: 'oferta_vacunacion',
                                         category: 'MARKETING',
-                                        body: '¡Hola {{1}}! El especialista {{2}} de {{5}} tiene una promoción en {{4}} para ti. Responde este mensaje para reservar tu cupo.',
+                                        body: '¡Hola {{1}}! En {{5}} tenemos una promoción especial en {{2}} para ti. Responde este mensaje para reservar tu cupo.',
                                         buttons: ['Quiero reservar', 'Ver promoción']
                                     })
                                     setVariableExamples({
-                                        1: 'Juan Pérez',
-                                        2: 'Dr. López',
-                                        4: 'Limpieza Dental',
-                                        5: 'FixSalud Clínica'
+                                        1: 'Roco',
+                                        2: 'Vacunación Anual',
+                                        5: 'AnimalGrace'
                                     })
                                 }}
                                 className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Oferta Semanal</div>
-                                <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola {'{{1}}'}! Promoción en {'{{4}}'}...</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Oferta Especial</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola {'{{1}}'}! Promoción en {'{{2}}'}...</div>
                             </button>
                         </div>
                     </div>

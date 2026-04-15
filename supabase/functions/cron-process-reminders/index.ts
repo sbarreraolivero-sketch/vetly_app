@@ -607,6 +607,150 @@ serve(async (req) => {
             }
         }
 
+        // ==========================================
+        // PART 4: General Reminders (Vaccination, Deworming)
+        // ==========================================
+        
+        log.push('Starting PART 4: General Reminders')
+
+        // Fetch all clinics to process their manual reminders
+        const { data: allClinics, error: allClinicsError } = await supabaseClient
+            .from('clinic_settings')
+            .select('id, clinic_name, timezone, ycloud_api_key, reminders_enabled')
+            .eq('reminders_enabled', true)
+
+        if (allClinicsError) {
+            console.error('Error fetching clinics for general reminders', allClinicsError)
+        } else {
+            for (const clinic of (allClinics || [])) {
+                if (!clinic.ycloud_api_key) continue
+
+                const timeZone = clinic.timezone || 'America/Mexico_City'
+                
+                // Calculate "Tomorrow" in clinic timezone
+                const clinicNow = new Date(new Date().toLocaleString('en-US', { timeZone }))
+                const tomorrowDate = new Date(clinicNow)
+                tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+                const tomorrowStr = tomorrowDate.toISOString().split('T')[0]
+
+                log.push(`Checking general reminders for clinic ${clinic.clinic_name} on ${tomorrowStr}`)
+
+                // Fetch pending reminders for tomorrow
+                // We join with patients and tutors to get necessary info
+                const { data: reminders, error: remError } = await supabaseClient
+                    .from('reminders')
+                    .select(`
+                        *,
+                        patient:patient_id (
+                            name,
+                            species
+                        ),
+                        tutor:tutor_id (
+                            phone_number,
+                            name
+                        )
+                    `)
+                    .eq('clinic_id', clinic.id)
+                    .eq('status', 'pending')
+                    .eq('scheduled_date', tomorrowStr)
+
+                if (remError) {
+                    console.error('Error fetching general reminders', remError)
+                    continue
+                }
+
+                log.push(`Found ${reminders?.length || 0} general reminders for ${clinic.clinic_name}`)
+
+                for (const rem of (reminders || [])) {
+                    const phoneNumber = rem.tutor?.phone_number
+                    const patientName = rem.patient?.name
+                    const templateName = rem.whatsapp_template
+                    
+                    if (!phoneNumber || !templateName) {
+                        console.error('Reminder missing phone or template', rem.id)
+                        continue
+                    }
+
+                    try {
+                        // Variable Mapping Aligned:
+                        // {{1}} = Patient Name
+                        // {{2}} = Service / Vaccine (Reminder Title)
+                        // {{3}} = Date
+                        // {{4}} = Time (Full day for vaccines)
+                        // {{5}} = Clinic Name
+
+                        const formattedDate = new Date(rem.scheduled_date + 'T12:00:00Z').toLocaleDateString('es-MX', { 
+                            weekday: 'long', day: 'numeric', month: 'long' 
+                        })
+
+                        const messagePayload = {
+                            to: phoneNumber,
+                            type: 'template',
+                            template: {
+                                name: templateName,
+                                language: { code: 'es' },
+                                components: [
+                                    {
+                                        type: 'body',
+                                        parameters: [
+                                            { type: 'text', text: patientName }, // {{1}}
+                                            { type: 'text', text: rem.title || 'servicio' }, // {{2}}
+                                            { type: 'text', text: formattedDate }, // {{3}}
+                                            { type: 'text', text: 'Durante el día' }, // {{4}}
+                                            { type: 'text', text: clinic.clinic_name } // {{5}}
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+
+                        const response = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': clinic.ycloud_api_key
+                            },
+                            body: JSON.stringify(messagePayload)
+                        })
+
+                        const responseData = await response.json().catch(() => ({}));
+
+                        if (response.ok) {
+                            // Mark as sent
+                            await supabaseClient.from('reminders').update({
+                                status: 'sent',
+                                sent_at: new Date().toISOString()
+                            }).eq('id', rem.id)
+
+                            // Log message
+                            await supabaseClient.from('messages').insert({
+                                clinic_id: clinic.id,
+                                phone_number: phoneNumber,
+                                direction: 'outbound',
+                                content: `Recordatorio automático enviado: ${rem.title} para ${patientName}`,
+                                ycloud_message_id: responseData.id,
+                                ycloud_status: 'sent',
+                                ai_generated: false
+                            })
+
+                            // Increment usage
+                            await supabaseClient.rpc('increment_subscription_usage', { 
+                                column_name: 'monthly_reminders_used', 
+                                clinic_uuid: clinic.id 
+                            })
+                        } else {
+                            await supabaseClient.from('reminders').update({
+                                status: 'failed',
+                                error_message: JSON.stringify(responseData)
+                            }).eq('id', rem.id)
+                        }
+                    } catch (err) {
+                        console.error('Error sending general reminder', rem.id, err)
+                    }
+                }
+            }
+        }
+
         return new Response(
             JSON.stringify({ success: true, log, results }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

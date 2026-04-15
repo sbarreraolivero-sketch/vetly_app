@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react'
-import { X, Loader2, Save, ShieldAlert, MessageSquare } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Patient } from '@/types/database'
+import { retentionService, YCloudTemplate } from '@/services/retentionService'
 
 export interface DewormingEvent {
     id: string
@@ -29,6 +27,9 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    const [templates, setTemplates] = useState<YCloudTemplate[]>([])
+    const [fetchingTemplates, setFetchingTemplates] = useState(false)
+
     const [formData, setFormData] = useState({
         type: 'Interno',
         brand: '',
@@ -36,22 +37,55 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
         application_date: new Date().toISOString().split('T')[0],
         next_dose_date: '',
         automate_reminder: true,
+        whatsapp_template: '',
         notes: ''
     })
 
     useEffect(() => {
         if (event) {
-            setFormData({
+            setFormData(prev => ({
+                ...prev,
                 type: event.type || 'Interno',
                 brand: event.brand || '',
                 weight: event.weight ? event.weight.toString() : (patient.weight ? patient.weight.toString() : ''),
                 application_date: event.application_date,
                 next_dose_date: event.next_dose_date || '',
-                automate_reminder: true,
                 notes: event.notes || ''
-            })
+            }))
         }
     }, [event, patient.weight])
+
+    useEffect(() => {
+        if (profile?.clinic_id) {
+            loadTemplates()
+        }
+    }, [profile?.clinic_id])
+
+    const loadTemplates = async () => {
+        setFetchingTemplates(true)
+        try {
+            const data = await retentionService.getRemoteTemplates(profile!.clinic_id!)
+            const approved = data.filter(t => t.status === 'APPROVED')
+            setTemplates(approved)
+            
+            // Set default if available
+            const { data: settings } = await (supabase as any)
+                .from('clinic_settings')
+                .select('deworming_reminder_template')
+                .eq('clinic_id', profile!.clinic_id)
+                .single()
+            
+            if (settings?.deworming_reminder_template) {
+                setFormData(prev => ({ ...prev, whatsapp_template: settings.deworming_reminder_template }))
+            } else if (approved.length > 0) {
+                setFormData(prev => ({ ...prev, whatsapp_template: approved[0].name }))
+            }
+        } catch (error) {
+            console.error('Error loading templates:', error)
+        } finally {
+            setFetchingTemplates(false)
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -94,12 +128,6 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
 
             // Recordatorio de próxima dosis
             if (formData.next_dose_date && formData.automate_reminder && profile) {
-                const { data: settings } = await (supabase as any)
-                    .from('clinic_settings')
-                    .select('deworming_reminder_template')
-                    .eq('clinic_id', profile.clinic_id)
-                    .single()
-
                 const scheduledDate = new Date(formData.next_dose_date + 'T12:00:00Z')
                 scheduledDate.setUTCDate(scheduledDate.getUTCDate() - 1)
 
@@ -111,7 +139,7 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                      scheduled_date: scheduledDate.toISOString().split('T')[0],
                      type: 'deworming',
                      status: 'pending',
-                     whatsapp_template: settings?.deworming_reminder_template || null
+                     whatsapp_template: formData.whatsapp_template || null
                 }
                 await (supabase as any).from('reminders').insert([reminderData])
             }
@@ -216,23 +244,49 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                         </div>
 
                         {formData.next_dose_date && (
-                            <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 animate-fade-in flex items-center justify-between gap-4">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <MessageSquare className="w-4 h-4 text-amber-600" />
-                                        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Automatizar Recordatorio</h4>
+                            <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 animate-fade-in space-y-4">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <MessageSquare className="w-4 h-4 text-amber-600" />
+                                            <h4 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Automatizar Recordatorio</h4>
+                                        </div>
+                                        <p className="text-[11px] text-amber-800 font-bold leading-tight">
+                                            Se enviará por WhatsApp 1 día antes de la próxima dosis.
+                                        </p>
                                     </div>
-                                    <p className="text-[11px] text-amber-800 font-bold leading-tight">
-                                        Se enviará por WhatsApp 1 día antes usando la plantilla global de parasitología.
-                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, automate_reminder: !prev.automate_reminder }))}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.automate_reminder ? 'bg-amber-600' : 'bg-charcoal/20'}`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.automate_reminder ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setFormData(prev => ({ ...prev, automate_reminder: !prev.automate_reminder }))}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.automate_reminder ? 'bg-amber-600' : 'bg-charcoal/20'}`}
-                                >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.automate_reminder ? 'translate-x-6' : 'translate-x-1'}`} />
-                                </button>
+
+                                {formData.automate_reminder && (
+                                    <div className="pt-3 border-t border-amber-200 animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-[10px] font-black text-amber-700 uppercase tracking-widest mb-1.5">
+                                            Seleccionar Plantilla de WhatsApp
+                                        </label>
+                                        <select
+                                            value={formData.whatsapp_template}
+                                            onChange={(e) => setFormData({ ...formData, whatsapp_template: e.target.value })}
+                                            className="w-full p-2.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20"
+                                            disabled={fetchingTemplates}
+                                        >
+                                            {fetchingTemplates ? (
+                                                <option>Cargando plantillas...</option>
+                                            ) : templates.length === 0 ? (
+                                                <option value="">No hay plantillas aprobadas</option>
+                                            ) : (
+                                                templates.map(t => (
+                                                    <option key={t.id} value={t.name}>{t.name}</option>
+                                                ))
+                                            )}
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                         )}
 

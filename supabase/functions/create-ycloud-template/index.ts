@@ -96,12 +96,12 @@ serve(async (req: Request) => {
             const { examples: providedExamples = [] } = bodyPayload
 
             const genericExamples = [
-                "Juan Pérez",                 // {{1}} Paciente
-                "Dr. López",                  // {{2}} Especialista
-                "Lunes 15 de Mayo a las 10:00", // {{3}} Fecha/Hora
-                "Limpieza Dental",           // {{4}} Servicio
-                "FixSalud Clínica",           // {{5}} Clínica
-                "https://citenly.ai/reserva"  // {{6}} Link
+                "Roco",                      // {{1}} Nombre Mascota
+                "Vacunación",                // {{2}} Servicio / Vacuna
+                "Lunes 15 de Mayo",          // {{3}} Fecha recordatorio
+                "Durante el día",            // {{4}} Horario
+                "AnimalGrace",               // {{5}} Nombre Clínica
+                "https://vetly.app/reserva"  // {{6}} Link de Interés
             ]
 
             // Map each match to an example based on its number
