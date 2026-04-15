@@ -27,6 +27,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
 
     const fetchData = async () => {
         setLoading(true)
+        console.log('[PatientReminders] Fetching for clinic:', profile?.clinic_id)
         try {
             // Fetch Reminders for patient
             const { data: rems, error: remError } = await (supabase as any)
@@ -39,17 +40,25 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
             setReminders(rems || [])
 
             // Fetch Clinic Settings
-            const { data: settings, error: setError } = await (supabase as any)
+            const { data: settingsArray, error: setError } = await (supabase as any)
                 .from('clinic_settings')
                 .select('id, vaccine_reminder_template, deworming_reminder_template')
                 .eq('id', profile!.clinic_id)
-                .single()
+            
+            console.log('[PatientReminders] Settings result:', { count: settingsArray?.length, error: setError })
 
             if (setError) {
-                console.error("No clinic settings found or error fetching", setError)
-            } else if (settings) {
+                console.error("Error fetching clinic settings:", setError)
+            } else if (settingsArray && settingsArray.length > 0) {
+                const settings = settingsArray[0]
+                console.log('[PatientReminders] Loaded templates:', { 
+                    v: settings.vaccine_reminder_template, 
+                    d: settings.deworming_reminder_template 
+                })
                 setVaccineTemplate(settings.vaccine_reminder_template || '')
                 setDewormingTemplate(settings.deworming_reminder_template || '')
+            } else {
+                console.warn('[PatientReminders] No settings found for ID:', profile!.clinic_id)
             }
             
         } catch (error) {
@@ -68,11 +77,13 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         setSaving(true)
         const toastId = toast.loading('Guardando preferencias...')
         
+        console.log('[PatientReminders] Saving templates:', { v: vaccineTemplate, d: dewormingTemplate, id: profile.clinic_id })
+        
         try {
             const currentClinic = clinics.find(c => c.clinic_id === profile.clinic_id)
             
             // Using upsert to handle case where record might not exist yet
-            const { error } = await (supabase as any)
+            const { data, error } = await (supabase as any)
                 .from('clinic_settings')
                 .upsert({
                     id: profile.clinic_id,
@@ -81,6 +92,9 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                     deworming_reminder_template: dewormingTemplate,
                     updated_at: new Date().toISOString()
                 })
+                .select()
+            
+            console.log('[PatientReminders] Upsert response:', { data, error })
             
             if (error) throw error
             
