@@ -49,6 +49,7 @@ import Team from './settings/Team'
 import MyProfile from './settings/MyProfile'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { toast } from 'react-hot-toast'
+import type { Database } from '@/types/database'
 
 // Get the Supabase URL for webhook display
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -787,6 +788,7 @@ export default function Settings() {
             if (error) throw error
 
             setNotificationsSaved(true)
+            toast.success('Preferencias de notificación guardadas')
             setTimeout(() => setNotificationsSaved(false), 3000)
         } catch (error) {
             console.error('Error saving notification preferences:', error)
@@ -796,14 +798,16 @@ export default function Settings() {
     }
 
     const handleSaveReminders = async () => {
-        if (!profile?.clinic_id) return
+        if (!profile?.clinic_id) {
+            toast.error('No se pudo identificar la clínica. Intenta refrescar la página.')
+            return
+        }
 
         setSavingReminders(true)
         setRemindersSaved(false)
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('reminder_settings')
                 .upsert({
                     clinic_id: profile.clinic_id,
@@ -811,12 +815,23 @@ export default function Settings() {
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'clinic_id' })
 
-            if (error) throw error
+            if (error) {
+                console.error('Supabase Error saving reminders:', error)
+                
+                // If it's a "column not found" error despite our SQL fix, it's a persistent cache issue
+                if (error.code === 'PGRST204') {
+                     toast.error('Error de sincronización (PGRST204). Por favor cierra sesión y vuelve a entrar.')
+                } else {
+                     toast.error(`Error al guardar: ${error.message}`)
+                }
+                throw error
+            }
 
             setRemindersSaved(true)
+            toast.success('¡Recordatorios guardados exitosamente!')
             setTimeout(() => setRemindersSaved(false), 3000)
-        } catch (error) {
-            console.error('Error saving reminder settings:', error)
+        } catch (error: any) {
+            console.error('Final Save Error:', error)
         } finally {
             setSavingReminders(false)
         }
@@ -950,10 +965,11 @@ export default function Settings() {
             if (error) throw error;
 
             setScheduleSaved(true)
+            toast.success('Horarios guardados correctamente')
             setTimeout(() => setScheduleSaved(false), 3000)
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving schedule:', error)
-            alert('Error al guardar los horarios')
+            toast.error('Error al guardar horarios: ' + (error.message || 'Intente nuevamente'))
         } finally {
             setSavingSchedule(false)
         }
@@ -1407,7 +1423,20 @@ export default function Settings() {
                     {activeTab === 'clinic' && (
                         <div className="space-y-6">
                             <div className="card-soft p-6">
-                                <h2 className="text-lg font-semibold text-charcoal mb-6">Información de la Clínica</h2>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-lg font-semibold text-charcoal">Información de la Clínica</h2>
+                                    <button
+                                        onClick={handleSaveClinic}
+                                        disabled={savingClinic}
+                                        className="btn-primary flex items-center gap-2 shadow-sm"
+                                    >
+                                        {savingClinic ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                        ) : (
+                                            <><Save className="w-4 h-4" /> Guardar Cambios</>
+                                        )}
+                                    </button>
+                                </div>
 
                                 <div className="bg-silk-beige/20 p-4 rounded-soft border border-silk-beige/30 mb-8">
                                     <div className="flex items-center gap-3 mb-4">
@@ -1694,25 +1723,6 @@ export default function Settings() {
                                     />
                                 </div>
 
-                                <div className="mt-6 pt-6 border-t border-silk-beige flex items-center gap-4">
-                                    <button
-                                        onClick={handleSaveClinic}
-                                        disabled={savingClinic}
-                                        className="btn-primary flex items-center gap-2"
-                                    >
-                                        {savingClinic ? (
-                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                        ) : (
-                                            <><Save className="w-4 h-4" /> Guardar Cambios</>
-                                        )}
-                                    </button>
-                                    {clinicSaved && (
-                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            ¡Cambios guardados!
-                                        </div>
-                                    )}
-                                </div>
                             </div>
 
                             {/* Services */}
@@ -2922,9 +2932,22 @@ export default function Settings() {
                                 <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-soft flex items-center justify-center">
                                     <AlarmClock className="w-6 h-6 text-white" />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <h2 className="text-lg font-semibold text-charcoal">Configuración de Recordatorios</h2>
                                     <p className="text-sm text-charcoal/50">Personaliza cuándo y cómo enviar recordatorios</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={handleSaveReminders}
+                                        disabled={savingReminders}
+                                        className="btn-primary flex items-center gap-2"
+                                    >
+                                        {savingReminders ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                        ) : (
+                                            <><Save className="w-4 h-4" /> Guardar Recordatorios</>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
 
@@ -3128,19 +3151,6 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                            <div className="mt-6 pt-6 border-t border-silk-beige">
-                                <button
-                                    onClick={handleSaveReminders}
-                                    disabled={savingReminders}
-                                    className="btn-primary flex items-center gap-2"
-                                >
-                                    {savingReminders ? (
-                                        <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                    ) : (
-                                        <><Save className="w-4 h-4" /> Guardar Recordatorios</>
-                                    )}
-                                </button>
-                            </div>
 
                             {/* Visual Record / History Section */}
                             <div className="mt-12">

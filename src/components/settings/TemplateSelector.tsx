@@ -32,8 +32,15 @@ export function TemplateSelector({
     const clinicId = profile?.clinic_id
 
     useEffect(() => {
+        let isMounted = true
         const fetchTemplates = async () => {
             if (!clinicId) return
+            
+            // Timeout to prevent hanging UI
+            const timeout = setTimeout(() => {
+                if (isMounted) setIsLoading(false)
+            }, 5000)
+
             try {
                 const { data, error } = await supabase.functions.invoke('ycloud-templates', {
                     body: { action: 'list', clinic_id: clinicId }
@@ -42,19 +49,19 @@ export function TemplateSelector({
                 if (error) throw error
                 if (data?.isError || data?.error) throw new Error(data.error || 'API Error')
 
-                if (data?.templates) {
-                    // Filter for approved templates only
+                if (isMounted && data?.templates) {
                     setTemplates(data.templates.filter((t: any) => t.status === 'APPROVED'))
                 }
             } catch (err) {
                 console.error('Error fetching templates:', err)
             } finally {
-                setIsLoading(false)
+                clearTimeout(timeout)
+                if (isMounted) setIsLoading(false)
             }
         }
-        if (clinicId) {
-            fetchTemplates()
-        }
+        
+        fetchTemplates()
+        return () => { isMounted = false }
     }, [clinicId])
 
     return (

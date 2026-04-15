@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         .single()
 
                     const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+                        setTimeout(() => reject(new Error('Profile fetch timeout')), 15000)
                     )
 
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,13 +140,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .single()
 
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Subscription fetch timeout')), 5000)
+                setTimeout(() => reject(new Error('Subscription fetch timeout')), 15000)
             )
 
             const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any
 
             if (error) {
-                // If checking subscription fails, user might not have one yet (new branch?)
+                // PGRST116 is the error for "0 rows found" when using .single()
+                if (error.code === 'PGRST116' || error.status === 406) {
+                    console.warn('No subscription record found. Using default trial state.')
+                    return { status: 'trial', plan: 'trial' } as any
+                }
                 console.error('Error fetching subscription:', error)
                 return null
             }
@@ -159,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return null
         } catch (error) {
             console.error('Fetch subscription exception:', error)
-            return null
+            return { status: 'trial', plan: 'trial' } as any
         }
     }
 
@@ -224,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const loadingTimeout = setTimeout(() => {
             console.warn('Auth initialization timeout - forcing loading to false')
             setLoading(false)
-        }, 6000)
+        }, 15000)
 
         const initializeAuth = async () => {
             try {
@@ -247,48 +251,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
 
                     // Fetch fresh data
-                    const { data: profileData, status: profileStatus } = await fetchProfile(session.user.id)
-                    if (mounted && profileData) {
-                        setProfile(profileData)
+                    const { data: profileData } = await fetchProfile(session.user.id)
+                    
+                    if (mounted) {
+                        // If no profile, we can't do much, but at least we don't loop
+                        if (profileData) {
+                            setProfile(profileData)
+                            
+                            // Parallel fetch of dependencies
+                            const clinicsData = await fetchUserClinics()
+                            
+                            let subData = null
+                            let memberData = null
 
-                        // Parallel fetch of dependencies
-                        // 1. Always fetch clinics
-                        const clinicsData = await fetchUserClinics()
-
-                        let subData = null
-                        let memberData = null
-
-                        if (profileData.clinic_id) {
-                            // 2. Fetch Subscription
-                            try {
+                            if (profileData.clinic_id) {
+                                // Fetch Subscription with 406 safety
                                 subData = await fetchSubscription(profileData.clinic_id)
-                            } catch (e) { console.error('Sub fetch error:', e) }
-
-                            // 3. Fetch Member
-                            try {
-                                const { data, error } = await supabase
-                                    .from('clinic_members')
-                                    .select('*')
-                                    .eq('user_id', session.user.id)
-                                    .eq('clinic_id', profileData.clinic_id)
-                                    .single()
-                                if (error) console.error('Member fetch error details:', error)
-                                memberData = data
-                            } catch (e) { console.error('Member fetch exception:', e) }
-                        }
-
-                        if (mounted) {
-                            if (subData) setSubscription(subData)
-                            if (memberData) setMember(memberData as any)
-
-                            // Debug roles match
-                            console.log('Role Check:', {
-                                profileRole: (profileData as any).role,
-                                memberRole: (memberData as any)?.role,
-                                userId: session.user.id
-                            })
-
-                            console.log('AuthContext initialized with:', {
                                 clinicsCount: clinicsData?.length,
                                 hasSub: !!subData,
                                 hasMember: !!memberData,
@@ -399,10 +377,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         )
 
+        // Auto-refresh when window is focused (e.g. user returns after idle)
+        const handleFocus = () => {
+            if (session) {
+                console.log('Window focused: checking session validity...')
+                supabase.auth.getSession().then(({ data: { session: freshSession } }) => {
+                    if (freshSession) setSession(freshSession)
+                })
+            }
+        }
+        window.addEventListener('focus', handleFocus)
+
         return () => {
             clearTimeout(loadingTimeout)
             mounted = false
             subscription.unsubscribe()
+            window.removeEventListener('focus', handleFocus)
         }
     }, [])
 

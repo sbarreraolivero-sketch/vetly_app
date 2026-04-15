@@ -37,12 +37,15 @@ export function formatPhoneNumber(phone: string): string {
 }
 
 export function getInitials(name: string): string {
-    return name
-        .split(' ')
-        .map((n) => n[0])
+    if (!name) return '?'
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 0) return '?'
+    return parts
+        .map((n) => n[0] || '')
+        .filter(Boolean)
         .join('')
         .toUpperCase()
-        .slice(0, 2)
+        .slice(0, 2) || '?'
 }
 
 export function getStatusColor(status: string): string {

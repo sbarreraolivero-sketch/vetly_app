@@ -373,6 +373,65 @@ export interface Database {
                     updated_at?: string
                 }
             }
+            reminder_settings: {
+                Row: {
+                    id: string
+                    clinic_id: string
+                    reminder_24h_before: boolean
+                    reminder_2h_before: boolean
+                    reminder_1h_before: boolean
+                    request_confirmation: boolean
+                    confirmation_days_before: number
+                    preferred_hour: string
+                    template_24h: string | null
+                    template_2h: string | null
+                    template_1h: string | null
+                    template_confirmation: string | null
+                    template_followup: string | null
+                    followup_enabled: boolean
+                    followup_days_after: number
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    clinic_id: string
+                    reminder_24h_before?: boolean
+                    reminder_2h_before?: boolean
+                    reminder_1h_before?: boolean
+                    request_confirmation?: boolean
+                    confirmation_days_before?: number
+                    preferred_hour?: string
+                    template_24h?: string | null
+                    template_2h?: string | null
+                    template_1h?: string | null
+                    template_confirmation?: string | null
+                    template_followup?: string | null
+                    followup_enabled?: boolean
+                    followup_days_after?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    clinic_id?: string
+                    reminder_24h_before?: boolean
+                    reminder_2h_before?: boolean
+                    reminder_1h_before?: boolean
+                    request_confirmation?: boolean
+                    confirmation_days_before?: number
+                    preferred_hour?: string
+                    template_24h?: string | null
+                    template_2h?: string | null
+                    template_1h?: string | null
+                    template_confirmation?: string | null
+                    template_followup?: string | null
+                    followup_enabled?: boolean
+                    followup_days_after?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
             clinical_records: {
                 Row: {
                     id: string
