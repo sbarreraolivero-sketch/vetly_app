@@ -12,7 +12,7 @@ interface PetFormProps {
     onSave: (pet?: Patient) => void
 }
 
-const speciesOptions = ['Perro', 'Gato', 'Ave', 'Reptil', 'Conejo', 'Otro']
+const speciesOptions = ['Canino', 'Felino', 'Ave', 'Reptil', 'Conejo', 'Otro']
 const sexOptions = [
     { value: 'M', label: 'Macho' },
     { value: 'F', label: 'Hembra' },
@@ -27,7 +27,7 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
 
     const [formData, setFormData] = useState({
         name: '',
-        species: 'Perro',
+        species: 'Canino',
         breed: '',
         color: '',
         sex: 'M' as 'M' | 'F' | 'MN' | 'FN',
@@ -41,7 +41,7 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
         if (pet) {
             setFormData({
                 name: pet.name || '',
-                species: pet.species || 'Perro',
+                species: pet.species || 'Canino',
                 breed: pet.breed || '',
                 color: pet.color || '',
                 sex: (pet.sex as any) || 'M',
@@ -175,7 +175,7 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
                                 value={formData.breed}
                                 onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
                                 className="input-soft font-bold"
-                                placeholder="Ej: Poodle, Collie, Siames..."
+                                placeholder="Ej: Poodle, Collie, Maltipoo..."
                             />
                         </div>
 

@@ -79,6 +79,13 @@ export default function Patients() {
         })
     }, [patients, searchQuery, speciesFilter])
 
+    const formatSpecies = (species: string) => {
+        const s = species?.toLowerCase()
+        if (s.includes('canin') || s.includes('perr') || s.includes('dog')) return 'CANINO'
+        if (s.includes('felin') || s.includes('gat') || s.includes('michi')) return 'FELINO'
+        return species?.toUpperCase() || '-'
+    }
+
     const getSexLabel = (sex: string) => {
         const s = sex?.toUpperCase()
         if (s === 'M' || s === 'MN') return 'Macho'
@@ -216,7 +223,7 @@ export default function Patients() {
                                                             {patient.name}
                                                         </p>
                                                         <p className="text-xs font-bold text-charcoal/40 font-bold uppercase tracking-widest">
-                                                            {patient.species} • {patient.breed || 'Sin raza'}
+                                                            {formatSpecies(patient.species)} • {patient.breed || 'Sin raza'}
                                                         </p>
                                                     </div>
                                                 </div>

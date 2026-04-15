@@ -210,6 +210,13 @@ export default function PatientProfile() {
         )
     }
 
+    const formatSpecies = (species: string) => {
+        const s = species?.toLowerCase() || ''
+        if (s.includes('canin') || s.includes('perr') || s.includes('dog')) return 'CANINO'
+        if (s.includes('felin') || s.includes('gat') || s.includes('michi')) return 'FELINO'
+        return species?.toUpperCase() || '-'
+    }
+
     if (!patient) return null
 
     return (
@@ -240,7 +247,7 @@ export default function PatientProfile() {
                                 </span>
                             </div>
                             <p className="text-charcoal/50 font-bold text-xs uppercase tracking-widest mt-0.5">
-                                {patient.species} • {patient.breed || 'Sin raza'} • {patient.sex}
+                                {formatSpecies(patient.species)} • {patient.breed || 'Sin raza'} • {patient.sex}
                             </p>
                         </div>
                     </div>

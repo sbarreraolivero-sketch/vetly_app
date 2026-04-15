@@ -22,7 +22,7 @@ interface VaccineFormProps {
     onSave: () => void
 }
 
-const DOG_VACCINES = ['Óctuple', 'Sextuple', 'KC', 'Antirrábica', 'Triple felina', 'Leucemia felina', 'Otra']
+const DOG_VACCINES = ['Óctuple', 'Sextuple', 'KC', 'Antirrábica', 'Otra']
 const CAT_VACCINES = ['Triple felina', 'Leucemia felina', 'Antirrábica', 'Otra']
 
 export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProps) {
@@ -30,7 +30,11 @@ export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProp
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const species = patient.species?.toLowerCase().includes('felin') || patient.species?.toLowerCase().includes('gat') ? 'cat' : 'dog'
+    const speciesLower = patient.species?.toLowerCase() || ''
+    const isCat = speciesLower.includes('felin') || speciesLower.includes('gat')
+    const isDog = speciesLower.includes('canin') || speciesLower.includes('perr') || speciesLower.includes('dog') || (!isCat && speciesLower.includes('óctuple'))
+    
+    const species = isCat ? 'cat' : 'dog'
     const vaccineOptions = species === 'cat' ? CAT_VACCINES : DOG_VACCINES
 
     const [formData, setFormData] = useState({
