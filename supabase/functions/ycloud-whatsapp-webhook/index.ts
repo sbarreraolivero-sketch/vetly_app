@@ -1487,7 +1487,19 @@ REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Solo pide
 
         if (!clinic.ai_auto_respond) return new Response(JSON.stringify({ status: "saved" }), { headers: corsHeaders });
 
-        // Silient IA check (handoff) moved to clinical tables in the future if needed
+        // VERIFY IF HUMAN IS REQUIRED (Silent IA)
+        const { data: tutorHand } = await sb.from("tutors")
+            .select("requires_human")
+            .eq("clinic_id", clinic.id)
+            .or(`phone_number.eq.${from},phone_number.eq.+${from}`)
+            .limit(1)
+            .maybeSingle();
+
+        if (tutorHand?.requires_human) {
+            await debugLog(sb, `IA silenciosa: Handoff a humano activo para ${from} (Tutor)`, { phone: from });
+            // Only save the message but DO NOT respond
+            return new Response(JSON.stringify({ status: "saved_silently", reason: "requires_human" }), { headers: corsHeaders });
+        }
 
         const asyncProcess = async () => {
             try {

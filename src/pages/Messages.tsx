@@ -96,31 +96,36 @@ export default function Messages() {
 
             // Fetch prospect names and requires_human flag for phones
             const phones = Array.from(phoneMap.keys())
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: prospects } = await (supabase as any)
-                .from('crm_prospects')
-                .select('phone, name, requires_human')
-                .eq('clinic_id', profile.clinic_id)
-                .in('phone', phones)
-
             const nameMap = new Map<string, string>()
             const humanMap = new Map<string, boolean>()
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            prospects?.forEach((p: any) => {
-                if (p.name && p.name !== 'Sin nombre') nameMap.set(p.phone, p.name)
-                if (p.requires_human) humanMap.set(p.phone, true)
-            })
 
-            // Also check tutors table
+            // Fetch tutors for names and requires_human flag
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: tutors } = await (supabase as any)
                 .from('tutors')
-                .select('phone_number, name')
+                .select('phone_number, name, requires_human')
                 .eq('clinic_id', profile.clinic_id)
                 .in('phone_number', phones)
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            tutors?.forEach((t: any) => { if (t.name && !nameMap.has(t.phone_number)) nameMap.set(t.phone_number, t.name) })
+            tutors?.forEach((t: any) => { 
+                if (t.name) nameMap.set(t.phone_number, t.name)
+                if (t.requires_human) humanMap.set(t.phone_number, true)
+            })
+
+            // Fetch fallback names from messages if tutor not found (historical context)
+            const unnamedPhones = phones.filter(p => !nameMap.has(p))
+            if (unnamedPhones.length > 0) {
+                const { data: prospects } = await (supabase as any)
+                    .from('crm_prospects')
+                    .select('phone, name')
+                    .eq('clinic_id', profile.clinic_id)
+                    .in('phone', unnamedPhones)
+                
+                prospects?.forEach((p: any) => {
+                    if (p.name && p.name !== 'Sin nombre') nameMap.set(p.phone, p.name)
+                })
+            }
 
             // Build conversations
             const convs: Conversation[] = Array.from(phoneMap.entries()).map(([phone, data]) => {
@@ -266,10 +271,10 @@ export default function Messages() {
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: updateError } = await (supabase as any)
-                .from('crm_prospects')
+                .from('tutors')
                 .update({ requires_human: newStatus })
                 .eq('clinic_id', profile.clinic_id)
-                .eq('phone', conv.phone_number)
+                .eq('phone_number', conv.phone_number)
 
             if (updateError) throw updateError
 
