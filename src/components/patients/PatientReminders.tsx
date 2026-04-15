@@ -16,10 +16,8 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
     const [saving, setSaving] = useState(false)
     const [reminders, setReminders] = useState<any[]>([])
     
-    // Clinic Settings
     const [vaccineTemplate, setVaccineTemplate] = useState('')
     const [dewormingTemplate, setDewormingTemplate] = useState('')
-    const [settingsId, setSettingsId] = useState<string | null>(null)
 
     useEffect(() => {
         if (profile?.clinic_id && patientId) {
@@ -50,7 +48,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
             if (setError) {
                 console.error("No clinic settings found or error fetching", setError)
             } else if (settings) {
-                setSettingsId(settings.id)
                 setVaccineTemplate(settings.vaccine_reminder_template || '')
                 setDewormingTemplate(settings.deworming_reminder_template || '')
             }
@@ -85,11 +82,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                 .single()
             
             if (error) throw error
-            
-            // Update local settingsId if it was null
-            if (updatedData) {
-                setSettingsId(updatedData.id)
-            }
             
             toast.success('Preferencias guardadas correctamente', { id: toastId })
         } catch (error: any) {
