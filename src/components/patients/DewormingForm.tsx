@@ -117,15 +117,14 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
 
             // Recordatorio de próxima dosis
             if (formData.next_dose_date && formData.automate_reminder && profile) {
-                const scheduledDate = new Date(formData.next_dose_date + 'T12:00:00Z')
-                scheduledDate.setUTCDate(scheduledDate.getUTCDate() - 1)
-
+                // Guardamos la fecha REAL de la dosis.
+                // El proceso automático (Cron) se encargará de avisar 1 día antes de esta fecha.
                 const reminderData = {
                      clinic_id: profile.clinic_id,
                      patient_id: patient.id,
                      tutor_id: patient.tutor_id,
                      title: `Recordatorio: Desparasitación ${formData.type === 'Interno' ? 'Interna' : 'Externa'}`,
-                     scheduled_date: scheduledDate.toISOString().split('T')[0],
+                     scheduled_date: formData.next_dose_date,
                      type: 'deworming',
                      status: 'pending',
                      whatsapp_template: formData.whatsapp_template || null
