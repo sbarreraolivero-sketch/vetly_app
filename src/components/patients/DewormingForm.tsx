@@ -1,3 +1,6 @@
+import { useState, useEffect } from 'react'
+import { X, Loader2, Save, ShieldAlert, MessageSquare } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Patient } from '@/types/database'
@@ -43,7 +46,7 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
 
     useEffect(() => {
         if (event) {
-            setFormData(prev => ({
+            setFormData((prev: any) => ({
                 ...prev,
                 type: event.type || 'Interno',
                 brand: event.brand || '',
@@ -76,9 +79,9 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                 .single()
             
             if (settings?.deworming_reminder_template) {
-                setFormData(prev => ({ ...prev, whatsapp_template: settings.deworming_reminder_template }))
+                setFormData((prev: any) => ({ ...prev, whatsapp_template: settings.deworming_reminder_template }))
             } else if (approved.length > 0) {
-                setFormData(prev => ({ ...prev, whatsapp_template: approved[0].name }))
+                setFormData((prev: any) => ({ ...prev, whatsapp_template: approved[0].name }))
             }
         } catch (error) {
             console.error('Error loading templates:', error)
@@ -257,7 +260,7 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, automate_reminder: !prev.automate_reminder }))}
+                                        onClick={() => setFormData((prev: any) => ({ ...prev, automate_reminder: !prev.automate_reminder }))}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.automate_reminder ? 'bg-amber-600' : 'bg-charcoal/20'}`}
                                     >
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.automate_reminder ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -280,7 +283,7 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                                             ) : templates.length === 0 ? (
                                                 <option value="">No hay plantillas aprobadas</option>
                                             ) : (
-                                                templates.map(t => (
+                                                templates.map((t: YCloudTemplate) => (
                                                     <option key={t.id} value={t.name}>{t.name}</option>
                                                 ))
                                             )}
