@@ -17,7 +17,6 @@ import {
     Clock,
     Star,
     BookOpen,
-    Target,
     Megaphone,
     DollarSign,
     Menu,
@@ -46,12 +45,11 @@ const navigation = [
     { name: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
     { name: 'Mensajes', href: '/app/messages', icon: MessageSquare },
     { name: 'Plantillas', href: '/app/templates', icon: FileText },
-    { name: 'Tutores y Prospectos', href: '/app/tutors', icon: Users },
+    { name: 'Tutores', href: '/app/tutors', icon: Users },
     { name: 'Pacientes', href: '/app/patients', icon: Heart },
     { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
     { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
     { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
-    { name: 'CRM', href: '/app/crm', icon: Target },
     { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
     { name: 'Fidelización', href: '/app/loyalty', icon: Award },
     { name: 'Configuración', href: '/app/settings', icon: Settings },
@@ -287,7 +285,7 @@ export default function DashboardLayout() {
                         // Role-based restrictions
                         if (isVetAssistant) {
                             // Asistente Veterinario only sees: Dashboard, Tutores, Pacientes, Citas, Finanzas
-                            return ['Dashboard', 'Tutores y Prospectos', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
+                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
                         }
 
                         // Hide Finance, CRM, and Campaigns for non-owners/admins (everyone else)
@@ -368,7 +366,7 @@ export default function DashboardLayout() {
                         const isVetAssistant = userRole === 'vet_assistant'
 
                         if (isVetAssistant) {
-                            return ['Dashboard', 'Tutores y Prospectos', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
+                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
                         }
 
                         if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
