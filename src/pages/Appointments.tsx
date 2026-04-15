@@ -1142,7 +1142,7 @@ export default function Appointments() {
                                                     {/* Dropdown Menu */}
                                                     <div className={cn(
                                                         "absolute right-0 w-48 hidden group-hover:block z-50",
-                                                        (index >= filteredAppointments.length - 2 && filteredAppointments.length > 3) ? "bottom-full mb-1" : "top-full pt-1"
+                                                        (index >= filteredAppointments.length - 2) ? "bottom-full mb-1" : "top-full pt-1"
                                                     )}>
                                                         <div className="bg-white rounded-soft shadow-premium border border-silk-beige overflow-hidden">
                                                             <button
