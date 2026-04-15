@@ -1435,6 +1435,12 @@ export default function Settings() {
                                             <><Save className="w-4 h-4" /> Guardar Cambios</>
                                         )}
                                     </button>
+                                    {clinicSaved && (
+                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft border border-emerald-100">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            ¡Guardado!
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="bg-silk-beige/20 p-4 rounded-soft border border-silk-beige/30 mb-8">
