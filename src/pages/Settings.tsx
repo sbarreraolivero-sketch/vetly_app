@@ -92,7 +92,7 @@ const dayNames: Record<string, string> = {
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 export default function Settings() {
-    const { user, profile, member, clinics, refreshClinics } = useAuth()
+    const { user, profile, member, refreshClinics } = useAuth()
     const [searchParams] = useSearchParams()
 
     const availableTabs = tabs.filter(tab => {
