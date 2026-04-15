@@ -254,8 +254,9 @@ export const retentionService = {
 
     // Get remote templates from YCloud
     async getRemoteTemplates(clinicId: string): Promise<YCloudTemplate[]> {
-        const { data, error } = await supabase.functions.invoke('get-ycloud-templates', {
-            body: { clinic_id: clinicId }
+        const { data, error } = await supabase.functions.invoke('ycloud-templates', {
+            method: 'POST',
+            body: { action: 'list', clinic_id: clinicId }
         })
         if (error) throw error
         if (data?.isError || data?.error) {
@@ -270,8 +271,9 @@ export const retentionService = {
     },
 
     async createRemoteTemplate(clinicId: string, name: string, bodyText: string, buttons?: string[], examples?: string[]): Promise<any> {
-        const { data, error } = await supabase.functions.invoke('create-ycloud-template', {
-            body: { clinic_id: clinicId, name, body_text: bodyText, buttons, examples }
+        const { data, error } = await supabase.functions.invoke('ycloud-templates', {
+            method: 'POST',
+            body: { action: 'create', clinic_id: clinicId, name, body_text: bodyText, buttons, examples }
         })
         if (error) throw error
         if (data?.isError || data?.error) {
