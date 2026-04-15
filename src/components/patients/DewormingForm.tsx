@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Patient } from '@/types/database'
-import { retentionService, YCloudTemplate } from '@/services/retentionService'
 
 export interface DewormingEvent {
     id: string
@@ -29,9 +28,6 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
     const { profile } = useAuth()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-
-    const [templates, setTemplates] = useState<YCloudTemplate[]>([])
-    const [fetchingTemplates, setFetchingTemplates] = useState(false)
 
     const [formData, setFormData] = useState({
         type: 'Interno',
@@ -60,18 +56,12 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
 
     useEffect(() => {
         if (profile?.clinic_id) {
-            loadTemplates()
+            loadDefaultTemplate()
         }
     }, [profile?.clinic_id])
 
-    const loadTemplates = async () => {
-        setFetchingTemplates(true)
+    const loadDefaultTemplate = async () => {
         try {
-            const data = await retentionService.getRemoteTemplates(profile!.clinic_id!)
-            const approved = data.filter(t => t.status === 'APPROVED')
-            setTemplates(approved)
-            
-            // Set default if available
             const { data: settings } = await (supabase as any)
                 .from('clinic_settings')
                 .select('deworming_reminder_template')
@@ -80,13 +70,9 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
             
             if (settings?.deworming_reminder_template) {
                 setFormData((prev: any) => ({ ...prev, whatsapp_template: settings.deworming_reminder_template }))
-            } else if (approved.length > 0) {
-                setFormData((prev: any) => ({ ...prev, whatsapp_template: approved[0].name }))
             }
         } catch (error) {
-            console.error('Error loading templates:', error)
-        } finally {
-            setFetchingTemplates(false)
+            console.error('Error loading default template:', error)
         }
     }
 
@@ -247,49 +233,23 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                         </div>
 
                         {formData.next_dose_date && (
-                            <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 animate-fade-in space-y-4">
-                                <div className="flex items-center justify-between gap-4">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <MessageSquare className="w-4 h-4 text-amber-600" />
-                                            <h4 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Automatizar Recordatorio</h4>
-                                        </div>
-                                        <p className="text-[11px] text-amber-800 font-bold leading-tight">
-                                            Se enviará por WhatsApp 1 día antes de la próxima dosis.
-                                        </p>
+                            <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 animate-fade-in flex items-center justify-between gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <MessageSquare className="w-4 h-4 text-amber-600" />
+                                        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Automatizar Recordatorio</h4>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData((prev: any) => ({ ...prev, automate_reminder: !prev.automate_reminder }))}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.automate_reminder ? 'bg-amber-600' : 'bg-charcoal/20'}`}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.automate_reminder ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
+                                    <p className="text-[11px] text-amber-800 font-bold leading-tight">
+                                        Se enviará por WhatsApp 1 día antes usando la plantilla predeterminada.
+                                    </p>
                                 </div>
-
-                                {formData.automate_reminder && (
-                                    <div className="pt-3 border-t border-amber-200 animate-in fade-in slide-in-from-top-2">
-                                        <label className="block text-[10px] font-black text-amber-700 uppercase tracking-widest mb-1.5">
-                                            Seleccionar Plantilla de WhatsApp
-                                        </label>
-                                        <select
-                                            value={formData.whatsapp_template}
-                                            onChange={(e) => setFormData({ ...formData, whatsapp_template: e.target.value })}
-                                            className="w-full p-2.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20"
-                                            disabled={fetchingTemplates}
-                                        >
-                                            {fetchingTemplates ? (
-                                                <option>Cargando plantillas...</option>
-                                            ) : templates.length === 0 ? (
-                                                <option value="">No hay plantillas aprobadas</option>
-                                            ) : (
-                                                templates.map((t: YCloudTemplate) => (
-                                                    <option key={t.id} value={t.name}>{t.name}</option>
-                                                ))
-                                            )}
-                                        </select>
-                                    </div>
-                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData((prev: any) => ({ ...prev, automate_reminder: !prev.automate_reminder }))}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.automate_reminder ? 'bg-amber-600' : 'bg-charcoal/20'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.automate_reminder ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
                             </div>
                         )}
 
