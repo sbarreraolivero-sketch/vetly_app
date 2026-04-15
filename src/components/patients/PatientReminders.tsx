@@ -63,8 +63,8 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
     }
 
     const handleSaveSettings = async () => {
-        if (!settingsId) {
-            toast.error('No se pudo encontrar la configuración de la clínica. Intenta recargar la página.')
+        if (!profile?.clinic_id) {
+            toast.error('Sesión no válida. Intenta cerrar sesión e ingresar de nuevo.')
             return
         }
         
@@ -72,15 +72,24 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         const toastId = toast.loading('Guardando preferencias...')
         
         try {
-            const { error } = await (supabase as any)
+            // Using upsert to handle case where record might not exist yet
+            const { data: updatedData, error } = await (supabase as any)
                 .from('clinic_settings')
-                .update({
+                .upsert({
+                    id: profile.clinic_id,
                     vaccine_reminder_template: vaccineTemplate,
-                    deworming_reminder_template: dewormingTemplate
+                    deworming_reminder_template: dewormingTemplate,
+                    updated_at: new Date().toISOString()
                 })
-                .eq('id', settingsId)
+                .select()
+                .single()
             
             if (error) throw error
+            
+            // Update local settingsId if it was null
+            if (updatedData) {
+                setSettingsId(updatedData.id)
+            }
             
             toast.success('Preferencias guardadas correctamente', { id: toastId })
         } catch (error: any) {
