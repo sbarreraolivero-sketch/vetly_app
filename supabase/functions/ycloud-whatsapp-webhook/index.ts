@@ -156,27 +156,13 @@ const functions = [
     },
     {
         name: "get_services",
-        description: "Lista servicios disponibles con precios y duración",
-        parameters: { type: "object", properties: {}, required: [] }
+        description: "Obtén la lista de servicios médicos, sus precios y duraciones para informar al cliente.",
+        parameters: { type: "object", properties: {} }
     },
     {
         name: "confirm_appointment",
         description: "Confirma o cancela cita pendiente",
         parameters: { type: "object", properties: { response: { type: "string", enum: ["yes", "no"] } }, required: ["response"] }
-    },
-    {
-        name: "upsert_prospect",
-        description: "Crea o actualiza un prospecto en el CRM cuando obtienes información del paciente como nombre, email, servicio de interés, o notas. Llámala cada vez que el paciente comparta datos personales o muestre interés en un servicio.",
-        parameters: {
-            type: "object",
-            properties: {
-                name: { type: "string", description: "Nombre completo del paciente" },
-                email: { type: "string", description: "Email del paciente (opcional)" },
-                service_interest: { type: "string", description: "Servicio en el que está interesado" },
-                notes: { type: "string", description: "Notas relevantes de la conversación" }
-            },
-            required: ["name"]
-        }
     },
     {
         name: "get_knowledge",
@@ -370,8 +356,7 @@ const getServiceDetails = async (sb: any, clinicId: string, serviceName: string)
 // Tool Implementations
 // =============================================
 const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, date: string, serviceName?: string, timezone: string = "America/Santiago", profName?: string, clinicWorkingHours?: any, address?: string) => {
-    // 1. Update CRM stage to "Calificado" (Interest shown)
-    await updateProspectStage(sb, clinicId, phone, "Calificado");
+    // CRM stage update removed (handled by direct clinical flow)
 
     // 2. If address provided, geocode and save it
     let tutorCoords: { lat: number, lng: number } | null = null;
@@ -817,18 +802,18 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
     // Also update price if it came from checkAvail (more accurate)
     if (availResult.total_price) price = availResult.total_price;
 
-    // Get coordinates from tutor/CRM if they exist
-    const { data: tutorGeo } = await sb.from("crm_prospects")
-        .select("latitude, longitude, full_name, address")
+    // Get coordinates from tutor if they exist
+    const { data: tutorGeo } = await sb.from("tutors")
+        .select("latitude, longitude, name, address")
         .eq("clinic_id", clinicId)
-        .eq("phone", normalizedPhone)
+        .eq("phone_number", normalizedPhone)
         .limit(1)
         .maybeSingle();
 
     const { data, error } = await sb.from("appointments").insert({
         clinic_id: clinicId,
         patient_name: args.patient_name,
-        tutor_name: args.tutor_name || tutorGeo?.full_name || null,
+        tutor_name: args.tutor_name || tutorGeo?.name || null,
         phone_number: normalizedPhone,
         service: args.service_name,
         appointment_date: appointmentDateWithOffset,
@@ -852,9 +837,7 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         return { success: false, message: errorMsg };
     }
 
-    // Update CRM stage to "Cita Agendada" AND update name if needed
-    // BUG FIX: Use tutor_name here, not patient_name!
-    await updateProspectStage(sb, clinicId, normalizedPhone, "Cita Agendada", args.tutor_name || args.patient_name);
+    // CRM stage update removed (handled by DB trigger on appointment)
 
     // MANUAL NOTIFICATION FALLBACK (Ensures visibility in dashboard even if trigger is slow/fails)
     try {
@@ -907,62 +890,7 @@ const confirmAppt = async (sb: ReturnType<typeof createClient>, clinicId: string
     return status === "confirmed" ? { message: "¡Cita confirmada! 😊" } : { message: "Cita cancelada. ¿Reagendar?" };
 };
 
-const upsertProspect = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { name?: string; email?: string; service_interest?: string; notes?: string }) => {
-    const normalizedPhone = normalizePhone(phone);
-    try {
-        // Stage movement is now primarily handled by check_availability or explicit intent
-
-        const { data: defaultStage } = await sb.from("crm_pipeline_stages")
-            .select("id").eq("clinic_id", clinicId).eq("is_default", true).limit(1).single();
-
-        let stageId = defaultStage?.id;
-        if (!stageId) {
-            const { data: firstStage } = await sb.from("crm_pipeline_stages")
-                .select("id").eq("clinic_id", clinicId).order("position", { ascending: true }).limit(1).single();
-            stageId = firstStage?.id;
-        }
-
-        const { data: existing } = await sb.from("crm_prospects")
-            .select("id, name, email, service_interest, notes")
-            .eq("clinic_id", clinicId).eq("phone", normalizedPhone).limit(1).single();
-
-        if (existing) {
-            const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-            if (args.name && args.name !== existing.name) updates.name = args.name;
-            if (args.email && args.email !== existing.email) updates.email = args.email;
-            
-            if (args.service_interest) {
-                const currentInterests = existing.service_interest ? existing.service_interest.split(',').map((s: string) => s.trim()) : [];
-                if (!currentInterests.includes(args.service_interest.trim())) {
-                    updates.service_interest = existing.service_interest ? `${existing.service_interest}, ${args.service_interest.trim()}` : args.service_interest.trim();
-                }
-            }
-            
-            if (args.notes) updates.notes = existing.notes ? `${existing.notes}\n${args.notes}` : args.notes;
-
-            await sb.from("crm_prospects").update(updates).eq("id", existing.id);
-            return { success: true, action: "updated", prospect_id: existing.id, message: "Prospecto actualizado en CRM." };
-        } else {
-            const { data: newProspect, error } = await sb.from("crm_prospects").insert({
-                clinic_id: clinicId,
-                stage_id: stageId,
-                name: args.name || "Sin nombre",
-                phone: normalizedPhone,
-                email: args.email || null,
-                service_interest: args.service_interest || null,
-                notes: args.notes || null,
-                source: "whatsapp",
-                score: 0
-            }).select("id").single();
-
-            if (error) return { success: false, message: "Error al crear prospecto." };
-            return { success: true, action: "created", prospect_id: newProspect?.id, message: "Nuevo prospecto creado en CRM." };
-        }
-    } catch (e) {
-        console.error("upsertProspect error:", e);
-        return { success: false, message: "Error en CRM." };
-    }
-};
+// CRM logic removed to simplify clinical flow
 
 const getKnowledge = async (sb: ReturnType<typeof createClient>, clinicId: string, query: string) => {
     try {
@@ -1034,30 +962,7 @@ const escalateToHuman = async (sb: ReturnType<typeof createClient>, clinicId: st
     await debugLog(sb, `Iniciando derivación a humano`, { clinicId, phone: normalizedPhone });
 
     try {
-        // Find existing prospect
-        const { data: existing, error: findError } = await sb.from("crm_prospects")
-            .select("id")
-            .eq("clinic_id", clinicId)
-            .or(`phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
-            .limit(1)
-            .maybeSingle();
-
-        if (findError) {
-            console.error("[ESCALATE] Error finding prospect:", findError);
-            await debugLog(sb, "Error buscando prospecto en derivación", { error: findError });
-        }
-
-        if (existing) {
-            const { error: updError } = await sb.from("crm_prospects").update({ requires_human: true }).eq("id", existing.id);
-            if (updError) {
-                console.error("[ESCALATE] Error updating prospect:", updError);
-                await debugLog(sb, "Error actualizando prospecto a handoff", { error: updError });
-            }
-        } else {
-            console.log(`[ESCALATE] Prospect not found for ${normalizedPhone}, creating one...`);
-            await autoUpsertMinimalProspect(sb, clinicId, normalizedPhone);
-            await sb.from("crm_prospects").update({ requires_human: true }).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
-        }
+        // Support for "requires_human" logic now relies on notifications or direct tutor flag if exists
 
         // Send a notification!
         const { error: notifError } = await sb.from("notifications").insert({
@@ -1158,65 +1063,9 @@ const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string,
         if (existingPatient) {
             patientId = existingPatient.id;
         } else {
-            // REDIRECTION: If not a patient, tag in CRM to avoid "Ghost Patients"
-            console.log(`[tagPatient] Patient not found for ${phone}, redirecting to CRM tagging...`);
-            
-            // 1. Ensure prospect exists and get ID
-            const prospectId = await autoUpsertMinimalProspect(sb, clinicId, phone);
-            if (!prospectId) return { success: false, message: "No se pudo identificar al paciente ni al prospecto." };
-
-            // 2. Manage CRM Tag
-            const { data: crmTag } = await sb.from("crm_tags")
-                .select("id")
-                .eq("clinic_id", clinicId)
-                .ilike("name", tagName)
-                .limit(1)
-                .maybeSingle();
-            
-            let crmTagId = crmTag?.id;
-
-            if (!crmTagId) {
-                // Determine color based on common tag names
-                let color = "#3B82F6"; // Default blue
-                const lowerName = tagName.toLowerCase();
-                if (lowerName.includes("médica") || lowerName.includes("alerta") || lowerName.includes("agresivo") || lowerName.includes("alerg")) color = "#EF4444";
-                if (lowerName.includes("vez") || lowerName.includes("frecuente") || lowerName.includes("alta")) color = "#10B981";
-                if (lowerName.includes("urgencia") || lowerName.includes("prioridad")) color = "#F59E0B";
-
-                const { data: newCrmTag, error: createError } = await sb.from("crm_tags")
-                    .insert({ clinic_id: clinicId, name: tagName, color })
-                    .select("id")
-                    .single();
-                
-                if (createError) {
-                    // Possible race condition
-                    const { data: retryTag } = await sb.from("crm_tags")
-                        .select("id")
-                        .eq("clinic_id", clinicId)
-                        .ilike("name", tagName)
-                        .limit(1)
-                        .maybeSingle();
-                    crmTagId = retryTag?.id;
-                } else {
-                    crmTagId = newCrmTag?.id;
-                }
-            }
-
-            if (!crmTagId) return { success: false, message: "No se pudo gestionar la etiqueta de CRM." };
-
-            // 3. Link tag in CRM
-            const { data: existingCrmLink } = await sb.from("crm_prospect_tags")
-                .select("*")
-                .eq("prospect_id", prospectId)
-                .eq("tag_id", crmTagId)
-                .limit(1)
-                .maybeSingle();
-            
-            if (!existingCrmLink) {
-                await sb.from("crm_prospect_tags").insert({ prospect_id: prospectId, tag_id: crmTagId });
-            }
-
-            return { success: true, message: "Etiqueta asignada al prospecto en CRM." };
+            // CRM tagging removed. We prioritize clinical tagging for existing patients.
+            console.log(`[tagPatient] Patient not found for ${phone}, skipping tagging as CRM is secondary`);
+            return { success: false, message: "Paciente no encontrado para etiquetar." };
         }
 
         // 3. Assign tag to patient (skip if already assigned)
@@ -1312,147 +1161,7 @@ const rescheduleAppt = async (sb: ReturnType<typeof createClient>, clinicId: str
     }
 };
 
-const getStageId = async (sb: ReturnType<typeof createClient>, clinicId: string, stageName: string) => {
-    const { data } = await sb.from("crm_pipeline_stages")
-        .select("id")
-        .eq("clinic_id", clinicId)
-        .ilike("name", stageName) // Case insensitive
-        .limit(1)
-        .maybeSingle();
-    return data?.id;
-};
-
-const updateProspectStage = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, targetStageName: string, name?: string) => {
-    const normalizedPhone = normalizePhone(phone);
-    // 1. Get target stage ID
-    const targetId = await getStageId(sb, clinicId, targetStageName);
-    if (!targetId) return;
-
-    // 2. Get current prospect and their stage
-    // Use OR to be resilient to non-normalized old data
-    const { data: prospect } = await sb.from("crm_prospects")
-        .select("id, name, stage_id, crm_pipeline_stages(name, position)") // Join to get stage info
-        .eq("clinic_id", clinicId)
-        .or(`phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
-        .limit(1)
-        .maybeSingle();
-
-    // NEW: If no prospect, but it's an existing tutor, we might want to auto-create the prospect link
-    if (!prospect) {
-        const { data: tutor } = await sb.from("tutors")
-            .select("id, name")
-            .eq("clinic_id", clinicId)
-            .eq("phone_number", normalizedPhone)
-            .limit(1)
-            .maybeSingle();
-        
-        if (tutor) {
-            await autoUpsertMinimalProspect(sb, clinicId, phone, tutor.name);
-        }
-    }
-
-    const currentStageName = prospect.crm_pipeline_stages?.name;
-
-    // 3. Logic: Only move "forward" or setup initial
-    // Hierarchy: Nuevo Prospecto (low) -> Calificado (med) -> Cita Agendada (high)
-    // We don't want to move BACK from Cita Agendada to Calificado just because they asked a question.
-
-    let shouldUpdateStage = false;
-
-    if (!prospect.stage_id) shouldUpdateStage = true;
-    else if (targetStageName.toLowerCase() === "nuevo prospecto") shouldUpdateStage = false; // Never overwrite with "New" if exists
-    else if (targetStageName.toLowerCase() === "cita agendada") shouldUpdateStage = true; // Always update to Scheduled (highest priority here)
-    else if (targetStageName.toLowerCase() === "calificado") {
-        // Only update to Calificado if current is NOT "Cita Agendada" or "Cerrado"
-        const forbidden = ["cita agendada", "cerrado"];
-        if (!forbidden.includes(currentStageName?.toLowerCase() || "")) shouldUpdateStage = true;
-    }
-
-    const updates: Record<string, any> = {};
-    if (shouldUpdateStage) updates.stage_id = targetId;
-    
-    // Update name if provided and existing is generic or looks like a nickname/emoji
-    if (name && name.trim().length > 0) {
-        const currentName = (prospect.name || "").toLowerCase();
-        const isGeneric = !prospect.name || currentName.includes("sin nombre");
-        // Also allow overwrite if current name is very short (likely nickname) or contains many emojis/special chars
-        // Or simply if the new name is substantially different and non-empty.
-        // User captured name from AI is almost always better.
-        if (isGeneric || currentName !== name.toLowerCase()) {
-            updates.name = name;
-        }
-    }
-
-    if (Object.keys(updates).length > 0) {
-        await sb.from("crm_prospects").update(updates).eq("id", prospect.id);
-        if (updates.stage_id) console.log(`[CRM] Moved ${phone} to '${targetStageName}'`);
-        if (updates.name) console.log(`[CRM] Updated name for ${phone} to '${name}'`);
-    }
-};
-
-const autoUpsertMinimalProspect = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, name?: string) => {
-    const normalizedPhone = normalizePhone(phone);
-    try {
-        const { data: existing } = await sb.from("crm_prospects")
-            .select("id, name")
-            .eq("clinic_id", clinicId)
-            .or(`phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
-            .limit(1)
-            .maybeSingle();
-
-        if (existing) {
-            // Update name if Provided name is better than existing (generic or nickname)
-            if (name && name.trim().length > 0) {
-                const currentName = (existing.name || "").toLowerCase();
-                const isGeneric = !existing.name || currentName.includes("sin nombre");
-                // Allow update if generic or if names differ (implies new capture)
-                if (isGeneric || currentName !== name.toLowerCase()) {
-                    await sb.from("crm_prospects").update({ name }).eq("id", existing.id);
-                }
-            }
-            return existing.id;
-        }
-        console.log(`[CRM] No prospect found for ${normalizedPhone}, creating...`);
-
-        // Try to find "Nuevo Prospecto" specifically, or fallback to default
-        let stageId = await getStageId(sb, clinicId, "Nuevo Prospecto");
-
-        if (!stageId) {
-            const { data: defaultStage } = await sb.from("crm_pipeline_stages")
-                .select("id").eq("clinic_id", clinicId).eq("is_default", true).limit(1).maybeSingle();
-            stageId = defaultStage?.id;
-        }
-
-        // Fallback to first
-        if (!stageId) {
-            const { data: firstStage } = await sb.from("crm_pipeline_stages")
-                .select("id").eq("clinic_id", clinicId).order("position", { ascending: true }).limit(1).maybeSingle();
-            stageId = firstStage?.id;
-        }
-
-        if (!stageId) return null;
-
-        const { data: newProspect, error: insertError } = await sb.from("crm_prospects").insert({
-            clinic_id: clinicId,
-            stage_id: stageId,
-            name: name || "Sin nombre (Auto)",
-            phone: normalizedPhone,
-            source: "whatsapp",
-            score: 0
-        }).select("id").single();
-
-        if (insertError) {
-             console.error("autoUpsertMinimalProspect insert error:", insertError);
-             return null;
-        }
-
-        console.log(`Auto-created prospect for phone: ${normalizedPhone} (Name: ${name || 'Auto'})`);
-        return newProspect?.id;
-    } catch (e) {
-        console.error("autoUpsertMinimalProspect error:", e);
-        return null;
-    }
-};
+// CRM Stage/Prospect logic removed. Flow is now Clinical-Direct via database triggers on appointments.
 
 const getKnowledgeSummary = async (sb: ReturnType<typeof createClient>, clinicId: string) => {
     try {
@@ -1482,7 +1191,7 @@ const processFunc = async (sb: ReturnType<typeof createClient>, clinicId: string
         case "get_services": return getServices(sb, clinicId);
         case "confirm_appointment":
         case "cancel_appointment": return confirmAppt(sb, clinicId, phone, name === "cancel_appointment" ? "no" : args.response as string);
-        case "upsert_prospect": return upsertProspect(sb, clinicId, phone, args as { name?: string; email?: string; service_interest?: string; notes?: string });
+        case "get_services": return getServices(sb, clinicId);
         case "get_knowledge": return getKnowledge(sb, clinicId, args.query as string);
         case "escalate_to_human": return escalateToHuman(sb, clinicId, phone);
         case "reschedule_appointment": return rescheduleAppt(sb, clinicId, phone, args as { new_date: string; new_time: string }, timezone);
@@ -1586,7 +1295,7 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify({ status: "ignored", reason: "clinic_not_found" }), { headers: corsHeaders });
         }
 
-        // NEW: Check if this user is already a known Tutor (Client)
+        // Check if this user is already a known Tutor (Client)
         const { data: tutor } = await sb.from("tutors")
             .select("id, name, patients(id, name, species)")
             .eq("clinic_id", clinic.id)
@@ -1774,26 +1483,11 @@ REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Solo pide
             payload: payloadExtra
         });
 
-        // Auto-create prospect in CRM (best-effort, non-blocking)
-        const profileName = msgObj.customerProfile?.name;
-        autoUpsertMinimalProspect(sb, clinic.id, from, profileName).catch(e => console.error("Auto-prospect failed:", e));
+        // CRM auto-sync removed
 
         if (!clinic.ai_auto_respond) return new Response(JSON.stringify({ status: "saved" }), { headers: corsHeaders });
 
-        // VERIFY IF HUMAN IS REQUIRED
-        // Use OR to be resilient to non-normalized old data
-        const { data: prospect } = await sb.from("crm_prospects")
-            .select("requires_human")
-            .eq("clinic_id", clinic.id)
-            .or(`phone.eq.${from},phone.eq.+${from}`)
-            .limit(1)
-            .maybeSingle();
-
-        if (prospect?.requires_human) {
-            await debugLog(sb, `IA silenciosa: Handoff a humano activo para ${from}`, { phone: from });
-            // Only save the message but DO NOT respond
-            return new Response(JSON.stringify({ status: "saved_silently", reason: "requires_human" }), { headers: corsHeaders });
-        }
+        // Silient IA check (handoff) moved to clinical tables in the future if needed
 
         const asyncProcess = async () => {
             try {
