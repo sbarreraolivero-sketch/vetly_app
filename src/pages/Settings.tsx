@@ -239,6 +239,7 @@ export default function Settings() {
 
     // Clinic settings state
     const [savingClinic, setSavingClinic] = useState(false)
+    const [clinicSaved, setClinicSaved] = useState(false)
 
     // Schedule settings state
     const [savingSchedule, setSavingSchedule] = useState(false)
