@@ -20,7 +20,7 @@ interface VaccineFormProps {
     onSave: () => void
 }
 
-const DOG_VACCINES = ['Óctuple', 'Sextuple', 'KC', 'Antirrábica', 'Otra']
+const DOG_VACCINES = ['Óctuple', 'Sextuple', 'KC', 'Antirrábica', 'Triple felina', 'Leucemia felina', 'Otra']
 const CAT_VACCINES = ['Triple felina', 'Leucemia felina', 'Antirrábica', 'Otra']
 
 export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProps) {
@@ -28,7 +28,7 @@ export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProp
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const species = patient.species?.toLowerCase().includes('felin') || patient.species?.toLowerCase() === 'gato' ? 'cat' : 'dog'
+    const species = patient.species?.toLowerCase().includes('felin') || patient.species?.toLowerCase().includes('gat') ? 'cat' : 'dog'
     const vaccineOptions = species === 'cat' ? CAT_VACCINES : DOG_VACCINES
 
     const [templates, setTemplates] = useState<YCloudTemplate[]>([])
