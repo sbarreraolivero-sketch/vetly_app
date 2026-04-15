@@ -180,7 +180,7 @@ serve(async (req: Request) => {
         // Auto-inject examples for Meta approval
         const variableMatches = body_text.match(/\{\{\d+\}\}/g)
         if (variableMatches?.length > 0) {
-            const genericExamples = ["Paciente", "Especialista", "Fecha/Hora", "Servicio", "Clínica", "Link"]
+            const genericExamples = ["Paciente", "Especialista", "Fecha/Hora", "Vacunación", "Clínica", "Link"]
             const exampleData = variableMatches.map((m: string) => {
                 const num = parseInt(m.replace(/[{}]/g, ''))
                 return examples[num - 1] || genericExamples[(num - 1) % genericExamples.length]
