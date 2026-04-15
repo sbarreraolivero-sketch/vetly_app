@@ -89,6 +89,15 @@ const geocodeAddress = async (address: string): Promise<{ lat: number, lng: numb
     }
 };
 
+// Helper to get timezone offset (e.g. "-03:00")
+const getOffset = (timeZone: string = "America/Santiago", date: Date) => {
+    try {
+        const str = date.toLocaleString('en-US', { timeZone, timeZoneName: 'longOffset' });
+        const match = str.match(/GMT([+-]\d{2}:\d{2})/);
+        return match ? match[1] : "-03:00";
+    } catch (e) { console.error("getOffset error", e); return "-03:00"; }
+};
+
 // ====== Helper: Get Travel Duration and Distance between points ======
 const getTravelDetails = async (origin: { lat: number, lng: number }, destination: { lat: number, lng: number }): Promise<{ duration: number; distance: number }> => {
     if (!GOOGLE_MAPS_API_KEY) return { duration: 0, distance: 0 };
@@ -277,14 +286,85 @@ const saveMsg = async (sb: ReturnType<typeof createClient>, clinicId: string, ph
         delete extraCopy.campaign_id;
     }
 
-    const { data, error } = await sb.from("messages").insert({ clinic_id: clinicId, phone_number: phone, content, direction, ...extraCopy }).select("id").single();
-    if (error) {
-        console.error(`[saveMsg] Error inserting message (dir: ${direction}):`, error);
-        throw new Error(`saveMsg failed: ${error.message}`);
+    try {
+        const { data, error } = await sb.from("messages").insert({ clinic_id: clinicId, phone_number: phone, content, direction, ...extraCopy }).select("id").single();
+        if (error) {
+            // Check if error is due to missing column (e.g. 'payload')
+            if (error.message.includes("Could not find") && error.message.includes("column")) {
+                console.warn(`[saveMsg] Missing column detected. Retrying without extra fields. Error: ${error.message}`);
+                // Retry without any extra fields that might be causing the issue
+                const { data: retryData, error: retryError } = await sb.from("messages").insert({ clinic_id: clinicId, phone_number: phone, content, direction }).select("id").single();
+                if (retryError) throw new Error(retryError.message);
+                return retryData.id;
+            }
+            throw new Error(error.message);
+        }
+        console.log(`[saveMsg] Saved message (dir: ${direction}) id: ${data.id}`);
+        return data.id;
+    } catch (e) {
+        console.error(`[saveMsg] Severe failure:`, e);
+        throw e;
     }
-    console.log(`[saveMsg] Saved message (dir: ${direction}) id: ${data.id}`);
-    return data.id;
 };
+
+
+// =============================================
+// Helper: Service Matching & Summation
+// =============================================
+const getServiceDetails = async (sb: any, clinicId: string, serviceName: string) => {
+    if (!serviceName) return { name: "Consulta", duration: 60, price: 0, service_ids: [] };
+    
+    // Split combined services (e.g. "Consulta y Vacuna" or "Consulta + Vacuna")
+    const names = serviceName.split(/ y | \+ | y\/o |,/i).map(s => s.trim()).filter(s => s.length > 2);
+    
+    let totalDuration = 0;
+    let totalPrice = 0;
+    let matchedNames: string[] = [];
+    let serviceIds: string[] = [];
+
+    const { data: allServices } = await sb.from("clinic_services").select("*").eq("clinic_id", clinicId);
+
+    if (!allServices || allServices.length === 0) {
+        return { name: serviceName, duration: 60, price: 0, service_ids: [] };
+    }
+
+    for (const name of names) {
+        // 1. Try partial match
+        let found = allServices.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
+        
+        // 2. Try matching by the first/last word (fuzzy fallback)
+        if (!found && name.includes(" ")) {
+            const words = name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+            for (const word of words) {
+                found = allServices.find(s => s.name.toLowerCase().includes(word));
+                if (found) break;
+            }
+        }
+
+        if (found) {
+            totalDuration += found.duration || 30;
+            totalPrice += found.price || 0;
+            matchedNames.push(found.name);
+            serviceIds.push(found.id);
+        } else {
+            // Logically fallback to a standard block if it sounds like a service
+            totalDuration += 30; 
+            matchedNames.push(name);
+        }
+    }
+
+    // Ensure we don't return 0 duration
+    if (totalDuration === 0) totalDuration = 60;
+
+    return {
+        name: matchedNames.length > 0 ? matchedNames.join(" + ") : serviceName,
+        duration: totalDuration,
+        price: totalPrice,
+        service_ids: serviceIds,
+        is_multiple: names.length > 1
+    };
+};
+
 
 // =============================================
 // Tool Implementations
@@ -313,24 +393,11 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
     const isMobile = clinic?.business_model !== 'physical';
     const clinicBase = clinic?.latitude && clinic?.longitude ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) } : null;
 
-    let duration = 60; // Default
-    let serviceId: string | null = null;
+    // FEAT: Use Fuzzy/Multiple Service Matching
+    const serviceDetails = await getServiceDetails(sb, clinicId, serviceName || "");
+    const duration = serviceDetails.duration;
+    const serviceId = serviceDetails.service_ids[0] || null;
     let professionalId: string | null = null;
-
-    if (serviceName) {
-        // Try to find service duration and ID
-        const { data: svc } = await sb.from("clinic_services")
-            .select("id, duration")
-            .eq("clinic_id", clinicId)
-            .ilike("name", `%${serviceName}%`)
-            .limit(1)
-            .maybeSingle();
-
-        if (svc) {
-            duration = svc.duration;
-            serviceId = svc.id;
-        }
-    }
 
     // Try to find requested professional BY NAME/TITLE
     if (profName) {
@@ -543,9 +610,21 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
                 }
                 const travelTime = travelTimeMinutes * 60;
                 
-                const availableGapSecs = prevAppt 
-                    ? (slotStart.getTime() - (new Date(prevAppt.appointment_date).getTime() + (prevAppt.duration * 60000))) / 1000
-                    : (slotStart.getTime() - new Date(`${date}T08:00:00`).getTime()) / 1000; // Assume 8 AM start if no prev
+                // CRITICAL FIX: If date is TODAY, we must also ensure we have enough time FROM NOW to reach the slot
+                const isToday = date === new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+                const now = new Date();
+                
+                let availableGapSecs = 0;
+                if (prevAppt) {
+                    availableGapSecs = (slotStart.getTime() - (new Date(prevAppt.appointment_date).getTime() + (prevAppt.duration * 60000))) / 1000;
+                } else if (isToday) {
+                    // If no prev appt today, we start travel FROM NOW (or from clinic start, whichever is later)
+                    const clinicStartToday = new Date(`${date}T08:00:00`);
+                    const travelStartBase = now > clinicStartToday ? now : clinicStartToday;
+                    availableGapSecs = (slotStart.getTime() - travelStartBase.getTime()) / 1000;
+                } else {
+                    availableGapSecs = (slotStart.getTime() - new Date(`${date}T08:00:00`).getTime()) / 1000; // Assume 8 AM start if no prev on future days
+                }
 
                 if (availableGapSecs < (travelTime + (TRAVEL_BUFFER_MINUTES * 60))) {
                     isPossible = false;
@@ -600,23 +679,19 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             available: true, 
             day_context: dayContext,
             slots: displaySlots, 
+            raw_slots: filteredSlots.map((s: { slot_time: string }) => s.slot_time.substring(0, 5)),
             duration_used: duration, 
+            total_price: serviceDetails.price,
+            service_found: serviceDetails.name
           }
         : { 
             available: false, 
             day_context: dayContext,
-            message: `No hay disponibilidad para ${date}` 
+            reason: filteredSlots.length === 0 && slots.length > 0 ? "restricted_by_buffer_or_travel" : "fully_booked",
+            message: `No hay disponibilidad para ${date} en ese horario específico (considerando traslados y preparación).` 
           };
 };
 
-// Helper to get timezone offset (e.g. "-03:00")
-const getOffset = (timeZone: string = "America/Santiago", date: Date) => {
-    try {
-        const str = date.toLocaleString('en-US', { timeZone, timeZoneName: 'longOffset' });
-        const match = str.match(/GMT([+-]\d{2}:\d{2})/);
-        return match ? match[1] : "-03:00";
-    } catch (e) { console.error("getOffset error", e); return "-03:00"; }
-};
 
 const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { patient_name: string; date: string; time: string; service_name: string; address?: string; tutor_name?: string; professional_name?: string; notes?: string }, timezone: string = "America/Santiago") => {
     const normalizedPhone = normalizePhone(phone);
@@ -626,26 +701,13 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         await sb.from("tutors").update({ address: args.address }).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
         await sb.from("crm_prospects").update({ address: args.address }).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
     }
-    let duration = 60;
-    let price = 0;
+    // FEAT: Support Combined Services
+    const serviceDetails = await getServiceDetails(sb, clinicId, args.service_name || "");
+    let duration = serviceDetails.duration;
+    let price = serviceDetails.price;
+    let serviceId = serviceDetails.service_ids[0] || null;
+    args.service_name = serviceDetails.name;
     let professionalId: string | null = null;
-    let serviceId: string | null = null;
-
-    if (args.service_name) {
-        const { data: svc } = await sb.from("clinic_services")
-            .select("id, name, duration, price")
-            .eq("clinic_id", clinicId)
-            .ilike("name", `%${args.service_name}%`)
-            .limit(1)
-            .maybeSingle();
-
-        if (svc) {
-            duration = svc.duration;
-            serviceId = svc.id;
-            price = svc.price || 0;
-            args.service_name = svc.name; // Keep exact DB string so select UI binds correctly
-        }
-    }
 
     // Try to find requested professional BY NAME/TITLE
     // @ts-ignore
@@ -729,12 +791,31 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         return { success: true, message: "Ya registré esta solicitud y está pendiente de pago. Por favor envía el comprobante para confirmarla." };
     }
 
-    // Proactive availability check: Ensure the slot is actually free before inserting
-    const { available } = await checkAvail(sb, clinicId, normalizedPhone, args.date, args.service_name, timezone, profName);
-    if (!available) {
-        console.warn(`[createAppt] Slot no longer available: ${appointmentDateWithOffset}`);
-        return { success: false, message: "Lo siento, ese horario se acaba de ocupar. Por favor consulta la disponibilidad nuevamente para elegir otro momento." };
+    // Proactive availability check: Verify the SPECIFIC slot requested
+    const availResult = await checkAvail(sb, clinicId, normalizedPhone, args.date, args.service_name, timezone, profName, null, args.address);
+    
+    // Check if the specific time requested is in the available slots (using raw format HH:MM)
+    const availableRawSlots = availResult.raw_slots || [];
+    const isSpecificTimeAvailable = availResult.available && availableRawSlots.includes(args.time);
+
+    if (!isSpecificTimeAvailable) {
+        console.warn(`[createAppt] Specific slot ${args.time} not available: ${appointmentDateWithOffset}. Reason: ${availResult.reason}`);
+        
+        let rejectionMsg = "Lo siento, ese horario ya no está disponible.";
+        
+        if (!availResult.available || availableRawSlots.length === 0) {
+            rejectionMsg = `Lo siento, consultando con su dirección (${args.address || 'especificada'}), no tenemos disponibilidad para ese día considerando los traslados necesarios.`;
+        } else if (!availableRawSlots.includes(args.time)) {
+            // Day has slots, but not the one requested
+            const alternatives = (availResult.slots || []).slice(0, 3).join(", ");
+            rejectionMsg = `Lo siento, el horario de las ${args.time} no es factible por el tiempo de traslado a su ubicación (${args.address}). Los horarios más cercanos disponibles son: ${alternatives}. ¿Le acomoda alguno?`;
+        }
+        
+        return { success: false, message: rejectionMsg };
     }
+    
+    // Also update price if it came from checkAvail (more accurate)
+    if (availResult.total_price) price = availResult.total_price;
 
     // Get coordinates from tutor/CRM if they exist
     const { data: tutorGeo } = await sb.from("crm_prospects")
@@ -761,18 +842,33 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         notes: args.notes || null
     }).select().single();
 
-        if (error) {
-            console.error("[createAppt] DB Error:", error);
-            let errorMsg = "Error DB-AG-01: No pudimos registrar la cita. Por favor confirma el nombre de tu mascota y vuelve a intentarlo.";
-            if (error.code === '23505') {
-                errorMsg = "Error DB-CONFLICT: Ya existe una cita para esta mascota a esta misma hora.";
-            }
+    if (error) {
+        console.error("[createAppt] DB Error:", error);
+        let errorMsg = "Error DB-AG-01: No pudimos registrar la cita. Por favor confirma el nombre de tu mascota y vuelve a intentarlo.";
+        if (error.code === '23505') {
+            errorMsg = "Error DB-CONFLICT: Ya existe una cita para esta mascota a esta misma hora.";
+        }
         await debugLog(sb, "DB Create Appt Error", { error, args, clinicId });
         return { success: false, message: errorMsg };
     }
 
     // Update CRM stage to "Cita Agendada" AND update name if needed
-    await updateProspectStage(sb, clinicId, normalizedPhone, "Cita Agendada", args.patient_name);
+    // BUG FIX: Use tutor_name here, not patient_name!
+    await updateProspectStage(sb, clinicId, normalizedPhone, "Cita Agendada", args.tutor_name || args.patient_name);
+
+    // MANUAL NOTIFICATION FALLBACK (Ensures visibility in dashboard even if trigger is slow/fails)
+    try {
+        await sb.from("notifications").insert({
+            clinic_id: clinicId,
+            type: "new_appointment",
+            title: "Nueva Cita (AI)",
+            message: `Nueva cita para ${args.patient_name} (${args.service_name}) el ${args.date} a las ${args.time}.`,
+            link: "/app/appointments",
+            is_read: false
+        });
+    } catch (notifErr) {
+        console.warn("[createAppt] Manual notification failed (non-critical):", notifErr);
+    }
 
     const d = new Date(`${args.date}T${args.time}:00`);
     const h = parseInt(args.time.split(":")[0]);
@@ -1788,97 +1884,60 @@ ${knowledgeSummary}
 
 # PROTOCOLOS CLÍNICOS Y DE ATENCIÓN (MANDATORIOS)
 
-# 🩺 EVALUACIÓN INICIAL Y TRIAGE (PASO 1)
+# EVALUACION INICIAL Y TRIAGE (PASO 1)
 *   **CONSULTA MÉDICA**: Si el usuario pregunta por una "consulta médica", **ESTÁ PROHIBIDO** sugerir fechas o pedir ubicación de inmediato. Primero debes indagar el contexto clínico: "¿Su mascota está enfermita o decaída, o necesita una revisión de control sano/prevención?". Muchos tutores confunden servicios, por lo que este triage es obligatorio.
-*   **VACUNACIÓN**: Si preguntan por vacunas, **PRIMERO** debes preguntar por la mascota para identificar qué vacuna necesita: "¿Para qué mascota sería (perro o gato)? ¿Qué edad tiene y cuándo fue su última vacuna?". Explica que es vital identificar esto primero para asegurar que le corresponde el refuerzo adecuado. **Sólo después** de indagar esto, menciona que el valor de la mayoría de las vacunas es de $23.000 e incluye la revisión médica obligatoria.
+*   **VACUNACIÓN**: Si preguntan por vacunas, **PRIMERO** debes preguntar por la mascota para identificar qué vacuna necesita: "¿Para qué mascota sería (perro o gato)? ¿Qué edad tiene y cuándo fue su última vacuna?". Explica que es vital identificar esto primero para asegurar que le corresponde el refuerzo adecuado. 
+*   **SERVICIOS COMBINADOS**: Puedes agendar varios servicios juntos (ej: "Consulta y Vacuna"). Para esto, escribe los nombres separados por "y" o "+" al usar las funciones. El sistema sumará automáticamente tiempos y precios.
 
-# 🚫 REGLAS DE ORO DE CONVERSACIÓN (VET-CONSULTOR)
-*   **MODO CONSULTOR PASIVO**: Si el usuario solo hace una pregunta técnica o clínica, LIMITATE a responder. ¡NUNCA pidas agendar ni pidas ubicación si no hay intención clara de compra!
-*   **NO AGRESIVIDAD**: No presiones con el agendamiento en el primer mensaje. Primero educa, responde y verifica si podemos ayudar.
-*   **PROHIBICIÓN DE LISTADO MASIVO**: No envíes el listado completo de servicios y precios si el usuario hace una pregunta abierta. Mantén la conversación enfocada en identificar la necesidad específica mediante el triage mandatorio anterior.
+# PROTOCOLO DE VACUNACION ESPECIFICO (STRICT)
+*   **GATOS ADULTOS (>1 AÑO)**: Si el gato tiene más de 1 año y nunca se ha vacunado (o no se sabe), el protocolo obligatorio es:
+    - **Dosis 1**: Vacuna Triple Felina.
+    - **Dosis 2**: Triple Felina + Vacuna Antirrábica (exactamente 21 días después).
+    - *Explicación*: Se requieren dos dosis separadas por 21 días para asegurar que el sistema inmune reconozca y genere defensas duraderas.
+*   **PERROS ADULTOS (>1 AÑO)**: Si el perro tiene más de 1 año y se ha vacunado solo una vez o nunca, recomienda 2 dosis de Octuple/Sextuple separadas por 21 días.
+*   **CACHORROS**: Requieren 1 semana de observación en casa antes de vacunar.
 
-# 📅 PROTOCOLO DE AGENDAMIENTO (SECUENCIA ESTRICTA)
+# REGLAS DE ORO DE CONVERSACION (VET-CONSULTOR)
+*   **PROHIBICIÓN DE SALTO DE PROTOCOLO**: Bajo ninguna circunstancia ofrezcas disponibilidad o precios antes de completar el triage (Especie, Edad, Historia). La oferta final DEPENDERÁ de estos datos.
+*   **POR QUÉ NO HAY HORA**: Si 'check_availability' rechaza un horario con la razón 'restricted_by_buffer_or_travel', explica que es por el tiempo de traslado necesario. SI 'create_appointment' falla por logística, NO pidas la dirección ni los datos de nuevo (ya los tienes). La función te sugiere horarios alternativos; USALOS para ofrecer una solución inmediata.
+
+# PROTOCOLO DE AGENDAMIENTO (SECUENCIA ESTRICTA)
 Solo después de completar el triage y que el cliente confirme que desea agendar:
 *   **PASO A (Verificar Fechas)**: Pregunta qué día le acomoda e invoca \`check_availability\`. NO PIDAS datos de la mascota aún.
-*   **PROHIBICIÓN DE HORAS PASADAS (HOY)**: 
-    - No ofrezcas slots que ya pasaron.
-    - **Linares**: Solo slots con inicio ≥ 60 min de la HORA ACTUAL.
-    - **Talca, Maule, San Javier, Villa Alegre**: Solo slots con inicio ≥ 120 min (2 horas) de la HORA ACTUAL (para permitir el viaje desde la base).
 *   **PASO B (Advertencia de Rango)**: Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
-*   **PASO C (Ficha Médica)**: Solo tras aceptar el horario y el rango de 2 horas, pide los datos: Nombre completo del tutor (obligatorio), Dirección exacta (calle+número+referencias), Nombre de la mascota, Especie/Sexo. ¡NO AGENDES SI NO TIENES EL NOMBRE DEL TUTOR!
+*   **PASO C (Ficha Médica y Ubicación)**: Solo tras aceptar el horario y rango, pide los datos finales:
+    1. Nombre completo del tutor (obligatorio).
+    2. Dirección exacta (calle + número) y **Pin de ubicación de WhatsApp** (MANDATORIO para calcular factibilidad rural).
+    3. Nombre de la mascota y especie.
 
-${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - VETLY AI (LINARES/TALCA)
+${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - ANIMALGRACE LINARES
+# 1. 🚜 LOGÍSTICA Y COSTOS
+*   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen **Costo de Visita $0** contratando servicios médicos (Vacunas/Consultas).
+*   **UBICACIÓN REAL:** Solicita siempre el "Pin de WhatsApp" para validar recargos rurales: 10 min: +$6.000 | 20 min: +$8.000 | 30 min: +$10.000 (Límite).
+*   **SERVICIOS MENORES:** Si solo piden desparasitación sin consulta/vacuna, aplica recargo de $6.000 incluso en radio urbano.
 
-# 1. 🚜 PROTOCOLO DE AGENDAMIENTO (ORDEN MATEMÁTICO)
-Prohibido pedir datos personales antes de validar factibilidad.
-*   **PASO A (Disponibilidad y Tiempos):** Pregunta el día. Invoca 'check_availability'.
-    - *Linares:* Slots > 60 min desde la hora actual.
-    - *Zonas Externas (Talca/Otras):* Slots > 120 min desde la hora actual.
-*   **PASO B (Advertencia de Rango):** Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
-*   **PASO C (Ficha Médica):** Solo tras aceptar el horario y rango, solicita: Nombre tutor, Dirección exacta + referencias, Nombre mascota, Especie/Sexo.
+# 🏥 PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES)
+*   Usa siempre \`escalate_to_human\` para cirugías después de dar el precio base y pedir datos: Especie, Sexo, Peso aprox y Dirección.
+*   NUNCA uses \`check_availability\` para cirugías.
+*   Menciona el ayuno obligatorio (6-8 hrs general, 8-12 hrs hembras caninas).
 
-# 2. 📍 LOGÍSTICA, UBICACIÓN Y COSTOS
-*   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen **Costo de Visita $0** contratando servicios médicos.
-*   **UBICACIÓN REAL:** Solicita siempre el "Pin de WhatsApp" para validar recargos rurales:
-    - 10 min: +$6.000 | 20 min: +$8.000 | 30 min: +$10.000 (Límite).
-*   **COSTO ÚNICO:** El recargo se cobra una sola vez por domicilio, sin importar el número de mascotas.
-*   **SERVICIOS MENORES:** Si solo piden corte mascota o desparasitación (sin vacunas/consulta), aplica siempre recargo de $6.000 incluso en radio urbano.
+# 🏷️ ETIQUETADO Y CRM
+*   Usa \`tag_patient\` proactivamente: 'Interés Cirugía', 'Mascota Senior', 'Primera Vez'.
+*   En \`create_appointment\`, incluye en 'notes' el resumen del triaje (ej: "Gato >1 año sin vacunas, inicia protocolo de 2 dosis").` : ''}
 
-# 💉 PROTOCOLO DE VACUNACIÓN (STRICT)
-*   **Cachorros:** Requieren 1 semana de observación en casa antes de vacunar. Indaga historial.
-*   **Reglas de Aplicación:**
-    - Prohibido aplicar 3 dosis juntas. Permite: Antirrábica+KC o Sextuple/Octuple+Antirrábica.
-    - Edad 3 meses: Sugiere Óctuple/Sextuple (NUNCA Puppy DP).
-*   **REFUERZO EN ADULTOS (>1 AÑO):** Si el perro tiene más de 1 año y se ha vacunado **solo una vez** en su vida o **nunca**, RECOMIENDA obligatoriamente aplicar 2 dosis de Octuple/Sextuple separadas por 21 días para reforzar el sistema inmune.
-*   **VALOR AGREGADO:** El precio de $23.000 incluye revisión médica, pesaje y carnet. El traslado es un ítem aparte (una sola vez).
+# SEGUIMIENTO Y PACIENTES ANTIGUOS
+* Si reportan evolución de salud: "Entiendo. Para que la Doctora revise su ficha rápido, ¿podrías contarme en detalle la evolución o duda exacta? ¿Cómo se llama tu mascota?". 
+* PROHIBIDO DIAGNOSTICAR: Bajo ninguna circunstancia sugieras tratamientos. Escala a la doctora: "Ya le dejé la nota a la Doctora, te responderá apenas termine sus visitas en ruta".
 
-# 🏥 PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES) - REGLAS ESTRICTAS
-*   **OBJETIVO**: Guiar al tutor para obtener datos, dar valor exacto y derivar a Claudia.
-*   **DATOS NECESARIOS PARA COTIZAR**: Jamás cotices sin tener: 1. Especie (perro/gato), 2. Sexo, 3. Peso aproximado (kg), 4. Ubicación o dirección. Al solicitarlos, indica que la ubicación es para "indicarte el valor exacto según la distancia de traslado". **PROHIBIDO** decir "recargo rural" o "radio urbano" en cirugías.
-*   **MENSAJE INICIAL SUGERIDO**: "¡Hola! Gracias por escribirnos 💙🐾 Para indicarte el valor de la cirugía necesito algunos datitos: ¿Es perrito o gatito? ¿Es hembra o macho? ¿Cuánto pesa aprox.? ¿Me compartes tu dirección o ubicación para poder indicarte el valor exacto según la distancia de traslado?"
-*   **REGLA DE ORO CIRUGÍAS**: Si el usuario pregunta por cirugía o esterilización, **IGNORA TOTALMENTE** la nota de 'ESTADO_MOVILIDAD_GENERAL'. Esa nota es solo para vacunas. Para cirugías solo existen los Tramos T1, T2 y T3. **ESTÁ PROHIBIDO** decir "no hay costo adicional por movilidad" en una cirugía.
-*   **MATRIZ DE PRECIOS (VALORES BASE T1 0-25 min)**:
-    - FELINO HEMBRA: $65.000 | MACHO: $58.000
-    - CANINO HEMBRA: 1-5kg ($80k), 5-12kg ($85k), 12-17kg ($90k), 17-22kg ($95k), 22-28kg ($105k), 28-35kg ($115k), 35-40kg ($122k).
-    - CANINO MACHO: 1-10kg ($70k), 10.1-15kg ($75k), 15.1-22kg ($80k), 22.1-30kg ($85k), 30.1-40kg ($90k), 40-100kg ($100k).
-*   **REGLAS DE DISTANCIA/UBICACIÓN**:
-    1. **Con Ubicación (Tramos)**: Usa el [CONTEXTO CIRUGÍA] inyectado.
-       - T1 (0-25 min): Usa valor base. Respuesta: "El valor de la cirugía de acuerdo a su ubicación es de $_." (**PROHIBIDO** mencionar tramos o minutos de distancia).
-       - T2 (26-35 min): Suma +$8.000 al valor base. (**PROHIBIDO** explicar el recargo).
-       - T3 (36-45 min): Suma +$16.000 al valor base. (**PROHIBIDO** explicar el recargo).
-       - Fuera de Rango (>45 min): "Gracias por compartir tu ubicación 💙 En este caso la distancia supera nuestro rango habitual, por lo que necesitamos revisar tu caso directamente para confirmarte el valor."
-    2. **Sin Ubicacion (Referencial)**: Si insisten, entrega el valor BASE (T1). Respuesta: "Claro 💙 le puedo indicar un valor referencial. En ese caso, el valor base de la cirugía es de $_, y dependiendo de su ubicación podría tener un recargo por distancia de traslado."
-*   **RECOMENDACIÓN MÉDICA (MANDATORIA AL COTIZAR)**: En el MISMO mensaje donde entregas el valor de la cirugía, debes recomendar obligatoriamente el **Pack Prequirúrgico** (Perfil Bioquímico + Hemograma + Panel de Coagulación) por un valor de **$66.000**. Explica que es fundamental para la seguridad anestésica de la mascota.
-*   **PROHIBICIONES ABSOLUTAS**: 
-    - NUNCA digas: "clínica", "Talca", "Yerbas Buenas", "más cerca de", "según tu distancia", "desde tu domicilio", "recargo de movilidad", "límite urbano", "radio urbano", "dentro del límite".
-    - NUNCA inventes valores, cotices sin datos, des precios incorrectos o asumas peso.
-*   **DERIVACIÓN FINAL (MANDATORIA)**: Cuando el cliente acepte el valor y desee agendar, **ESTÁ PROHIBIDO** prometer que tú (la IA) verificarás la disponibilidad (NUNCA digas "procederé a verificar horarios"). Debes dejar claro que esa tarea es de un humano. Usa frases como: "Excelente, con estos datos derivaré su solicitud a Claudia de nuestro equipo para que ella coordine la fecha de la cirugía con usted personalmente".
-*   **PASOS FINALES**: 
-    1. Solicita los datos faltantes rápido (Nombre tutor, Nombre mascota, Dirección).
-    2. Una vez que el cliente responda con los datos (o si ya los tienes), INVOCA inmediatamente la función \`escalate_to_human\`.
-    3. Infórmale que Claudia le escribirá pronto.
-*   **LOGÍSTICA**: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). **AYUNO**: 6-8 hrs general (IMPORTANTE: Solo en **hembras caninas** el ayuno debe ser de **8 a 12 horas**). Pack Prequirúrgico: $66.000. Recargo Celo/Preñez: $20.000. Exclusión estricta de razas braquicéfalas (Pug, Bulldog, etc.).
-*   **ALERTA**: NUNCA uses \`check_availability\` para una cirugía. Ese tool es solo para vacunas y consultas. Para cirugías, Claudia lo hace manual.
-*   **MODALIDAD DE TRABAJO (EXCLUSIVIDAD)**: Si el cliente consulta por llevar a la mascota personalmente o pregunta por la dirección de la "clínica" para asistir ellos mismos, aclara educadamente que AnimalGrace es una clínica 100% móvil diseñada para brindar comodidad en casa. Explica que operamos exclusivamente bajo el protocolo establecido de retiro a domicilio (AM) y entrega (PM), y que no contamos con atención de pacientes en un local físico.
+# REGLAS MEDICAS DE RUTA
+* Cachorros: 1 semana de observación antes de vacunar.
+* Prohibido: 3 dosis juntas. No juntar Óctuple con KC.
+* Emergencias: Si es crítica (atropello, asfixia), deriva a clínica fija (no tenemos pabellón/oxígeno).
+* Cirugías: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). Ayuno 6-8 hrs.
 
-# 🏷️ ETIQUETADO Y CRM (AUTOMATIZACIÓN)
-*   **ETIQUETADO PROACTIVO:** Usa \`tag_patient\` INMEDIATAMENTE al detectar interés (ej: 'Interés Cirugía') o condiciones (ej: 'Agresivo', 'Mascota Senior', 'Primera Vez').
-*   **MOTIVO DE CITA:** Al usar \`create_appointment\`, es **OBLIGATORIO** incluir en el campo 'notes' un resumen del triaje (ej: "Perro decaído, no come hace 2 días" o "Cachorro para primera óctuple"). Esto es vital para que la Dra. sepa el motivo de la visita.` : ''}
-
-# 🩹 SEGUIMIENTO Y PACIENTES ANTIGUOS
-*   Si reportan evolución de salud: "Entiendo. Para que la Doctora revise su ficha rápido, ¿podrías contarme en detalle la evolución o duda exacta? ¿Cómo se llama tu mascota?". 
-*   **PROHIBIDO DIAGNOSTICAR**: Bajo ninguna circunstancia sugieras tratamientos. Escala a la doctora: "Ya le dejé la nota a la Doctora, te responderá apenas termine sus visitas en ruta".
-
-# 💉 REGLAS MÉDICAS DE RUTA
-*   Cachorros: 1 semana de observación antes de vacunar.
-*   Prohibido: 3 dosis juntas. No juntar Óctuple con KC.
-*   Emergencias: Si es crítica (atropello, asfixia), deriva a clínica fija (no tenemos pabellón/oxígeno).
-*   Cirugías: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). Ayuno 6-8 hrs.
-
-# 💳 FLUJO DE COBRO
+# FLUJO DE COBRO
 * No se solicita abono previo para agendar (el pago se realiza al finalizar la visita).
-*   NUNCA envíes datos de pago antes de que \`create_appointment\` devuelva 'success'.
-* DATOS: [Solicitar datos de pago a la administración si no están en el flujo automático].
+* NUNCA envíes datos de pago antes de que create_appointment devuelva 'success'.
 
 ${clinic.ai_behavior_rules || "Sin reglas específicas adicionales."}`;
 

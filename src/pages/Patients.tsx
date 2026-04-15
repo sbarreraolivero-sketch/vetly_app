@@ -67,9 +67,9 @@ export default function Patients() {
         
         const matchesSpecies = 
             speciesFilter === 'all' || 
-            (speciesFilter === 'dog' && p.species.toLowerCase() === 'canino') ||
-            (speciesFilter === 'cat' && p.species.toLowerCase() === 'felino') ||
-            (speciesFilter === 'other' && !['canino', 'felino'].includes(p.species.toLowerCase()))
+            (speciesFilter === 'dog' && (p.species.toLowerCase().includes('canino') || p.species.toLowerCase().includes('perro') || p.species.toLowerCase().includes('can'))) ||
+            (speciesFilter === 'cat' && (p.species.toLowerCase().includes('felino') || p.species.toLowerCase().includes('gato') || p.species.toLowerCase().includes('michi'))) ||
+            (speciesFilter === 'other' && !['canino', 'perro', 'can', 'felino', 'gato', 'michi'].some(s => p.species.toLowerCase().includes(s)))
 
         return matchesSearch && matchesSpecies
     })
