@@ -272,7 +272,31 @@ export default function PatientProfile() {
                 <div className="card-soft p-5 bg-white border border-silk-beige shadow-sm">
                     <p className="text-xs font-bold font-bold text-charcoal/40 uppercase tracking-widest mb-2 leading-none">Edad Estimada</p>
                     <p className="text-xl font-black text-charcoal">
-                        {patient.dob ? `${new Date().getFullYear() - new Date(patient.dob).getFullYear()} años` : 'N/A'}
+                        {(() => {
+                            if (!patient.dob) return 'N/A'
+                            const dob = new Date(patient.dob)
+                            const now = new Date()
+                            
+                            let years = now.getFullYear() - dob.getFullYear()
+                            let months = now.getMonth() - dob.getMonth()
+                            let days = now.getDate() - dob.getDate()
+
+                            if (days < 0) {
+                                months -= 1
+                            }
+                            if (months < 0) {
+                                years -= 1
+                                months += 12
+                            }
+
+                            if (years > 0) {
+                                return `${years} ${years === 1 ? 'año' : 'años'}${months > 0 ? ` y ${months} ${months === 1 ? 'mes' : 'meses'}` : ''}`
+                            }
+                            if (months > 0) {
+                                return `${months} ${months === 1 ? 'mes' : 'meses'}`
+                            }
+                            return `${days > 0 ? days : 1} ${days === 1 ? 'día' : 'días'}`
+                        })()}
                     </p>
                 </div>
                 <div className="card-soft p-5 bg-white border border-silk-beige shadow-sm">
