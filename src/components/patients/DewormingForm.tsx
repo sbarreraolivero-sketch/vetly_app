@@ -179,8 +179,8 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                                     className="input-soft w-full font-bold"
                                 >
-                                    <option value="Interno">Interno (Pastilla/Oral)</option>
-                                    <option value="Externo">Externo (Pipeta/Collar/Spray)</option>
+                                    <option value="Interno">Interno</option>
+                                    <option value="Externo">Externo</option>
                                 </select>
                             </div>
                             <div>
