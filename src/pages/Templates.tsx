@@ -259,7 +259,7 @@ export default function Templates() {
                                     setNewTemplate({
                                         name: 'recordatorio_cita',
                                         category: 'UTILITY',
-                                        body: 'Hola {{1}}, te recordamos tu cita de {{2}} para el día {{3}} en {{5}}. Por favor confirma respondiendo "Sí" o "No".',
+                                        body: 'Hola esperamos que te encuentres muy bien! \nTe enviamos este mensaje para recordar la visita a domicilio de {{2}} para {{1}} el día {{3}} en {{5}}. Por favor confirma la visita respondiendo "Si, confirmo" o "No podré asistir". \n\nEsperamos su respuesta para contemplarla dentro de nuestra ruta. Saludos!',
                                         buttons: ['Sí, confirmo', 'No podré asistir']
                                     })
                                     setVariableExamples({
@@ -271,8 +271,8 @@ export default function Templates() {
                                 }}
                                 className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Recordatorio</div>
-                                <div className="text-charcoal/60 text-xs line-clamp-2">Hola {'{{1}}'}, te recordamos tu cita...</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Recordatorio Profesional</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">Hola esperamos que te encuentres muy bien! Te enviamos este mensaje...</div>
                             </button>
                             <button
                                 onClick={() => {
@@ -540,7 +540,7 @@ export default function Templates() {
                                 backgroundSize: "12px 12px"
                             }} />
 
-                            <div className="relative z-10 bg-white p-3.5 rounded-xl rounded-tl-sm shadow-sm text-[13.5px] text-charcoal/90 whitespace-pre-wrap leading-relaxed line-clamp-4 min-h-[80px]">
+                            <div className="relative z-10 bg-white p-3.5 rounded-xl rounded-tl-sm shadow-sm text-[13.5px] text-charcoal/90 whitespace-pre-wrap leading-relaxed min-h-[100px]">
                                 {template.desc || template.body || <span className="text-gray-400 italic">El contenido no está disponible para previsualizar...</span>}
                             </div>
                         </div>
