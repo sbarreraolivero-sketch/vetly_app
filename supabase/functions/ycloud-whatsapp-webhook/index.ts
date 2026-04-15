@@ -1651,12 +1651,12 @@ Solo después de completar el triage y que el cliente confirme que desea agendar
 *   **PASO B (Advertencia de Rango)**: Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
 *   **PASO C (Ficha Médica y Ubicación)**: Solo tras aceptar el horario y rango, pide los datos finales:
     1. Nombre completo del tutor (obligatorio).
-    2. **Pin de ubicación de WhatsApp** (PRIORIDAD MANDATORIA para evitar errores de escritura y calcular traslados exactos). Si el cliente no puede enviarlo, solicite la Dirección exacta (Calle + Número) como respaldo.
+    2. **Pin de ubicación de WhatsApp** (PRIORIDAD MANDATORIA para evitar errores y calcular traslados exactos). Si el cliente no puede enviarlo, solicite la Dirección exacta (**Calle, Número y Comuna**) como respaldo.
     3. Nombre de la mascota y especie.
 
 ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - ANIMALGRACE LINARES
 # 1. 🚜 LOGÍSTICA Y COSTOS
-*   **UBICACIÓN POR PIN PRIORITARIA:** Solicita siempre el **Pin de ubicación de WhatsApp** como primera opción. Explica que es para evitar errores y calcular el costo exacto. Si no pueden enviarlo, pide la "Dirección EXACTA (Calle y Número)". Está **PROHIBIDO** pedir solo 'comuna' o 'sector'.
+*   **UBICACIÓN POR PIN PRIORITARIA:** Solicita siempre el **Pin de ubicación de WhatsApp** como primera opción. Explica que es para evitar errores. Si no pueden enviarlo, pide la "Dirección EXACTA (**Calle, Número y Comuna**)". Está **PROHIBIDO** pedir solo 'comuna' o solo 'sector' sin la dirección completa.
 *   **COSTOS TRASLADO:** Usa los datos de `travel_details` (si enviaron texto) o la distancia calculada (si enviaron Pin) para informar recargos rurales: 
     - Hasta 10 min de ruta: +$6.000
     - Hasta 20 min de ruta: +$8.000
