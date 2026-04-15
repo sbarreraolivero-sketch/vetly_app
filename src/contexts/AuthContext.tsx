@@ -251,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
 
                     // Fetch fresh data
-                    const { data: profileData } = await fetchProfile(session.user.id)
+                    const { data: profileData, status: profileStatus } = await fetchProfile(session.user.id)
                     
                     if (mounted) {
                         // If no profile, we can't do much, but at least we don't loop
@@ -267,28 +267,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             if (profileData.clinic_id) {
                                 // Fetch Subscription with 406 safety
                                 subData = await fetchSubscription(profileData.clinic_id)
-                                clinicsCount: clinicsData?.length,
-                                hasSub: !!subData,
-                                hasMember: !!memberData,
-                                memberRole: (memberData as any)?.role
-                            })
+
+                                // Fetch Member
+                                try {
+                                    const { data, error } = await supabase
+                                        .from('clinic_members')
+                                        .select('*')
+                                        .eq('user_id', session.user.id)
+                                        .eq('clinic_id', profileData.clinic_id)
+                                        .single()
+                                    memberData = data
+                                } catch (e) { console.error('Member fetch error:', e) }
+                            }
+
+                            if (mounted) {
+                                setSubscription(subData || { status: 'trial', plan: 'trial' } as any)
+                                if (memberData) setMember(memberData as any)
+                                setLoading(false)
+                            }
+                        } else {
+                            // Profile fetch returned null. We only clear the session if the profile is strictly NOT FOUND.
+                            // If it's a network error, we keep the cached profile and let them continue.
+                            if (profileStatus === 'not_found' && !window.location.pathname.startsWith('/hq')) {
+                                console.warn('Profile not found for this user, clearing Frankenstein session.')
+                                setProfile(null)
+                                setMember(null)
+                                setSubscription(null)
+                                setClinics([])
+                                localStorage.removeItem(PROFILE_STORAGE_KEY)
+                                localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY)
+                                localStorage.removeItem(CLINICS_STORAGE_KEY)
+                            } else if (profileStatus === 'error') {
+                                console.warn('Profile fetch failed due to network error, keeping cached profile if exists.')
+                            }
+                            setLoading(false)
                         }
-                    } else if (mounted) {
-                        // Profile fetch returned null. We only clear the session if the profile is strictly NOT FOUND.
-                        // If it's a network error, we keep the cached profile and let them continue.
-                        if (profileStatus === 'not_found' && !window.location.pathname.startsWith('/hq')) {
-                            console.warn('Profile not found for this user, clearing Frankenstein session.')
-                            setProfile(null)
-                            setMember(null)
-                            setSubscription(null)
-                            setClinics([])
-                            localStorage.removeItem(PROFILE_STORAGE_KEY)
-                            localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY)
-                            localStorage.removeItem(CLINICS_STORAGE_KEY)
-                        } else if (profileStatus === 'error') {
-                            console.warn('Profile fetch failed due to network error, keeping cached profile if exists.')
-                        }
-                        setLoading(false)
                     }
                 } else {
                     localStorage.removeItem(PROFILE_STORAGE_KEY)
