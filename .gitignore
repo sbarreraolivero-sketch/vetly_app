@@ -39,3 +39,7 @@ yarn-error.log*
 *.sw?
 .vercel
 .env*.local
+
+.env.vercel
+scratch/
+
