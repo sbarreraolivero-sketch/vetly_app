@@ -124,14 +124,14 @@ const getTravelDetails = async (origin: { lat: number, lng: number }, destinatio
 const functions = [
     {
         name: "check_availability",
-        description: "Verifica disponibilidad. CRÍTICO: Debes inferir el nombre del servicio del historial de conversación (ej. 'Vacunación', 'Consulta'). Si la clínica es móvil/híbrida, solicita la DIRECCIÓN antes o durante la consulta de disponibilidad para validarla en 'address'.",
+        description: "Verifica disponibilidad. CRÍTICO: Debes inferir el nombre del servicio del historial de conversación (ej. 'Vacunación', 'Consulta'). Si la clínica es móvil/híbrida, solicita la DIRECCIÓN EXACTA (Calle y Número) antes o durante la consulta de disponibilidad para validarla en 'address'. Esta función devuelve 'travel_details' (distancia y tiempo) que debes usar para calcular recargos rurales según tus reglas de precios.",
         parameters: { 
             type: "object", 
             properties: { 
                 date: { type: "string", description: "Fecha YYYY-MM-DD" }, 
                 service_name: { type: "string", description: "Nombre del servicio inferido del contexto" }, 
                 professional_name: { type: "string", description: "Nombre del profesional solicitado (opcional)" },
-                address: { type: "string", description: "Dirección completa del tutor/paciente (requerida para clínicas móviles)" }
+                address: { type: "string", description: "Dirección EXACTA (Calle + Número) del tutor/paciente. REQUERIDA para clínicas móviles. PROHIBIDO pedir solo 'comuna' o 'sector'." }
             }, 
             required: ["date"] 
         }
@@ -659,6 +659,17 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
     const displaySlots = availableFormatted.slice(0, 15);
     const routingMsg = recommendedSlot ? `📍 Contamos con disponibilidad ese día en su zona. ` : "";
 
+    let travelInfo = null;
+    if (tutorCoords && clinicBase) {
+        try {
+            const td = await getTravelDetails(clinicBase, tutorCoords);
+            travelInfo = {
+                distance_km: (td.distance / 1000).toFixed(1),
+                travel_time_minutes: Math.ceil(td.duration / 60)
+            };
+        } catch (e) { console.error("Travel info failed", e); }
+    }
+
     return availableFormatted.length
         ? { 
             available: true, 
@@ -667,7 +678,8 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             raw_slots: filteredSlots.map((s: { slot_time: string }) => s.slot_time.substring(0, 5)),
             duration_used: duration, 
             total_price: serviceDetails.price,
-            service_found: serviceDetails.name
+            service_found: serviceDetails.name,
+            travel_details: travelInfo
           }
         : { 
             available: false, 
@@ -1644,8 +1656,12 @@ Solo después de completar el triage y que el cliente confirme que desea agendar
 
 ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - ANIMALGRACE LINARES
 # 1. 🚜 LOGÍSTICA Y COSTOS
+*   **DIR. EXACTA OBLIGATORIA:** Está **PROHIBIDO** preguntar "¿En qué comuna vive?". Siempre debes solicitar la "Dirección EXACTA (Calle y Número)" para calcular el recargo por traslado.
+*   **UBICACIÓN REAL:** Solicita siempre el "Pin de WhatsApp" para validar recargos rurales exactos. Además, usa los datos de `travel_details` devueltos por `check_availability` para informar los recargos: 
+    - Hasta 10 min de ruta: +$6.000
+    - Hasta 20 min de ruta: +$8.000
+    - Hasta 30 min de ruta: +$10.000 (Límite).
 *   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen **Costo de Visita $0** contratando servicios médicos (Vacunas/Consultas).
-*   **UBICACIÓN REAL:** Solicita siempre el "Pin de WhatsApp" para validar recargos rurales: 10 min: +$6.000 | 20 min: +$8.000 | 30 min: +$10.000 (Límite).
 *   **SERVICIOS MENORES:** Si solo piden desparasitación sin consulta/vacuna, aplica recargo de $6.000 incluso en radio urbano.
 
 # 🏥 PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES)
