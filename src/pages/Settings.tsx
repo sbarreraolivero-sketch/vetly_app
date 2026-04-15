@@ -2202,258 +2202,261 @@ export default function Settings() {
 
                     {/* Schedule Settings */}
                     {activeTab === 'schedule' && (
-                        <div className="card-soft p-6">
-                            <h2 className="text-lg font-semibold text-charcoal mb-6">Horarios de Atención</h2>
+                        <>
+                            <div className="card-soft p-6">
+                                <h2 className="text-lg font-semibold text-charcoal mb-6">Horarios de Atención</h2>
 
-                            <div className="space-y-3">
-                                {dayOrder.map((day) => {
-                                    const hours = workingHours[day];
-                                    return (
-                                        <div
-                                            key={day}
-                                            className="flex flex-wrap items-center gap-2 sm:gap-4 p-4 bg-ivory rounded-soft"
-                                        >
-                                            <div className="w-24 sm:w-28 flex-shrink-0">
-                                                <p className="font-medium text-charcoal">{dayNames[day]}</p>
-                                            </div>
+                                <div className="space-y-3">
+                                    {dayOrder.map((day) => {
+                                        const hours = workingHours[day];
+                                        return (
+                                            <div
+                                                key={day}
+                                                className="flex flex-wrap items-center gap-2 sm:gap-4 p-4 bg-ivory rounded-soft"
+                                            >
+                                                <div className="w-24 sm:w-28 flex-shrink-0">
+                                                    <p className="font-medium text-charcoal">{dayNames[day]}</p>
+                                                </div>
 
-                                            <label className="flex items-center gap-2 mr-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={hours !== null}
-                                                    onChange={(e) => {
-                                                        const checked = e.target.checked;
-                                                        setWorkingHours((prev: any) => ({
-                                                            ...prev,
-                                                            [day]: checked ? { open: '09:00', close: '18:00' } : null
-                                                        }))
-                                                    }}
-                                                    className="w-4 h-4 rounded border-silk-beige text-primary-500 focus:ring-primary-500"
-                                                />
-                                                <span className="text-sm text-charcoal/60">Abierto</span>
-                                            </label>
+                                                <label className="flex items-center gap-2 mr-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={hours !== null}
+                                                        onChange={(e) => {
+                                                            const checked = e.target.checked;
+                                                            setWorkingHours((prev: any) => ({
+                                                                ...prev,
+                                                                [day]: checked ? { open: '09:00', close: '18:00' } : null
+                                                            }))
+                                                        }}
+                                                        className="w-4 h-4 rounded border-silk-beige text-primary-500 focus:ring-primary-500"
+                                                    />
+                                                    <span className="text-sm text-charcoal/60">Abierto</span>
+                                                </label>
 
-                                            {hours ? (
-                                                <div className="flex flex-col gap-3 flex-1 min-w-[280px]">
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            type="time"
-                                                            value={(hours as any).open}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                setWorkingHours((prev: any) => ({
-                                                                    ...prev,
-                                                                    [day]: { ...prev[day], open: val }
-                                                                }))
-                                                            }}
-                                                            className="px-2 sm:px-3 py-2 bg-white border border-silk-beige rounded-soft text-sm flex-1"
-                                                        />
-                                                        <span className="text-charcoal/40">a</span>
-                                                        <input
-                                                            type="time"
-                                                            value={(hours as any).close}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                setWorkingHours((prev: any) => ({
-                                                                    ...prev,
-                                                                    [day]: { ...prev[day], close: val }
-                                                                }))
-                                                            }}
-                                                            className="px-2 sm:px-3 py-2 bg-white border border-silk-beige rounded-soft text-sm flex-1"
-                                                        />
-                                                    </div>
+                                                {hours ? (
+                                                    <div className="flex flex-col gap-3 flex-1 min-w-[280px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="time"
+                                                                value={(hours as any).open}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    setWorkingHours((prev: any) => ({
+                                                                        ...prev,
+                                                                        [day]: { ...prev[day], open: val }
+                                                                    }))
+                                                                }}
+                                                                className="px-2 sm:px-3 py-2 bg-white border border-silk-beige rounded-soft text-sm flex-1"
+                                                            />
+                                                            <span className="text-charcoal/40">a</span>
+                                                            <input
+                                                                type="time"
+                                                                value={(hours as any).close}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    setWorkingHours((prev: any) => ({
+                                                                        ...prev,
+                                                                        [day]: { ...prev[day], close: val }
+                                                                    }))
+                                                                }}
+                                                                className="px-2 sm:px-3 py-2 bg-white border border-silk-beige rounded-soft text-sm flex-1"
+                                                            />
+                                                        </div>
 
-                                                    {/* Colación UI */}
-                                                    <div className="flex flex-wrap items-center gap-4 pl-4 border-l-2 border-silk-beige/30 ml-1">
-                                                        <label className="flex items-center gap-2 cursor-pointer">
-                                                            <div className="relative inline-flex items-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={(hours as any).lunch_break?.enabled || false}
-                                                                    onChange={(e) => {
-                                                                        const checked = e.target.checked;
-                                                                        setWorkingHours((prev: any) => ({
-                                                                            ...prev,
-                                                                            [day]: {
-                                                                                ...prev[day],
-                                                                                lunch_break: {
-                                                                                    ...(prev[day].lunch_break || { start: '14:00', end: '15:00' }),
-                                                                                    enabled: checked
+                                                        {/* Colación UI */}
+                                                        <div className="flex flex-wrap items-center gap-4 pl-4 border-l-2 border-silk-beige/30 ml-1">
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <div className="relative inline-flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={(hours as any).lunch_break?.enabled || false}
+                                                                        onChange={(e) => {
+                                                                            const checked = e.target.checked;
+                                                                            setWorkingHours((prev: any) => ({
+                                                                                ...prev,
+                                                                                [day]: {
+                                                                                    ...prev[day],
+                                                                                    lunch_break: {
+                                                                                        ...(prev[day].lunch_break || { start: '14:00', end: '15:00' }),
+                                                                                        enabled: checked
+                                                                                    }
                                                                                 }
                                                                             }
-                                                                        }))
-                                                                    }}
-                                                                    className="sr-only peer"
-                                                                />
-                                                                <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-500"></div>
-                                                            </div>
-                                                            <span className="text-xs font-medium text-charcoal/50">Colación</span>
-                                                        </label>
+                                                                            ))
+                                                                        }}
+                                                                        className="sr-only peer"
+                                                                    />
+                                                                    <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-500"></div>
+                                                                </div>
+                                                                <span className="text-xs font-medium text-charcoal/50">Colación</span>
+                                                            </label>
 
-                                                        {(hours as any).lunch_break?.enabled && (
-                                                            <div className="flex items-center gap-2 animate-fade-in">
-                                                                <input
-                                                                    type="time"
-                                                                    value={(hours as any).lunch_break.start}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        setWorkingHours((prev: any) => ({
-                                                                            ...prev,
-                                                                            [day]: {
-                                                                                ...prev[day],
-                                                                                lunch_break: { ...prev[day].lunch_break, start: val }
-                                                                            }
-                                                                        }))
-                                                                    }}
-                                                                    className="px-2 py-1 bg-white border border-silk-beige rounded-soft text-xs w-24"
-                                                                />
-                                                                <span className="text-charcoal/40 text-xs font-bold font-bold">a</span>
-                                                                <input
-                                                                    type="time"
-                                                                    value={(hours as any).lunch_break.end}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        setWorkingHours((prev: any) => ({
-                                                                            ...prev,
-                                                                            [day]: {
-                                                                                ...prev[day],
-                                                                                lunch_break: { ...prev[day].lunch_break, end: val }
-                                                                            }
-                                                                        }))
-                                                                    }}
-                                                                    className="px-2 py-1 bg-white border border-silk-beige rounded-soft text-xs w-24"
-                                                                />
-                                                            </div>
-                                                        )}
+                                                            {(hours as any).lunch_break?.enabled && (
+                                                                <div className="flex items-center gap-2 animate-fade-in">
+                                                                    <input
+                                                                        type="time"
+                                                                        value={(hours as any).lunch_break.start}
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            setWorkingHours((prev: any) => ({
+                                                                                ...prev,
+                                                                                [day]: {
+                                                                                    ...prev[day],
+                                                                                    lunch_break: { ...prev[day].lunch_break, start: val }
+                                                                                }
+                                                                            }))
+                                                                        }}
+                                                                        className="px-2 py-1 bg-white border border-silk-beige rounded-soft text-xs w-24"
+                                                                    />
+                                                                    <span className="text-charcoal/40 text-xs font-bold font-bold">a</span>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={(hours as any).lunch_break.end}
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            setWorkingHours((prev: any) => ({
+                                                                                ...prev,
+                                                                                [day]: {
+                                                                                    ...prev[day],
+                                                                                    lunch_break: { ...prev[day].lunch_break, end: val }
+                                                                                }
+                                                                            }))
+                                                                        }}
+                                                                        className="px-2 py-1 bg-white border border-silk-beige rounded-soft text-xs w-24"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ) : (
-                                                <span className="text-sm text-charcoal/40 ml-2">Cerrado</span>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-
-                            <div className="mt-6 pt-6 border-t border-silk-beige flex items-center gap-4">
-                                <button
-                                    onClick={handleSaveSchedule}
-                                    disabled={savingSchedule}
-                                    className="btn-primary flex items-center gap-2"
-                                >
-                                    {savingSchedule ? (
-                                        <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                    ) : (
-                                        <><Save className="w-4 h-4" /> Guardar Horarios</>
-                                    )}
-                                </button>
-                                {scheduleSaved && (
-                                    <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft">
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        ¡Horarios guardados!
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Blocked Dates Section */}
-                        <div className="card-soft p-6 mt-6">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
-                                    <Calendar className="w-5 h-5 text-amber-500" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-charcoal">Días de Cierre Especial</h2>
-                                    <p className="text-sm text-charcoal/50">Bloquea días específicos (feriados o vacaciones) para que la IA no agende citas.</p>
-                                </div>
-                            </div>
-
-                            <div className="bg-ivory border border-silk-beige rounded-soft p-4 mb-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2">Fecha</label>
-                                        <input
-                                            type="date"
-                                            value={newBlockedDate}
-                                            min={new Date().toISOString().split('T')[0]}
-                                            onChange={(e) => setNewBlockedDate(e.target.value)}
-                                            className="input-soft w-full"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2">Motivo (Opcional)</label>
-                                        <input
-                                            type="text"
-                                            value={newBlockedReason}
-                                            onChange={(e) => setNewBlockedReason(e.target.value)}
-                                            placeholder="Ej: Feriado Nacional"
-                                            className="input-soft w-full"
-                                        />
-                                    </div>
-                                    <div className="flex items-end">
-                                        <button
-                                            onClick={handleAddBlockedDate}
-                                            disabled={isAddingBlockedDate || !newBlockedDate}
-                                            className={cn(
-                                                "w-full py-2.5 flex items-center justify-center gap-2 rounded-soft font-bold transition-all",
-                                                !newBlockedDate ? "bg-charcoal/10 text-charcoal/30 cursor-not-allowed" : "bg-primary-500 text-white hover:bg-primary-600 shadow-md hover:shadow-lg"
-                                            )}
-                                        >
-                                            {isAddingBlockedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                            Bloquear Día
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
-                                    <History className="w-4 h-4 text-charcoal/40" />
-                                    Días Bloqueados Próximos
-                                </h3>
-                                
-                                {loadingBlockedDates ? (
-                                    <div className="py-8 text-center">
-                                        <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto" />
-                                    </div>
-                                ) : blockedDates.length === 0 ? (
-                                    <div className="py-12 bg-gray-50/50 rounded-soft border-2 border-dashed border-silk-beige flex flex-col items-center justify-center text-center">
-                                        <Calendar className="w-12 h-12 text-charcoal/10 mb-2" />
-                                        <p className="text-charcoal/40 text-sm italic">No hay días bloqueados próximamente.</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {blockedDates.map((item) => (
-                                            <div key={item.id} className="flex items-center justify-between p-4 bg-white border border-silk-beige rounded-soft hover:shadow-sm transition-all group">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 bg-red-50 rounded-soft flex flex-col items-center justify-center border border-red-100 flex-shrink-0">
-                                                        <span className="text-[10px] font-black text-red-400 uppercase leading-none">
-                                                            {new Date(item.blocked_date + 'T12:00:00Z').toLocaleString('es-ES', { month: 'short' })}
-                                                        </span>
-                                                        <span className="text-lg font-black text-red-600 leading-none mt-1">
-                                                            {new Date(item.blocked_date + 'T12:00:00Z').getDate()}
-                                                        </span>
-                                                    </div>
-                                                    <div className="overflow-hidden">
-                                                        <p className="text-sm font-bold text-charcoal capitalize truncate">
-                                                            {new Date(item.blocked_date + 'T12:00:00Z').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                                                        </p>
-                                                        {item.reason && <p className="text-xs text-charcoal/50 italic truncate">{item.reason}</p>}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleDeleteBlockedDate(item.id)}
-                                                    className="p-2 text-charcoal/20 hover:text-red-500 hover:bg-red-50 rounded-soft transition-all flex-shrink-0"
-                                                    title="Eliminar bloqueo"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                ) : (
+                                                    <span className="text-sm text-charcoal/40 ml-2">Cerrado</span>
+                                                )}
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
+                                        )
+                                    })}
+                                </div>
+
+                                <div className="mt-6 pt-6 border-t border-silk-beige flex items-center gap-4">
+                                    <button
+                                        onClick={handleSaveSchedule}
+                                        disabled={savingSchedule}
+                                        className="btn-primary flex items-center gap-2"
+                                    >
+                                        {savingSchedule ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                        ) : (
+                                            <><Save className="w-4 h-4" /> Guardar Horarios</>
+                                        )}
+                                    </button>
+                                    {scheduleSaved && (
+                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            ¡Horarios guardados!
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Blocked Dates Section */}
+                            <div className="card-soft p-6 mt-6">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
+                                        <Calendar className="w-5 h-5 text-amber-500" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-bold text-charcoal">Días de Cierre Especial</h2>
+                                        <p className="text-sm text-charcoal/50">Bloquea días específicos (feriados o vacaciones) para que la IA no agende citas.</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-ivory border border-silk-beige rounded-soft p-4 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2">Fecha</label>
+                                            <input
+                                                type="date"
+                                                value={newBlockedDate}
+                                                min={new Date().toISOString().split('T')[0]}
+                                                onChange={(e) => setNewBlockedDate(e.target.value)}
+                                                className="input-soft w-full"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2">Motivo (Opcional)</label>
+                                            <input
+                                                type="text"
+                                                value={newBlockedReason}
+                                                onChange={(e) => setNewBlockedReason(e.target.value)}
+                                                placeholder="Ej: Feriado Nacional"
+                                                className="input-soft w-full"
+                                            />
+                                        </div>
+                                        <div className="flex items-end">
+                                            <button
+                                                onClick={handleAddBlockedDate}
+                                                disabled={isAddingBlockedDate || !newBlockedDate}
+                                                className={cn(
+                                                    "w-full py-2.5 flex items-center justify-center gap-2 rounded-soft font-bold transition-all",
+                                                    !newBlockedDate ? "bg-charcoal/10 text-charcoal/30 cursor-not-allowed" : "bg-primary-500 text-white hover:bg-primary-600 shadow-md hover:shadow-lg"
+                                                )}
+                                            >
+                                                {isAddingBlockedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                                Bloquear Día
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
+                                        <History className="w-4 h-4 text-charcoal/40" />
+                                        Días Bloqueados Próximos
+                                    </h3>
+
+                                    {loadingBlockedDates ? (
+                                        <div className="py-8 text-center">
+                                            <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto" />
+                                        </div>
+                                    ) : blockedDates.length === 0 ? (
+                                        <div className="py-12 bg-gray-50/50 rounded-soft border-2 border-dashed border-silk-beige flex flex-col items-center justify-center text-center">
+                                            <Calendar className="w-12 h-12 text-charcoal/10 mb-2" />
+                                            <p className="text-charcoal/40 text-sm italic">No hay días bloqueados próximamente.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            {blockedDates.map((item) => (
+                                                <div key={item.id} className="flex items-center justify-between p-4 bg-white border border-silk-beige rounded-soft hover:shadow-sm transition-all group">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-red-50 rounded-soft flex flex-col items-center justify-center border border-red-100 flex-shrink-0">
+                                                            <span className="text-[10px] font-black text-red-400 uppercase leading-none">
+                                                                {new Date(item.blocked_date + 'T12:00:00Z').toLocaleString('es-ES', { month: 'short' })}
+                                                            </span>
+                                                            <span className="text-lg font-black text-red-600 leading-none mt-1">
+                                                                {new Date(item.blocked_date + 'T12:00:00Z').getDate()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="overflow-hidden">
+                                                            <p className="text-sm font-bold text-charcoal capitalize truncate">
+                                                                {new Date(item.blocked_date + 'T12:00:00Z').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                                            </p>
+                                                            {item.reason && <p className="text-xs text-charcoal/50 italic truncate">{item.reason}</p>}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleDeleteBlockedDate(item.id)}
+                                                        className="p-2 text-charcoal/20 hover:text-red-500 hover:bg-red-50 rounded-soft transition-all flex-shrink-0"
+                                                        title="Eliminar bloqueo"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
                     )}
 
                     {/* Integrations Settings */}
