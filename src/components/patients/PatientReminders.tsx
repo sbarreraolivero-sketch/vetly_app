@@ -11,7 +11,7 @@ interface PatientRemindersProps {
 }
 
 export function PatientReminders({ patientId }: PatientRemindersProps) {
-    const { profile } = useAuth()
+    const { profile, clinics } = useAuth()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [reminders, setReminders] = useState<any[]>([])
@@ -69,11 +69,14 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         const toastId = toast.loading('Guardando preferencias...')
         
         try {
+            const currentClinic = clinics.find(c => c.clinic_id === profile.clinic_id)
+            
             // Using upsert to handle case where record might not exist yet
             const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .upsert({
                     id: profile.clinic_id,
+                    clinic_name: currentClinic?.clinic_name || 'Mi Clínica',
                     vaccine_reminder_template: vaccineTemplate,
                     deworming_reminder_template: dewormingTemplate,
                     updated_at: new Date().toISOString()
