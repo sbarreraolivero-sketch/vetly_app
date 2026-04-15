@@ -590,22 +590,32 @@ export default function Settings() {
         setIsSavingIntegrations(true)
         setSaveStatus('idle')
         try {
+            // Use update (not upsert) since the clinic row already exists
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updatePayload: Record<string, any> = {
+                updated_at: new Date().toISOString(),
+            }
+            // Only include fields that have values to avoid overwriting with null
+            if (yCloudApiKey !== undefined) updatePayload.ycloud_api_key = yCloudApiKey || null
+            if (yCloudPhoneNumber !== undefined) updatePayload.ycloud_phone_number = yCloudPhoneNumber || null
+            if (aiActiveModel) updatePayload.ai_active_model = aiActiveModel
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .upsert({
-                    id: profile.clinic_id,
-                    clinic_name: clinicName || clinics?.find(c => c.clinic_id === profile.clinic_id)?.clinic_name || 'Clínica Veterinaria',
-                    ycloud_api_key: yCloudApiKey || null,
-                    ycloud_phone_number: yCloudPhoneNumber || null,
-                    ai_active_model: aiActiveModel,
-                })
+                .update(updatePayload)
+                .eq('id', profile.clinic_id)
 
-            if (error) throw error
+            if (error) {
+                console.error('Supabase integration save error:', error)
+                throw error
+            }
             setSaveStatus('success')
+            toast.success('Integraciones guardadas correctamente')
             setTimeout(() => setSaveStatus('idle'), 3000)
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving integrations:', error)
+            toast.error('Error al guardar: ' + (error?.message || 'Intenta nuevamente'))
             setSaveStatus('error')
             setTimeout(() => setSaveStatus('idle'), 3000)
         } finally {
