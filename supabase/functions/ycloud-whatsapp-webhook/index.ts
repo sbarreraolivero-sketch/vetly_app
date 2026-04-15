@@ -1657,7 +1657,7 @@ Solo después de completar el triage y que el cliente confirme que desea agendar
 ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - ANIMALGRACE LINARES
 # 1. 🚜 LOGÍSTICA Y COSTOS
 *   **UBICACIÓN POR PIN PRIORITARIA:** Solicita siempre el **Pin de ubicación de WhatsApp** como primera opción. Explica que es para evitar errores. Si no pueden enviarlo, pide la "Dirección EXACTA (**Calle, Número y Comuna**)". Está **PROHIBIDO** pedir solo 'comuna' o solo 'sector' sin la dirección completa.
-*   **COSTOS TRASLADO:** Usa los datos de `travel_details` (si enviaron texto) o la distancia calculada (si enviaron Pin) para informar recargos rurales: 
+*   **COSTOS TRASLADO:** Usa los datos de 'travel_details' (si enviaron texto) o la distancia calculada (si enviaron Pin) para informar recargos rurales: 
     - Hasta 10 min de ruta: +$6.000
     - Hasta 20 min de ruta: +$8.000
     - Hasta 30 min de ruta: +$10.000 (Límite).
