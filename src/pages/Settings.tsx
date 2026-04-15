@@ -49,7 +49,6 @@ import Team from './settings/Team'
 import MyProfile from './settings/MyProfile'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { toast } from 'react-hot-toast'
-import type { Database } from '@/types/database'
 
 // Get the Supabase URL for webhook display
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -240,7 +239,6 @@ export default function Settings() {
 
     // Clinic settings state
     const [savingClinic, setSavingClinic] = useState(false)
-    const [clinicSaved, setClinicSaved] = useState(false)
 
     // Schedule settings state
     const [savingSchedule, setSavingSchedule] = useState(false)
@@ -807,7 +805,7 @@ export default function Settings() {
         setRemindersSaved(false)
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('reminder_settings')
                 .upsert({
                     clinic_id: profile.clinic_id,

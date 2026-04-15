@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             setProfile(profileData)
                             
                             // Parallel fetch of dependencies
-                            const clinicsData = await fetchUserClinics()
+                            await fetchUserClinics()
                             
                             let subData = null
                             let memberData = null
@@ -270,7 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                                 // Fetch Member
                                 try {
-                                    const { data, error } = await supabase
+                                    const { data } = await supabase
                                         .from('clinic_members')
                                         .select('*')
                                         .eq('user_id', session.user.id)
