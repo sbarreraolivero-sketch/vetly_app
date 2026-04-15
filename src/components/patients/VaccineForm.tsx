@@ -32,7 +32,6 @@ export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProp
 
     const speciesLower = patient.species?.toLowerCase() || ''
     const isCat = speciesLower.includes('felin') || speciesLower.includes('gat')
-    const isDog = speciesLower.includes('canin') || speciesLower.includes('perr') || speciesLower.includes('dog') || (!isCat && speciesLower.includes('óctuple'))
     
     const species = isCat ? 'cat' : 'dog'
     const vaccineOptions = species === 'cat' ? CAT_VACCINES : DOG_VACCINES

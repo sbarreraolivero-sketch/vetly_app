@@ -210,7 +210,7 @@ export default function PatientProfile() {
         )
     }
 
-    const formatSpecies = (species: string) => {
+    const formatSpecies = (species: string | null) => {
         const s = species?.toLowerCase() || ''
         if (s.includes('canin') || s.includes('perr') || s.includes('dog')) return 'CANINO'
         if (s.includes('felin') || s.includes('gat') || s.includes('michi')) return 'FELINO'

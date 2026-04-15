@@ -259,8 +259,8 @@ export default function Templates() {
                                     setNewTemplate({
                                         name: 'recordatorio_cita',
                                         category: 'UTILITY',
-                                        body: 'Hola esperamos que te encuentres muy bien! \nTe enviamos este mensaje para recordar la visita a domicilio de {{2}} para {{1}} el día {{3}} en {{5}}. Por favor confirma la visita respondiendo "Si, confirmo" o "No podré asistir". \n\nEsperamos su respuesta para contemplarla dentro de nuestra ruta. Saludos!',
-                                        buttons: ['Sí, confirmo', 'No podré asistir']
+                                        body: 'Hola esperamos que te encuentres muy bien! \nTe enviamos este mensaje para recordarte que a {{1}} le toca mañana su refuerzo de {{2}}. Es super importante no pasarse de la fecha para que su mascota no pierda inmunidad y pueda salir a pasear con tranquilidad 🤗 \n\nAntes cualquier duda o requerimiento nos comenta para contemplarla dentro de nuestra ruta. Saludos!',
+                                        buttons: []
                                     })
                                     setVariableExamples({
                                         1: 'Roco',
