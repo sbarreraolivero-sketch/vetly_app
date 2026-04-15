@@ -43,7 +43,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
             const { data: settings, error: setError } = await (supabase as any)
                 .from('clinic_settings')
                 .select('id, vaccine_reminder_template, deworming_reminder_template')
-                .eq('clinic_id', profile!.clinic_id)
+                .eq('id', profile!.clinic_id)
                 .single()
 
             if (setError) {

@@ -72,7 +72,7 @@ export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProp
             const { data: settings } = await (supabase as any)
                 .from('clinic_settings')
                 .select('vaccine_reminder_template')
-                .eq('clinic_id', profile!.clinic_id)
+                .eq('id', profile!.clinic_id)
                 .single()
             
             if (settings?.vaccine_reminder_template) {

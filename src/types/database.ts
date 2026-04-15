@@ -52,6 +52,8 @@ export interface Database {
                     currency: string | null
                     template_survey: string | null
                     template_reactivation: string | null
+                    vaccine_reminder_template: string | null
+                    deworming_reminder_template: string | null
                 }
                 Insert: {
                     id?: string
