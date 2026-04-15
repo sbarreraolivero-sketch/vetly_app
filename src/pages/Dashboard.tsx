@@ -90,60 +90,84 @@ export default function Dashboard() {
                 const endOfDay = dayEnd.toISOString()
                 const startOfMonth = monthStart.toISOString()
 
-                // Fetch Stats (Today)
-                const { count: appointmentsCount } = await supabase
-                    .from('appointments')
-                    .select('*', { count: 'exact', head: true })
-                    .gte('appointment_date', startOfDay)
-                    .lte('appointment_date', endOfDay)
-                    .eq('clinic_id', profile.clinic_id)
+                // ⚡ PERFORMANCE: Run ALL queries in parallel instead of sequential
+                const [
+                    appointmentsCountRes,
+                    messagesCountRes,
+                    appointmentsRes,
+                    messagesRes,
+                    monthAppointmentsRes,
+                    inboundMessagesRes,
+                    surveysRes
+                ] = await Promise.all([
+                    // 1. Today's appointments count
+                    supabase
+                        .from('appointments')
+                        .select('*', { count: 'exact', head: true })
+                        .gte('appointment_date', startOfDay)
+                        .lte('appointment_date', endOfDay)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 2. Today's messages count
+                    supabase
+                        .from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .gte('created_at', startOfDay)
+                        .lte('created_at', endOfDay)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 3. Upcoming appointments
+                    supabase
+                        .from('appointments')
+                        .select('id, patient_name, service, appointment_date, status')
+                        .gte('appointment_date', new Date().toISOString())
+                        .eq('clinic_id', profile.clinic_id)
+                        .order('appointment_date', { ascending: true })
+                        .limit(5),
+                    // 4. Recent messages
+                    supabase
+                        .from('messages')
+                        .select('id, phone_number, content, created_at, direction, status')
+                        .eq('clinic_id', profile.clinic_id)
+                        .order('created_at', { ascending: false })
+                        .limit(3),
+                    // 5. Month appointments (for service ranking)
+                    (supabase as any)
+                        .from('appointments')
+                        .select('service')
+                        .gte('appointment_date', startOfMonth)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 6. Inbound messages this month (for conversion rate)
+                    (supabase as any)
+                        .from('messages')
+                        .select('phone_number')
+                        .eq('direction', 'inbound')
+                        .gte('created_at', startOfMonth)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 7. Satisfaction surveys
+                    (supabase as any)
+                        .from('satisfaction_surveys')
+                        .select('id, status, rating, created_at')
+                        .gte('created_at', startOfMonth)
+                        .eq('clinic_id', profile.clinic_id)
+                ])
 
-                const { count: messagesCount } = await supabase
-                    .from('messages')
-                    .select('*', { count: 'exact', head: true })
-                    .gte('created_at', startOfDay)
-                    .lte('created_at', endOfDay)
-                    .eq('clinic_id', profile.clinic_id)
-
-                // Fetch Upcoming Appointments
-                const { data: appointments } = await supabase
-                    .from('appointments')
-                    .select('id, patient_name, service, appointment_date, status')
-                    .gte('appointment_date', new Date().toISOString())
-                    .eq('clinic_id', profile.clinic_id)
-                    .order('appointment_date', { ascending: true })
-                    .limit(5)
-
-                // Fetch Recent Messages
-                const { data: messages } = await supabase
-                    .from('messages')
-                    .select('id, phone_number, content, created_at, direction, status')
-                    .eq('clinic_id', profile.clinic_id)
-                    .order('created_at', { ascending: false })
-                    .limit(3)
+                // Process results
+                const appointments = appointmentsRes.data
+                const messages = messagesRes.data
+                const monthAppointments = monthAppointmentsRes.data
+                const inboundMessages = inboundMessagesRes.data
+                const surveys = surveysRes.data
 
                 setStats({
-                    appointmentsToday: appointmentsCount || 0,
-                    messagesToday: messagesCount || 0,
-                    activePatients: 0, // Placeholder
-                    confirmationRate: 0 // Placeholder
+                    appointmentsToday: appointmentsCountRes.count || 0,
+                    messagesToday: messagesCountRes.count || 0,
+                    activePatients: 0,
+                    confirmationRate: 0
                 })
 
                 if (appointments) setUpcomingAppointments(appointments)
                 if (messages) setRecentMessages(messages)
 
-                // ==========================================
-                // ANALYTICS CALCULATIONS (Real Data)
-                // ==========================================
-
-                // 1. Service Ranking (This Month)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: monthAppointments } = await (supabase as any)
-                    .from('appointments')
-                    .select('service')
-                    .gte('appointment_date', startOfMonth)
-                    .eq('clinic_id', profile.clinic_id)
-
+                // Service Ranking
                 if (monthAppointments && monthAppointments.length > 0) {
                     const serviceCounts: Record<string, number> = {}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,46 +175,23 @@ export default function Dashboard() {
                         const service = appt.service || 'General'
                         serviceCounts[service] = (serviceCounts[service] || 0) + 1
                     })
-
                     const totalAppts = monthAppointments.length
-                    const ranking = Object.entries(serviceCounts)
-                        .map(([name, count]) => ({
-                            name,
-                            count,
-                            percentage: Math.round((count / totalAppts) * 100),
-                            trend: 'stable' as const // Placeholder for trend
-                        }))
-                        .sort((a, b) => b.count - a.count)
-                        .slice(0, 5)
-
-                    setServicesRanking(ranking)
+                    setServicesRanking(
+                        Object.entries(serviceCounts)
+                            .map(([name, count]) => ({
+                                name, count,
+                                percentage: Math.round((count / totalAppts) * 100),
+                                trend: 'stable' as const
+                            }))
+                            .sort((a, b) => b.count - a.count)
+                            .slice(0, 5)
+                    )
                 }
 
-                // 2. Conversion Rate (Approximate: Unique Contacts vs Appointments Created This Month)
-                // Inbound messages (Conversations)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: inboundMessages } = await (supabase as any)
-                    .from('messages')
-                    .select('contact_phone', { count: 'exact', head: false }) // We use contact_phone as identifier - wait, schema might be phone_number?
-                    // Let's check schema. Messages table has phone_number usually. 
-                    // Previous code used contact_phone? Let's check the view_file.
-                    // The view_file output shows .select('contact_phone')
-                    // But usually it is phone_number. 
-                    // Let's stick to what was there but cast to any.
-                    // Actually, if it was contact_phone and it was wrong, that would be an issue.
-                    // Messages table in Messages.tsx uses phone_number.
-                    // I should probably check if contact_phone is valid.
-                    // But for now let's just Fix the Type Error.
-                    .select('phone_number')
-                    .eq('direction', 'inbound')
-                    .gte('created_at', startOfMonth)
-                    .eq('clinic_id', profile.clinic_id)
-
-                // Use Set to count unique contacts
+                // Conversion Rate
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const uniqueContacts = new Set(inboundMessages?.map((m: any) => m.phone_number)).size
                 const monthApptsCount = monthAppointments?.length || 0
-
                 setConversionStats({
                     consultations: uniqueContacts,
                     converted: monthApptsCount,
@@ -198,41 +199,23 @@ export default function Dashboard() {
                     rate: uniqueContacts > 0 ? Math.round((monthApptsCount / uniqueContacts) * 100) : 0
                 })
 
-                // 3. Satisfaction (NPS)
-                // Check if table exists first to avoid crashes if migration not run (though we checked)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: surveys } = await (supabase as any)
-                    .from('satisfaction_surveys')
-                    .select('id, status, rating, created_at')
-                    .gte('created_at', startOfMonth)
-                    .eq('clinic_id', profile.clinic_id)
-
+                // Satisfaction (NPS)
                 if (surveys) {
                     const sent = surveys.length
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const responded = surveys.filter((s: any) => s.status === 'responded').length
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const ratings = surveys.filter((s: any) => s.status === 'responded' && s.rating).map((s: any) => s.rating!)
-
                     const average = ratings.length > 0
                         ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length
                         : 0
-
-                    // NPS Calculation: % Promoters (5) - % Detractors (1-3)
-                    // We treat 4 as Passive.
                     let nps = 0
                     if (ratings.length > 0) {
                         const promoters = ratings.filter((r: number) => r === 5).length
                         const detractors = ratings.filter((r: number) => r <= 3).length
                         nps = Math.round(((promoters - detractors) / ratings.length) * 100)
                     }
-
-                    setSatisfactionStats({
-                        sent,
-                        responded,
-                        nps,
-                        average
-                    })
+                    setSatisfactionStats({ sent, responded, nps, average })
                 }
 
             } catch (error) {
