@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Loader2, Save, Trash2, CalendarClock, Settings2, Bell } from 'lucide-react'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { cn } from '@/lib/utils'
+import toast from 'react-hot-toast'
 
 interface PatientRemindersProps {
     patientId: string
@@ -62,8 +63,14 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
     }
 
     const handleSaveSettings = async () => {
-        if (!settingsId) return
+        if (!settingsId) {
+            toast.error('No se pudo encontrar la configuración de la clínica. Intenta recargar la página.')
+            return
+        }
+        
         setSaving(true)
+        const toastId = toast.loading('Guardando preferencias...')
+        
         try {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
@@ -74,10 +81,11 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                 .eq('id', settingsId)
             
             if (error) throw error
-            alert('Preferencias de recordatorios guardadas correctamente.')
-        } catch (error) {
+            
+            toast.success('Preferencias guardadas correctamente', { id: toastId })
+        } catch (error: any) {
             console.error('Error saving template settings:', error)
-            alert('Error al guardar preferencias.')
+            toast.error(`Error al guardar: ${error.message || 'Error desconocido'}`, { id: toastId })
         } finally {
             setSaving(false)
         }
