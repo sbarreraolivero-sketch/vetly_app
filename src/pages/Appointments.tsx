@@ -1706,10 +1706,10 @@ export default function Appointments() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-between items-center p-6 border-t border-silk-beige flex-shrink-0 bg-white rounded-b-soft">
-                                <div>
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-6 border-t border-silk-beige flex-shrink-0 bg-white rounded-b-soft">
+                                <div className="w-full sm:w-auto">
                                     {editingId && (
-                                        <div className="flex gap-4 items-center">
+                                        <div className="flex flex-col sm:flex-row gap-4 items-center w-full">
                                             <button
                                                 onClick={() => {
                                                     const appt = appointments.find(a => a.id === editingId)
@@ -1718,7 +1718,7 @@ export default function Appointments() {
                                                         setShowModal(false)
                                                     }
                                                 }}
-                                                className="text-sm text-red-600 hover:text-red-700 font-bold flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 rounded-soft transition-all ring-1 ring-red-200"
+                                                className="w-full sm:w-auto text-sm text-red-600 hover:text-red-700 font-bold flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 rounded-soft transition-all ring-1 ring-red-200"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                                 Eliminar Definitivamente
@@ -1737,21 +1737,21 @@ export default function Appointments() {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex gap-3">
+                                <div className="flex gap-3 w-full sm:w-auto">
                                     <button
                                         onClick={() => {
                                             setShowModal(false)
                                             setEditingId(null)
                                             setNewAppointment(INITIAL_FORM_STATE)
                                         }}
-                                        className="btn-ghost"
+                                        className="btn-ghost flex-1 sm:flex-initial"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
                                         disabled={saving || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
-                                        className="btn-primary flex items-center gap-2"
+                                        className="btn-primary flex-1 sm:flex-initial flex items-center justify-center gap-2"
                                     >
                                         {saving ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
