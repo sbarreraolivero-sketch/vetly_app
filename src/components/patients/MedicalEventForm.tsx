@@ -158,7 +158,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     </button>
                 </div>
 
-                <div className="flex bg-gray-50/50 border-b border-silk-beige px-6 pt-4 gap-6">
+                <div className="flex bg-gray-50/50 border-b border-silk-beige px-4 sm:px-6 pt-4 gap-4 sm:gap-6 overflow-x-auto scrollbar-none whitespace-nowrap">
                     <button
                         type="button"
                         onClick={() => setActiveTab('anamnesis')}

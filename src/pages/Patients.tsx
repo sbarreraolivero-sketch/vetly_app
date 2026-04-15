@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
     Dog, 
@@ -41,7 +41,10 @@ export default function Patients() {
     }, [profile?.clinic_id])
 
     const fetchPatients = async () => {
-        if (!profile?.clinic_id) return
+        if (!profile?.clinic_id) {
+            setLoading(false)
+            return
+        }
         setLoading(true)
         try {
             const { data, error } = await supabase
@@ -60,19 +63,21 @@ export default function Patients() {
         }
     }
 
-    const filteredPatients = patients.filter(p => {
-        const matchesSearch = 
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.tutors?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-        
-        const matchesSpecies = 
-            speciesFilter === 'all' || 
-            (speciesFilter === 'dog' && (p.species.toLowerCase().includes('canino') || p.species.toLowerCase().includes('perro') || p.species.toLowerCase().includes('can'))) ||
-            (speciesFilter === 'cat' && (p.species.toLowerCase().includes('felino') || p.species.toLowerCase().includes('gato') || p.species.toLowerCase().includes('michi'))) ||
-            (speciesFilter === 'other' && !['canino', 'perro', 'can', 'felino', 'gato', 'michi'].some(s => p.species.toLowerCase().includes(s)))
+    const filteredPatients = useMemo(() => {
+        return patients.filter(p => {
+            const matchesSearch = 
+                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.tutors?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+            
+            const matchesSpecies = 
+                speciesFilter === 'all' || 
+                (speciesFilter === 'dog' && (p.species.toLowerCase().includes('canino') || p.species.toLowerCase().includes('perro') || p.species.toLowerCase().includes('can'))) ||
+                (speciesFilter === 'cat' && (p.species.toLowerCase().includes('felino') || p.species.toLowerCase().includes('gato') || p.species.toLowerCase().includes('michi'))) ||
+                (speciesFilter === 'other' && !['canino', 'perro', 'can', 'felino', 'gato', 'michi'].some(s => p.species.toLowerCase().includes(s)))
 
-        return matchesSearch && matchesSpecies
-    })
+            return matchesSearch && matchesSpecies
+        })
+    }, [patients, searchQuery, speciesFilter])
 
     const getSexLabel = (sex: string) => {
         const s = sex?.toUpperCase()
