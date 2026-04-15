@@ -40,21 +40,19 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
             const clinicId = patient?.clinic_id || profile?.clinic_id
             setActiveClinicId(clinicId)
 
-            console.log('[PatientReminders] Logic IDs:', { 
-                patientClinicId: patient?.clinic_id,
-                profileClinicId: profile?.clinic_id,
-                using: clinicId
-            })
-
-            // 2. Fetch Reminders for patient
-            const { data: rems, error: remError } = await (supabase as any)
-                .from('reminders')
-                .select('*')
-                .eq('patient_id', patientId)
-                .order('scheduled_date', { ascending: true })
-            
-            if (remError) throw remError
-            setReminders(rems || [])
+            // 2. Fetch Reminders for patient (Safe catch to avoid blocking global settings)
+            try {
+                const { data: rems, error: remError } = await (supabase as any)
+                    .from('reminders')
+                    .select('*')
+                    .eq('patient_id', patientId)
+                    .order('scheduled_date', { ascending: true })
+                
+                if (remError) throw remError
+                setReminders(rems || [])
+            } catch (err) {
+                console.warn('Could not fetch specific reminders:', err)
+            }
 
             // 3. Fetch Clinic Settings using the patient-derived clinic_id
             const { data: settingsArray, error: setError } = await (supabase as any)
@@ -62,8 +60,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                 .select('*')
                 .eq('id', clinicId)
             
-            console.log('[PatientReminders] settingsArray result:', settingsArray)
-
             if (setError) {
                 console.error("Error fetching clinic settings:", setError)
             } else if (settingsArray && settingsArray.length > 0) {
@@ -73,7 +69,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
             }
             
         } catch (error) {
-            console.error('Error fetching reminders data:', error)
+            console.error('Error fetching data:', error)
         } finally {
             setLoading(false)
         }
@@ -89,13 +85,11 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         setSaving(true)
         const toastId = toast.loading('Guardando preferencias...')
         
-        console.log('[PatientReminders] Saving templates:', { v: vaccineTemplate, d: dewormingTemplate, id: clinicIdToUse })
-        
         try {
             const currentClinic = clinics.find(c => c.clinic_id === clinicIdToUse)
             
             // Using upsert to handle case where record might not exist yet
-            const { data, error } = await (supabase as any)
+            const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .upsert({
                     id: clinicIdToUse,
@@ -104,9 +98,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                     deworming_reminder_template: dewormingTemplate,
                     updated_at: new Date().toISOString()
                 })
-                .select()
-            
-            console.log('[PatientReminders] Upsert response:', { data, error })
             
             if (error) throw error
             
