@@ -35,10 +35,15 @@ export function TemplateSelector({
         const fetchTemplates = async () => {
             if (!clinicId) return
             try {
-                const { data, error } = await supabase.functions.invoke('get-ycloud-templates', {
-                    body: { clinic_id: clinicId }
+                const { data, error } = await supabase.functions.invoke('ycloud-templates', {
+                    body: { action: 'list', clinic_id: clinicId }
                 })
-                if (!error && data?.templates) {
+                
+                if (error) throw error
+                if (data?.isError || data?.error) throw new Error(data.error || 'API Error')
+
+                if (data?.templates) {
+                    // Filter for approved templates only
                     setTemplates(data.templates.filter((t: any) => t.status === 'APPROVED'))
                 }
             } catch (err) {
