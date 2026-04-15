@@ -45,7 +45,7 @@ export default function Templates() {
         { label: 'Nombre Mascota', icon: '🐾', example: 'Roco', num: 1 },
         { label: 'Servicio / Vacuna', icon: '💉', example: 'Vacunación', num: 2 },
         { label: 'Fecha recordatorio', icon: '📅', example: 'Lunes 15 de Mayo', num: 3 },
-        { label: 'Horario', icon: '⏰', example: 'Durante el día', num: 4 },
+        { label: 'Horario', icon: '⏰', example: '10:30', num: 4 },
         { label: 'Nombre Clínica', icon: '🏥', example: 'AnimalGrace', num: 5 },
         { label: 'Link de Interés', icon: '🔗', example: 'https://vetly.app/reserva', num: 6 },
     ]
@@ -56,7 +56,7 @@ export default function Templates() {
         "Roco",
         "Vacunación",
         "Lunes 15 de Mayo",
-        "Durante el día",
+        "10:30",
         "AnimalGrace",
         "https://vetly.app/reserva"
     ]
