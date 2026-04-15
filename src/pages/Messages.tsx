@@ -74,7 +74,7 @@ export default function Messages() {
                     .select('phone_number, content, direction, created_at')
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
-                
+
                 if (fallbackError) throw fallbackError
                 msgs = fallbackMsgs
             } else if (error) {
@@ -108,7 +108,7 @@ export default function Messages() {
                 .in('phone_number', phones)
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            tutors?.forEach((t: any) => { 
+            tutors?.forEach((t: any) => {
                 if (t.name) nameMap.set(t.phone_number, t.name)
                 if (t.requires_human) humanMap.set(t.phone_number, true)
             })
@@ -121,7 +121,7 @@ export default function Messages() {
                     .select('phone, name')
                     .eq('clinic_id', profile.clinic_id)
                     .in('phone', unnamedPhones)
-                
+
                 prospects?.forEach((p: any) => {
                     if (p.name && p.name !== 'Sin nombre') nameMap.set(p.phone, p.name)
                 })
@@ -144,7 +144,7 @@ export default function Messages() {
                     } else {
                         // For legacy, stop counting at first outbound
                         // For new messages, it doesn't matter much as they should be marked is_read=true on outbound anyway
-                        break 
+                        break
                     }
                 }
                 return {
@@ -235,7 +235,7 @@ export default function Messages() {
                 filter: `clinic_id=eq.${profile.clinic_id}`,
             }, async (payload) => {
                 const newMsg = payload.new as (Message & { is_read: boolean })
-                
+
                 // If the message is inbound and belongs to the selected conversation, mark it as read immediately in DB
                 if (newMsg.direction === 'inbound' && newMsg.phone_number === selectedPhoneRef.current) {
                     await (supabase as any)
@@ -484,7 +484,7 @@ export default function Messages() {
                                             {conversation.contact_name || formatPhoneNumber(conversation.phone_number)}
                                         </p>
                                         <div className="flex items-center gap-2">
-                                            <button 
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setSidebarPhone(conversation.phone_number);
@@ -715,12 +715,12 @@ export default function Messages() {
 
             {showSidebar && sidebarPhone && profile?.clinic_id && (
                 <div className="fixed inset-0 z-50 md:relative md:inset-auto md:z-0 flex justify-end">
-                    <div 
-                        className="absolute inset-0 bg-charcoal/20 backdrop-blur-sm md:hidden" 
+                    <div
+                        className="absolute inset-0 bg-charcoal/20 backdrop-blur-sm md:hidden"
                         onClick={() => setShowSidebar(false)}
                     />
                     <div className="relative z-10 h-full">
-                        <ContactInfoSidebar 
+                        <ContactInfoSidebar
                             phoneNumber={sidebarPhone}
                             clinicId={profile.clinic_id}
                             onClose={() => setShowSidebar(false)}

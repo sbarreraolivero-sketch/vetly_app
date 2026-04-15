@@ -953,55 +953,52 @@ export default function Settings() {
         }
     }
 
-    const toggleAutoRespond = async () => {
-        if (!profile?.clinic_id || savingAutoRespond) return
-        
-        const newValue = !aiAutoRespond
-        setSavingAutoRespond(true)
-        
-        try {
-            const { error } = await (supabase as any)
-                .from('clinic_settings')
-                .update({ ai_auto_respond: newValue, updated_at: new Date().toISOString() })
-                .eq('id', profile.clinic_id)
-
-            if (error) {
-                console.error('Error toggling AI auto-respond:', error)
-                toast.error('Error al cambiar atención automática: ' + error.message)
-                return
-            }
-            
-            setAiAutoRespond(newValue)
-            toast.success(newValue ? 'Atención automática activada' : 'Atención automática desactivada')
-        } catch (err) {
-            console.error('Exception in toggleAutoRespond:', err)
-            toast.error('Ocurrió un error inesperado')
-        } finally {
-            setSavingAutoRespond(false)
-        }
-    }
 
     const handleSaveAI = async () => {
-        if (!profile?.clinic_id) return
+        if (!profile?.clinic_id) {
+            toast.error('No se encontró el ID de la clínica')
+            return
+        }
         setSavingModel(true)
-        console.log('Saving AI Model:', aiActiveModel, 'for clinic:', profile.clinic_id)
+        
+        const payload = { 
+            ai_active_model: aiActiveModel, 
+            ai_auto_respond: aiAutoRespond,
+            updated_at: new Date().toISOString() 
+        }
+        
+        console.log('--- PERISTENCE DEBUG ---')
+        console.log('Clinic ID:', profile.clinic_id)
+        console.log('Payload:', payload)
 
         try {
-            const { error } = await (supabase as any)
+            const { data, error, status } = await (supabase as any)
                 .from('clinic_settings')
-                .update({ ai_active_model: aiActiveModel, updated_at: new Date().toISOString() })
+                .update(payload)
                 .eq('id', profile.clinic_id)
+                .select()
 
             if (error) {
-                console.error('Error saving AI model:', error)
-                toast.error('Error al guardar el modelo de IA: ' + error.message)
+                console.error('Supabase Error:', error)
+                toast.error(`Error de Base de Datos (${error.code}): ${error.message}`)
                 return
             }
 
-            toast.success('Modelo de IA actualizado correctamente')
-        } catch (err) {
-            console.error('Exception in handleSaveAI:', err)
-            toast.error('Ocurrió un error inesperado al guardar')
+            console.log('Response Status:', status)
+            console.log('Updated Data:', data)
+
+            if (!data || data.length === 0) {
+                console.warn('Update successful but no rows returned. Possible RLS issue.')
+                toast.error('No se pudo actualizar. Verifica tus permisos de administrador.')
+                return
+            }
+
+            toast.success('Configuración de IA guardada exitosamente')
+            setSelectedAiModel(aiActiveModel)
+            
+        } catch (err: any) {
+            console.error('Unexpected Error:', err)
+            toast.error('Ocurrió un error inesperado: ' + err.message)
         } finally {
             setSavingModel(false)
         }
@@ -3127,20 +3124,6 @@ export default function Settings() {
                                         <div className="w-11 h-6 bg-charcoal/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-charcoal/10 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                     </label>
                                 </div>
-
-                                <div className="pt-4 flex items-center gap-4">
-                                    <button
-                                        onClick={toggleAutoRespond}
-                                        disabled={savingAutoRespond}
-                                        className="btn-primary flex items-center gap-2"
-                                    >
-                                        {savingAutoRespond ? (
-                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                        ) : (
-                                            <><Zap className="w-4 h-4" /> {aiAutoRespond ? 'Desactivar Atención' : 'Activar Atención'}</>
-                                        )}
-                                    </button>
-                                </div>
                             </div>
 
                             {/* AI Model Switcher (Active Response Mode) */}
@@ -3207,7 +3190,7 @@ export default function Settings() {
                                         {savingModel ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
                                         ) : (
-                                            <><Save className="w-4 h-4" /> Guardar Selección</>
+                                            <><Save className="w-4 h-4" /> Guardar Configuración de IA</>
                                         )}
                                     </button>
                                 </div>
