@@ -884,8 +884,7 @@ export default function Settings() {
 
             const { data, error } = await (supabase as any)
                 .from('clinic_settings')
-                .upsert({
-                    id: profile.clinic_id,
+                .update({
                     clinic_name: clinicName,
                     clinic_address: clinicAddress,
                     address_references: addressReferences,
@@ -901,6 +900,7 @@ export default function Settings() {
                     template_reactivation: templateReactivation,
                     updated_at: new Date().toISOString()
                 })
+                .eq('id', profile.clinic_id)
                 .select();
 
             if (error) {
@@ -934,11 +934,11 @@ export default function Settings() {
         try {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .upsert({
-                    id: profile.clinic_id,
+                .update({
                     working_hours: workingHours,
                     updated_at: new Date().toISOString()
-                });
+                })
+                .eq('id', profile.clinic_id);
 
 
             if (error) throw error;
@@ -958,16 +958,12 @@ export default function Settings() {
         
         const newValue = !aiAutoRespond
         setSavingAutoRespond(true)
-        console.log('Attempting to toggle AI Auto-Respond to:', newValue, 'for clinic:', profile.clinic_id)
         
         try {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .upsert({ 
-                    id: profile.clinic_id,
-                    clinic_name: clinicName || clinics?.find(c => c.clinic_id === profile.clinic_id)?.clinic_name || 'Clínica Veterinaria',
-                    ai_auto_respond: newValue 
-                })
+                .update({ ai_auto_respond: newValue, updated_at: new Date().toISOString() })
+                .eq('id', profile.clinic_id)
 
             if (error) {
                 console.error('Error toggling AI auto-respond:', error)
@@ -988,16 +984,13 @@ export default function Settings() {
     const handleSaveAI = async () => {
         if (!profile?.clinic_id) return
         setSavingModel(true)
-        console.log('Attempting to save AI Model:', aiActiveModel, 'for clinic:', profile.clinic_id)
+        console.log('Saving AI Model:', aiActiveModel, 'for clinic:', profile.clinic_id)
 
         try {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
-                .upsert({
-                    id: profile.clinic_id,
-                    clinic_name: clinicName || clinics?.find(c => c.clinic_id === profile.clinic_id)?.clinic_name || 'Clínica Veterinaria',
-                    ai_active_model: aiActiveModel
-                })
+                .update({ ai_active_model: aiActiveModel, updated_at: new Date().toISOString() })
+                .eq('id', profile.clinic_id)
 
             if (error) {
                 console.error('Error saving AI model:', error)
