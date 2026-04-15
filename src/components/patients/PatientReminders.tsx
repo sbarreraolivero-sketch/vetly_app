@@ -70,7 +70,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         
         try {
             // Using upsert to handle case where record might not exist yet
-            const { data: updatedData, error } = await (supabase as any)
+            const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .upsert({
                     id: profile.clinic_id,
@@ -78,8 +78,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                     deworming_reminder_template: dewormingTemplate,
                     updated_at: new Date().toISOString()
                 })
-                .select()
-                .single()
             
             if (error) throw error
             
