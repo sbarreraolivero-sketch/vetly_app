@@ -1337,7 +1337,19 @@ const updateProspectStage = async (sb: ReturnType<typeof createClient>, clinicId
         .limit(1)
         .maybeSingle();
 
-    if (!prospect) return; // Prospect should exist by now
+    // NEW: If no prospect, but it's an existing tutor, we might want to auto-create the prospect link
+    if (!prospect) {
+        const { data: tutor } = await sb.from("tutors")
+            .select("id, name")
+            .eq("clinic_id", clinicId)
+            .eq("phone_number", normalizedPhone)
+            .limit(1)
+            .maybeSingle();
+        
+        if (tutor) {
+            await autoUpsertMinimalProspect(sb, clinicId, phone, tutor.name);
+        }
+    }
 
     const currentStageName = prospect.crm_pipeline_stages?.name;
 
@@ -1572,6 +1584,20 @@ Deno.serve(async (req) => {
         if (!clinic) {
             await debugLog(sb, "Clinic not found", { phone: to });
             return new Response(JSON.stringify({ status: "ignored", reason: "clinic_not_found" }), { headers: corsHeaders });
+        }
+
+        // NEW: Check if this user is already a known Tutor (Client)
+        const { data: tutor } = await sb.from("tutors")
+            .select("id, name, patients(id, name, species)")
+            .eq("clinic_id", clinic.id)
+            .eq("phone_number", from)
+            .limit(1)
+            .maybeSingle();
+
+        let tutorContext = "";
+        if (tutor) {
+            const petNames = tutor.patients?.map((p: any) => `${p.name} (${p.species || 'mascota'})`).join(", ");
+            tutorContext = `\n\nCLIENTE RECONOCIDO: Estás hablando con ${tutor.name}. Sus mascotas registradas son: ${petNames || 'ninguna aún'}. Trátalo como cliente recurrente y evita pedirle datos que ya conoces.`;
         }
 
         if (clinic.ai_auto_respond === false) {
@@ -1925,6 +1951,11 @@ ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - A
 *   Usa \`tag_patient\` proactivamente: 'Interés Cirugía', 'Mascota Senior', 'Primera Vez'.
 *   En \`create_appointment\`, incluye en 'notes' el resumen del triaje (ej: "Gato >1 año sin vacunas, inicia protocolo de 2 dosis").` : ''}
 
+# RECONOCIMIENTO DE CLIENTE RECURRENTE
+*   **IDENTIDAD**: Si recibes el bloque 'CLIENTE RECONOCIDO', saluda al tutor por su nombre y menciona a sus mascotas si es pertinente.
+*   **EFICIENCIA**: NO preguntes el nombre del tutor ni los nombres de sus mascotas si ya aparecen en el contexto. Solo confirma: "¿Es para [Nombre Mascota] o tienes una nueva mascota?".
+*   **CONTINUIDAD**: Si agendan para una mascota que ya conoces, asume que la especie y los datos base son los mismos, a menos que el cliente indique lo contrario.
+
 # SEGUIMIENTO Y PACIENTES ANTIGUOS
 * Si reportan evolución de salud: "Entiendo. Para que la Doctora revise su ficha rápido, ¿podrías contarme en detalle la evolución o duda exacta? ¿Cómo se llama tu mascota?". 
 * PROHIBIDO DIAGNOSTICAR: Bajo ninguna circunstancia sugieras tratamientos. Escala a la doctora: "Ya le dejé la nota a la Doctora, te responderá apenas termine sus visitas en ruta".
@@ -1968,7 +1999,7 @@ Tu rol es DE CONSULTOR, no de vendedor. Tu objetivo es ayudar a los dueños de c
 # REGLA DE ORO
 Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
 
-                const finalSysPrompt = clinic.id === HQ_ID ? sysPromptHQ : sysPrompt;
+                const finalSysPrompt = (clinic.id === HQ_ID ? sysPromptHQ : sysPrompt) + (tutorContext || "");
 
 
 
