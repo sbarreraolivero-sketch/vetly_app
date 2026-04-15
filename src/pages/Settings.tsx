@@ -246,7 +246,6 @@ export default function Settings() {
 
     // AI settings state
     const [savingModel, setSavingModel] = useState(false)
-    const [savingAutoRespond, setSavingAutoRespond] = useState(false)
 
     // Profile settings state
     const [newPassword, setNewPassword] = useState('')
