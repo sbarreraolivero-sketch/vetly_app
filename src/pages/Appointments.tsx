@@ -33,7 +33,6 @@ import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { TutorForm } from '@/components/patients/TutorForm'
 import { MedicalEventForm as ClinicalRecordForm } from '@/components/patients/MedicalEventForm'
-import { Patient } from '@/types/database'
 import { GuideBox } from '@/components/ui/GuideBox'
 
 interface Appointment {
