@@ -109,68 +109,59 @@ export default function Appointments() {
     const [showRecordModal, setShowRecordModal] = useState(false)
     const [showPatientModal, setShowPatientModal] = useState(false)
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-    const [foundPatient, setFoundPatient] = useState<Patient | null>(null)
-
-    // Fetch services and professionals
-    useEffect(() => {
-        const fetchServices = async () => {
-            if (!profile?.clinic_id) return
-            const { data } = await supabase
-                .from("clinic_services")
-                .select('*')
-                .eq('clinic_id', profile.clinic_id)
-                .order('name', { ascending: true })
-            if (data) setServices(data)
-        }
-        const fetchProfessionals = async () => {
-            if (!profile?.clinic_id) return
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data } = await (supabase as any).rpc('get_clinic_professionals', {
-                p_clinic_id: profile.clinic_id
-            })
-            if (data) setProfessionals(data)
-        }
-        fetchServices()
-        fetchProfessionals()
-    }, [profile?.clinic_id])
-
     // Date filter state
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week'>('all')
     const [showDatePicker, setShowDatePicker] = useState(false)
     const [showFilters, setShowFilters] = useState(false)
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
-    // Fetch appointments function
-    const fetchAppointments = async () => {
+    // Fetch services and professionals
+    // Consolidated Fetch Function
+    const fetchAllData = async () => {
         if (!profile?.clinic_id) {
             setLoading(false)
             return
         }
 
         try {
-            // OPTIMIZATION: Only fetch appointments from 3 months ago to the future
-            // This prevents loading thousands of old records that aren't needed for active management
             const threeMonthsAgo = new Date()
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-            
-            const { data, error } = await supabase
-                .from('appointments')
-                .select('*')
-                .eq('clinic_id', profile.clinic_id)
-                .gte('appointment_date', threeMonthsAgo.toISOString()) // Filter at DB level
-                .order('appointment_date', { ascending: false })
 
-            if (error) throw error
-            setAppointments(data || [])
+            // Run all requests in parallel to avoid "waterfall" slowness
+            const [appointmentsRes, servicesRes, professionalsRes] = await Promise.all([
+                supabase
+                    .from('appointments')
+                    .select('*')
+                    .eq('clinic_id', profile.clinic_id)
+                    .gte('appointment_date', threeMonthsAgo.toISOString())
+                    .order('appointment_date', { ascending: false }),
+                
+                (supabase as any)
+                    .from("clinic_services")
+                    .select('*')
+                    .eq('clinic_id', profile.clinic_id)
+                    .order('name'),
+                
+                (supabase as any).rpc('get_clinic_professionals', {
+                    p_clinic_id: profile.clinic_id
+                })
+            ])
+
+            if (appointmentsRes.data) setAppointments(appointmentsRes.data)
+            if (servicesRes.data) setServices(servicesRes.data)
+            if (professionalsRes.data) setProfessionals(professionalsRes.data)
+
         } catch (error) {
-            console.error('Error fetching appointments:', error)
+            console.error('Error fetching dashboard data:', error)
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
-        fetchAppointments()
+        if (profile?.clinic_id) {
+            fetchAllData()
+        }
     }, [profile?.clinic_id])
 
     // Update appointment status
