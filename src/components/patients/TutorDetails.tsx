@@ -36,7 +36,7 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
 
     // Notes editing state
     const [isEditingNotes, setIsEditingNotes] = useState(false)
-    const [notesBuffer, setNotesBuffer] = useState(tutor.notes || '')
+    const [notesBuffer, setNotesBuffer] = useState(tutor?.notes || '')
     const [savingNotes, setSavingNotes] = useState(false)
 
     useEffect(() => {
@@ -44,15 +44,17 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
     }, [])
 
     useEffect(() => {
-        setNotesBuffer(tutor.notes || '')
-    }, [tutor.notes])
+        if (tutor?.notes !== undefined) {
+            setNotesBuffer(tutor.notes || '')
+        }
+    }, [tutor?.notes])
 
     useEffect(() => {
-        if (profile?.clinic_id && tutor.id) {
+        if (profile?.clinic_id && tutor?.id) {
             fetchPatients()
             fetchFinances()
         }
-    }, [profile?.clinic_id, tutor.id])
+    }, [profile?.clinic_id, tutor?.id])
 
     const fetchPatients = async () => {
         setLoadingPatients(true)
@@ -128,7 +130,11 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                 services: Array.isArray(inc.services) ? inc.services : []
             }))
 
-            const merged = [...appts, ...incomes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            const merged = [...appts, ...incomes].sort((a, b) => {
+                const dateA = a.date ? new Date(a.date).getTime() : 0;
+                const dateB = b.date ? new Date(b.date).getTime() : 0;
+                return dateB - dateA;
+            })
             setFinances(merged)
         } catch (error) {
             console.error('Error fetching finances:', error)
@@ -186,7 +192,7 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                         </div>
                         <div>
                             <p className="text-xs text-charcoal/50 uppercase font-medium">Teléfono</p>
-                            <p className="text-charcoal">{formatPhoneNumber(tutor.phone)}</p>
+                            <p className="text-charcoal">{formatPhoneNumber(tutor.phone_number)}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">

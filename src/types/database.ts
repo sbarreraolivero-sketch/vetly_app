@@ -271,7 +271,7 @@ export interface Database {
                 Row: {
                     id: string
                     clinic_id: string | null
-                    phone: string
+                    phone_number: string
                     name: string | null
                     email: string | null
                     address: string | null
@@ -284,7 +284,7 @@ export interface Database {
                 Insert: {
                     id?: string
                     clinic_id?: string | null
-                    phone: string
+                    phone_number: string
                     name?: string | null
                     email?: string | null
                     address?: string | null
@@ -297,7 +297,7 @@ export interface Database {
                 Update: {
                     id?: string
                     clinic_id?: string | null
-                    phone?: string
+                    phone_number?: string
                     name?: string | null
                     email?: string | null
                     address?: string | null

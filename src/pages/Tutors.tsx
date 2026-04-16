@@ -44,7 +44,6 @@ export default function Tutors() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [contacts, setContacts] = useState<Contact[]>([])
-    const [activeTab, setActiveTab] = useState<'all' | 'tutors' | 'prospects'>('all')
     const [showTagSidebar, setShowTagSidebar] = useState(false)
     const [editingTutor, setEditingTutor] = useState<any | null>(null)
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
@@ -66,7 +65,10 @@ export default function Tutors() {
             })
 
             if (rpcError) throw rpcError
-            setContacts(data || [])
+            
+            // Focus on tutors as CRM is no longer used
+            const onlyTutors = (data || []).filter((c: any) => c.type === 'tutor')
+            setContacts(onlyTutors)
         } catch (error: any) {
             console.error('Error fetching tutors:', error)
             setError(error.message || 'Error al cargar contactos')
@@ -117,11 +119,6 @@ export default function Tutors() {
     }
 
     const filteredContacts = contacts.filter(c => {
-        const matchesTab = 
-            activeTab === 'all' || 
-            (activeTab === 'tutors' && c.type === 'tutor') ||
-            (activeTab === 'prospects' && c.type === 'prospect')
-        
         const matchesSearch = 
             !searchQuery || 
             c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -130,7 +127,7 @@ export default function Tutors() {
 
         const matchesTag = !selectedTag || c.tags?.some(t => t.name === selectedTag)
 
-        return matchesTab && matchesSearch && matchesTag
+        return matchesSearch && matchesTag
     })
 
     return (
@@ -186,35 +183,10 @@ export default function Tutors() {
                         </div>
                     </div>
 
-                    {/* Tabs */}
                     <div className="flex items-center gap-1 bg-silk-beige/30 p-1 rounded-lg w-fit">
-                        <button
-                            onClick={() => setActiveTab('all')}
-                            className={cn(
-                                "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                                activeTab === 'all' ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/60 hover:text-charcoal"
-                            )}
-                        >
-                            Todos
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('tutors')}
-                            className={cn(
-                                "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                                activeTab === 'tutors' ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/60 hover:text-charcoal"
-                            )}
-                        >
-                            Tutores
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('prospects')}
-                            className={cn(
-                                "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                                activeTab === 'prospects' ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/60 hover:text-charcoal"
-                            )}
-                        >
-                            Prospectos
-                        </button>
+                        <div className="px-4 py-2 text-sm font-bold text-primary-700 bg-white rounded-md shadow-sm uppercase tracking-widest">
+                            Lista de Tutores
+                        </div>
                     </div>
 
                     <div className="flex gap-6 relative">

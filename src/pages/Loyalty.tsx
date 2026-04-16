@@ -182,7 +182,7 @@ export default function Loyalty() {
 
     const filteredTutors = tutors.filter(t =>
     (t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.phone?.includes(searchQuery))
+        t.phone_number?.includes(searchQuery))
     )
 
     return (
@@ -315,7 +315,7 @@ export default function Loyalty() {
                                         <div>
                                             <p className="font-bold text-charcoal">{tutor.name}</p>
                                             <div className="flex flex-col">
-                                                <p className="text-xs text-charcoal/40 uppercase tracking-tight">{tutor.phone}</p>
+                                                <p className="text-xs text-charcoal/40 uppercase tracking-tight">{tutor.phone_number}</p>
                                                 <p className="text-xs font-bold text-primary-500 uppercase tracking-tight">Cód: {tutor.referral_code || '---'}</p>
                                             </div>
                                         </div>

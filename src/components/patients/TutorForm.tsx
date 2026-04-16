@@ -28,7 +28,7 @@ export function TutorForm({ tutor, onClose, onSave }: TutorFormProps) {
         if (tutor) {
             setFormData({
                 name: tutor.name || '',
-                phone_number: tutor.phone,
+                phone_number: tutor.phone_number,
                 email: tutor.email || '',
                 address: tutor.address || '',
                 notes: tutor.notes || ''
@@ -57,7 +57,7 @@ export function TutorForm({ tutor, onClose, onSave }: TutorFormProps) {
             const tutorData: Database['public']['Tables']['tutors']['Insert'] = {
                 clinic_id: profile.clinic_id,
                 name: formData.name,
-                phone: cleanPhone,
+                phone_number: cleanPhone,
                 email: formData.email || null,
                 address: formData.address || null,
                 notes: formData.notes || null,
@@ -81,7 +81,7 @@ export function TutorForm({ tutor, onClose, onSave }: TutorFormProps) {
                     .from('tutors')
                     .select('id')
                     .eq('clinic_id', profile.clinic_id)
-                    .eq('phone', cleanPhone)
+                    .eq('phone_number', cleanPhone)
                     .maybeSingle()
 
                 if (existing) {

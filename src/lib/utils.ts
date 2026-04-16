@@ -27,7 +27,8 @@ export function formatDateTime(date: Date | string): string {
     return `${formatDate(date)} a las ${formatTime(date)}`
 }
 
-export function formatPhoneNumber(phone: string): string {
+export function formatPhoneNumber(phone: string | null | undefined): string {
+    if (!phone) return ''
     // Format: +52 55 1234 5678
     const cleaned = phone.replace(/\D/g, '')
     if (cleaned.length === 12 && cleaned.startsWith('52')) {
