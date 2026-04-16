@@ -91,6 +91,7 @@ export default function Appointments() {
     const navigate = useNavigate()
     const [appointments, setAppointments] = useState<Appointment[]>([])
     const [loading, setLoading] = useState(true)
+    const [initializing, setInitializing] = useState(true)
     const [activeTab, setActiveTab] = useState('all')
     const [searchQuery, setSearchQuery] = useState('')
 
@@ -160,9 +161,22 @@ export default function Appointments() {
 
     useEffect(() => {
         if (profile?.clinic_id) {
-            fetchAllData()
+            fetchAllData().finally(() => setInitializing(false))
+        } else if (!loading) {
+            setInitializing(false)
         }
     }, [profile?.clinic_id])
+
+    if (initializing) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-ivory">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+                    <p className="text-emerald-900/60 font-medium animate-pulse">Cargando Vetly...</p>
+                </div>
+            </div>
+        )
+    }
 
     // Update appointment status
     const updateAppointmentStatus = async (id: string, newStatus: 'confirmed' | 'cancelled' | 'completed') => {
@@ -467,11 +481,19 @@ export default function Appointments() {
     }
 
     const filteredAppointments = React.useMemo(() => {
+        if (!Array.isArray(appointments)) return []
+        
         return appointments.filter((appointment) => {
+            if (!appointment) return false
+
+            const patientName = appointment.patient_name || ''
+            const serviceName = appointment.service || ''
+            const phoneVal = appointment.phone || ''
+
             const matchesSearch =
-                appointment.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                appointment.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                appointment.phone.includes(searchQuery)
+                patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                serviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                phoneVal.includes(searchQuery)
 
             const matchesTab = activeTab === 'all' || appointment.status === activeTab
 
@@ -556,8 +578,10 @@ export default function Appointments() {
 
     // Map appointments to calendar events (excluding cancelled ones for visual clarity)
     const mappedAppointments = React.useMemo(() => {
+        if (!Array.isArray(appointments)) return []
+
         return appointments
-            .filter(apt => apt.status !== 'cancelled' && apt.appointment_date)
+            .filter(apt => apt && apt.status !== 'cancelled' && apt.appointment_date)
             .map(apt => {
                 try {
                     let start: Date
