@@ -250,48 +250,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         }).catch(err => console.error('Error storing tokens:', err))
                     }
 
-                    // FETCH ALL PROFILE DATA IN PARALLEL
-                    const profilePromise = fetchProfile(session.user.id)
-                    const clinicsPromise = fetchUserClinics()
-
-                    if (mounted) {
-                        // If we have a cached profile, we can stop loading early (Optimistic UI)
-                        if (profile) {
-                            setLoading(false)
-                        }
-                    }
-
-                    const [{ data: profileData, status: profileStatus }, clinicsData] = await Promise.all([
-                        profilePromise,
-                        clinicsPromise
-                    ])
+                    // Fetch fresh profile first (Critical Dependency)
+                    const { data: profileData, status: profileStatus } = await fetchProfile(session.user.id)
                     
-                    if (mounted && profileData) {
-                        setProfile(profileData)
-                        
-                        // Concurrent fetch for sub-dependencies
-                        const [subData, memberDataRes] = await Promise.all([
-                            profileData.clinic_id ? fetchSubscription(profileData.clinic_id) : Promise.resolve(null),
-                            profileData.clinic_id ? supabase
-                                .from('clinic_members')
-                                .select('*')
-                                .eq('user_id', session.user.id)
-                                .eq('clinic_id', profileData.clinic_id)
-                                .single() : Promise.resolve({ data: null })
-                        ])
+                    if (mounted) {
+                        if (profileData) {
+                            setProfile(profileData)
+                            
+                            // Once we have profile, fetch clinics and other stuff in parallel
+                            const [clinicsData, subData, memberRes] = await Promise.all([
+                                fetchUserClinics(),
+                                profileData.clinic_id ? fetchSubscription(profileData.clinic_id) : Promise.resolve(null),
+                                profileData.clinic_id ? supabase
+                                    .from('clinic_members')
+                                    .select('*')
+                                    .eq('user_id', session.user.id)
+                                    .eq('clinic_id', profileData.clinic_id)
+                                    .single() : Promise.resolve({ data: null })
+                            ])
 
-                        if (mounted) {
-                            setSubscription(subData || { status: 'trial', plan: 'trial' } as any)
-                            if (memberDataRes.data) setMember(memberDataRes.data as any)
-                            setLoading(false)
+                            if (mounted) {
+                                setSubscription(subData || { status: 'trial', plan: 'trial' } as any)
+                                if (memberRes.data) setMember(memberRes.data as any)
+                            }
+                        } else {
+                            // Profile not found
+                            if (profileStatus === 'not_found' && !window.location.pathname.startsWith('/hq')) {
+                                setProfile(null)
+                                setMember(null)
+                                setSubscription(null)
+                                setClinics([])
+                                localStorage.removeItem(PROFILE_STORAGE_KEY)
+                                localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY)
+                                localStorage.removeItem(CLINICS_STORAGE_KEY)
+                            }
                         }
-                    } else if (mounted) {
-                        // Handle no profile case
-                        if (profileStatus === 'not_found' && !window.location.pathname.startsWith('/hq')) {
-                            setProfile(null)
-                            // Clean up...
-                        }
-                        setLoading(false)
                     }
                 } else {
                     localStorage.removeItem(PROFILE_STORAGE_KEY)
