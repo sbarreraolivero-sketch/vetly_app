@@ -86,7 +86,7 @@ const INITIAL_FORM_STATE = {
 }
 
 export default function Appointments() {
-    const { user, profile, session, member } = useAuth()
+    const { user, profile, session, member, loading: authLoading } = useAuth()
     const isProfessional = member?.role === 'professional'
     const navigate = useNavigate()
     const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -160,12 +160,32 @@ export default function Appointments() {
     }
 
     useEffect(() => {
-        if (profile?.clinic_id) {
-            fetchAllData().finally(() => setInitializing(false))
-        } else if (!loading) {
-            setInitializing(false)
+        // Only proceed once Auth is done checking
+        if (!authLoading) {
+            if (profile?.clinic_id) {
+                fetchAllData().finally(() => {
+                    setInitializing(false)
+                    setLoading(false)
+                })
+            } else {
+                // If auth is done but no clinic_id, stop waiting
+                setInitializing(false)
+                setLoading(false)
+            }
         }
-    }, [profile?.clinic_id])
+    }, [profile?.clinic_id, authLoading])
+
+    // Safety timeout to prevent infinite white screen
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (initializing) {
+                console.warn('Initialization timeout - forcing UI')
+                setInitializing(false)
+                setLoading(false)
+            }
+        }, 5000)
+        return () => clearTimeout(timer)
+    }, [initializing])
 
     if (initializing) {
         return (
