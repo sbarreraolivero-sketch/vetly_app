@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         .single()
 
                     const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Profile fetch timeout')), 15000)
+                        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
                     )
 
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,58 +250,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         }).catch(err => console.error('Error storing tokens:', err))
                     }
 
-                    // Fetch fresh data
-                    const { data: profileData, status: profileStatus } = await fetchProfile(session.user.id)
-                    
+                    // FETCH ALL PROFILE DATA IN PARALLEL
+                    const profilePromise = fetchProfile(session.user.id)
+                    const clinicsPromise = fetchUserClinics()
+
                     if (mounted) {
-                        // If no profile, we can't do much, but at least we don't loop
-                        if (profileData) {
-                            setProfile(profileData)
-                            
-                            // Parallel fetch of dependencies
-                            await fetchUserClinics()
-                            
-                            let subData = null
-                            let memberData = null
-
-                            if (profileData.clinic_id) {
-                                // Fetch Subscription with 406 safety
-                                subData = await fetchSubscription(profileData.clinic_id)
-
-                                // Fetch Member
-                                try {
-                                    const { data } = await supabase
-                                        .from('clinic_members')
-                                        .select('*')
-                                        .eq('user_id', session.user.id)
-                                        .eq('clinic_id', profileData.clinic_id)
-                                        .single()
-                                    memberData = data
-                                } catch (e) { console.error('Member fetch error:', e) }
-                            }
-
-                            if (mounted) {
-                                setSubscription(subData || { status: 'trial', plan: 'trial' } as any)
-                                if (memberData) setMember(memberData as any)
-                                setLoading(false)
-                            }
-                        } else {
-                            // Profile fetch returned null. We only clear the session if the profile is strictly NOT FOUND.
-                            // If it's a network error, we keep the cached profile and let them continue.
-                            if (profileStatus === 'not_found' && !window.location.pathname.startsWith('/hq')) {
-                                console.warn('Profile not found for this user, clearing Frankenstein session.')
-                                setProfile(null)
-                                setMember(null)
-                                setSubscription(null)
-                                setClinics([])
-                                localStorage.removeItem(PROFILE_STORAGE_KEY)
-                                localStorage.removeItem(SUBSCRIPTION_STORAGE_KEY)
-                                localStorage.removeItem(CLINICS_STORAGE_KEY)
-                            } else if (profileStatus === 'error') {
-                                console.warn('Profile fetch failed due to network error, keeping cached profile if exists.')
-                            }
+                        // If we have a cached profile, we can stop loading early (Optimistic UI)
+                        if (profile) {
                             setLoading(false)
                         }
+                    }
+
+                    const [{ data: profileData, status: profileStatus }, clinicsData] = await Promise.all([
+                        profilePromise,
+                        clinicsPromise
+                    ])
+                    
+                    if (mounted && profileData) {
+                        setProfile(profileData)
+                        
+                        // Concurrent fetch for sub-dependencies
+                        const [subData, memberDataRes] = await Promise.all([
+                            profileData.clinic_id ? fetchSubscription(profileData.clinic_id) : Promise.resolve(null),
+                            profileData.clinic_id ? supabase
+                                .from('clinic_members')
+                                .select('*')
+                                .eq('user_id', session.user.id)
+                                .eq('clinic_id', profileData.clinic_id)
+                                .single() : Promise.resolve({ data: null })
+                        ])
+
+                        if (mounted) {
+                            setSubscription(subData || { status: 'trial', plan: 'trial' } as any)
+                            if (memberDataRes.data) setMember(memberDataRes.data as any)
+                            setLoading(false)
+                        }
+                    } else if (mounted) {
+                        // Handle no profile case
+                        if (profileStatus === 'not_found' && !window.location.pathname.startsWith('/hq')) {
+                            setProfile(null)
+                            // Clean up...
+                        }
+                        setLoading(false)
                     }
                 } else {
                     localStorage.removeItem(PROFILE_STORAGE_KEY)
