@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
-import { useNavigate } from 'react-router-dom'
 import {
     Calendar,
     Clock,
@@ -85,7 +84,6 @@ const INITIAL_FORM_STATE = {
 export default function Appointments() {
     const { user, profile, session, member, loading: authLoading } = useAuth()
     const isProfessional = member?.role === 'professional'
-    const navigate = useNavigate()
     const [appointments, setAppointments] = useState<Appointment[]>([])
     const [loading, setLoading] = useState(true)
     const [initializing, setInitializing] = useState(true)
@@ -102,7 +100,6 @@ export default function Appointments() {
     const [services, setServices] = useState<any[]>([])
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
-    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
 
     // Date filter state
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week'>('all')

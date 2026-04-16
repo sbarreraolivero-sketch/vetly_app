@@ -103,14 +103,14 @@ export default function Messages() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: tutors } = await (supabase as any)
                 .from('tutors')
-                .select('phone_number, name, requires_human')
+                .select('phone, name, requires_human')
                 .eq('clinic_id', profile.clinic_id)
-                .in('phone_number', phones)
+                .in('phone', phones)
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             tutors?.forEach((t: any) => {
-                if (t.name) nameMap.set(t.phone_number, t.name)
-                if (t.requires_human) humanMap.set(t.phone_number, true)
+                if (t.name) nameMap.set(t.phone, t.name)
+                if (t.requires_human) humanMap.set(t.phone, true)
             })
 
             // Fetch fallback names from messages if tutor not found (historical context)
@@ -274,7 +274,7 @@ export default function Messages() {
                 .from('tutors')
                 .update({ requires_human: newStatus })
                 .eq('clinic_id', profile.clinic_id)
-                .eq('phone_number', conv.phone_number)
+                .eq('phone', conv.phone_number)
 
             if (updateError) throw updateError
 

@@ -186,7 +186,7 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                         </div>
                         <div>
                             <p className="text-xs text-charcoal/50 uppercase font-medium">Teléfono</p>
-                            <p className="text-charcoal">{formatPhoneNumber(tutor.phone_number)}</p>
+                            <p className="text-charcoal">{formatPhoneNumber(tutor.phone)}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
