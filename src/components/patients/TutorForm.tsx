@@ -164,8 +164,11 @@ export function TutorForm({ tutor, onClose, onSave }: TutorFormProps) {
                                     value={formData.phone_number}
                                     onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                                     className="input-soft font-bold"
-                                    placeholder="Ej: 521234567890"
+                                    placeholder="56912345678"
                                 />
+                                <p className="mt-1.5 text-[10px] text-charcoal/40 font-bold uppercase tracking-widest pl-1">
+                                    Sin el símbolo + y sin espacios
+                                </p>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
