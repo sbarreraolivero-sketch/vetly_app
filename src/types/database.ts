@@ -194,7 +194,7 @@ export interface Database {
                     id: string
                     clinic_id: string | null
                     patient_name: string
-                    phone_number: string
+                    phone: string
                     service: string | null
                     appointment_date: string
                     duration: number
@@ -220,7 +220,7 @@ export interface Database {
                     id?: string
                     clinic_id?: string | null
                     patient_name: string
-                    phone_number: string
+                    phone: string
                     service?: string | null
                     appointment_date: string
                     duration?: number
@@ -245,7 +245,7 @@ export interface Database {
                     id?: string
                     clinic_id?: string | null
                     patient_name?: string
-                    phone_number?: string
+                    phone?: string
                     service?: string | null
                     appointment_date?: string
                     duration?: number
@@ -271,7 +271,7 @@ export interface Database {
                 Row: {
                     id: string
                     clinic_id: string | null
-                    phone_number: string
+                    phone: string
                     name: string | null
                     email: string | null
                     address: string | null
@@ -284,7 +284,7 @@ export interface Database {
                 Insert: {
                     id?: string
                     clinic_id?: string | null
-                    phone_number: string
+                    phone: string
                     name?: string | null
                     email?: string | null
                     address?: string | null
@@ -297,7 +297,7 @@ export interface Database {
                 Update: {
                     id?: string
                     clinic_id?: string | null
-                    phone_number?: string
+                    phone?: string
                     name?: string | null
                     email?: string | null
                     address?: string | null

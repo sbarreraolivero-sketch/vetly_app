@@ -31,8 +31,6 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
-import { TutorForm } from '@/components/patients/TutorForm'
-import { MedicalEventForm as ClinicalRecordForm } from '@/components/patients/MedicalEventForm'
 import { GuideBox } from '@/components/ui/GuideBox'
 
 interface Appointment {
@@ -104,11 +102,7 @@ export default function Appointments() {
     const [services, setServices] = useState<any[]>([])
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
-
-    const [showRecordModal, setShowRecordModal] = useState(false)
-    const [showPatientModal, setShowPatientModal] = useState(false)
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-    const [foundPatient, setFoundPatient] = useState<any>(null)
 
     // Date filter state
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week'>('all')
@@ -227,27 +221,7 @@ export default function Appointments() {
 
             // Handle "Completed" status - CRM Integration
             if (newStatus === 'completed') {
-                // Fetch the appointment again to get the auto-generated patient_id from the DB trigger
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: updatedApt, error: fetchErr } = await (supabase as any)
-                    .from('appointments')
-                    .select('*, patient:patients(id, name)')
-                    .eq('id', id)
-                    .single()
-
-                if (!fetchErr && updatedApt?.patient) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const patientData = (updatedApt as any).patient
-                    if (window.confirm(`Cita completada con éxito.\n\nEl paciente ${patientData.name} está registrado en tu CRM.\n\n¿Deseas agregar sus notas y ficha clínica ahora?`)) {
-                        navigate(`/app/patients/${patientData.id}?action=new_record`)
-                    }
-                } else {
-                    // If no patient found, prompt to create one
-                    if (window.confirm('Cita completada. Sin embargo, este paciente aún no está registrado en tu CRM.\n\n¿Deseas registrarlo ahora para llevar su historial clínico?')) {
-                        setSelectedAppointment(updatedApt || appointment)
-                        setShowPatientModal(true)
-                    }
-                }
+                alert('¡Cita completada con éxito!')
             }
             // Sync with Google Calendar
             if (newStatus === 'cancelled') {
@@ -958,7 +932,7 @@ export default function Appointments() {
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
-                                    phone_number: event.resource.phone_number,
+                                    phone: event.resource.phone || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1799,98 +1773,6 @@ export default function Appointments() {
                         </div>
                     </div>,
                     document.body
-                )
-            }
-            {/* Clinical Record Modal */}
-            {
-                showRecordModal && foundPatient && selectedAppointment && (
-                    <ClinicalRecordForm
-                        patientId={foundPatient.id}
-                        event={{
-                            id: '', // New record
-                            patient_id: foundPatient.id,
-                            event_date: selectedAppointment.appointment_date,
-                            event_type: selectedAppointment.service,
-                            reason: selectedAppointment.notes || '',
-                            anamnesis: '',
-                            diagnosis: '',
-                            procedure_notes: '',
-                            veterinarian_id: profile!.id,
-                            created_at: new Date().toISOString()
-                        }}
-                        onClose={() => {
-                            setShowRecordModal(false)
-                            setSelectedAppointment(null)
-                            setFoundPatient(null)
-                        }}
-                        onSave={async () => {
-                            // Refresh data or show success toast
-                            console.log('Record created!')
-
-                            // Update patient stats
-                            try {
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const { error: statsError } = await (supabase as any).rpc('increment_patient_appointments', {
-                                    p_patient_id: foundPatient.id,
-                                    p_last_appointment: new Date().toISOString()
-                                })
-
-                                if (statsError) {
-                                    // Fallback to manual update if RPC doesn't exist (it doesn't yet)
-                                    // We'll trust the manual update for now as we didn't plan an RPC
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const { error: manualError } = await (supabase as any)
-                                        .from('patients')
-                                        .update({
-                                            last_appointment_at: new Date().toISOString(),
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            total_appointments: ((foundPatient as any).total_appointments || 0) + 1
-                                        })
-                                        .eq('id', foundPatient.id)
-
-                                    if (manualError) throw manualError
-                                }
-                                console.log('Patient stats updated')
-                            } catch (err) {
-                                console.error('Error updating patient stats:', err)
-                            }
-                        }}
-                    />
-                )
-            }
-
-            {/* Tutor Creation Modal (Fallback for CRM) */}
-            {
-                showPatientModal && selectedAppointment && (
-                    <TutorForm
-                        tutor={{
-                            // Pre-fill with appointment data
-                            id: '', 
-                            clinic_id: profile!.clinic_id,
-                            created_at: '',
-                            updated_at: '',
-                            total_appointments: 0,
-                            last_appointment_at: null,
-                            name: selectedAppointment.patient_name,
-                            phone: selectedAppointment.phone,
-                            notes: selectedAppointment.notes,
-                            email: null,
-                            address: null,
-                        }}
-                        onClose={() => {
-                            setShowPatientModal(false)
-                            if (!foundPatient) setSelectedAppointment(null)
-                        }}
-                        onSave={(newTutor: any) => {
-                            if (newTutor) {
-                                // Since logic expects a 'patient' object structure for the following flow, 
-                                // we mock it with what we need or adjust flow.
-                                setFoundPatient(newTutor)
-                                setShowPatientModal(false)
-                                setTimeout(() => setShowRecordModal(true), 100)
-                            }
-                        }}
-                    />
                 )
             }
         </div >
