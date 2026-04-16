@@ -150,6 +150,12 @@ export default function Appointments() {
         }
     }
 
+    // Fetch Google Calendar Events via Edge Function
+    const fetchGoogleEvents = async () => {
+        // Disabled by user request
+        return
+    }
+
     useEffect(() => {
         // Only proceed once Auth is done checking
         if (!authLoading) {
@@ -400,11 +406,6 @@ export default function Appointments() {
     }
 
 
-    // Fetch Google Calendar Events via Edge Function
-    const fetchGoogleEvents = async () => {
-        // Disabled by user request
-        return
-    }
 
 
     const handleSaveAppointment = async (e: React.FormEvent) => {
