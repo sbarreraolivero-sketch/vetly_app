@@ -36,7 +36,7 @@ interface Appointment {
     id: string
     patient_name: string
     tutor_name?: string | null
-    phone: string
+    phone_number: string
     service: string
     appointment_date: string
     appointment_time: string
@@ -71,7 +71,7 @@ const tabs = [
 const INITIAL_FORM_STATE = {
     patient_name: '',
     tutor_name: '',
-    phone: '',
+    phone_number: '',
     service: '',
     appointment_date: '',
     appointment_time: '',
@@ -198,7 +198,7 @@ export default function Appointments() {
 
             const patientName = appointment.patient_name || ''
             const serviceName = appointment.service || ''
-            const phoneVal = appointment.phone || ''
+            const phoneVal = appointment.phone_number || ''
 
             const matchesSearch =
                 patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -428,7 +428,7 @@ export default function Appointments() {
                 const updateData = {
                     patient_name: newAppointment.patient_name,
                     tutor_name: newAppointment.tutor_name,
-                    phone: newAppointment.phone,
+                    phone_number: newAppointment.phone_number,
                     service: newAppointment.service,
                     appointment_date: appointmentDate,
                     notes: newAppointment.notes,
@@ -457,7 +457,7 @@ export default function Appointments() {
                     clinic_id: profile.clinic_id,
                     patient_name: newAppointment.patient_name,
                     tutor_name: newAppointment.tutor_name,
-                    phone: newAppointment.phone,
+                    phone_number: newAppointment.phone_number,
                     service: newAppointment.service,
                     appointment_date: appointmentDate,
                     status: 'confirmed',
@@ -934,7 +934,7 @@ export default function Appointments() {
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
-                                    phone: event.resource.phone || '',
+                                    phone_number: event.resource.phone_number || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -964,7 +964,7 @@ export default function Appointments() {
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
-                                    phone: event.resource.phone || '',
+                                    phone_number: event.resource.phone_number || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1002,7 +1002,7 @@ export default function Appointments() {
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
-                                    phone: event.resource.phone || '',
+                                    phone_number: event.resource.phone_number || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1061,7 +1061,7 @@ export default function Appointments() {
                                                     <p className="font-medium text-charcoal">{appointment.patient_name}</p>
                                                     <p className="text-sm text-charcoal/50 flex items-center gap-1">
                                                         <Phone className="w-3 h-3" />
-                                                        {formatPhoneNumber(appointment.phone)}
+                                                        {formatPhoneNumber(appointment.phone_number)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1162,7 +1162,7 @@ export default function Appointments() {
                                                                     setNewAppointment({
                                                                         patient_name: appointment.patient_name,
                                                                         tutor_name: appointment.tutor_name || '',
-                                                                        phone: appointment.phone,
+                                                                        phone_number: appointment.phone_number,
                                                                         service: appointment.service,
                                                                         appointment_date: appointment.appointment_date.split('T')[0],
                                                                         appointment_time: appointment.appointment_date.split('T')[1].slice(0, 5),
@@ -1223,7 +1223,7 @@ export default function Appointments() {
                                             <div className="flex flex-col gap-1 mt-1">
                                                 <p className="text-xs font-bold sm:text-xs text-charcoal/40 flex items-center gap-1">
                                                     <Phone className="w-3 h-3" />
-                                                    {formatPhoneNumber(appointment.phone)}
+                                                    {formatPhoneNumber(appointment.phone_number)}
                                                 </p>
                                                 <span className={cn('inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full w-fit font-bold uppercase tracking-wider border mt-1', getStatusColor(appointment.status))}>
                                                     {getStatusIcon(appointment.status)}
@@ -1326,7 +1326,7 @@ export default function Appointments() {
                                             setNewAppointment({
                                                 patient_name: appointment.patient_name,
                                                 tutor_name: appointment.tutor_name || '',
-                                                phone: appointment.phone,
+                                                phone_number: appointment.phone_number,
                                                 service: appointment.service,
                                                 appointment_date: appointment.appointment_date.split('T')[0],
                                                 appointment_time: appointment.appointment_date.split('T')[1].slice(0, 5),
@@ -1450,7 +1450,7 @@ export default function Appointments() {
                                         setNewAppointment({
                                             patient_name: '',
                                             tutor_name: '',
-                                            phone: '',
+                                            phone_number: '',
                                             service: '',
                                             appointment_date: '',
                                             appointment_time: '',
@@ -1499,8 +1499,8 @@ export default function Appointments() {
                                     </label>
                                     <input
                                         type="tel"
-                                        value={newAppointment.phone}
-                                        onChange={(e) => setNewAppointment({ ...newAppointment, phone: e.target.value })}
+                                        value={newAppointment.phone_number}
+                                        onChange={(e) => setNewAppointment({ ...newAppointment, phone_number: e.target.value })}
                                         placeholder="Ej: +52 55 1234 5678"
                                         className="input-soft w-full"
                                     />
@@ -1761,7 +1761,7 @@ export default function Appointments() {
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
-                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.patient_name || !newAppointment.phone || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
+                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
                                         className="btn-primary flex-1 sm:flex-initial flex items-center justify-center gap-2"
                                     >
                                         {saving ? (

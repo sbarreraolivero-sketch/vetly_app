@@ -194,7 +194,7 @@ export interface Database {
                     id: string
                     clinic_id: string | null
                     patient_name: string
-                    phone: string
+                    phone_number: string
                     service: string | null
                     appointment_date: string
                     duration: number
@@ -220,7 +220,7 @@ export interface Database {
                     id?: string
                     clinic_id?: string | null
                     patient_name: string
-                    phone: string
+                    phone_number: string
                     service?: string | null
                     appointment_date: string
                     duration?: number
@@ -245,7 +245,7 @@ export interface Database {
                     id?: string
                     clinic_id?: string | null
                     patient_name?: string
-                    phone?: string
+                    phone_number?: string
                     service?: string | null
                     appointment_date?: string
                     duration?: number
