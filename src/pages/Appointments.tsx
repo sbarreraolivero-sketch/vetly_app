@@ -106,10 +106,11 @@ export default function Appointments() {
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
 
-    // CRM Integration State
     const [showRecordModal, setShowRecordModal] = useState(false)
     const [showPatientModal, setShowPatientModal] = useState(false)
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+    const [foundPatient, setFoundPatient] = useState<any>(null)
+
     // Date filter state
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week'>('all')
     const [showDatePicker, setShowDatePicker] = useState(false)
@@ -270,7 +271,7 @@ export default function Appointments() {
             } else {
                 alert(`Error al actualizar el estado: ${errorMsg}`)
             }
-            fetchAppointments()
+            fetchAllData()
         }
     }
 
@@ -456,7 +457,7 @@ export default function Appointments() {
             setEditingId(null)
 
             // Refresh list
-            fetchAppointments()
+            fetchAllData()
 
         } catch (error: any) {
             console.error('Error creating appointment:', error)
@@ -492,7 +493,7 @@ export default function Appointments() {
             }
 
             // 4. Optional: Force refresh from DB just to be 100% sure
-            // fetchAppointments() 
+            // fetchAllData() 
 
         } catch (error) {
             console.error('Error deleting appointment:', error)
@@ -988,7 +989,7 @@ export default function Appointments() {
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
-                                    phone_number: event.resource.phone_number,
+                                    phone: event.resource.phone || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1026,7 +1027,7 @@ export default function Appointments() {
                                 setNewAppointment({
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
-                                    phone_number: event.resource.phone_number,
+                                    phone: event.resource.phone || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1872,7 +1873,7 @@ export default function Appointments() {
                             total_appointments: 0,
                             last_appointment_at: null,
                             name: selectedAppointment.patient_name,
-                            phone_number: selectedAppointment.phone_number,
+                            phone: selectedAppointment.phone,
                             notes: selectedAppointment.notes,
                             email: null,
                             address: null,

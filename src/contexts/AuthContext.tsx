@@ -258,7 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             setProfile(profileData)
                             
                             // Once we have profile, fetch clinics and other stuff in parallel
-                            const [clinicsData, subData, memberRes] = await Promise.all([
+                            const [, subData, memberRes] = await Promise.all([
                                 fetchUserClinics(),
                                 profileData.clinic_id ? fetchSubscription(profileData.clinic_id) : Promise.resolve(null),
                                 profileData.clinic_id ? supabase
@@ -266,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                     .select('*')
                                     .eq('user_id', session.user.id)
                                     .eq('clinic_id', profileData.clinic_id)
-                                    .single() : Promise.resolve({ data: null })
+                                    .single() : Promise.resolve({ data: null, error: null } as any)
                             ])
 
                             if (mounted) {
