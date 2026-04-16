@@ -311,21 +311,22 @@ export default function Appointments() {
 
             if (editingId) {
                 // UPDATE existing appointment
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+                const updateData = {
+                    patient_name: newAppointment.patient_name,
+                    tutor_name: newAppointment.tutor_name,
+                    phone_number: newAppointment.phone_number,
+                    service: newAppointment.service,
+                    appointment_date: appointmentDate,
+                    notes: newAppointment.notes,
+                    professional_id: (newAppointment.professional_id && newAppointment.professional_id.length > 20) ? newAppointment.professional_id : null,
+                    address: newAppointment.address,
+                    address_references: newAppointment.address_references,
+                }
+                
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error } = await (supabase as any)
                     .from('appointments')
-                    .update({
-                        patient_name: newAppointment.patient_name,
-                        tutor_name: newAppointment.tutor_name,
-                        phone_number: newAppointment.phone_number,
-                        service: newAppointment.service,
-                        appointment_date: appointmentDate,
-                        notes: newAppointment.notes,
-                        professional_id: newAppointment.professional_id || null,
-                        address: newAppointment.address,
-                        address_references: newAppointment.address_references,
-                        // Don't update clinic_id or user_id
-                    })
+                    .update(updateData)
                     .eq('id', editingId)
                     .select()
                     .single()
@@ -338,24 +339,24 @@ export default function Appointments() {
 
             } else {
                 // CREATE new appointment
+                const appointmentData = {
+                    clinic_id: profile.clinic_id,
+                    patient_name: newAppointment.patient_name,
+                    tutor_name: newAppointment.tutor_name,
+                    phone_number: newAppointment.phone_number,
+                    service: newAppointment.service,
+                    appointment_date: appointmentDate,
+                    status: 'confirmed',
+                    notes: newAppointment.notes,
+                    professional_id: (newAppointment.professional_id && newAppointment.professional_id.length > 20) ? newAppointment.professional_id : null,
+                    address: newAppointment.address,
+                    address_references: newAppointment.address_references,
+                }
+
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data, error } = await (supabase as any)
                     .from('appointments')
-                    .insert([
-                        {
-                            clinic_id: profile.clinic_id,
-                            patient_name: newAppointment.patient_name,
-                            tutor_name: newAppointment.tutor_name,
-                            phone_number: newAppointment.phone_number,
-                            service: newAppointment.service,
-                            appointment_date: appointmentDate,
-                            status: 'confirmed',
-                            notes: newAppointment.notes,
-                            professional_id: newAppointment.professional_id || null,
-                            address: newAppointment.address,
-                            address_references: newAppointment.address_references,
-                        },
-                    ])
+                    .insert([appointmentData])
                     .select()
                     .single()
 
