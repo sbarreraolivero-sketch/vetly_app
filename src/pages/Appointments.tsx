@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
@@ -142,21 +142,25 @@ export default function Appointments() {
 
     // Fetch appointments function
     const fetchAppointments = async () => {
-        if (!user || !profile?.clinic_id) {
+        if (!profile?.clinic_id) {
             setLoading(false)
             return
         }
 
         try {
+            // OPTIMIZATION: Only fetch appointments from 3 months ago to the future
+            // This prevents loading thousands of old records that aren't needed for active management
+            const threeMonthsAgo = new Date()
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+            
             const { data, error } = await supabase
                 .from('appointments')
                 .select('*')
                 .eq('clinic_id', profile.clinic_id)
+                .gte('appointment_date', threeMonthsAgo.toISOString()) // Filter at DB level
                 .order('appointment_date', { ascending: false })
 
             if (error) throw error
-            console.log('Fetched appointments:', data)
-
             setAppointments(data || [])
         } catch (error) {
             console.error('Error fetching appointments:', error)
@@ -167,7 +171,7 @@ export default function Appointments() {
 
     useEffect(() => {
         fetchAppointments()
-    }, [user, profile])
+    }, [profile?.clinic_id])
 
     // Update appointment status
     const updateAppointmentStatus = async (id: string, newStatus: 'confirmed' | 'cancelled' | 'completed') => {
@@ -471,46 +475,48 @@ export default function Appointments() {
         }
     }
 
-    const filteredAppointments = appointments.filter((appointment) => {
-        const matchesSearch =
-            appointment.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            appointment.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            appointment.phone_number.includes(searchQuery)
+    const filteredAppointments = React.useMemo(() => {
+        return appointments.filter((appointment) => {
+            const matchesSearch =
+                appointment.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                appointment.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                appointment.phone_number.includes(searchQuery)
 
-        const matchesTab = activeTab === 'all' || appointment.status === activeTab
+            const matchesTab = activeTab === 'all' || appointment.status === activeTab
 
-        // Professional filter
-        let matchesProfessional = true;
-        if (isProfessional) {
-            matchesProfessional = appointment.professional_id === member?.id;
-        } else {
-            matchesProfessional = professionalFilter === 'all' || appointment.professional_id === professionalFilter;
-        }
+            // Professional filter
+            let matchesProfessional = true;
+            if (isProfessional) {
+                matchesProfessional = appointment.professional_id === member?.id;
+            } else {
+                matchesProfessional = professionalFilter === 'all' || appointment.professional_id === professionalFilter;
+            }
 
-        // Date filter logic
-        const appointmentDate = new Date(appointment.appointment_date)
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        const tomorrow = new Date(today)
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        const weekEnd = new Date(today)
-        weekEnd.setDate(weekEnd.getDate() + 7)
+            // Date filter logic
+            const appointmentDate = new Date(appointment.appointment_date)
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const tomorrow = new Date(today)
+            tomorrow.setDate(tomorrow.getDate() + 1)
+            const weekEnd = new Date(today)
+            weekEnd.setDate(weekEnd.getDate() + 7)
 
-        let matchesDate = true
-        if (dateFilter === 'today') {
-            const appointmentDay = new Date(appointmentDate)
-            appointmentDay.setHours(0, 0, 0, 0)
-            matchesDate = appointmentDay.getTime() === today.getTime()
-        } else if (dateFilter === 'tomorrow') {
-            const appointmentDay = new Date(appointmentDate)
-            appointmentDay.setHours(0, 0, 0, 0)
-            matchesDate = appointmentDay.getTime() === tomorrow.getTime()
-        } else if (dateFilter === 'week') {
-            matchesDate = appointmentDate >= today && appointmentDate <= weekEnd
-        }
+            let matchesDate = true
+            if (dateFilter === 'today') {
+                const appointmentDay = new Date(appointmentDate)
+                appointmentDay.setHours(0, 0, 0, 0)
+                matchesDate = appointmentDay.getTime() === today.getTime()
+            } else if (dateFilter === 'tomorrow') {
+                const appointmentDay = new Date(appointmentDate)
+                appointmentDay.setHours(0, 0, 0, 0)
+                matchesDate = appointmentDay.getTime() === tomorrow.getTime()
+            } else if (dateFilter === 'week') {
+                matchesDate = appointmentDate >= today && appointmentDate <= weekEnd
+            }
 
-        return matchesSearch && matchesTab && matchesDate && matchesProfessional
-    })
+            return matchesSearch && matchesTab && matchesDate && matchesProfessional
+        })
+    }, [appointments, searchQuery, activeTab, isProfessional, member?.id, professionalFilter, dateFilter])
 
     const getTabCount = (tabId: string) => {
         if (tabId === 'all') return appointments.length
@@ -558,63 +564,55 @@ export default function Appointments() {
     }
 
     // Map appointments to calendar events (excluding cancelled ones for visual clarity)
-    const mappedAppointments = appointments
-        .filter(apt => apt.status !== 'cancelled' && apt.appointment_date)
-        .map(apt => {
-            try {
-                let start: Date
+    const mappedAppointments = React.useMemo(() => {
+        return appointments
+            .filter(apt => apt.status !== 'cancelled' && apt.appointment_date)
+            .map(apt => {
+                try {
+                    let start: Date
 
-                // Extract date part safely (handling T or space separator)
-                const datePart = apt.appointment_date.includes('T') 
-                    ? apt.appointment_date.split('T')[0] 
-                    : apt.appointment_date.split(' ')[0]
+                    const datePart = apt.appointment_date.includes('T') 
+                        ? apt.appointment_date.split('T')[0] 
+                        : apt.appointment_date.split(' ')[0]
 
-                // Check if we have an explicit time column (newer records)
-                const hasExplicitTime = apt.appointment_time && 
-                                      apt.appointment_time !== '00:00' && 
-                                      apt.appointment_time !== '00:00:00';
+                    const hasExplicitTime = apt.appointment_time && 
+                                          apt.appointment_time !== '00:00' && 
+                                          apt.appointment_time !== '00:00:00';
 
-                if (hasExplicitTime) {
-                    // Ensure HH:mm format (sanitize)
-                    const timeStr = apt.appointment_time || '00:00'
-                    const [hour, minute] = timeStr.split(':').map(p => p.padStart(2, '0'))
-                    start = new Date(`${datePart}T${hour}:${minute}:00`)
-                } else {
-                    // Fallback: Try parsing appointment_date directly
-                    start = new Date(apt.appointment_date)
-                }
+                    if (hasExplicitTime) {
+                        const timeStr = apt.appointment_time || '00:00'
+                        const [hour, minute] = timeStr.split(':').map(p => p.padStart(2, '0'))
+                        start = new Date(`${datePart}T${hour}:${minute}:00`)
+                    } else {
+                        start = new Date(apt.appointment_date)
+                    }
 
-                // Debug check for invalid dates
-                if (isNaN(start.getTime())) {
-                    console.error('Invalid Date created for appointment:', apt.id, apt.appointment_date)
+                    if (isNaN(start.getTime())) return null
+
+                    const service = services.find(s => s.name === apt.service)
+                    const duration = apt.duration_minutes || (service ? service.duration : 60)
+                    const end = new Date(start.getTime() + (duration * 60 * 1000))
+
+                    const prof = apt.professional_id ? professionals.find(p => p.member_id === apt.professional_id) : null
+
+                    return {
+                        id: apt.id,
+                        title: `${apt.patient_name} - ${apt.service}${apt.address ? ` (${apt.address})` : ''}`,
+                        start,
+                        end,
+                        resource: {
+                            type: 'local',
+                            ...apt,
+                            professionalColor: prof?.color || undefined,
+                            professionalName: prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() : undefined
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error mapping appointment for calendar:', apt.id, err)
                     return null
                 }
-
-                // Find service duration (favor duration_minutes if present)
-                const service = services.find(s => s.name === apt.service)
-                const duration = apt.duration_minutes || (service ? service.duration : 60)
-                const end = new Date(start.getTime() + (duration * 60 * 1000))
-
-                // Get professional color
-                const prof = apt.professional_id ? professionals.find(p => p.member_id === apt.professional_id) : null
-
-                return {
-                    id: apt.id,
-                    title: `${apt.patient_name} - ${apt.service}${apt.address ? ` (${apt.address})` : ''}`,
-                    start,
-                    end,
-                    resource: {
-                        type: 'local',
-                        ...apt,
-                        professionalColor: prof?.color || undefined,
-                        professionalName: prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() : undefined
-                    }
-                }
-            } catch (err) {
-                console.error('Error mapping appointment for calendar:', apt.id, err)
-                return null
-            }
-        }).filter(Boolean) as CalendarEvent[]
+            }).filter(Boolean) as CalendarEvent[]
+    }, [appointments, services, professionals])
 
 
 
