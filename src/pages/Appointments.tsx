@@ -1717,52 +1717,51 @@ export default function Appointments() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-6 border-t border-silk-beige flex-shrink-0 bg-white rounded-b-soft overflow-hidden">
-                                <div className="w-full md:w-auto">
-                                    {editingId && (
-                                        <div className="flex flex-wrap gap-4 items-center justify-center md:justify-start w-full">
-                                            <button
-                                                onClick={() => {
-                                                    const appt = appointments.find(a => a.id === editingId)
-                                                    if (appt && confirm('¿Estás SEGURO de que quieres ELIMINAR permanentemente esta cita del sistema?')) {
-                                                        handleDeleteAppointment(appt)
-                                                        setShowModal(false)
-                                                    }
-                                                }}
-                                                className="text-xs sm:text-sm text-red-600 hover:text-red-700 font-bold flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 rounded-soft transition-all ring-1 ring-red-200"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                                Eliminar Definitivamente
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    if (confirm('¿Quieres marcar esta cita como CANCELADA (la cita se mantendrá en registros pero no en el calendario)?')) {
-                                                        updateAppointmentStatus(editingId, 'cancelled')
-                                                        setShowModal(false)
-                                                    }
-                                                }}
-                                                className="text-xs sm:text-sm text-charcoal/50 hover:text-charcoal font-medium underline underline-offset-4 decoration-charcoal/20"
-                                            >
-                                                Sólo Cancelar
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex gap-3 w-full md:w-auto">
+                            <div className="flex flex-col gap-6 p-6 border-t border-silk-beige flex-shrink-0 bg-white rounded-b-soft overflow-hidden">
+                                {editingId && (
+                                    <div className="flex items-center justify-between border-b border-charcoal/5 pb-4">
+                                        <button
+                                            onClick={() => {
+                                                const appt = appointments.find(a => a.id === editingId)
+                                                if (appt && confirm('¿Estás SEGURO de que quieres ELIMINAR permanentemente esta cita del sistema?')) {
+                                                    handleDeleteAppointment(appt)
+                                                    setShowModal(false)
+                                                }
+                                            }}
+                                            className="text-xs text-red-600 hover:text-red-700 font-bold flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg transition-all ring-1 ring-red-200"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            Eliminar Cita
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm('¿Quieres marcar esta cita como CANCELADA (la cita se mantendrá en registros pero no en el calendario)?')) {
+                                                    updateAppointmentStatus(editingId, 'cancelled')
+                                                    setShowModal(false)
+                                                }
+                                            }}
+                                            className="text-xs text-charcoal/50 hover:text-charcoal font-medium underline underline-offset-4 decoration-charcoal/20"
+                                        >
+                                            Sólo Cancelar
+                                        </button>
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-3 w-full sm:justify-end">
                                     <button
                                         onClick={() => {
                                             setShowModal(false)
                                             setEditingId(null)
                                             setNewAppointment(INITIAL_FORM_STATE)
                                         }}
-                                        className="btn-ghost flex-1 md:flex-initial text-sm"
+                                        className="btn-ghost flex-1 sm:flex-initial text-sm px-6"
                                     >
-                                        Cancelar
+                                        Cerrar
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
                                         disabled={saving || !newAppointment.tutor_name || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
-                                        className="btn-primary flex-1 md:flex-initial flex items-center justify-center gap-2 text-sm px-4 min-w-fit"
+                                        className="btn-primary flex-1 sm:px-8 flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[160px]"
                                     >
                                         {saving ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
