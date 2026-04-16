@@ -460,7 +460,7 @@ export default function Appointments() {
                     phone_number: newAppointment.phone_number,
                     service: newAppointment.service,
                     appointment_date: appointmentDate,
-                    status: 'confirmed',
+                    status: 'pending',
                     notes: newAppointment.notes,
                     professional_id: (newAppointment.professional_id && newAppointment.professional_id.length > 20) ? newAppointment.professional_id : null,
                     address: newAppointment.address,
@@ -1717,10 +1717,10 @@ export default function Appointments() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-6 border-t border-silk-beige flex-shrink-0 bg-white rounded-b-soft">
-                                <div className="w-full sm:w-auto">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-6 border-t border-silk-beige flex-shrink-0 bg-white rounded-b-soft overflow-hidden">
+                                <div className="w-full md:w-auto">
                                     {editingId && (
-                                        <div className="flex flex-col sm:flex-row gap-4 items-center w-full">
+                                        <div className="flex flex-wrap gap-4 items-center justify-center md:justify-start w-full">
                                             <button
                                                 onClick={() => {
                                                     const appt = appointments.find(a => a.id === editingId)
@@ -1729,7 +1729,7 @@ export default function Appointments() {
                                                         setShowModal(false)
                                                     }
                                                 }}
-                                                className="w-full sm:w-auto text-sm text-red-600 hover:text-red-700 font-bold flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 rounded-soft transition-all ring-1 ring-red-200"
+                                                className="text-xs sm:text-sm text-red-600 hover:text-red-700 font-bold flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 rounded-soft transition-all ring-1 ring-red-200"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                                 Eliminar Definitivamente
@@ -1741,28 +1741,28 @@ export default function Appointments() {
                                                         setShowModal(false)
                                                     }
                                                 }}
-                                                className="text-sm text-charcoal/50 hover:text-charcoal font-medium underline underline-offset-4 decoration-charcoal/20"
+                                                className="text-xs sm:text-sm text-charcoal/50 hover:text-charcoal font-medium underline underline-offset-4 decoration-charcoal/20"
                                             >
                                                 Sólo Cancelar
                                             </button>
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex gap-3 w-full sm:w-auto">
+                                <div className="flex gap-3 w-full md:w-auto">
                                     <button
                                         onClick={() => {
                                             setShowModal(false)
                                             setEditingId(null)
                                             setNewAppointment(INITIAL_FORM_STATE)
                                         }}
-                                        className="btn-ghost flex-1 sm:flex-initial"
+                                        className="btn-ghost flex-1 md:flex-initial text-sm"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
                                         disabled={saving || !newAppointment.tutor_name || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
-                                        className="btn-primary flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                                        className="btn-primary flex-1 md:flex-initial flex items-center justify-center gap-2 text-sm px-4 min-w-fit"
                                     >
                                         {saving ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
