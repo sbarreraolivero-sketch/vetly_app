@@ -428,8 +428,9 @@ export default function Appointments() {
             // Refresh list
             fetchAppointments()
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating appointment:', error)
+            alert('No pudimos crear la cita: ' + (error.message || 'Error de conexión o base de datos'))
         } finally {
             setSaving(false)
         }
@@ -654,21 +655,21 @@ export default function Appointments() {
                             <span>{viewMode === 'list' ? 'Ver Calendario' : 'Ver Lista'}</span>
                         </button>
                         {!isProfessional && (
-                            <button
-                                onClick={() => {
-                                    const now = new Date()
-                                    setNewAppointment({
-                                        ...INITIAL_FORM_STATE,
-                                        appointment_date: format(now, 'yyyy-MM-dd'),
-                                        appointment_time: '09:00',
-                                    })
-                                    setShowModal(true)
-                                }}
-                                className="w-full sm:w-auto px-8 py-3.5 bg-white text-emerald-900 hover:bg-emerald-50 transition-all font-black rounded-xl flex items-center justify-center gap-2 shadow-premium hover:scale-105 active:scale-95 uppercase text-xs tracking-widest"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Nueva Cita
-                            </button>
+                                <button
+                                    onClick={() => {
+                                        const now = new Date()
+                                        setNewAppointment({
+                                            ...INITIAL_FORM_STATE,
+                                            appointment_date: format(now, 'yyyy-MM-dd'),
+                                            appointment_time: '09:00',
+                                        })
+                                        setShowModal(true)
+                                    }}
+                                    className="w-full sm:w-auto px-8 py-3.5 bg-white text-emerald-900 hover:bg-emerald-50 transition-all font-black rounded-xl flex items-center justify-center gap-2 shadow-premium hover:scale-105 active:scale-95 uppercase text-xs tracking-widest"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                    Nueva Cita
+                                </button>
                         )}
                     </div>
                 </div>
@@ -1750,7 +1751,7 @@ export default function Appointments() {
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
-                                        disabled={saving || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
+                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
                                         className="btn-primary flex-1 sm:flex-initial flex items-center justify-center gap-2"
                                     >
                                         {saving ? (
