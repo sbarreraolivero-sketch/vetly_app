@@ -1258,8 +1258,8 @@ export default function Appointments() {
                                                                         professional_id: appointment.professional_id || '',
                                                                         address: appointment.address || '',
                                                                         address_references: appointment.address_references || '',
-                                                                        tutor_id: appointment.tutor_id,
-                                                                        pet_id: appointment.pet_id
+                                                                        tutor_id: appointment.tutor_id || null,
+                                                                        pet_id: appointment.pet_id || null
                                                                     })
                                                                     setShowModal(true) // Open modal
                                                                 }}
@@ -1424,8 +1424,8 @@ export default function Appointments() {
                                                 professional_id: appointment.professional_id || '',
                                                 address: appointment.address || '',
                                                 address_references: appointment.address_references || '',
-                                                tutor_id: appointment.tutor_id,
-                                                pet_id: appointment.pet_id
+                                                tutor_id: appointment.tutor_id || null,
+                                                pet_id: appointment.pet_id || null
                                             })
                                             setShowModal(true)
                                         }}
