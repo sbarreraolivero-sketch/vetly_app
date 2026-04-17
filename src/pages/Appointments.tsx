@@ -157,12 +157,40 @@ export default function Appointments() {
             }
 
             const fetchTutors = async () => {
-                const { data } = await (supabase as any).rpc('get_unified_contacts', {
-                    p_clinic_id: profile.clinic_id
-                })
-                if (data) {
-                    const onlyTutors = (data || []).filter((c: any) => c.type === 'tutor')
-                    setTutors(onlyTutors)
+                try {
+                    const [contactsRes, histRes] = await Promise.all([
+                        (supabase as any).rpc('get_unified_contacts', { p_clinic_id: profile.clinic_id }),
+                        supabase.from('appointments').select('tutor_name, phone_number, address, tutor_id').eq('clinic_id', profile.clinic_id)
+                    ])
+
+                    const tutorMap = new Map()
+
+                    // 1. Add official contacts
+                    if (contactsRes.data) {
+                        contactsRes.data.filter((c: any) => c.type === 'tutor').forEach((t: any) => {
+                            if (t.name) tutorMap.set(t.name.toLowerCase().trim(), t)
+                        })
+                    }
+
+                    // 2. Enrich with historical data from appointments (in case they are not in tutors table)
+                    if (histRes.data) {
+                        histRes.data.forEach((app: any) => {
+                            const nameLower = app.tutor_name?.toLowerCase().trim()
+                            if (nameLower && !tutorMap.has(nameLower)) {
+                                tutorMap.set(nameLower, {
+                                    id: app.tutor_id || `hist-${Math.random()}`,
+                                    name: app.tutor_name,
+                                    phone_number: app.phone_number,
+                                    address: app.address,
+                                    is_historical: true
+                                })
+                            }
+                        })
+                    }
+
+                    setTutors(Array.from(tutorMap.values()))
+                } catch (err) {
+                    console.error('Error in fetchTutors:', err)
                 }
             }
 
