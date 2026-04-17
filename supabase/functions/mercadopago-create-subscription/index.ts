@@ -27,12 +27,12 @@ const PLAN_PRICES: Record<string, Record<string, number>> = {
         USD: 159,
     },
     prestige: {
-        CLP: 280000,
+        CLP: 335000,
         ARS: 299000,
         MXN: 5200,
         COP: 1170000,
         PEN: 1120,
-        USD: 299,
+        USD: 349,
     },
 };
 

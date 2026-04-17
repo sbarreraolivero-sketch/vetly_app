@@ -13,7 +13,7 @@ initMercadoPago(MP_PUBLIC_KEY, { locale: 'es-CL' })
 const plans = [
     { id: 'essence', name: 'Essence', price: 99, popular: false },
     { id: 'radiance', name: 'Radiance', price: 159, popular: true },
-    { id: 'prestige', name: 'Prestige', price: 297, popular: false },
+    { id: 'prestige', name: 'Prestige', price: 349, popular: false },
 ]
 
 const ROLE_TRANSLATIONS: Record<string, string> = {

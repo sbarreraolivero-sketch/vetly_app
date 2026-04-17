@@ -146,7 +146,7 @@ export const PLANS = {
         id: 'prestige',
         name: 'Prestige',
         tagline: 'Top de línea para redes veterinarias',
-        price: 280000,
+        price: 335000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: -1,
         maxUsers: 999999,

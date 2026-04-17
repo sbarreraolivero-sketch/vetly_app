@@ -51,7 +51,7 @@ export const LS_PLANS = {
         id: 'prestige',
         name: 'Prestige',
         tagline: 'Potencia para Cadenas y Hospitales',
-        price: 297,
+        price: 349,
         currency: 'USD',
         monthlyAppointments: -1,
         maxUsers: 999999,

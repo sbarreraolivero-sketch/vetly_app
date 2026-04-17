@@ -58,7 +58,7 @@ const plans = [
         id: 'prestige',
         name: 'Prestige',
         tagline: 'Top de línea para redes veterinarias',
-        price: 299,
+        price: 349,
         period: '/mes',
         description: 'Infraestructura empresarial absoluta para controlar y escalar múltiples sedes.',
         highlight: false,
