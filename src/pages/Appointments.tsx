@@ -435,13 +435,17 @@ export default function Appointments() {
     const handleTutorInputChange = (value: string) => {
         setNewAppointment({ ...newAppointment, tutor_name: value, tutor_id: null })
         
-        if (value.length > 0) {
-            const filtered = tutors.filter(t => 
-                t.name?.toLowerCase().startsWith(value.toLowerCase())
-            ).slice(0, 5) // Limit to top 5 results
+        if (value.trim().length > 0) {
+            const query = value.toLowerCase().trim()
+            const filtered = tutors.filter(t => {
+                const name = (t.name || '').toLowerCase()
+                const parts = name.split(' ').filter(p => p.length > 0)
+                return parts.some(part => part.startsWith(query))
+            }).slice(0, 5) // Limit to top 5 results
             setFilteredTutors(filtered)
             setShowTutorAutocomplete(true)
         } else {
+            setFilteredTutors([])
             setShowTutorAutocomplete(false)
         }
     }
@@ -462,14 +466,18 @@ export default function Appointments() {
     const handlePatientInputChange = (value: string) => {
         setNewAppointment({ ...newAppointment, patient_name: value, pet_id: null })
         
-        if (value.length > 0 && newAppointment.tutor_id) {
-            const filtered = patients.filter(p => 
-                p.tutor_id === newAppointment.tutor_id && 
-                p.name?.toLowerCase().startsWith(value.toLowerCase())
-            ).slice(0, 5)
+        if (value.trim().length > 0 && newAppointment.tutor_id) {
+            const query = value.toLowerCase().trim()
+            const filtered = patients.filter(p => {
+                if (p.tutor_id !== newAppointment.tutor_id) return false
+                const name = (p.name || '').toLowerCase()
+                const parts = name.split(' ').filter(p => p.length > 0)
+                return parts.some(part => part.startsWith(query))
+            }).slice(0, 5)
             setFilteredPatients(filtered)
             setShowPatientAutocomplete(true)
         } else {
+            setFilteredPatients([])
             setShowPatientAutocomplete(false)
         }
     }
