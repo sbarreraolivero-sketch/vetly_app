@@ -47,6 +47,8 @@ interface Appointment {
     address?: string | null
     address_references?: string | null
     duration_minutes?: number
+    tutor_id?: string | null
+    pet_id?: string | null
 }
 
 interface ClinicProfessional {
@@ -1021,7 +1023,9 @@ export default function Appointments() {
                                     notes: event.resource.notes || '',
                                     professional_id: event.resource.professional_id || '',
                                     address: event.resource.address || '',
-                                    address_references: event.resource.address_references || ''
+                                    address_references: event.resource.address_references || '',
+                                    tutor_id: event.resource.tutor_id || null,
+                                    pet_id: event.resource.pet_id || null
                                 })
                                 setShowModal(true)
                             }}
@@ -1091,7 +1095,9 @@ export default function Appointments() {
                                     notes: event.resource.notes || '',
                                     professional_id: event.resource.professional_id || '',
                                     address: event.resource.address || '',
-                                    address_references: event.resource.address_references || ''
+                                    address_references: event.resource.address_references || '',
+                                    tutor_id: event.resource.tutor_id || null,
+                                    pet_id: event.resource.pet_id || null
                                 })
                                 setShowModal(true)
                             }}
