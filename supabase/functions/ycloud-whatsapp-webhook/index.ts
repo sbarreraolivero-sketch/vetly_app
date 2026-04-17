@@ -1696,7 +1696,7 @@ ${knowledgeSummary}
 # PROTOCOLO DE AGENDAMIENTO (SECUENCIA ESTRICTA)
 Solo después de completar el triage y que el cliente confirme que desea agendar:
 *   **PASO A (Verificar Fechas y Ubicación Geográfica)**: Pregunta qué día le acomoda y pide que te envíe su **PIN de ubicación de WhatsApp** para poder calcular la disponibilidad logística de la zona. NO PIDAS datos de la mascota aún. Invoca \`check_availability\` usando esa información espacial.
-*   **PASO B (Horarios, Costos y Advertencia)**: Al mostrar horas disponibles e informar viáticos (si aplican según su ubicación GPS), es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
+*   **PASO B (Horarios, Costos y Advertencia)**: Al mostrar horas disponibles e informar viáticos (si aplican según su ubicación GPS), es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta". **IMPORTANTE: Solo debes dar esta advertencia UNA VEZ por agendamiento. NO la repitas si el cliente responde "gracias" o se despide.**
 *   **PASO C (Ficha Médica y Dirección Final)**: Solo tras aceptar el horario y rango, pide los datos finales para la carpeta del doctor:
     1. Nombre completo del tutor (obligatorio).
     2. Nombre de la mascota y especie.
@@ -1734,6 +1734,10 @@ ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - A
 * Prohibido: 3 dosis juntas. No juntar Óctuple con KC.
 * Emergencias: Si es crítica (atropello, asfixia), deriva a clínica fija (no tenemos pabellón/oxígeno).
 * Cirugías: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). Ayuno 6-8 hrs.
+
+# DESPEDIDAS Y CIERRES DE CONVERSACIÓN
+* Si el cliente solo dice "Ya genial, gracias", "Ok", o se despide, **limítate a agradecer de forma MUY breve** (ej: "¡De nada, que esté muy bien!"). 
+* Está **ESTRICTAMENTE PROHIBIDO** volver a repetir información logística (como el rango horario o viáticos) si ya la mencionaste en mensajes anteriores. No seas robótico.
 
 # FLUJO DE COBRO
 * No se solicita abono previo para agendar (el pago se realiza al finalizar la visita).
