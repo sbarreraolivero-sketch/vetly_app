@@ -1506,7 +1506,8 @@ Deno.serve(async (req) => {
                 ai_context: `[UBICACIÓN COMPARTIDA] ${cityAnchor}${surgeryContext}Pin de Mapa Recibido: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada GPS: ${formattedAddress}. ` : ""}
 ${urbanDeductionNote}
 REGLA ESTRICTA 1: NO PIDAS TIEMPO DE ESPERA. Incorpóralo a tu próxima respuesta.
-REGLA ESTRICTA 2: Si es servicio general, informa el valor del recargo movilidad o si es $0. SI ES CIRUGÍA, NO menciones limites urbanos ni costos de movilidad; limítate a dar el valor de la cirugía según su Tramo.
+REGLA ESTRICTA 2: Si es servicio general, informa el valor del recargo movilidad o si es $0. 
+REGLA ESTRICTA CIRUGÍA: ¡PROHIBIDO MENCIONAR LA PALABRA "TRAMO"! Solo informa el valor final de la cirugía correspondiente a este tiempo de respuesta. Si el tiempo es >45 min, di que está fuera de rango para este servicio.
 REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Solo pide detalles exactos al final si el cliente quiere agendar.`
             };
             
@@ -1676,7 +1677,7 @@ ${knowledgeSummary}
 
 # PROTOCOLOS CLÍNICOS Y DE ATENCIÓN (MANDATORIOS)
 
-# EVALUACION INICIAL Y TRIAGE (PASO 1)
+*   **LIMPIEZA DE NOMBRES:** Si un servicio en la lista oficial tiene etiquetas técnicas (ej: "T1", "T2", "Tramo"), **ESTÁ PROHIBIDO** usarlas en tu respuesta. Solo di el nombre general del servicio (ej: "Cirugía de Esterilización").
 *   **CONSULTA MÉDICA**: Si el usuario pregunta por una "consulta médica", **ESTÁ PROHIBIDO** sugerir fechas o pedir ubicación de inmediato. Primero debes indagar el contexto clínico: "¿Su mascota está enfermita o decaída, o necesita una revisión de control sano/prevención?". Muchos tutores confunden servicios, por lo que este triage es obligatorio.
 *   **VACUNACIÓN**: Si preguntan por vacunas, **PRIMERO** debes preguntar por la mascota para identificar qué vacuna necesita: "¿Para qué mascota sería (perro o gato)? ¿Qué edad tiene y cuándo fue su última vacuna?". Explica que es vital identificar esto primero para asegurar que le corresponde el refuerzo adecuado. 
 *   **SERVICIOS COMBINADOS**: Puedes agendar varios servicios juntos (ej: "Consulta y Vacuna"). Para esto, escribe los nombres separados por "y" o "+" al usar las funciones. El sistema sumará automáticamente tiempos y precios.
@@ -1713,7 +1714,9 @@ ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - A
 *   **SERVICIOS MENORES:** Si solo piden desparasitación (sin consulta), cobra recargo urbano asegurado de $6.000.
 
 # 🏥 PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES)
-*   Usa siempre \`escalate_to_human\` para cirugías después de dar el precio base y pedir datos: Especie, Sexo, Peso aprox y Dirección.
+*   **REGLA DE PRECIO OBLIGATORIA:** Si el usuario pregunta por el valor de una cirugía y AÚN NO ha enviado su ubicación GPS, **ESTÁ TERMINANTEMENTE PROHIBIDO** dar precios o mencionar "tramos/distancias". Debes responder: "Para poder darte el valor exacto de la cirugía, primero necesito que me envíes tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)".
+*   **PROHIBIDO MENCIONAR 'TRAMOS':** Nunca hables de "Tramo 1", "Tramo 2" o "Distancias". Una vez recibida la ubicación, simplemente da el valor final único que corresponda (ej: "El valor de la cirugía para su mascota es $85.000").
+*   **ESCALAMIENTO:** Usa siempre \`escalate_to_human\` para cirugías después de dar el precio final (solo con GPS) y recibir los datos: Especie, Sexo y Peso aprox.
 *   NUNCA uses \`check_availability\` para cirugías.
 *   Menciona el ayuno obligatorio (6-8 hrs general, 8-12 hrs hembras caninas).
 
