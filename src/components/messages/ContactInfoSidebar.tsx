@@ -433,7 +433,7 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                                     className="text-xl font-bold text-charcoal mb-1 cursor-pointer hover:text-primary-600 transition-colors flex items-center justify-center gap-2 group"
                                     onClick={() => setIsEditingName(true)}
                                 >
-                                    {prospect.name || 'Sin nombre'}
+                                    {prospect?.name || 'Sin nombre'}
                                     <Plus className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </h3>
                             )}
@@ -449,7 +449,7 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-wider">Email</p>
-                                    <p className="text-sm text-charcoal truncate">{prospect.email || 'No proporcionado'}</p>
+                                    <p className="text-sm text-charcoal truncate">{prospect?.email || 'No proporcionado'}</p>
                                 </div>
                             </div>
 
@@ -459,7 +459,7 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-wider">Interés</p>
-                                    <p className="text-sm text-charcoal">{prospect.service_interest || 'Ninguno especificado'}</p>
+                                    <p className="text-sm text-charcoal">{prospect?.service_interest || 'Ninguno especificado'}</p>
                                 </div>
                             </div>
 
@@ -470,7 +470,7 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-wider">Fuente</p>
                                     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold font-bold bg-ivory border border-silk-beige text-charcoal/60 mt-1 capitalize">
-                                        {prospect.source || 'Directo'}
+                                        {prospect?.source || 'Directo'}
                                     </span>
                                 </div>
                             </div>
@@ -481,14 +481,14 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                     <section className="bg-silk-beige/10 rounded-soft p-4 border border-silk-beige/30 space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <Bot className={cn("w-5 h-5", prospect.requires_human ? "text-charcoal/30" : "text-primary-500")} />
+                                <Bot className={cn("w-5 h-5", prospect?.requires_human ? "text-charcoal/30" : "text-primary-500")} />
                                 <span className="text-sm font-semibold text-charcoal">Respuesta IA</span>
                             </div>
                             <div className={cn(
                                 "px-2 py-0.5 rounded-full text-xs font-bold font-bold uppercase",
-                                prospect.requires_human ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                                prospect?.requires_human ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
                             )}>
-                                {prospect.requires_human ? "Silenciada" : "Activa"}
+                                {prospect?.requires_human ? "Silenciada" : "Activa"}
                             </div>
                         </div>
                         <button 
@@ -496,14 +496,14 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                             disabled={saving}
                             className={cn(
                                 "w-full py-2 px-4 rounded-soft text-xs font-bold transition-all flex items-center justify-center gap-2",
-                                prospect.requires_human 
+                                prospect?.requires_human 
                                     ? "bg-primary-500 text-white hover:bg-primary-600 shadow-md"
                                     : "bg-ivory border border-silk-beige text-charcoal hover:bg-white"
                             )}
                         >
                             {saving ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : prospect.requires_human ? (
+                            ) : prospect?.requires_human ? (
                                 <>
                                     <Sparkles className="w-3.5 h-3.5" />
                                     Reactivar IA
@@ -581,7 +581,7 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                         </h4>
                         
                         <div className="space-y-3">
-                            {prospect.notes && (
+                            {prospect?.notes && (
                                 <div className="bg-ivory rounded-soft p-3 text-xs text-charcoal/70 whitespace-pre-wrap border border-silk-beige/50">
                                     {prospect.notes}
                                 </div>
@@ -610,11 +610,11 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
                     <section className="pt-4 border-t border-silk-beige/50 space-y-2">
                         <div className="flex items-center justify-between text-xs font-bold text-charcoal/30">
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Creado:</span>
-                            <span>{new Date(prospect.created_at).toLocaleDateString()}</span>
+                            <span>{prospect?.created_at ? new Date(prospect.created_at).toLocaleDateString() : '-'}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs font-bold text-charcoal/30">
                             <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Último cambio:</span>
-                            <span>{new Date(prospect.updated_at).toLocaleDateString()}</span>
+                            <span>{prospect?.updated_at ? new Date(prospect.updated_at).toLocaleDateString() : '-'}</span>
                         </div>
                     </section>
                 </div>
