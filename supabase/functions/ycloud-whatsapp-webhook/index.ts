@@ -1499,16 +1499,32 @@ REGLA ESTRICTA 3: ¡NO PIDAS SU CALLE, NUMERACIÓN O REFERENCIAS AÚN! Solo pide
 
         if (!clinic.ai_auto_respond) return new Response(JSON.stringify({ status: "saved" }), { headers: corsHeaders });
 
-        // VERIFY IF HUMAN IS REQUIRED (Silent IA)
-        const { data: tutorHand } = await sb.from("tutors")
-            .select("requires_human")
-            .eq("clinic_id", clinic.id)
-            .or(`phone_number.eq.${from},phone_number.eq.+${from}`)
-            .limit(1)
-            .maybeSingle();
+        // VERIFY IF HUMAN IS REQUIRED (Silent IA) - CHECK BOTH TUTORS AND PROSPECTS
+        const searchPhone = from.startsWith("+") ? from : `+${from}`;
+        const searchPhoneNoPlus = from.startsWith("+") ? from.substring(1) : from;
 
-        if (tutorHand?.requires_human) {
-            await debugLog(sb, `IA silenciosa: Handoff a humano activo para ${from} (Tutor)`, { phone: from });
+        const [tutorHandRes, prospectHandRes] = await Promise.all([
+            sb.from("tutors")
+                .select("requires_human")
+                .eq("clinic_id", clinic.id)
+                .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
+                .limit(1)
+                .maybeSingle(),
+            sb.from("crm_prospects")
+                .select("requires_human")
+                .eq("clinic_id", clinic.id)
+                .or(`phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`)
+                .limit(1)
+                .maybeSingle()
+        ]);
+
+        const isPaused = tutorHandRes.data?.requires_human || prospectHandRes.data?.requires_human;
+
+        if (isPaused) {
+            await debugLog(sb, `IA silenciosa: Handoff a humano activo para ${from}`, { 
+                phone: from, 
+                source: tutorHandRes.data?.requires_human ? 'tutor' : 'prospect' 
+            });
             // Only save the message but DO NOT respond
             return new Response(JSON.stringify({ status: "saved_silently", reason: "requires_human" }), { headers: corsHeaders });
         }

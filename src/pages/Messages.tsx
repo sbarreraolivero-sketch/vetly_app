@@ -268,15 +268,27 @@ export default function Messages() {
         setTogglingAI(true)
         try {
             const newStatus = !conv.requires_human
+            const searchPhone = conv.phone_number.startsWith("+") ? conv.phone_number : `+${conv.phone_number}`
+            const searchPhoneNoPlus = conv.phone_number.startsWith("+") ? conv.phone_number.substring(1) : conv.phone_number
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error: updateError } = await (supabase as any)
-                .from('tutors')
-                .update({ requires_human: newStatus })
-                .eq('clinic_id', profile.clinic_id)
-                .eq('phone_number', conv.phone_number)
+            // Update both tables to ensure the webhook catches it regardless of contact type
+            const [tutorRes, prospectRes] = await Promise.all([
+                (supabase as any)
+                    .from('tutors')
+                    .update({ requires_human: newStatus })
+                    .eq('clinic_id', profile.clinic_id)
+                    .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`),
+                (supabase as any)
+                    .from('crm_prospects')
+                    .update({ requires_human: newStatus })
+                    .eq('clinic_id', profile.clinic_id)
+                    .or(`phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`)
+            ])
 
-            if (updateError) throw updateError
+            if (tutorRes.error && prospectRes.error) {
+                console.error('Error updating both tables:', tutorRes.error, prospectRes.error)
+                throw new Error('No se pudo actualizar el estado de la IA.')
+            }
 
             // Update local state
             setConversations(prev => prev.map(c =>

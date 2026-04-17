@@ -152,13 +152,24 @@ export function ContactInfoSidebar({ phoneNumber, clinicId, onClose }: ContactIn
         setSaving(true)
         try {
             const newValue = !prospect.requires_human
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
-                .from('crm_prospects')
-                .update({ requires_human: newValue, updated_at: new Date().toISOString() })
-                .eq('id', prospect.id)
+            const phone = prospect.phone || phoneNumber
+            const normalizedPhone = phone.replace(/\D/g, '')
+            const searchPhone = normalizedPhone.startsWith("+") ? normalizedPhone : `+${normalizedPhone}`
+            const searchPhoneNoPlus = normalizedPhone.startsWith("+") ? normalizedPhone.substring(1) : normalizedPhone
+
+            // Update both tables for consistency
+            await Promise.all([
+                (supabase as any)
+                    .from('crm_prospects')
+                    .update({ requires_human: newValue, updated_at: new Date().toISOString() })
+                    .eq('id', prospect.id),
+                (supabase as any)
+                    .from('tutors')
+                    .update({ requires_human: newValue, updated_at: new Date().toISOString() })
+                    .eq('clinic_id', clinicId)
+                    .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
+            ])
             
-            if (error) throw error
             setProspect(prev => prev ? { ...prev, requires_human: newValue } : null)
         } catch (err) {
             console.error('Error toggling human req:', err)
