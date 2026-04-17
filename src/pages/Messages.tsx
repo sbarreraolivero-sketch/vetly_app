@@ -118,12 +118,13 @@ export default function Messages() {
             if (unnamedPhones.length > 0) {
                 const { data: prospects } = await (supabase as any)
                     .from('crm_prospects')
-                    .select('phone, name')
+                    .select('phone, name, requires_human')
                     .eq('clinic_id', profile.clinic_id)
                     .in('phone', unnamedPhones)
 
                 prospects?.forEach((p: any) => {
                     if (p.name && p.name !== 'Sin nombre') nameMap.set(p.phone, p.name)
+                    if (p.requires_human) humanMap.set(p.phone, true)
                 })
             }
 
@@ -277,17 +278,29 @@ export default function Messages() {
                     .from('tutors')
                     .update({ requires_human: newStatus })
                     .eq('clinic_id', profile.clinic_id)
-                    .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`),
+                    .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
+                    .select('id'),
                 (supabase as any)
                     .from('crm_prospects')
                     .update({ requires_human: newStatus })
                     .eq('clinic_id', profile.clinic_id)
                     .or(`phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`)
+                    .select('id')
             ])
 
             if (tutorRes.error && prospectRes.error) {
                 console.error('Error updating both tables:', tutorRes.error, prospectRes.error)
                 throw new Error('No se pudo actualizar el estado de la IA.')
+            }
+
+            // Si el contacto no existe en ninguna tabla, insertarlo como prospecto para guardar su estado
+            if ((!tutorRes.data || tutorRes.data.length === 0) && (!prospectRes.data || prospectRes.data.length === 0)) {
+                await (supabase as any).from('crm_prospects').insert({
+                    clinic_id: profile.clinic_id,
+                    phone: searchPhone,
+                    name: conv.name || 'Sin nombre',
+                    requires_human: newStatus
+                });
             }
 
             // Update local state

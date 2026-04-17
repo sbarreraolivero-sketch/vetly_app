@@ -217,13 +217,24 @@ export default function AdminMessages() {
         setTogglingAI(true)
         try {
             const newStatus = !conv.requires_human
-            const { error: updateError } = await (supabase as any)
+            const { data, error: updateError } = await (supabase as any)
                 .from('crm_prospects')
                 .update({ requires_human: newStatus })
                 .eq('clinic_id', HQ_ID)
                 .eq('phone', conv.phone_number)
+                .select('id')
 
             if (updateError) throw updateError
+            
+            if (!data || data.length === 0) {
+                // Upsert behavior: create the prospect if not exists
+                await (supabase as any).from('crm_prospects').insert({
+                    clinic_id: HQ_ID,
+                    phone: conv.phone_number,
+                    name: conv.name || 'Sin nombre',
+                    requires_human: newStatus
+                });
+            }
 
             setConversations(prev => prev.map(c =>
                 c.phone_number === conv.phone_number
