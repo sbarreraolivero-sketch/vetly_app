@@ -129,47 +129,63 @@ export default function Appointments() {
             const threeMonthsAgo = new Date()
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 
-            // Run all requests in parallel to avoid "waterfall" slowness
-            const [appointmentsRes, servicesRes, professionalsRes, tutorsRes, patientsRes] = await Promise.all([
-                supabase
+            // Execute each request individually for robustness
+            const fetchAppointments = async () => {
+                const { data } = await supabase
                     .from('appointments')
                     .select('*')
                     .eq('clinic_id', profile.clinic_id)
                     .gte('appointment_date', threeMonthsAgo.toISOString())
-                    .order('appointment_date', { ascending: false }),
-                
-                (supabase as any)
+                    .order('appointment_date', { ascending: false })
+                if (data) setAppointments(data)
+            }
+
+            const fetchServices = async () => {
+                const { data } = await (supabase as any)
                     .from("clinic_services")
                     .select('*')
                     .eq('clinic_id', profile.clinic_id)
-                    .order('name'),
-                
-                (supabase as any).rpc('get_clinic_professionals', {
-                    p_clinic_id: profile.clinic_id
-                }),
+                    .order('name')
+                if (data) setServices(data)
+            }
 
-                (supabase as any).rpc('get_unified_contacts', {
+            const fetchProfessionals = async () => {
+                const { data } = await (supabase as any).rpc('get_clinic_professionals', {
                     p_clinic_id: profile.clinic_id
-                }),
+                })
+                if (data) setProfessionals(data)
+            }
 
-                supabase
+            const fetchTutors = async () => {
+                const { data } = await (supabase as any).rpc('get_unified_contacts', {
+                    p_clinic_id: profile.clinic_id
+                })
+                if (data) {
+                    const onlyTutors = (data || []).filter((c: any) => c.type === 'tutor')
+                    setTutors(onlyTutors)
+                }
+            }
+
+            const fetchPatients = async () => {
+                const { data } = await supabase
                     .from('patients')
                     .select('*')
                     .eq('clinic_id', profile.clinic_id)
                     .order('name')
+                if (data) setPatients(data)
+            }
+
+            // Still firing them all but with internal error handling
+            await Promise.allSettled([
+                fetchAppointments(),
+                fetchServices(),
+                fetchProfessionals(),
+                fetchTutors(),
+                fetchPatients()
             ])
 
-            if (appointmentsRes.data) setAppointments(appointmentsRes.data)
-            if (servicesRes.data) setServices(servicesRes.data)
-            if (professionalsRes.data) setProfessionals(professionalsRes.data)
-            if (tutorsRes.data) {
-                const onlyTutors = (tutorsRes.data || []).filter((c: any) => c.type === 'tutor')
-                setTutors(onlyTutors)
-            }
-            if (patientsRes.data) setPatients(patientsRes.data)
-
         } catch (error) {
-            console.error('Error fetching dashboard data:', error)
+            console.error('Error in fetchAllData:', error)
         } finally {
             setLoading(false)
         }
@@ -436,11 +452,13 @@ export default function Appointments() {
     const handleTutorInputChange = (value: string) => {
         setNewAppointment({ ...newAppointment, tutor_name: value, tutor_id: null })
         
-        if (value.trim().length > 0) {
-            const query = value.toLowerCase().trim()
-            const filtered = tutors.filter((t: any) => {
-                const name = (t.name || '').toLowerCase()
-                const parts = name.split(' ').filter((p: string) => p.length > 0)
+        const query = value.toLowerCase().trim()
+        if (query.length > 0) {
+            const filtered = (tutors || []).filter((t: any) => {
+                const name = (t.name || '').toLowerCase().trim()
+                if (!name) return false
+                // Match if name starts with query or any word in name starts with query
+                const parts = name.split(/\s+/).filter((p: string) => p.length > 0)
                 return parts.some((part: string) => part.startsWith(query))
             }).slice(0, 5) // Limit to top 5 results
             setFilteredTutors(filtered)
@@ -467,12 +485,13 @@ export default function Appointments() {
     const handlePatientInputChange = (value: string) => {
         setNewAppointment({ ...newAppointment, patient_name: value, pet_id: null })
         
-        if (value.trim().length > 0 && newAppointment.tutor_id) {
-            const query = value.toLowerCase().trim()
-            const filtered = patients.filter((p: any) => {
+        const query = value.toLowerCase().trim()
+        if (query.length > 0 && newAppointment.tutor_id) {
+            const filtered = (patients || []).filter((p: any) => {
                 if (p.tutor_id !== newAppointment.tutor_id) return false
-                const name = (p.name || '').toLowerCase()
-                const parts = name.split(' ').filter((pPart: string) => pPart.length > 0)
+                const name = (p.name || '').toLowerCase().trim()
+                if (!name) return false
+                const parts = name.split(/\s+/).filter((pPart: string) => pPart.length > 0)
                 return parts.some((part: string) => part.startsWith(query))
             }).slice(0, 5)
             setFilteredPatients(filtered)
