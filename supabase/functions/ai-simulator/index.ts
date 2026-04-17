@@ -392,7 +392,18 @@ Deno.serve(async (req: Request) => {
         const now = new Date();
         const localDateISO = now.toLocaleDateString("en-CA", { timeZone: clinicTz });
         
-        const msgs: Msg[] = [{ role: "system", content: `${clinic.ai_personality}\n\nHoy es ${localDateISO}\n\n# PROTOCOLO DE AGENDAMIENTO\n1. Verifica disponibilidad con check_availability enviando la dirección.\n2. Si hay cupo, pide: Nombre completo del tutor (obligatorio), Dirección exacta, Nombre mascota.\n3. NO AGENDES sin el nombre del tutor.` }];
+        const commonRules = `
+# PROTOCOLOS DE ATENCIÓN
+*   **LIMPIEZA DE NOMBRES:** Si un servicio en la lista oficial tiene etiquetas técnicas (ej: "T1", "T2", "Tramo"), **ESTÁ PROHIBIDO** usarlas en tu respuesta. Solo di el nombre general del servicio (ej: "Cirugía de Esterilización").
+*   **CIRUGÍAS (ESTERILIZACIONES):** 
+    - **REGLA DE PRECIO OBLIGATORIA:** Si preguntan por el valor de una cirugía y AÚN NO han enviado su ubicación GPS, **ESTÁ TERMINANTEMENTE PROHIBIDO** dar precios o mencionar "tramos/distancias". Debes responder: "Para poder darte el valor exacto de la cirugía, primero necesito que me envíes tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)".
+    - **PROHIBIDO MENCIONAR 'TRAMOS':** Nunca hables de "Tramo 1", "Tramo 2" o "Distancias". Una vez recibida la ubicación, simplemente da el valor final único que corresponda.
+# PROTOCOLO DE AGENDAMIENTO
+1. Verifica disponibilidad con check_availability enviando la dirección.
+2. Si hay cupo, pide: Nombre completo del tutor (obligatorio), Dirección exacta, Nombre mascota.
+3. NO AGENDES sin el nombre del tutor.`;
+
+        const msgs: Msg[] = [{ role: "system", content: `${clinic.ai_personality}\n\nHoy es ${localDateISO}\n\n${commonRules}` }];
         if (conversation_history) conversation_history.forEach((m: any) => msgs.push({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
         msgs.push({ role: "user", content: message });
 
