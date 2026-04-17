@@ -356,6 +356,17 @@ const getServiceDetails = async (sb: any, clinicId: string, serviceName: string)
 // Tool Implementations
 // =============================================
 const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, date: string, serviceName?: string, timezone: string = "America/Santiago", profName?: string, clinicWorkingHours?: any, address?: string) => {
+    // 1. Validate date format (must be YYYY-MM-DD to prevent Postgres RPC from crashing)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date.trim())) {
+        console.warn(`[checkAvail] Invalid date format received from AI: '${date}'`);
+        return {
+            available: false,
+            reason: "invalid_date_format",
+            message: `CRÍTICO: El formato de fecha '${date}' es inválido. DEBES usar exactamente YYYY-MM-DD (ej: 2026-04-20). Autocorrígete llamando a la función de nuevo con el formato correcto.`
+        };
+    }
+
     // CRM stage update removed (handled by direct clinical flow)
 
     // 2. If address provided, geocode and save it
@@ -455,7 +466,13 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
                 p_date: date,
                 p_duration: duration
             });
-            if (error2) return { available: false, error: error2.message };
+            if (error2) {
+                return { 
+                    available: false, 
+                    reason: "database_error", 
+                    message: `Error interno de base de datos al comprobar la fecha ${date}. Si es posible, dile al tutor 'Hubo un problema verificando esa fecha exacta', y ofrécele ver disponibilidad para otro día.` 
+                };
+            }
             slots = data2 || [];
         } else {
             slots = data || [];
