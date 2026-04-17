@@ -1652,7 +1652,7 @@ export default function Appointments() {
                                         type="tel"
                                         value={newAppointment.phone_number}
                                         onChange={(e) => setNewAppointment({ ...newAppointment, phone_number: e.target.value })}
-                                        placeholder="Ej: +52 55 1234 5678"
+                                        placeholder="Ej: 56912345678"
                                         className="input-soft w-full"
                                     />
                                 </div>
