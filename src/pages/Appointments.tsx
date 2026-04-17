@@ -437,8 +437,7 @@ export default function Appointments() {
         
         if (value.length > 0) {
             const filtered = tutors.filter(t => 
-                t.name?.toLowerCase().startsWith(value.toLowerCase()) ||
-                t.name?.toLowerCase().includes(value.toLowerCase())
+                t.name?.toLowerCase().startsWith(value.toLowerCase())
             ).slice(0, 5) // Limit to top 5 results
             setFilteredTutors(filtered)
             setShowTutorAutocomplete(true)
@@ -465,10 +464,8 @@ export default function Appointments() {
         
         if (value.length > 0 && newAppointment.tutor_id) {
             const filtered = patients.filter(p => 
-                p.tutor_id === newAppointment.tutor_id && (
-                    p.name?.toLowerCase().startsWith(value.toLowerCase()) ||
-                    p.name?.toLowerCase().includes(value.toLowerCase())
-                )
+                p.tutor_id === newAppointment.tutor_id && 
+                p.name?.toLowerCase().startsWith(value.toLowerCase())
             ).slice(0, 5)
             setFilteredPatients(filtered)
             setShowPatientAutocomplete(true)
