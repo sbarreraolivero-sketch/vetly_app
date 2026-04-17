@@ -381,8 +381,8 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             updates.longitude = tutorCoords.lng;
         }
         
-        await sb.from("tutors").update(updates).eq("clinic_id", clinicId.trim()).eq("phone", normalizedPhone);
-        await sb.from("crm_prospects").update(updates).eq("clinic_id", clinicId.trim()).eq("phone", normalizedPhone);
+        await sb.from("tutors").update(updates).eq("clinic_id", clinicId.trim()).eq("phone_number", normalizedPhone);
+        await sb.from("crm_prospects").update(updates).eq("clinic_id", clinicId.trim()).eq("phone_number", normalizedPhone);
     }
 
     const { data: clinic } = await sb.from("clinic_settings").select("business_model, latitude, longitude").eq("id", clinicId).single();
