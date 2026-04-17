@@ -148,11 +148,9 @@ export default function Appointments() {
                     p_clinic_id: profile.clinic_id
                 }),
 
-                supabase
-                    .from('tutors')
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .order('name'),
+                (supabase as any).rpc('get_unified_contacts', {
+                    p_clinic_id: profile.clinic_id
+                }),
 
                 supabase
                     .from('patients')
@@ -164,7 +162,10 @@ export default function Appointments() {
             if (appointmentsRes.data) setAppointments(appointmentsRes.data)
             if (servicesRes.data) setServices(servicesRes.data)
             if (professionalsRes.data) setProfessionals(professionalsRes.data)
-            if (tutorsRes.data) setTutors(tutorsRes.data)
+            if (tutorsRes.data) {
+                const onlyTutors = (tutorsRes.data || []).filter((c: any) => c.type === 'tutor')
+                setTutors(onlyTutors)
+            }
             if (patientsRes.data) setPatients(patientsRes.data)
 
         } catch (error) {
