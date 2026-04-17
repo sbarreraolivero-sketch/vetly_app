@@ -976,12 +976,27 @@ const escalateToHuman = async (sb: ReturnType<typeof createClient>, clinicId: st
     try {
         // Support for "requires_human" logic now relies on notifications or direct tutor flag if exists
 
-        // Send a notification!
+        // 1. AUTO-PAUSE AI: Update both tables to ensure AI stops immediately
+        const searchPhone = normalizedPhone.startsWith("+") ? normalizedPhone : `+${normalizedPhone}`;
+        const searchPhoneNoPlus = normalizedPhone.startsWith("+") ? normalizedPhone.substring(1) : normalizedPhone;
+
+        await Promise.all([
+            sb.from("tutors")
+                .update({ requires_human: true })
+                .eq("clinic_id", clinicId)
+                .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`),
+            sb.from("crm_prospects")
+                .update({ requires_human: true })
+                .eq("clinic_id", clinicId)
+                .or(`phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`)
+        ]);
+
+        // 2. Send a notification!
         const { error: notifError } = await sb.from("notifications").insert({
             clinic_id: clinicId,
             type: "human_handoff",
             title: "Atención Requerida 🚨",
-            message: `El paciente ${normalizedPhone} solicitó atención humana o la IA requiere apoyo.`,
+            message: `El paciente ${normalizedPhone} fue derivado a humano por la IA.`,
             link: `/app/messages?phone=${normalizedPhone}`
         });
 
