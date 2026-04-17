@@ -124,14 +124,14 @@ const getTravelDetails = async (origin: { lat: number, lng: number }, destinatio
 const functions = [
     {
         name: "check_availability",
-        description: "Verifica disponibilidad. CRÍTICO: Debes inferir el nombre del servicio del historial de conversación (ej. 'Vacunación', 'Consulta'). Si la clínica es móvil/híbrida, solicita la DIRECCIÓN EXACTA (Calle y Número) antes o durante la consulta de disponibilidad para validarla en 'address'. Esta función devuelve 'travel_details' (distancia y tiempo) que debes usar para calcular recargos rurales según tus reglas de precios.",
+        description: "Verifica disponibilidad. CRÍTICO: Debes inferir el nombre del servicio del historial (ej. 'Vacunación', 'Consulta'). Si la clínica es móvil/híbrida, es OBLIGATORIO solicitar primero el PIN DE UBICACIÓN GPS de WhatsApp. Usa esto en lugar de pedir direcciones escritas para calcular viáticos.",
         parameters: { 
             type: "object", 
             properties: { 
                 date: { type: "string", description: "Fecha YYYY-MM-DD" }, 
                 service_name: { type: "string", description: "Nombre del servicio inferido del contexto" }, 
                 professional_name: { type: "string", description: "Nombre del profesional solicitado (opcional)" },
-                address: { type: "string", description: "Dirección EXACTA (Calle + Número) del tutor/paciente. REQUERIDA para clínicas móviles. PROHIBIDO pedir solo 'comuna' o 'sector'." }
+                address: { type: "string", description: "Dirección inferida del GPS/contexto para la validación interna de la zona." }
             }, 
             required: ["date"] 
         }
@@ -1695,22 +1695,21 @@ ${knowledgeSummary}
 
 # PROTOCOLO DE AGENDAMIENTO (SECUENCIA ESTRICTA)
 Solo después de completar el triage y que el cliente confirme que desea agendar:
-*   **PASO A (Verificar Fechas)**: Pregunta qué día le acomoda e invoca \`check_availability\`. NO PIDAS datos de la mascota aún.
-*   **PASO B (Advertencia de Rango)**: Al mostrar horas, es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
-*   **PASO C (Ficha Médica y Ubicación)**: Solo tras aceptar el horario y rango, pide los datos finales:
+*   **PASO A (Verificar Fechas y Ubicación Geográfica)**: Pregunta qué día le acomoda y pide que te envíe su **PIN de ubicación de WhatsApp** para poder calcular la disponibilidad logística de la zona. NO PIDAS datos de la mascota aún. Invoca \`check_availability\` usando esa información espacial.
+*   **PASO B (Horarios, Costos y Advertencia)**: Al mostrar horas disponibles e informar viáticos (si aplican según su ubicación GPS), es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta".
+*   **PASO C (Ficha Médica y Dirección Final)**: Solo tras aceptar el horario y rango, pide los datos finales para la carpeta del doctor:
     1. Nombre completo del tutor (obligatorio).
-    2. **Pin de ubicación de WhatsApp** (PRIORIDAD MANDATORIA para evitar errores y calcular traslados exactos). Si el cliente no puede enviarlo, solicite la Dirección exacta (**Calle, Número y Comuna**) como respaldo.
-    3. Nombre de la mascota y especie.
+    2. Nombre de la mascota y especie.
+    3. Dirección escrita exacta (**Calle, Número de casa y Comuna**) y referencias visuales de la propiedad. NUNCA trates de usar la dirección escrita para \`check_availability\`. Solo se usa aquí para \`create_appointment\`.
 
 ${clinic.clinic_name?.includes('AnimalGrace') ? `# 🎯 REGLAS ESTRATÉGICAS - ANIMALGRACE LINARES
 # 1. 🚜 LOGÍSTICA Y COSTOS
-*   **UBICACIÓN POR PIN PRIORITARIA:** Solicita siempre el **Pin de ubicación de WhatsApp** como primera opción. Explica que es para evitar errores. Si no pueden enviarlo, pide la "Dirección EXACTA (**Calle, Número y Comuna**)". Está **PROHIBIDO** pedir solo 'comuna' o solo 'sector' sin la dirección completa.
-*   **COSTOS TRASLADO:** Usa los datos de 'travel_details' (si enviaron texto) o la distancia calculada (si enviaron Pin) para informar recargos rurales: 
-    - Hasta 10 min de ruta: +$6.000
-    - Hasta 20 min de ruta: +$8.000
-    - Hasta 30 min de ruta: +$10.000 (Límite).
-*   **ZONAS $0 (URBANO):** Linares, Talca, San Javier y Villa Alegre (Radios Urbanos) tienen **Costo de Visita $0** contratando servicios médicos (Vacunas/Consultas).
-*   **SERVICIOS MENORES:** Si solo piden desparasitación sin consulta/vacuna, aplica recargo de $6.000 incluso en radio urbano.
+*   **UBICACIÓN GPS OBLIGATORIA:** Para verificar disponibilidad, rutas o costos de traslado, **SOLICITA SIEMPRE EL PIN DE UBICACIÓN DE WHATSAPP** (El ícono del clip -> Ubicación actual). Esto es una REGLA ESTRICTA (Especialmente para la zona de Talca). Está PROHIBIDO intentar calcular distancias o disponibilidad usando direcciones escritas a mano porque fallan.
+*   **COSTOS TRASLADO ($0 en URBANO):** Analiza la zona y la información geográfica enviada. Si la zona (o el texto del GPS) dice Linares, Talca, San Javier o Villa Alegre centro, el **Costo de Visita es $0** si contratan Vacunas/Consultas. Fuera de esos radios urbanos usa 'travel_details' para cobrar:
+    - Hasta 10 min de ruta extra: +$6.000
+    - Hasta 20 min extra: +$8.000
+    - Hasta 30 min extra: +$10.000 (Límite).
+*   **SERVICIOS MENORES:** Si solo piden desparasitación (sin consulta), cobra recargo urbano asegurado de $6.000.
 
 # 🏥 PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES)
 *   Usa siempre \`escalate_to_human\` para cirugías después de dar el precio base y pedir datos: Especie, Sexo, Peso aprox y Dirección.
