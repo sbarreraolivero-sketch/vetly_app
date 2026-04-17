@@ -231,7 +231,7 @@ export default function AdminMessages() {
                 await (supabase as any).from('crm_prospects').insert({
                     clinic_id: HQ_ID,
                     phone: conv.phone_number,
-                    name: conv.name || 'Sin nombre',
+                    name: conv.contact_name || 'Sin nombre',
                     requires_human: newStatus
                 });
             }

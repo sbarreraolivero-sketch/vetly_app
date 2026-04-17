@@ -307,7 +307,7 @@ export default function Messages() {
                 await (supabase as any).from('crm_prospects').insert({
                     clinic_id: profile.clinic_id,
                     phone: searchPhone,
-                    name: conv.name || 'Sin nombre',
+                    name: conv.contact_name || 'Sin nombre',
                     requires_human: newStatus
                 });
             }
