@@ -99,32 +99,41 @@ export default function Messages() {
             const nameMap = new Map<string, string>()
             const humanMap = new Map<string, boolean>()
 
+            // Helper to normalize phone for map keys (remove + for consistent matching)
+            const normalize = (p: string) => p.replace(/\+/g, '')
+
+            // Prepare expanded phone list for query (both with and without +)
+            const queryPhones = [...phones, ...phones.map(p => p.startsWith('+') ? p.substring(1) : `+${p}`)]
+
             // Fetch tutors for names and requires_human flag
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: tutors } = await (supabase as any)
                 .from('tutors')
                 .select('phone_number, name, requires_human')
                 .eq('clinic_id', profile.clinic_id)
-                .in('phone_number', phones)
+                .in('phone_number', queryPhones)
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             tutors?.forEach((t: any) => {
-                if (t.name) nameMap.set(t.phone_number, t.name)
-                if (t.requires_human) humanMap.set(t.phone_number, true)
+                const norm = normalize(t.phone_number)
+                if (t.name) nameMap.set(norm, t.name)
+                if (t.requires_human) humanMap.set(norm, true)
             })
 
             // Fetch fallback names from messages if tutor not found (historical context)
-            const unnamedPhones = phones.filter(p => !nameMap.has(p))
+            const unnamedPhones = phones.filter(p => !nameMap.has(normalize(p)))
             if (unnamedPhones.length > 0) {
+                const queryUnnamed = [...unnamedPhones, ...unnamedPhones.map(p => p.startsWith('+') ? p.substring(1) : `+${p}`)]
                 const { data: prospects } = await (supabase as any)
                     .from('crm_prospects')
                     .select('phone, name, requires_human')
                     .eq('clinic_id', profile.clinic_id)
-                    .in('phone', unnamedPhones)
+                    .in('phone', queryUnnamed)
 
                 prospects?.forEach((p: any) => {
-                    if (p.name && p.name !== 'Sin nombre') nameMap.set(p.phone, p.name)
-                    if (p.requires_human) humanMap.set(p.phone, true)
+                    const norm = normalize(p.phone)
+                    if (p.name && p.name !== 'Sin nombre') nameMap.set(norm, p.name)
+                    if (p.requires_human) humanMap.set(norm, true)
                 })
             }
 
@@ -150,12 +159,12 @@ export default function Messages() {
                 }
                 return {
                     phone_number: phone,
-                    contact_name: nameMap.get(phone) || null,
+                    contact_name: nameMap.get(normalize(phone)) || null,
                     last_message: latest.content,
                     last_message_at: latest.created_at,
                     unread_count: unread,
                     message_count: data.count,
-                    requires_human: humanMap.get(phone) || false
+                    requires_human: humanMap.get(normalize(phone)) || false
                 }
             })
 
