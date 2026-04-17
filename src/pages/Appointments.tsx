@@ -78,7 +78,9 @@ const INITIAL_FORM_STATE = {
     notes: '',
     professional_id: '',
     address: '',
-    address_references: ''
+    address_references: '',
+    tutor_id: null as string | null,
+    pet_id: null as string | null
 }
 
 export default function Appointments() {
@@ -99,6 +101,12 @@ export default function Appointments() {
     const [newAppointment, setNewAppointment] = useState(INITIAL_FORM_STATE)
     const [services, setServices] = useState<any[]>([])
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
+    const [tutors, setTutors] = useState<any[]>([])
+    const [filteredTutors, setFilteredTutors] = useState<any[]>([])
+    const [showTutorAutocomplete, setShowTutorAutocomplete] = useState(false)
+    const [patients, setPatients] = useState<any[]>([])
+    const [filteredPatients, setFilteredPatients] = useState<any[]>([])
+    const [showPatientAutocomplete, setShowPatientAutocomplete] = useState(false)
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
 
     // Date filter state
@@ -120,7 +128,7 @@ export default function Appointments() {
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 
             // Run all requests in parallel to avoid "waterfall" slowness
-            const [appointmentsRes, servicesRes, professionalsRes] = await Promise.all([
+            const [appointmentsRes, servicesRes, professionalsRes, tutorsRes, patientsRes] = await Promise.all([
                 supabase
                     .from('appointments')
                     .select('*')
@@ -136,12 +144,26 @@ export default function Appointments() {
                 
                 (supabase as any).rpc('get_clinic_professionals', {
                     p_clinic_id: profile.clinic_id
-                })
+                }),
+
+                supabase
+                    .from('tutors')
+                    .select('*')
+                    .eq('clinic_id', profile.clinic_id)
+                    .order('name'),
+
+                supabase
+                    .from('patients')
+                    .select('*')
+                    .eq('clinic_id', profile.clinic_id)
+                    .order('name')
             ])
 
             if (appointmentsRes.data) setAppointments(appointmentsRes.data)
             if (servicesRes.data) setServices(servicesRes.data)
             if (professionalsRes.data) setProfessionals(professionalsRes.data)
+            if (tutorsRes.data) setTutors(tutorsRes.data)
+            if (patientsRes.data) setPatients(patientsRes.data)
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error)
@@ -408,6 +430,60 @@ export default function Appointments() {
 
 
 
+    const handleTutorInputChange = (value: string) => {
+        setNewAppointment({ ...newAppointment, tutor_name: value, tutor_id: null })
+        
+        if (value.length > 0) {
+            const filtered = tutors.filter(t => 
+                t.name?.toLowerCase().startsWith(value.toLowerCase()) ||
+                t.name?.toLowerCase().includes(value.toLowerCase())
+            ).slice(0, 5) // Limit to top 5 results
+            setFilteredTutors(filtered)
+            setShowTutorAutocomplete(true)
+        } else {
+            setShowTutorAutocomplete(false)
+        }
+    }
+
+    const handleTutorSelect = (tutor: any) => {
+        setNewAppointment({
+            ...newAppointment,
+            tutor_name: tutor.name || '',
+            phone_number: tutor.phone_number || '',
+            address: tutor.address || '',
+            tutor_id: tutor.id,
+            patient_name: '',
+            pet_id: null
+        })
+        setShowTutorAutocomplete(false)
+    }
+
+    const handlePatientInputChange = (value: string) => {
+        setNewAppointment({ ...newAppointment, patient_name: value, pet_id: null })
+        
+        if (value.length > 0 && newAppointment.tutor_id) {
+            const filtered = patients.filter(p => 
+                p.tutor_id === newAppointment.tutor_id && (
+                    p.name?.toLowerCase().startsWith(value.toLowerCase()) ||
+                    p.name?.toLowerCase().includes(value.toLowerCase())
+                )
+            ).slice(0, 5)
+            setFilteredPatients(filtered)
+            setShowPatientAutocomplete(true)
+        } else {
+            setShowPatientAutocomplete(false)
+        }
+    }
+
+    const handlePatientSelect = (patient: any) => {
+        setNewAppointment({
+            ...newAppointment,
+            patient_name: patient.name || '',
+            pet_id: patient.id
+        })
+        setShowPatientAutocomplete(false)
+    }
+
     const handleSaveAppointment = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!user || !profile) return
@@ -435,6 +511,8 @@ export default function Appointments() {
                     professional_id: (newAppointment.professional_id && newAppointment.professional_id.length > 20) ? newAppointment.professional_id : null,
                     address: newAppointment.address,
                     address_references: newAppointment.address_references,
+                    tutor_id: newAppointment.tutor_id,
+                    pet_id: newAppointment.pet_id
                 }
                 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -465,6 +543,8 @@ export default function Appointments() {
                     professional_id: (newAppointment.professional_id && newAppointment.professional_id.length > 20) ? newAppointment.professional_id : null,
                     address: newAppointment.address,
                     address_references: newAppointment.address_references,
+                    tutor_id: newAppointment.tutor_id,
+                    pet_id: newAppointment.pet_id
                 }
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -971,7 +1051,9 @@ export default function Appointments() {
                                     notes: event.resource.notes || '',
                                     professional_id: event.resource.professional_id || '',
                                     address: event.resource.address || '',
-                                    address_references: event.resource.address_references || ''
+                                    address_references: event.resource.address_references || '',
+                                    tutor_id: event.resource.tutor_id || null,
+                                    pet_id: event.resource.pet_id || null
                                 })
                                 setShowModal(true)
                             }}
@@ -1169,7 +1251,9 @@ export default function Appointments() {
                                                                         notes: appointment.notes || '',
                                                                         professional_id: appointment.professional_id || '',
                                                                         address: appointment.address || '',
-                                                                        address_references: appointment.address_references || ''
+                                                                        address_references: appointment.address_references || '',
+                                                                        tutor_id: appointment.tutor_id,
+                                                                        pet_id: appointment.pet_id
                                                                     })
                                                                     setShowModal(true) // Open modal
                                                                 }}
@@ -1333,7 +1417,9 @@ export default function Appointments() {
                                                 notes: appointment.notes || '',
                                                 professional_id: appointment.professional_id || '',
                                                 address: appointment.address || '',
-                                                address_references: appointment.address_references || ''
+                                                address_references: appointment.address_references || '',
+                                                tutor_id: appointment.tutor_id,
+                                                pet_id: appointment.pet_id
                                             })
                                             setShowModal(true)
                                         }}
@@ -1447,18 +1533,7 @@ export default function Appointments() {
                                     onClick={() => {
                                         setShowModal(false)
                                         setEditingId(null)
-                                        setNewAppointment({
-                                            patient_name: '',
-                                            tutor_name: '',
-                                            phone_number: '',
-                                            service: '',
-                                            appointment_date: '',
-                                            appointment_time: '',
-                                            notes: '',
-                                            professional_id: '',
-                                            address: '',
-                                            address_references: ''
-                                        })
+                                        setNewAppointment(INITIAL_FORM_STATE)
                                     }}
                                     className="p-2 hover:bg-ivory rounded-soft transition-colors"
                                 >
@@ -1471,26 +1546,99 @@ export default function Appointments() {
                                     <label className="block text-sm font-medium text-charcoal mb-2">
                                         Nombre del Tutor (Dueño) *
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={newAppointment.tutor_name}
-                                        onChange={(e) => setNewAppointment({ ...newAppointment, tutor_name: e.target.value })}
-                                        placeholder="Ej: Claudio González"
-                                        className="input-soft w-full"
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={newAppointment.tutor_name}
+                                            onChange={(e) => handleTutorInputChange(e.target.value)}
+                                            onFocus={() => {
+                                                if (newAppointment.tutor_name && filteredTutors.length > 0) {
+                                                    setShowTutorAutocomplete(true)
+                                                }
+                                            }}
+                                            placeholder="Ej: Claudio González"
+                                            className="input-soft w-full"
+                                        />
+                                        {showTutorAutocomplete && filteredTutors.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 z-[110] mt-1 bg-white rounded-xl shadow-premium-lg border border-silk-beige overflow-hidden animate-scale-in">
+                                                <div className="p-2 border-b border-silk-beige bg-ivory/30">
+                                                    <p className="text-[10px] font-bold text-primary-600 uppercase tracking-widest">Tutores Encontrados</p>
+                                                </div>
+                                                {filteredTutors.map((tutor) => (
+                                                    <button
+                                                        key={tutor.id}
+                                                        type="button"
+                                                        onClick={() => handleTutorSelect(tutor)}
+                                                        className="w-full text-left px-4 py-3 hover:bg-primary-50 flex flex-col transition-colors border-b border-silk-beige/30 last:border-0 group"
+                                                    >
+                                                        <span className="text-sm font-bold text-charcoal uppercase group-hover:text-primary-700">{tutor.name}</span>
+                                                        <span className="text-[10px] text-charcoal/40 flex items-center gap-2 mt-0.5">
+                                                            <div className="flex items-center gap-1">
+                                                                <Phone className="w-2.5 h-2.5" /> {tutor.phone_number}
+                                                            </div>
+                                                            {tutor.address && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <MapPin className="w-2.5 h-2.5" /> <span className="truncate max-w-[150px]">{tutor.address}</span>
+                                                                </div>
+                                                            )}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {showTutorAutocomplete && (
+                                            <div 
+                                                className="fixed inset-0 z-[105]" 
+                                                onClick={() => setShowTutorAutocomplete(false)}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-charcoal mb-2">
-                                        Nombre del Paciente (Mascota) *
+                                        Nombre del Paciente (Mascota)
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={newAppointment.patient_name}
-                                        onChange={(e) => setNewAppointment({ ...newAppointment, patient_name: e.target.value })}
-                                        placeholder="Ej: Sammy"
-                                        className="input-soft w-full"
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={newAppointment.patient_name}
+                                            onChange={(e) => handlePatientInputChange(e.target.value)}
+                                            onFocus={() => {
+                                                if (newAppointment.tutor_id && filteredPatients.length > 0) {
+                                                    setShowPatientAutocomplete(true)
+                                                }
+                                            }}
+                                            placeholder="Ej: Max"
+                                            className="input-soft w-full"
+                                        />
+                                        {showPatientAutocomplete && filteredPatients.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 z-[110] mt-1 bg-white rounded-xl shadow-premium-lg border border-silk-beige overflow-hidden animate-scale-in">
+                                                <div className="p-2 border-b border-silk-beige bg-ivory/30">
+                                                    <p className="text-[10px] font-bold text-primary-600 uppercase tracking-widest">Mascotas del Tutor</p>
+                                                </div>
+                                                {filteredPatients.map((patient) => (
+                                                    <button
+                                                        key={patient.id}
+                                                        type="button"
+                                                        onClick={() => handlePatientSelect(patient)}
+                                                        className="w-full text-left px-4 py-3 hover:bg-primary-50 flex flex-col transition-colors border-b border-silk-beige/30 last:border-0 group"
+                                                    >
+                                                        <span className="text-sm font-bold text-charcoal uppercase group-hover:text-primary-700">{patient.name}</span>
+                                                        <span className="text-[10px] text-charcoal/40 mt-0.5">
+                                                            {patient.species || 'Especie no especificada'} {patient.breed ? `• ${patient.breed}` : ''}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {showPatientAutocomplete && (
+                                            <div 
+                                                className="fixed inset-0 z-[105]" 
+                                                onClick={() => setShowPatientAutocomplete(false)}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
@@ -1760,7 +1908,7 @@ export default function Appointments() {
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
-                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.patient_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
+                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
                                         className="btn-primary flex-1 sm:px-8 flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[160px]"
                                     >
                                         {saving ? (
