@@ -266,6 +266,18 @@ export default function AdminMessages() {
 
             if (!res.ok) throw new Error('Error al enviar mensaje')
 
+            // AUTO-PAUSE AI: When a human sends a message, strictly pause the AI
+            await (supabase as any)
+                .from('crm_prospects')
+                .update({ requires_human: true })
+                .eq('clinic_id', HQ_ID)
+                .eq('phone', selectedPhone)
+
+            // Update local state for immediate feedback
+            setConversations(prev => prev.map(c =>
+                c.phone_number === selectedPhone ? { ...c, requires_human: true } : c
+            ))
+
             await (supabase as any).from('messages').insert({
                 clinic_id: HQ_ID,
                 phone_number: selectedPhone,

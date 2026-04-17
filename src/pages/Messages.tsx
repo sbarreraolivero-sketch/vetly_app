@@ -340,6 +340,28 @@ export default function Messages() {
 
             if (!res.ok) throw new Error('Error al enviar mensaje')
 
+            // AUTO-PAUSE AI: When a human sends a message, strictly pause the AI
+            const searchPhone = selectedPhone.startsWith("+") ? selectedPhone : `+${selectedPhone}`
+            const searchPhoneNoPlus = selectedPhone.startsWith("+") ? selectedPhone.substring(1) : selectedPhone
+
+            await Promise.all([
+                (supabase as any)
+                    .from('tutors')
+                    .update({ requires_human: true })
+                    .eq('clinic_id', profile.clinic_id)
+                    .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`),
+                (supabase as any)
+                    .from('crm_prospects')
+                    .update({ requires_human: true })
+                    .eq('clinic_id', profile.clinic_id)
+                    .or(`phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`)
+            ])
+
+            // Update local state for immediate feedback
+            setConversations(prev => prev.map(c =>
+                c.phone_number === selectedPhone ? { ...c, requires_human: true } : c
+            ))
+
             // Save to database
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (supabase as any).from('messages').insert({
