@@ -437,10 +437,10 @@ export default function Appointments() {
         
         if (value.trim().length > 0) {
             const query = value.toLowerCase().trim()
-            const filtered = tutors.filter(t => {
+            const filtered = tutors.filter((t: any) => {
                 const name = (t.name || '').toLowerCase()
-                const parts = name.split(' ').filter(p => p.length > 0)
-                return parts.some(part => part.startsWith(query))
+                const parts = name.split(' ').filter((p: string) => p.length > 0)
+                return parts.some((part: string) => part.startsWith(query))
             }).slice(0, 5) // Limit to top 5 results
             setFilteredTutors(filtered)
             setShowTutorAutocomplete(true)
@@ -468,11 +468,11 @@ export default function Appointments() {
         
         if (value.trim().length > 0 && newAppointment.tutor_id) {
             const query = value.toLowerCase().trim()
-            const filtered = patients.filter(p => {
+            const filtered = patients.filter((p: any) => {
                 if (p.tutor_id !== newAppointment.tutor_id) return false
                 const name = (p.name || '').toLowerCase()
-                const parts = name.split(' ').filter(p => p.length > 0)
-                return parts.some(part => part.startsWith(query))
+                const parts = name.split(' ').filter((pPart: string) => pPart.length > 0)
+                return parts.some((part: string) => part.startsWith(query))
             }).slice(0, 5)
             setFilteredPatients(filtered)
             setShowPatientAutocomplete(true)
