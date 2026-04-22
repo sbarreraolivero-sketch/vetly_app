@@ -1535,22 +1535,6 @@ const getKnowledge = async (
       `📄 ${d.title} (${d.category}):\n${d.content}`
     ).join("\n\n---\n\n");
 
-    // --- BLACKOUT & FILTER: Intercept surgical intent and specific tramos ---
-    if (clinic?.ref_id === "ehmncwawzdciajvuallg") {
-      const forbidden = ["ciru", "esteri", "castra", "pabell"];
-      if (
-        forbidden.some((f) =>
-          query.toLowerCase().includes(f) || content.toLowerCase().includes(f)
-        )
-      ) {
-        // If the system has already detected a tramo in this session context, filter the table
-        // This is a bit tricky as getKnowledge doesn't have the context, but the AI will receive
-        // the filtered instructions in the finalSysPrompt. For now, we poison the surgery intent.
-        content =
-          `[SISTEMA - AVISO CRÍTICO]: ESTE SERVICIO TIENE LA AGENDA BLOQUEADA. INFORMA PRECIOS PERO DI QUE CLAUDIA (LOGÍSTICA) COORDINARÁ. NO INVENTES HORARIOS. NO MUESTRES RANGOS NI OTROS TRAMOS QUE NO SEAN EL ASIGNADO EN TUS INSTRUCCIONES DE SISTEMA.\n\n${content}`;
-      }
-    }
-
     return content;
   } catch (e) {
     console.error("getKnowledge error:", e);
@@ -1879,14 +1863,6 @@ const getKnowledgeSummary = async (
       "\n",
     );
 
-    if (
-      clinicId === "ehmncwawzdciajvuallg" &&
-      (rawKnowledge.toLowerCase().includes("precio") ||
-        rawKnowledge.toLowerCase().includes("tramo"))
-    ) {
-      return `\n\n[REGLA DE ORO DE PRECIOS]: Estas tablas son referenciales. El TRAMO (T1, T2 o T3) es definido ÚNICAMENTE por el sistema GPS arriba. Una vez que el sistema te asigne un Tramo, usa SOLO esa columna de esta tabla.\n\nBase de Conocimiento:\n${rawKnowledge}`;
-    }
-
     return "\n\nBase de Conocimiento de la Clínica:\n" + rawKnowledge;
   } catch {
     return "";
@@ -1931,8 +1907,24 @@ const processFunc = async (
         console.error("[CRM_SYNC] Error updating availability stage:", err);
       }
 
-      // No hardcoded block
-      return checkAvail(
+      // Fetch route context for the day
+      let routeContext = "";
+      try {
+        const { data: dayApps } = await sb.from("appointments")
+          .select("address")
+          .eq("clinic_id", clinicId)
+          .eq("appointment_date", args.date)
+          .not("status", "eq", "cancelled");
+
+        if (dayApps && dayApps.length > 0) {
+          const zones = [...new Set(dayApps.map(a => a.address).filter(Boolean))].join(", ");
+          routeContext = `\n[INFO LOGÍSTICA: Ese día el médico ya tiene citas agendadas en hacia estas zonas: ${zones}. Evalúa si el tutor queda "de camino" para optimizar la logística.]`;
+        }
+      } catch (err) {
+        console.error("[ROUTE_CONTEXT] Error:", err);
+      }
+
+      const avail = await checkAvail(
         sb,
         clinicId,
         phone,
@@ -1943,6 +1935,11 @@ const processFunc = async (
         clinic?.working_hours,
         args.address as string,
       );
+
+      if (avail.message && routeContext) {
+        avail.message += routeContext;
+      }
+      return avail;
     }
     case "create_appointment": {
       return createAppt(sb, clinicId, phone, args as any, timezone, clinicId);
@@ -2625,6 +2622,17 @@ Deno.serve(async (req) => {
           return;
         }
 
+        // --- GENERIC LOGISTICS ENGINE ---
+        let logisticsConfig: any = null;
+        try {
+          const logMatch = (clinic.ai_behavior_rules || "").match(/\[LOGISTICS_CONFIG\]([\s\S]*?)\[\/LOGISTICS_CONFIG\]/);
+          if (logMatch) {
+            logisticsConfig = JSON.parse(logMatch[1]);
+          }
+        } catch (e) {
+          console.error("Failed to parse logistics config:", e);
+        }
+
         // --- GLOBAL GEOGRAPHICAL PERSISTENCE ---
         let globalGPS = immediateContext?.gps || null;
         let globalLocContext = immediateContext?.aiContext || "";
@@ -2644,9 +2652,6 @@ Deno.serve(async (req) => {
                 const p = m.payload as any;
                 if (p && p.gps) {
                   globalGPS = p.gps;
-                  if (p.rural_mins === undefined) {
-                    (globalGPS as any).rural_mins = 0;
-                  }
                   break;
                 }
               }
@@ -2654,13 +2659,9 @@ Deno.serve(async (req) => {
           } catch (e) {
             console.error("Error fetching global GPS:", e);
           }
-        } else if (immediateContext) {
-          (globalGPS as any).rural_mins = immediateContext.ruralMins || 0;
         }
 
         // --- AT THIS POINT, WE ARE THE LATEST MESSAGE. BEGIN PROCESSING. ---
-        
-        // (History and Link resolution simplified to be generic)
         const { data: rawHistory } = await sb.from("messages")
           .select("content, direction, created_at, ai_generated, payload")
           .eq("clinic_id", clinic.id)
@@ -2672,36 +2673,62 @@ Deno.serve(async (req) => {
 
         // Generic Map Link Processing
         const lastUserMsg = [...history].reverse().find(m => m.direction === "inbound" && !m.ai_generated);
-        if (lastUserMsg && (lastUserMsg.content.includes("maps.app.goo.gl") || lastUserMsg.content.includes("google.com/maps"))) {
+        if (lastUserMsg && googleMapsApiKey && (lastUserMsg.content.includes("maps.app.goo.gl") || lastUserMsg.content.includes("google.com/maps"))) {
           const urlMatch = lastUserMsg.content.match(/https?:\/\/(?:maps\.app\.goo\.gl|www\.google\.com\/maps)[^\s]+/);
           if (urlMatch) {
              const resolvedCoords = await resolveGoogleMapsUrl(urlMatch[0]);
              if (resolvedCoords) {
-               immediateContext = `[SISTEMA: GPS RECIBIDO VIA LINK - COORDENADAS: ${resolvedCoords.lat}, ${resolvedCoords.lng}]`;
+                globalGPS = resolvedCoords;
+                globalLocContext = `[SISTEMA: GPS RECIBIDO VIA LINK - COORDENADAS: ${globalGPS.lat}, ${globalGPS.lng}]`;
              }
           }
         }
 
+        // --- PERFORM LOGISTICS CALCULATIONS IF GPS IS AVAILABLE ---
+        if (globalGPS && logisticsConfig && googleMapsApiKey) {
+          try {
+            const urbanResults = await Promise.all((logisticsConfig.urban_bases || []).map(async (base: any) => {
+              const details = await getTravelDetails(googleMapsApiKey, `${base.lat},${base.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
+              return { ...base, ...details };
+            }));
 
-              // PROACTIVE SURGERY NOTIFICATION: This will also trigger the auto-pause trigger
-              // We only send if the user message actually mentions surgery
-              const lowerBody = (lastUserMsg.content || "").toLowerCase();
-              const isSurgeryIntent = ["ciru", "esteri", "castra", "pabell"]
-                .some((w) => lowerBody.includes(w));
+            const surgeryResults = await Promise.all((logisticsConfig.surgery_hubs || []).map(async (hub: any) => {
+              const details = await getTravelDetails(googleMapsApiKey, `${hub.lat},${hub.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
+              return { ...hub, ...details };
+            }));
 
-              if (isSurgeryIntent) {
-                // Proactive surgical mention notification logic could go here
+            const closestUrban = urbanResults.sort((a, b) => (a.duration || 999) - (b.duration || 999))[0];
+            const closestSurgery = surgeryResults.sort((a, b) => (a.duration || 999) - (b.duration || 999))[0];
+
+            if (closestUrban) {
+              const threshold = closestUrban.urban_threshold !== undefined ? closestUrban.urban_threshold : 10;
+              const extraMins = Math.max(0, (closestUrban.duration || 0) - threshold);
+              let logNote = `[LOGÍSTICA: Base Urbana: ${closestUrban.name} | Tiempo al Centro: ${closestUrban.duration} min | Extra Ciudad: +${extraMins} min]`;
+              if (closestSurgery) {
+                logNote += `\n[LOGÍSTICA: Pabellón más cercano: ${closestSurgery.name} a ${closestSurgery.duration} min]`;
               }
+              globalLocContext = logNote;
 
-              // Context update logic generic
-              if (immediateContext) {
+              // Persist this calculation back to the message so it stays in history
+              if (lastUserMsg) {
                 await sb.from("messages").update({
                   payload: {
                     ...(lastUserMsg.payload || {}),
-                    ai_context: immediateContext,
-                  },
-                }).eq("id", (lastUserMsg as any).id || "");
+                    ai_context: globalLocContext,
+                    gps: globalGPS
+                  }
+                }).eq("id", (lastUserMsg as any).id);
               }
+            }
+          } catch (e) {
+            console.error("Logistics calculation error:", e);
+          }
+        }
+
+        // Context update for AI if we have any new context
+        if (globalLocContext && lastUserMsg) {
+           // We already updated above, but ensuring consistency
+        }
 
 
         // Check if we already answered this exact same prompt recently to avoid loops
