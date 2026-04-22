@@ -142,13 +142,13 @@ const eventPropGetter = (event: CalendarEvent) => {
     // If professional has a color, use it for the border (except if appointment is cancelled)
     if (professionalColor && !isGoogle && status !== 'cancelled') {
         return {
-            className: className + " text-charcoal",
+            className: className + " !text-charcoal font-medium", // Force dark text with !important
             style: {
                 border: 'none',
-                borderLeftWidth: '4px',
+                borderLeftWidth: '5px', 
                 borderLeftStyle: 'solid' as const,
                 borderLeftColor: professionalColor,
-                backgroundColor: professionalColor + '15', // 15 = ~8% opacity in hex
+                backgroundColor: professionalColor + '25', // Increased opacity from 15 to 25 (~15%)
             }
         }
     }

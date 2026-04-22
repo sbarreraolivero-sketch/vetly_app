@@ -62,10 +62,10 @@ interface Prospect {
 }
 
 const DEFAULT_STAGES = [
-    { name: 'Nuevo', color: '#6366f1', position: 0, is_default: true },
-    { name: 'Contactado', color: '#3b82f6', position: 1, is_default: false },
+    { name: 'Nuevo Prospecto', color: '#6366f1', position: 0, is_default: true },
+    { name: 'Consulta disponibilidad', color: '#3b82f6', position: 1, is_default: false },
     { name: 'Calificado', color: '#f59e0b', position: 2, is_default: false },
-    { name: 'Cita Agendada', color: '#10b981', position: 3, is_default: false },
+    { name: 'Cita agendada', color: '#10b981', position: 3, is_default: false },
     { name: 'Cerrado', color: '#ef4444', position: 4, is_default: false },
 ]
 

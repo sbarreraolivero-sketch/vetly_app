@@ -34,8 +34,8 @@ export default function Team() {
     const currentUsers = activeMembers.length
     const currentAgendas = activeMembers.filter(m => m.role === 'professional').length
 
-    const canInvite = isAdmin && currentUsers < maxUsers
-    const canAddAgenda = isAdmin && currentAgendas < maxAgendas
+    const canInvite = isAdmin && (maxUsers === -1 || currentUsers < maxUsers)
+    const canAddAgenda = isAdmin && (maxAgendas === -1 || currentAgendas < maxAgendas)
 
     useEffect(() => {
         console.log('Team Page - Clinic ID Changed:', clinicId)
@@ -206,7 +206,7 @@ export default function Team() {
                     <p className="text-gray-500">Administra los miembros de tu clínica y sus permisos.</p>
                     {!loading && (
                         <p className="text-sm mt-2 font-medium text-purple-600 bg-purple-50 inline-block px-3 py-1 rounded-full">
-                            {members.filter(m => m.status !== 'disabled').length} / {maxUsers >= 999 ? 'Ilimitados' : maxUsers} usuarios activos
+                            {members.filter(m => m.status !== 'disabled').length} / {maxUsers === -1 || maxUsers >= 999 ? 'Ilimitados' : maxUsers} usuarios activos
                         </p>
                     )}
                 </div>

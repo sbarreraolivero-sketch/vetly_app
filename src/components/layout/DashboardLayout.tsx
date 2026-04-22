@@ -24,7 +24,8 @@ import {
     FileText,
     BellOff,
     Heart,
-    Award
+    Award,
+    Target
 } from 'lucide-react'
 import { AIChatWidget } from '../AIChatWidget'
 import { cn, getInitials } from '@/lib/utils'
@@ -47,6 +48,7 @@ const navigation = [
     { name: 'Plantillas', href: '/app/templates', icon: FileText },
     { name: 'Tutores', href: '/app/tutors', icon: Users },
     { name: 'Pacientes', href: '/app/patients', icon: Heart },
+    { name: 'CRM', href: '/app/crm', icon: Target },
     { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
     { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
     { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
@@ -279,7 +281,12 @@ export default function DashboardLayout() {
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navigation.filter(item => {
                         const userRole = member?.role || (profile as any)?.role
-                        const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
+                        
+                        // Nuclear bypass for owners
+                        const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
+                        const isNuclearOwner = user?.email && ownerEmails.includes(user.email.toLowerCase().trim())
+                        
+                        const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin' || isNuclearOwner
                         const isVetAssistant = userRole === 'vet_assistant'
 
                         // Role-based restrictions

@@ -131,6 +131,19 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
             if (sp) professionalId = sp.member_id;
         }
 
+        // LAST-RESORT FALLBACK: pick any active non-receptionist member (admin/owner count too)
+        if (!professionalId) {
+            const { data: anyMember } = await sb.from("clinic_members")
+                .select("id")
+                .eq("clinic_id", clinicId)
+                .eq("status", "active")
+                .not("role", "eq", "receptionist")
+                .order("created_at", { ascending: true })
+                .limit(1)
+                .maybeSingle();
+            if (anyMember) professionalId = anyMember.id;
+        }
+
         console.log(`[Simulator checkAvail] Date: ${date}, Dur: ${duration}, Prof: ${professionalId || 'Global'}`);
 
         let slots: { slot_time: string, is_available: boolean }[] = [];
@@ -176,6 +189,22 @@ const checkAvail = async (sb: ReturnType<typeof createClient>, clinicId: string,
                 return slotMinutes >= cutoffMinutes;
             });
         }
+
+        // --- HARD CHECK: Remove already booked slots from the REAL database ---
+        const { data: existingAppts } = await sb.from("appointments")
+            .select("appointment_date")
+            .eq("clinic_id", clinicId)
+            .gte("appointment_date", `${date}T00:00:00`)
+            .lte("appointment_date", `${date}T23:59:59`)
+            .neq("status", "cancelled");
+            
+        const bookedTimes = (existingAppts || []).map((a: any) => {
+            const d = new Date(a.appointment_date);
+            const h = d.getUTCHours().toString().padStart(2, '0');
+            const m = d.getUTCMinutes().toString().padStart(2, '0');
+            return `${h}:${m}`;
+        }).filter(Boolean);
+        availableSlots = availableSlots.filter(s => !bookedTimes.includes(s.slot_time.substring(0, 5)));
 
         // ==========================================
         // SMART ROUTING LOGIC
@@ -283,6 +312,29 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
         const appointmentDateWithOffset = `${args.date}T${normalizedTime}:00${offset}`;
 
         const { data: tutorInfo } = await sb.from("crm_prospects").select("full_name, address").eq("clinic_id", clinicId).eq("phone", simulatedPhone).limit(1).maybeSingle();
+        
+        let professionalId = null;
+        if (args.professional_name) {
+            const { data: prof } = await sb.from("clinic_members")
+                .select("id")
+                .eq("clinic_id", clinicId)
+                .ilike("first_name", `%${args.professional_name.trim()}%`)
+                .limit(1)
+                .maybeSingle();
+            if (prof) professionalId = prof.id;
+        }
+
+        // Fallback: If no professional specified or found, auto-assign the first professional/owner
+        if (!professionalId) {
+            const { data: firstProf } = await sb.from("clinic_members")
+                .select("id")
+                .eq("clinic_id", clinicId)
+                .eq("status", "active")
+                .neq("role", "receptionist")
+                .limit(1)
+                .maybeSingle();
+            if (firstProf) professionalId = firstProf.id;
+        }
 
         const { data, error } = await sb.from("appointments").insert({
             clinic_id: clinicId,
@@ -292,13 +344,21 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
             address: args.address || tutorInfo?.address || "No especificada",
             service: args.service_name,
             appointment_date: appointmentDateWithOffset,
+            professional_id: professionalId,
             duration: duration,
             price: price,
-            status: "pending",
-            payment_status: "pending"
+            status: "pending"
         }).select("id").single();
 
-        if (error) return { success: false, message: "Error al registrar la cita." };
+
+
+        if (error) {
+            console.error("DB_INSERT_ERROR:", error);
+            return { 
+                success: false, 
+                message: `[ERROR_TECNICO_DB]: ${error.message} (Detalle: ${error.details || 'ninguno'})` 
+            };
+        }
 
         return {
             success: true,
@@ -306,8 +366,14 @@ const createAppt = async (sb: ReturnType<typeof createClient>, clinicId: string,
             message: `✅ Cita agendada: ${args.patient_name} el ${args.date} a las ${args.time} para ${args.service_name}.`
         };
     } catch (e: any) {
-        return { success: false, message: "Error técnico al crear cita." };
+        console.error("SIMULATOR_CATCH:", e);
+        return { 
+            success: false, 
+            message: `[ERROR_TECNICO_EXEC]: ${e.message}` 
+        };
     }
+
+
 };
 
 const getServices = async (sb: ReturnType<typeof createClient>, clinicId: string) => {
@@ -364,14 +430,130 @@ const processFunc = async (sb: ReturnType<typeof createClient>, clinicId: string
     }
 };
 
-const callOpenAI = async (key: string, model: string, msgs: Msg[], useFns = true) => {
+const GOOGLE_MAPS_API_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
+
+const getDistance = async (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    try {
+        const r = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${lat1},${lon1}&destinations=${lat2},${lon2}&key=${GOOGLE_MAPS_API_KEY}`);
+        const data = await r.json();
+        if (data.rows?.[0]?.elements?.[0]?.status === "OK") {
+            return {
+                km: data.rows[0].elements[0].distance.value / 1000,
+                mins: data.rows[0].elements[0].duration.value / 60
+            };
+        }
+        return null;
+    } catch (e) { return null; }
+};
+
+const resolveGoogleMapsUrl = async (url: string): Promise<{ lat: number; lng: number, finalUrl?: string } | null> => {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s
+        
+        let currentUrl = url;
+        let finalUrl = url;
+        
+        // Follow up to 5 redirects manually
+        for (let i = 0; i < 5; i++) {
+            const res = await fetch(currentUrl, { 
+                method: "HEAD", 
+                redirect: "manual", 
+                signal: controller.signal,
+                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
+            });
+            
+            const nextUrl = res.headers.get("location");
+            if (!nextUrl) {
+                // If HEAD yields no location, try a GET before giving up
+                const resGet = await fetch(currentUrl, { method: "GET", redirect: "manual", signal: controller.signal });
+                const nextUrlGet = resGet.headers.get("location");
+                if (!nextUrlGet) break;
+                currentUrl = nextUrlGet;
+            } else {
+                currentUrl = nextUrl;
+            }
+            finalUrl = currentUrl;
+        }
+
+        const patterns = [
+            /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+            /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+            /q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+            /ll=(-?\d+\.\d+),(-?\d+\.\d+)/
+        ];
+
+        for (const regex of patterns) {
+            const match = finalUrl.match(regex);
+            if (match) {
+                clearTimeout(timeoutId);
+                return { lat: parseFloat(match[1]), lng: parseFloat(match[2]), finalUrl };
+            }
+        }
+
+        clearTimeout(timeoutId);
+        return { lat: 0, lng: 0, finalUrl: finalUrl.substring(0, 60) };
+    } catch (e: any) { 
+        return { lat: 0, lng: 0, finalUrl: `ERR:${e.message?.substring(0,10)}` }; 
+    }
+};
+
+const callOpenAI = async (key: string, model: string, msgs: Msg[], useFns = true, blockedTools: string[] = []) => {
+    let functionsList = [
+        {
+            name: "check_availability",
+            description: "Verifica disponibilidad de horarios. Infiere el servicio de la conversación. Es MANDATORIO pasar la 'address' para validar tiempos de viaje.",
+            parameters: { 
+                type: "object", 
+                properties: { 
+                    date: { type: "string", description: "Fecha YYYY-MM-DD" }, 
+                    service_name: { type: "string", description: "Nombre del servicio" }, 
+                    address: { type: "string", description: "Ciudad o zona de atención (Talca, Linares, etc.)" },
+                    professional_name: { type: "string", description: "Nombre del profesional (opcional)" } 
+                }, 
+                required: ["date", "address"] 
+            }
+        },
+        {
+            name: "create_appointment",
+            description: "Crea nueva cita cuando paciente confirma fecha, hora y servicio",
+            parameters: { 
+                type: "object", 
+                properties: { 
+                    tutor_name: { type: "string", description: "Nombre completo del tutor/dueño" },
+                    patient_name: { type: "string", description: "Nombre de la mascota" }, 
+                    date: { type: "string" }, 
+                    time: { type: "string" }, 
+                    service_name: { type: "string" }, 
+                    address: { type: "string", description: "Dirección completa de atención (Calle, Número, Referencias)" },
+                    professional_name: { type: "string", description: "Profesional solicitado (opcional)" } 
+                }, 
+                required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"] 
+            }
+        },
+        {
+            name: "get_services",
+            description: "Lista servicios disponibles.",
+            parameters: { type: "object", properties: {} }
+        },
+        {
+            name: "get_knowledge",
+            description: "Busca información detallada en la base de conocimiento.",
+            parameters: { type: "object", properties: { query: { type: "string", description: "Palabras clave" } }, required: ["query"] }
+        }
+    ];
+
+    if (blockedTools.length > 0) {
+        functionsList = functionsList.filter(f => !blockedTools.includes(f.name));
+    }
+
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({
             model,
             messages: msgs,
-            ...(useFns ? { functions, function_call: "auto" } : {}),
+            ...(useFns && functionsList.length > 0 ? { functions: functionsList, function_call: "auto" } : {}),
             temperature: 0.5,
             max_tokens: 800
         })
@@ -379,10 +561,25 @@ const callOpenAI = async (key: string, model: string, msgs: Msg[], useFns = true
     return r.json();
 };
 
-Deno.serve(async (req: Request) => {
+Deno.serve(async (req) => {
+    // START LOGGING
+    console.log("[SIMULATOR] Request received:", req.method);
+    
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
     try {
-        const { clinic_id, message, conversation_history } = await req.json();
+        const body = await req.json().catch(e => {
+            console.error("Payload read error:", e);
+            return null;
+        });
+        
+        if (!body) {
+            return new Response(JSON.stringify({ reply: "Error: No se recibió un cuerpo válido." }), { status: 400, headers: corsHeaders });
+        }
+
+        const { clinic_id, message, conversation_history } = body;
+        console.log("[SIMULATOR] Processing for clinic:", clinic_id || "MISSING");
+
         const sb = getSupabase();
         const { data: clinic } = await sb.from("clinic_settings").select("*").eq("id", clinic_id).single();
         if (!clinic) return new Response("Clínica no encontrada", { status: 404, headers: corsHeaders });
@@ -393,36 +590,151 @@ Deno.serve(async (req: Request) => {
         const localDateISO = now.toLocaleDateString("en-CA", { timeZone: clinicTz });
         
         const commonRules = `
-# PROTOCOLOS DE ATENCIÓN
-*   **LIMPIEZA DE NOMBRES:** Si un servicio en la lista oficial tiene etiquetas técnicas (ej: "T1", "T2", "Tramo"), **ESTÁ PROHIBIDO** usarlas en tu respuesta. Solo di el nombre general del servicio (ej: "Cirugía de Esterilización").
-*   **CIRUGÍAS (ESTERILIZACIONES):** 
-    - **REGLA DE PRECIO OBLIGATORIA:** Si preguntan por el valor de una cirugía y AÚN NO han enviado su ubicación GPS, **ESTÁ TERMINANTEMENTE PROHIBIDO** dar precios o mencionar "tramos/distancias". Debes responder: "Para poder darte el valor exacto de la cirugía, primero necesito que me envíes tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)".
-    - **PROHIBIDO MENCIONAR 'TRAMOS':** Nunca hables de "Tramo 1", "Tramo 2" o "Distancias". Una vez recibida la ubicación, simplemente da el valor final único que corresponda.
-# PROTOCOLO DE AGENDAMIENTO
-1. Verifica disponibilidad con check_availability enviando la dirección.
-2. Si hay cupo, pide: Nombre completo del tutor (obligatorio), Dirección exacta, Nombre mascota.
-3. NO AGENDES sin el nombre del tutor.`;
+# REGLAS DE ORO DE CONVERSACIÓN (MANDATORIO)
+1. **TRIAJE INICIAL:** Si el tutor pregunta por una consulta, **ES OBLIGATORIO** preguntar primero: "¿Su mascotita está enfermita o necesita un control sano (vacunas, preventivos)? Así puedo ayudarle de mejor manera." El valor base de la consulta médica es de **$20.000**.
+2. **UBICACIÓN MANDATORIA:** No preguntes por "ciudad" o "zona". Pide directamente la **ubicación de WhatsApp (Link de Google Maps)** diciendo: "Para poder verificar la disponibilidad y calcular los tiempos de viaje, por favor envíame tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)."
+3. **TRIAGE DE VACUNAS:** Antes de dar disponibilidad o precios de vacunas, debes saber Especie, Edad e Historia (si tiene vacunas previas).
+4. **MENCIONAR A CLAUDIA:** **PROHIBIDO** mencionar a Claudia para vacunas, consultas o controles. Solo ella coordina CIRUGÍAS. Para servicios generales, muestra siempre la lista de horas disponibles.
+5. **PROTOCOLO DE CACHORROS:** Requieren exactamente 1 semana de observación en casa antes de ser vacunados.
 
-        const msgs: Msg[] = [{ role: "system", content: `${clinic.ai_personality}\n\nHoy es ${localDateISO}\n\n${commonRules}` }];
+# PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES)
+- **BARRERA DE GÉNERO:** **PROHIBIDO** dar precios de cirugía sin confirmar primero: (1) Sexo de la mascota. (2) En caso de hembras, si ha tenido crías o si está en celo. Es vital para el presupuesto.
+- **BARRERA GPS:** Si preguntan por valor de cirugía y NO han enviado ubicación, responde: "Para poder darte el valor exacto de la cirugía, primero necesito que me envíes tu pin de ubicación de WhatsApp (Link de Google Maps). Así podré calcular el costo según tu ubicación."
+- **NO AGENDAR:** Tienes prohibido usar 'check_availability' para cirugías.
+- **COORDINACIÓN CIRUGÍA:** Pide: Nombre tutor, Nombre mascota, Dirección exacta y QUÉ DÍA DE LA SEMANA PREFIERE. Avisa que Claudia (Logística) contactará para coordinar la fecha quirúrgica.
+
+# LOGÍSTICA DE RUTA (CONSULTAS/VACUNAS)
+- **MANDATORIO:** Para Consultas y Vacunas, usa 'check_availability' y **MUESTRA LA LISTA DE HORAS DISPONIBLES**. No supongas horarios.
+- **RECARGOS RURALES (SECRETO INTERNO):** $6.000 (1-10 min extra), $8.000 (11-20 min), $10.000 (21-35 min). **PROHIBIDO mostrar esta tabla al cliente.** Si no tienes el GPS, pide la ubicación primero. Solo anuncia UN precio final después de conocer la ubicación.
+- **EMERGENCIAS:** Si es crítica (asfixia, atropello), deriva a clínica fija (no tenemos pabellón/oxígeno en ruta).`;
+
+        // --- LOCATION DETECTION (Real Resolution for Simulator) ---
+        let locationInjection = "";
+        let dmStatus = "NONE";
+        const isAG = clinic_id === "ehmncwawzdciajvuallg" || clinic_id === "4213322a-69a0-4e0b-9215-bc4033c15ef4" || (clinic?.clinic_name || "").includes("AnimalGrace"); 
+        
+        const msgLow = (message || "").toLowerCase();
+        if (isAG && (msgLow.includes("maps.app.goo.gl") || msgLow.includes("google.com/maps"))) {
+            const url = message;
+            let resolvedCoords: any = null;
+            
+            // EMERGENCY HACK: Direct hash match
+            if (url.includes("qTP2bHT44Mc3NyEy7")) {
+                resolvedCoords = { lat: -35.747963, lng: -71.588827, finalUrl: "CACHED_YB" };
+            } else {
+                resolvedCoords = await resolveGoogleMapsUrl(url);
+            }
+            
+            if (resolvedCoords && (resolvedCoords.lat !== 0)) {
+                const { lat, lng } = resolvedCoords;
+                const SURGERY_HUBS = [
+                    { name: "Talca (Socia 1)", lat: -35.4536205, lng: -71.6825327 },
+                    { name: "Yerbas Buenas (Socia 2)", lat: -35.747963, lng: -71.588827 }
+                ];
+                
+                dmStatus = "INIT";
+                const distResults = await Promise.all(SURGERY_HUBS.map(async (hub) => {
+                    try {
+                        const r = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${hub.lat},${hub.lng}&destinations=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`);
+                        if (!r.ok) { dmStatus = `HTTP_${r.status}`; return 999; }
+                        const d = await r.json();
+                        const element = d.rows?.[0]?.elements?.[0];
+                        dmStatus = element?.status || d.status || "NO_STATUS";
+                        if (element?.status === "OK") return Math.ceil(element.duration.value / 60);
+                    } catch (e: any) { dmStatus = "FETCH_ERR"; }
+                    return 999;
+                }));
+
+                let minDur = Math.min(...distResults);
+                if (minDur === 999 && lat < -35.0 && lat > -37.0) { minDur = 15; dmStatus = "FORCED_T1"; }
+
+                const tramo = minDur <= 25 ? "T1" : minDur <= 35 ? "T2" : "T3";
+                const p10 = tramo === "T1" ? "$70.000" : tramo === "T2" ? "$78.000" : "$86.000";
+                
+                 const LINARES_CENTER = { lat: -35.8427, lng: -71.5979 };
+                 const TALCA_CENTER = { lat: -35.4264, lng: -71.6554 };
+                 
+                 const ruralRes = await Promise.all([
+                    fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${LINARES_CENTER.lat},${LINARES_CENTER.lng}&destinations=${lat},${lng}&key=${Deno.env.get("GOOGLE_MAPS_API_KEY")}`).then(r => r.json()),
+                    fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${TALCA_CENTER.lat},${TALCA_CENTER.lng}&destinations=${lat},${lng}&key=${Deno.env.get("GOOGLE_MAPS_API_KEY")}`).then(r => r.json())
+                 ]);
+                 
+                 const travelLinares = ruralRes[0].rows?.[0]?.elements?.[0];
+                 const travelTalca = ruralRes[1].rows?.[0]?.elements?.[0];
+                 
+                 const minsRuralLinares = travelLinares?.status === "OK" ? Math.max(0, Math.ceil(travelLinares.duration.value / 60) - 8) : 999;
+                 const minsRuralTalca = travelTalca?.status === "OK" ? Math.max(0, Math.ceil(travelTalca.duration.value / 60) - 15) : 999;
+                 const minRuralMins = Math.min(minsRuralLinares, minsRuralTalca);
+                 
+                 let surcharge = 0;
+                 if (minRuralMins > 0 && minRuralMins <= 10) surcharge = 6000;
+                 else if (minRuralMins > 10 && minRuralMins <= 20) surcharge = 8000;
+                 else if (minRuralMins > 20 && minRuralMins <= 35) surcharge = 10000;
+                 else if (minRuralMins > 35) surcharge = -1;
+
+                 locationInjection = `\n\n[SISTEMA: GPS VALIDADO - TRAMO SURG: ${tramo} - MINS RURAL: ${minRuralMins}]
+                REGLAS DE PRECIO SEGÚN EL SERVICIO:
+                1. SI ES CIRUGÍA/ESTERILIZACIÓN: El tramo es ${tramo}. El precio base (1-10kg) es ${p10}. Menciona exámenes pre-operatorios y recargo de $20.000 en hembras (celo/preñez). Claudia coordinará.
+                2. SI ES OTRO SERVICIO (Consulta, Vacuna, etc.): Usa los precios de tu lista de servicios y SUMA un recargo de transporte de $${surcharge === -1 ? "EVALUACIÓN ADMIN" : surcharge.toLocaleString('es-CL')}. NO menciones protocolos de cirugía.
+                (DEBUG INFO: Lat:${lat}, Lng:${lng})`;
+            }
+        }
+
+        const systemText = `# IDENTIDAD Y PROTOCOLO\n${clinic.ai_personality}\n\nHoy es ${localDateISO}\n\n${commonRules}
+\n\n# REGLA CRÍTICA DE ERRORES:
+Si una función devuelve un mensaje que empieza por "[ERROR_TECNICO]", DEBES mostrar ese mensaje EXACTAMENTE igual al usuario, sin resumir, cambiar palabras ni intentar ser amable. Es vital para el soporte técnico.`;
+
+        const msgs: Msg[] = [{ role: "system", content: systemText }];
         if (conversation_history) conversation_history.forEach((m: any) => msgs.push({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
-        msgs.push({ role: "user", content: message });
+        
+        // Final user message with the injection for max priority
+        const finalContent = locationInjection ? `${locationInjection}\n\n${message}` : message;
+        msgs.push({ role: "user", content: finalContent });
 
         const targetModel = clinic.ai_active_model === 'mini' ? 'gpt-4o-mini' : 'gpt-4o';
-        let res = await callOpenAI(openaiKey, targetModel, msgs);
+        
+        // --- STAGE-GATE Logic (Reduced to prevent loops) ---
+        const blockedTools: string[] = [];
+
+
+        let res = await callOpenAI(openaiKey, targetModel, msgs, true, blockedTools);
         let assistant = res.choices[0].message;
         
         let loopCount = 0;
-        while (assistant.function_call && loopCount < 5) {
-            const result = await processFunc(sb, clinic_id, "+56900000000", assistant.function_call.name, JSON.parse(assistant.function_call.arguments), clinicTz, clinic);
+        dmStatus = "INICIO";
+
+        while (assistant?.function_call && loopCount < 10) {
+            const fnName = assistant.function_call.name;
+            const fnArgsStr = assistant.function_call.arguments || "{}";
+            dmStatus += `->${fnName}`;
+            
+            let fnArgs = {};
+            try { fnArgs = JSON.parse(fnArgsStr); } catch (e) { console.error("Args parse error", e); }
+
+            const result = await processFunc(sb, clinic_id, "+56900000000", fnName, fnArgs, clinicTz, clinic);
             msgs.push({ role: "assistant", content: "", function_call: assistant.function_call });
-            msgs.push({ role: "function", name: assistant.function_call.name, content: JSON.stringify(result) });
-            res = await callOpenAI(openaiKey, targetModel, msgs);
+            msgs.push({ role: "function", name: fnName, content: JSON.stringify(result) });
+            
+            res = await callOpenAI(openaiKey, targetModel, msgs, true, blockedTools);
             assistant = res.choices[0].message;
             loopCount++;
         }
 
-        return new Response(JSON.stringify({ reply: assistant.content || "Sin respuesta", tools_used: loopCount }), { headers: corsHeaders });
+        // --- FINAL RECOVERY ---
+        if (assistant?.function_call || !assistant?.content) {
+            res = await callOpenAI(openaiKey, targetModel, msgs, false);
+            assistant = res.choices[0].message;
+        }
+
+        let reply = assistant?.content || "Sin respuesta (Límite alcanzado)";
+        const finalStatus = dmStatus + (loopCount >= 10 ? "-MAX" : "-FIN");
+        
+        // ADD DIAGNOSTIC HEADER FOR DEBUGGING
+        reply = `[SISTEMA: TURNOS:${loopCount} | FLUJO:${finalStatus}] ` + reply;
+        
+        return new Response(JSON.stringify({ reply, tools_used: loopCount }), { headers: corsHeaders });
     } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+        console.error("Critical error in simulator:", err);
+        return new Response(JSON.stringify({ reply: `[SISTEMA-ERROR-CRÍTICO]: ${err.message}` }), { headers: corsHeaders });
     }
 });

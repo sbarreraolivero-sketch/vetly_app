@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
-    Plus, 
-    Search, 
-    Edit2, 
-    User as UserIcon, 
-    Phone, 
+    Plus,
+    Search,
+    Edit2,
+    User as UserIcon,
+    Phone,
     Trash2,
     X,
     Filter,
@@ -65,7 +65,7 @@ export default function Tutors() {
             })
 
             if (rpcError) throw rpcError
-            
+
             // Focus on tutors as CRM is no longer used
             const onlyTutors = (data || []).filter((c: any) => c.type === 'tutor')
             setContacts(onlyTutors)
@@ -119,8 +119,8 @@ export default function Tutors() {
     }
 
     const filteredContacts = contacts.filter(c => {
-        const matchesSearch = 
-            !searchQuery || 
+        const matchesSearch =
+            !searchQuery ||
             c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             c.phone_number?.includes(searchQuery) ||
             c.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -204,7 +204,7 @@ export default function Tutors() {
                                         className="input-soft pl-10 w-full"
                                     />
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => setShowTagSidebar(!showTagSidebar)}
                                     className={cn(
                                         "btn-ghost flex items-center gap-2 px-4 whitespace-nowrap",
@@ -330,7 +330,7 @@ export default function Tutors() {
                                                                             onClick={() => handleDelete(contact)}
                                                                             className="px-2 py-1 bg-red-500 text-white text-xs rounded"
                                                                         >ok</button>
-                                                                        <button onClick={() => setShowDeleteConfirm(null)}><X className="w-3 h-3 text-red-500"/></button>
+                                                                        <button onClick={() => setShowDeleteConfirm(null)}><X className="w-3 h-3 text-red-500" /></button>
                                                                     </div>
                                                                 ) : (
                                                                     <button onClick={() => setShowDeleteConfirm(contact.id)} className="p-2 hover:bg-red-50 text-charcoal/60 hover:text-red-500 rounded-soft">

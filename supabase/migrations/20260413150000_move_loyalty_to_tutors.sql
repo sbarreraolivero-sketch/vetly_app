@@ -20,6 +20,7 @@ BEGIN
             referral_count = COALESCE((SELECT SUM(referral_count) FROM public.patients p WHERE p.tutor_id = t.id), 0);
             
         -- Remove columns from patients to avoid confusion
+        DROP TRIGGER IF EXISTS trigger_referral_bonus ON public.patients;
         ALTER TABLE public.patients DROP COLUMN IF EXISTS loyalty_points;
         ALTER TABLE public.patients DROP COLUMN IF EXISTS referral_code;
         ALTER TABLE public.patients DROP COLUMN IF EXISTS referral_count;
