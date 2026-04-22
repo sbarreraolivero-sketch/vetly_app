@@ -634,18 +634,7 @@ const checkAvail = async (
   clinicWorkingHours?: any,
   address?: string,
 ) => {
-  // 🛡️ SECURITY INTERCEPTOR: AnimalGrace Linares Surgery Hard-Block (Moved to processFunc for consistency, but kept here as safety net)
-  const svc = String(serviceName || "").toLowerCase();
-  const isSurgery = svc.includes("ciru") || svc.includes("esteri") ||
-    svc.includes("castra") || svc.includes("pabell");
-
-  // We trust processFunc to block based on ref_id, but here we can add a generic block for suspected surgery
-  if (
-    isSurgery &&
-    (clinicWorkingHours?.notes?.includes("AnimalGrace") || clinicId.length < 10)
-  ) {
-    return { error: "BLOQUEO DE CIRUGÍA ACTIVO." };
-  }
+  // No hardcoded blocks
 
   // 1. Validate date format (must be YYYY-MM-DD to prevent Postgres RPC from crashing)
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -927,74 +916,18 @@ const checkAvail = async (
 
   const activeZones = [
     ...new Set((dayApptsSummary || []).map((a: any) => {
-      const addr = (a.address || "").toLowerCase();
-      if (addr.includes("talca")) return "Talca";
-      if (addr.includes("maule")) return "Maule";
-      if (addr.includes("san javier")) return "San Javier";
-      if (addr.includes("villa alegre")) return "Villa Alegre";
-      return "Linares";
+      const addrRows = (a.address || "").split(",");
+      return addrRows[addrRows.length - 1]?.trim() || "Local";
     })),
   ];
 
   const dayContext = activeZones.length > 0
-    ? `Ruta existente el ${date}: ${activeZones.join(", ")}.`
+    ? `Ruta existente el ${date} en zonas: ${activeZones.join(", ")}.`
     : "Sin rutas previas para este día.";
 
-  // SMART ROUTING: Check Neighboring Days (Alternating Pattern)
-  const d = new Date(date + "T12:00:00");
-  const dayBefore = new Intl.DateTimeFormat("en-CA").format(
-    new Date(d.getTime() - 86400000),
-  );
-  const dayAfter = new Intl.DateTimeFormat("en-CA").format(
-    new Date(d.getTime() + 86400000),
-  );
-
-  const { data: neighborAppts } = await sb.from("appointments")
-    .select("address, appointment_date")
-    .in("appointment_date", [
-      `${dayBefore}T00:00:00`,
-      `${dayBefore}T23:59:59`,
-      `${dayAfter}T00:00:00`,
-      `${dayAfter}T23:59:59`,
-    ])
-    .neq("status", "cancelled");
-
-  const addressLower = (address || "").toLowerCase();
-  const isTalcaZone = ["talca", "maule", "san javier", "villa alegre"].some(
-    (z) => addressLower.includes(z),
-  );
-
-  const hasTalcaYesterday = (neighborAppts || []).some((a: any) =>
-    a.appointment_date.startsWith(dayBefore) &&
-    ["talca", "maule", "san javier", "villa alegre"].some((z) =>
-      (a.address || "").toLowerCase().includes(z)
-    )
-  );
-  const hasTalcaTomorrow = (neighborAppts || []).some((a: any) =>
-    a.appointment_date.startsWith(dayAfter) &&
-    ["talca", "maule", "san javier", "villa alegre"].some((z) =>
-      (a.address || "").toLowerCase().includes(z)
-    )
-  );
-
-  const hasTalcaToday = activeZones.includes("Talca") ||
-    activeZones.includes("Maule");
-  const hasLinaresToday = activeZones.includes("Linares") &&
-    activeZones.length === 1;
-
   let routingAdvice = "";
-  if (isTalcaZone) {
-    if ((hasTalcaYesterday || hasTalcaTomorrow) && !hasTalcaToday) {
-      routingAdvice =
-        "⚠️ Sugerencia: Normalmente vamos a Talca día por medio. Ayer o mañana ya tenemos ruta allá. ";
-    }
-    if (hasLinaresToday && !hasTalcaToday) {
-      routingAdvice =
-        "⚠️ Nota: Ya hay citas en Linares este día. Sumar Talca implica tiempos de traslado significativos. ";
-    }
-  } else if (hasTalcaToday) {
-    routingAdvice =
-      "ℹ️ Nota: Estaremos en Talca. Disponible Linares al inicio/final del día. ";
+  if (activeZones.length > 0) {
+    routingAdvice = "ℹ️ Nota: Ya existen rutas coordinadas para este día. Intenta agrupar la cita en horarios cercanos a las zonas mencionadas.";
   }
 
   let recommendedSlot = "";
@@ -1998,38 +1931,7 @@ const processFunc = async (
         console.error("[CRM_SYNC] Error updating availability stage:", err);
       }
 
-      const isAG = clinic?.clinic_name?.toLowerCase().includes("animal") || 
-                   clinic?.clinic_name?.toLowerCase().includes("grace");
-      const svc = String(args.service_name || "").toLowerCase();
-
-      // CONTEXTUAL KILL-SWITCH: Search for surgical intent in the recent history
-      const historyText = (history || []).slice(-8).map((m) =>
-        (typeof m.content === "string" ? m.content : JSON.stringify(m.content))
-          .toLowerCase()
-      ).join(" ");
-      const surgeryWords = [
-        "ciru",
-        "esteri",
-        "castra",
-        "pabell",
-        "operaci",
-        "intervenci",
-      ];
-      const hasSurgicalIntent = surgeryWords.some((w) =>
-        svc.includes(w) || historyText.includes(w)
-      );
-
-      if (isAG && hasSurgicalIntent) {
-        console.log(
-          "[SECURITY] Surgery intent detected. Blocking all availability for AnimalGrace.",
-        );
-        return {
-          available: false,
-          slots: [],
-          message:
-            "SISTEMA: Agenda bloqueada para servicios quirúrgicos. Informa el precio de la tabla y di que Claudia contactará para coordinar. NO INTENTES BUSCAR HORARIOS GENÉRICOS.",
-        };
-      }
+      // No hardcoded block
       return checkAvail(
         sb,
         clinicId,
@@ -2432,24 +2334,9 @@ Deno.serve(async (req) => {
       const loc = msgObj.location;
       const lat = loc.latitude;
       const lng = loc.longitude;
-
-      // Haversine Distance to Linares Center (Plaza de Armas)
-      const baseLat = -35.8454;
-      const baseLng = -71.5979;
-      const R = 6371;
-      const dLat = (lat - baseLat) * (Math.PI / 180);
-      const dLng = (lng - baseLng) * (Math.PI / 180);
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(baseLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) *
-          Math.sin(dLng / 2) * Math.sin(dLng / 2);
-      let distanceKmRaw = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-
-      let distanceKmStr = distanceKmRaw.toFixed(1);
-      let urbanDeductionNote = "";
       let detectedCity = "";
-
-      // Best-effort Reverse Geocoding
       let formattedAddress = "";
+
       try {
         const mapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
         if (mapsKey) {
@@ -2457,77 +2344,25 @@ Deno.serve(async (req) => {
             `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${mapsKey}&language=es`,
           );
           const geoData = await geoRes.json();
-          if (
-            geoData.status === "OK" && geoData.results &&
-            geoData.results.length > 0
-          ) {
+          if (geoData.status === "OK" && geoData.results?.length > 0) {
             formattedAddress = geoData.results[0].formatted_address;
-
-            // Extract City (Locality)
-            const addressComponents = geoData.results[0].address_components;
-            const locality = addressComponents.find((c: any) =>
-              c.types.includes("locality") ||
-              c.types.includes("administrative_area_level_2")
+            const locality = geoData.results[0].address_components.find((c: any) =>
+              c.types.includes("locality") || c.types.includes("administrative_area_level_2")
             );
-            if (locality) {
-              detectedCity = locality.long_name;
-            }
+            if (locality) detectedCity = locality.long_name;
           }
         }
       } catch (e) {
         console.error("Geocoding failed", e);
       }
 
-      // --- UPDATED MULTI-HUB CALCULATION (PIN) ---
-      const cityAnchor = detectedCity ? `[UBICACIÓN DETECTADA: ${detectedCity.toUpperCase()}] ` : "";
-      const userLoc = { lat: Number(lat), lng: Number(lng) };
+      await sb.from("crm_prospects").update({
+        address: formattedAddress || `Coords: ${lat}, ${lng}`,
+        updated_at: new Date().toISOString(),
+      }).eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${from.replace(/^\+/, "")}`);
 
-      // CITY CENTERS FOR RURAL SURCHARGE
-      const LINARES_CENTER = { lat: -35.8427, lng: -71.5979 };
-      const TALCA_CENTER = { lat: -35.4264, lng: -71.6554 };
-
-      let surcharge = 0;
-      let minRuralMins = 999;
-      try {
-        const distLinares = await getTravelDetails(LINARES_CENTER, userLoc);
-        const distTalca = await getTravelDetails(TALCA_CENTER, userLoc);
-        
-        // APPLY COURTESY RADIUS (8 min Linares, 15 min Talca)
-        const minsLinares = Math.max(0, Math.ceil(distLinares.duration / 60) - 8);
-        const minsTalca = Math.max(0, Math.ceil(distTalca.duration / 60) - 15);
-        
-        minRuralMins = Math.min(minsLinares, minsTalca);
-
-        if (minRuralMins > 0 && minRuralMins <= 10) surcharge = 6000;
-        else if (minRuralMins > 10 && minRuralMins <= 20) surcharge = 8000;
-        else if (minRuralMins > 20 && minRuralMins <= 35) surcharge = 10000;
-      } catch (e) {
-        console.error("Rural surcharge calc failed", e);
-      }
-
-      // SURGERY PARTNER CALCULATION (Dual Hub)
-      const partnerYB = { lat: -35.747963, lng: -71.588827 }; // Socia 2
-      const partnerTalca = { lat: -35.4536205, lng: -71.6825327 }; // Socia 1
-
-      let surgeryContext = "";
-      try {
-        const travelYB = await getTravelDetails(partnerYB, userLoc);
-        const travelTalca = await getTravelDetails(partnerTalca, userLoc);
-        const minTravelMinutes = Math.ceil(Math.min(travelYB.duration, travelTalca.duration) / 60);
-        
-        let tramo = "T1";
-        let p10 = "$70.000";
-        if (minTravelMinutes > 45) tramo = "OUT";
-        else if (minTravelMinutes > 35) { tramo = "T3"; p10 = "$86.000"; }
-        else if (minTravelMinutes > 25) { tramo = "T2"; p10 = "$78.000"; }
-
-        surgeryContext = `[SISTEMA: GPS VALIDADO VIA PIN - TRAMO SURG: ${tramo} (${minTravelMinutes} min) - MINS RURAL: ${minRuralMins}]
-                REGLAS DE PRECIO SEGÚN EL SERVICIO:
-                1. SI ES CIRUGÍA/ESTERILIZACIÓN: El precio base (1-10kg) es ${p10}. Menciona exámenes pre-operatorios y recargo de $20.000 en hembras (celo/preñez). Claudia coordinará la fecha.
-                2. SI ES OTRO SERVICIO: SUMA un recargo rural de $${surcharge.toLocaleString("es-CL")}.`;
-      } catch (err) {
-        console.error("Error calculating surgery travel times:", err);
-      }
+      immediateContext = `[SISTEMA: GPS RECIBIDO - UBICACIÓN: ${formattedAddress || "Validada"} - CIUDAD: ${detectedCity}]`;
+      console.log(`[GPS] Location context set for ${from}`);
 
       urbanDeductionNote = minRuralMins <= 0 ? "URBANO ($0 recargo)" : `RURAL (+${minRuralMins} min cargo)`;
 
@@ -2596,68 +2431,8 @@ Deno.serve(async (req) => {
         const { lat, lng } = resolvedCoords;
 
         // --- ENHANCED MULTI-HUB DISTANCE CALCULATION ---
-        const hubs = [
-          { name: "Linares", lat: -35.8454, lng: -71.5979, radius: 3.5 }, // 8 min approx
-          { name: "Talca", lat: -35.4264, lng: -71.6554, radius: 7.0 }   // 15 min approx
-        ];
-
-        let minRuralKm = Infinity;
-        const R = 6371; // Radius of the earth in km
-
-        for (const hub of hubs) {
-          const dLat = (lat - hub.lat) * (Math.PI / 180);
-          const dLng = (lng - hub.lng) * (Math.PI / 180);
-          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(hub.lat * (Math.PI / 180)) *
-              Math.cos(lat * (Math.PI / 180)) * Math.sin(dLng / 2) *
-              Math.sin(dLng / 2);
-          const distKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-          const rural = Math.max(0, distKm - hub.radius);
-          if (rural < minRuralKm) minRuralKm = rural;
-        }
-
-        const ruralKm = minRuralKm;
-
-        if (ruralKm === 0) {
-          body = `[SISTEMA: UBICACIÓN VALIDADA - RADIO URBANO]\n${body || ""}`.trim();
-        } else {
-          body = `[SISTEMA: UBICACIÓN VALIDADA - RURAL +${ruralKm.toFixed(1)}KM]\n${body || ""}`.trim();
-        }
-
-        // SURGERY PARTNERS
-        const partnerYB = { lat: -35.7502492, lng: -71.5863814 };
-        const partnerTalca = { lat: -35.4536205, lng: -71.6825327 };
-        const travelYB = await getTravelDetails(partnerYB, { lat, lng });
-        const travelTalca = await getTravelDetails(partnerTalca, { lat, lng });
-        const minTravelMins = Math.ceil(
-          Math.min(travelYB.duration, travelTalca.duration) / 60,
-        );
-
-        let tramo = "T1";
-        let p10 = "$70.000";
-        if (minTravelMins > 45) tramo = "OUT";
-        else if (minTravelMins > 35) {
-          tramo = "T3";
-          p10 = "$86.000";
-        } else if (minTravelMins > 25) {
-          tramo = "T2";
-          p10 = "$78.000";
-        }
-
-        const gpsContext =
-          `[SISTEMA: GPS VALIDADO VIA LINK - TRAMO: ${tramo} - KM RURAL: ${
-            ruralKm.toFixed(1)
-          }]
-                Pin: ${lat}, ${lng}. 
-                PRECIOS: Cirugía base 1-10kg ${p10}. Vacuna/Consulta Recargo: ${
-            ruralKm > 0
-              ? (ruralKm <= 10
-                ? "$6.000"
-                : ruralKm <= 20
-                ? "$8.000"
-                : "$10.000")
-              : "$0"
-          }.`;
+        // No hardcoded hubs
+        const gpsContext = `[SISTEMA: GPS VALIDADO VIA LINK - COORDENADAS: ${lat}, ${lng}]`;
 
         payloadExtra.ai_context = (payloadExtra.ai_context || "") +
           `\n${gpsContext}`;
@@ -2792,21 +2567,14 @@ Deno.serve(async (req) => {
         .limit(1);
 
       const lastContent = lastMsgs?.[0]?.content || "";
-      if (
-        lastContent.includes("Gracias por escribirnos") ||
-        lastContent.includes("Somos Animal Grace")
-      ) {
+      if (lastContent.includes("Gracias por escribirnos") || lastContent.includes("Vetly")) {
         await Promise.all([
-          sb.from("tutors").update({ requires_human: false }).eq(
-            "clinic_id",
-            clinic.id,
-          ).or(
+          sb.from("tutors").update({ requires_human: false }).eq("clinic_id", clinic.id).or(
             `phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`,
           ),
-          sb.from("crm_prospects").update({ requires_human: false }).eq(
-            "clinic_id",
-            clinic.id,
-          ).or(`phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`),
+          sb.from("crm_prospects").update({ requires_human: false }).eq("clinic_id", clinic.id).or(
+            `phone.eq.${searchPhone},phone.eq.${searchPhoneNoPlus}`,
+          ),
         ]);
         await debugLog(
           sb,
@@ -2815,15 +2583,6 @@ Deno.serve(async (req) => {
         );
         effectivePaused = false;
       }
-    }
-
-    // 4. Emergency Bypass for AnimalGrace (Force Online)
-    if (
-      clinic.clinic_name.toLowerCase().includes("animal") ||
-      clinic.clinic_name.toLowerCase().includes("grace")
-    ) {
-      console.log(`[BYPASS] AnimalGrace AI forced to ONLINE for ${from}`);
-      effectivePaused = false;
     }
 
     if (effectivePaused) {
@@ -2860,10 +2619,7 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
-        const isAG = clinic.clinic_name.toLowerCase().includes("animal") ||
-          clinic.clinic_name.toLowerCase().includes("grace");
-
-        if (latestMsg && latestMsg.id !== msgRowId && !isAG) {
+        if (latestMsg && latestMsg.id !== msgRowId) {
           // WE ARE NOT THE LATEST MESSAGE! Abort silently and let the latest one handle everything.
           await debugLog(sb, `Debounced message`, { msgRowId });
           return;
@@ -2886,38 +2642,12 @@ Deno.serve(async (req) => {
             if (gpsMsg) {
               for (const m of gpsMsg) {
                 const p = m.payload as any;
-                // Check for explicit GPS object OR coordinates in context text
                 if (p && p.gps) {
                   globalGPS = p.gps;
-                  globalLocContext = p.ai_context || "";
-                  
-                  // --- PROACTIVE DISTANCE RE-HYDRATION ---
-                  if (p.rural_mins === undefined || p.rural_mins === null) {
-                    console.log("[GPS_RECOVERY] Found coordinates but no minutes. Re-calculating with Google Maps...");
-                    const baseCoords = { lat: -35.8427, lng: -71.5962 }; // Linares Base
-                    try {
-                      const dist = await getDistanceMatrix(baseCoords, globalGPS);
-                      if (dist && dist.duration > 0) {
-                        const mins = Math.ceil(dist.duration / 60);
-                        (globalGPS as any).rural_mins = mins;
-                      }
-                    } catch (err) {
-                      console.error("[GPS_RECOVERY] Google Maps Call Failed:", err);
-                    }
+                  if (p.rural_mins === undefined) {
+                    (globalGPS as any).rural_mins = 0;
                   }
                   break;
-                } else if (p && p.ai_context && p.ai_context.includes("Pin de Mapa Recibido:")) {
-                  const match = p.ai_context.match(/Pin de Mapa Recibido: (-?\d+\.\d+), (-?\d+\.\d+)/);
-                  if (match) {
-                    globalGPS = { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
-                    globalLocContext = p.ai_context;
-                    const baseCoords = { lat: -35.8427, lng: -71.5962 }; 
-                    const dist = await getDistanceMatrix(baseCoords, globalGPS);
-                    if (dist && dist.duration > 0) {
-                      (globalGPS as any).rural_mins = Math.ceil(dist.duration / 60);
-                    }
-                    break;
-                  }
                 }
               }
             }
@@ -2925,178 +2655,33 @@ Deno.serve(async (req) => {
             console.error("Error fetching global GPS:", e);
           }
         } else if (immediateContext) {
-          // If we have immediate context, ensure rural_mins is attached to the gps object for the header
-          (globalGPS as any).rural_mins = immediateContext.ruralMins;
+          (globalGPS as any).rural_mins = immediateContext.ruralMins || 0;
         }
 
         // --- AT THIS POINT, WE ARE THE LATEST MESSAGE. BEGIN PROCESSING. ---
-
-        // FETCH CONVERSATION HISTORY (Last 15 messages for context)
-        // We use a robust phone lookup to handle variations with/without +
-        const searchPhone = from.startsWith("+") ? from : `+${from}`;
-        const searchPhoneNoPlus = from.startsWith("+")
-          ? from.substring(1)
-          : from;
-
+        
+        // (History and Link resolution simplified to be generic)
         const { data: rawHistory } = await sb.from("messages")
           .select("content, direction, created_at, ai_generated, payload")
           .eq("clinic_id", clinic.id)
-          .or(
-            `phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`,
-          )
+          .or(`phone_number.eq.${from},phone_number.eq.+${from.replace(/^\+/, "")}`)
           .order("created_at", { ascending: false })
-          .limit(30);
-
+          .limit(20);
+        
         let history = (rawHistory || []).reverse();
-        const historyText = history.map(m => String(m.content)).join(" ").toLowerCase();
 
-        // --- NEW: GOOGLE MAPS LINK RESOLUTION ---
-        const lastUserMsg = [...history].reverse().find((m) =>
-          m.direction === "inbound" && !m.ai_generated
-        );
-        if (
-          lastUserMsg &&
-          (lastUserMsg.content.includes("maps.app.goo.gl") ||
-            lastUserMsg.content.includes("google.com/maps"))
-        ) {
-          const urlMatch = lastUserMsg.content.match(
-            /https?:\/\/(?:maps\.app\.goo\.gl|www\.google\.com\/maps)[^\s]+/,
-          );
+        // Generic Map Link Processing
+        const lastUserMsg = [...history].reverse().find(m => m.direction === "inbound" && !m.ai_generated);
+        if (lastUserMsg && (lastUserMsg.content.includes("maps.app.goo.gl") || lastUserMsg.content.includes("google.com/maps"))) {
+          const urlMatch = lastUserMsg.content.match(/https?:\/\/(?:maps\.app\.goo\.gl|www\.google\.com\/maps)[^\s]+/);
           if (urlMatch) {
-            const resolvedCoords = await resolveGoogleMapsUrl(urlMatch[0]);
-            if (resolvedCoords) {
-              const { lat, lng } = resolvedCoords;
-              await debugLog(sb, `Maps Link Detection`, {
-                url: urlMatch[0],
-                lat,
-                lng,
-              });
+             const resolvedCoords = await resolveGoogleMapsUrl(urlMatch[0]);
+             if (resolvedCoords) {
+               immediateContext = `[SISTEMA: GPS RECIBIDO VIA LINK - COORDENADAS: ${resolvedCoords.lat}, ${resolvedCoords.lng}]`;
+             }
+          }
+        }
 
-              // Define Hubs and Radii
-              // Update Hubs for Talca and Yerbas Buenas surgery network
-              const SURGERY_HUBS = [
-                { name: "Talca (Socia 1)", lat: -35.4536205, lng: -71.6825327 },
-                {
-                  name: "Yerbas Buenas (Socia 2)",
-                  lat: -35.747963,
-                  lng: -71.588827,
-                },
-              ];
-              const LINARES_CENTER = { lat: -35.8427, lng: -71.5979 };
-              const TALCA_CENTER = { lat: -35.4264, lng: -71.6554 };
-
-              // 1. Calculate Surgery Tramo (YB/Talca Clinics only)
-              let minSurgeryDur = 999;
-              for (const hub of SURGERY_HUBS) {
-                const details = await getTravelDetails({
-                  lat: hub.lat,
-                  lng: hub.lng,
-                }, { lat, lng });
-                const d = details.duration > 0
-                  ? Math.ceil(details.duration / 60)
-                  : 999;
-                if (d < minSurgeryDur) minSurgeryDur = d;
-              }
-
-              // Expert Logic: If no DM result but in the general area, fallback to T1 for safety
-              if (minSurgeryDur === 999 && lat < -35.0 && lat > -37.0) {
-                minSurgeryDur = 15;
-              }
-
-              let surgeryTramo = "FUERA DE RANGO";
-              if (minSurgeryDur <= 25) surgeryTramo = "TRAMO 1 (T1)";
-              else if (minSurgeryDur <= 35) surgeryTramo = "TRAMO 2 (T2)";
-              else if (minSurgeryDur <= 45) surgeryTramo = "TRAMO 3 (T3)";
-
-              // 2. Calculate General Service Rural Surcharge (With Subtraction)
-              const travelLinares = await getTravelDetails(LINARES_CENTER, {
-                lat,
-                lng,
-              });
-              const travelTalca = await getTravelDetails(TALCA_CENTER, {
-                lat,
-                lng,
-              });
-
-              const minsRuralLinares = travelLinares.duration > 0
-                ? Math.max(0, Math.ceil(travelLinares.duration / 60) - 5)
-                : 999;
-              const minsRuralTalca = travelTalca.duration > 0
-                ? Math.max(0, Math.ceil(travelTalca.duration / 60) - 12)
-                : 999;
-              const minRuralMins = Math.min(minsRuralLinares, minsRuralTalca);
-
-              let generalSurcharge = 0;
-              if (minRuralMins > 0 && minRuralMins <= 10) {
-                generalSurcharge = 6000;
-              } else if (minRuralMins > 10 && minRuralMins <= 20) {
-                generalSurcharge = 8000;
-              } else if (minRuralMins > 20 && minRuralMins <= 35) {
-                generalSurcharge = 10000;
-              } else if (minRuralMins > 35) generalSurcharge = -1; // Admin review
-
-              const linkContext =
-                `\n\n[SISTEMA: GPS VALIDADO - ${minSurgeryDur} MINUTOS - TRAMO ${surgeryTramo}]
-- REGLA PRECIO: EL TRAMO DETECTADO ES ${surgeryTramo}.
-- LISTA DE PRECIOS OFICIAL PARA ${surgeryTramo} (PERROS MACHOS/GATOSM):
-  * 1-10kg: ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$70.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$78.000"
-                    : "$86.000"
-                }
-  * 10.1-15kg: ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$75.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$83.000"
-                    : "$91.000"
-                }
-  * 15.1-22kg: ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$80.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$88.000"
-                    : "$96.000"
-                }
-  * 22.1-30kg: ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$85.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$93.000"
-                    : "$101.000"
-                }
-  * 30.1-40kg: ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$90.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$98.000"
-                    : "$106.000"
-                }
-  * >40kg: ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$100.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$108.000"
-                    : "$116.000"
-                }
-- REGLA DE PRECIOS:
-  * PARA CIRUGÍAS: El tramo detectado es ${surgeryTramo}. El precio base (1-10kg) es ${
-                  surgeryTramo === "TRAMO 1 (T1)"
-                    ? "$70.000"
-                    : surgeryTramo === "TRAMO 2 (T2)"
-                    ? "$78.000"
-                    : "$86.000"
-                }. Menciona exámenes pre-operatorios y recargo por celo en hembras. Claudia coordinará.
-  * PARA OTROS SERVICIOS: Usa tus precios base y suma un recargo de transporte de $${
-                  generalSurcharge === -1
-                    ? "EVALUACIÓN ADMIN"
-                    : generalSurcharge.toLocaleString("es-CL")
-                } si estás fuera del radio urbano de Linares/Talca.
-INSTRUCCIÓN: Responde según el servicio solicitado por el cliente. No mezcles protocolos de cirugía con consultas generales.`;
-
-              (lastUserMsg as any).processed_context = linkContext;
 
               // PROACTIVE SURGERY NOTIFICATION: This will also trigger the auto-pause trigger
               // We only send if the user message actually mentions surgery
@@ -3105,31 +2690,19 @@ INSTRUCCIÓN: Responde según el servicio solicitado por el cliente. No mezcles 
                 .some((w) => lowerBody.includes(w));
 
               if (isSurgeryIntent) {
-                await sb.from("notifications").insert({
-                  clinic_id: clinic.id,
-                  phone_number: from,
-                  type: "human_handoff",
-                  title: `Solicitud de Cirugía 🏥`,
-                  message:
-                    `El paciente ${from} ha enviado su ubicación para una cirugía (${surgeryTramo}). Claudia, puedes tomar este chat.`,
-                  link: `/app/messages?phone=${from}`,
-                });
+                // Proactive surgical mention notification logic could go here
               }
 
-              // PERSIST in database so it survives across turns
-              await sb.from("messages").update({
-                payload: {
-                  ...(lastUserMsg.payload || {}),
-                  ai_context: linkContext,
-                  gps: { lat, lng },
-                  surgery_tramo: surgeryTramo,
-                  rural_mins: minRuralMins,
-                  surcharge: generalSurcharge,
-                },
-              }).eq("id", (lastUserMsg as any).id || "");
-            }
-          }
-        }
+              // Context update logic generic
+              if (immediateContext) {
+                await sb.from("messages").update({
+                  payload: {
+                    ...(lastUserMsg.payload || {}),
+                    ai_context: immediateContext,
+                  },
+                }).eq("id", (lastUserMsg as any).id || "");
+              }
+
 
         // Check if we already answered this exact same prompt recently to avoid loops
         if (history.length >= 2) {
@@ -3215,171 +2788,30 @@ INSTRUCCIÓN: Responde según el servicio solicitado por el cliente. No mezcles 
               return `${dayName}: CERRADO`;
             }
             const lunch = h.lunch_break;
-            return `${dayName}: ${h.open || h.start || "10:00"} - ${
-              h.close || h.end || "20:00"
-            }${
+            return `${dayName}: ${h.open || h.start || "10:00"} - ${h.close || h.end || "18:30"}${
               lunch?.enabled ? ` (Colación: ${lunch.start}-${lunch.end})` : ""
             }`;
           }).join(", ");
 
-        const commonRules = `
-# REGLAS DE ORO DE CONVERSACIÓN (MANDATORIO)
-1. **TRIAJE INICIAL:** Si el tutor pregunta por una consulta, **ES OBLIGATORIO** preguntar primero: "¿Su mascotita está enfermita o necesita un control sano (vacunas, preventivos)? Así puedo ayudarle de mejor manera."
-2. **UBICACIÓN MANDATORIA:** No preguntes por "ciudad" o "zona". Pide directamente la **ubicación de WhatsApp (pin o Link de Google Maps)** diciendo: "Para poder verificar la disponibilidad y calcular los tiempos de viaje, por favor envíame tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)."
-3. **TRIAGE DE VACUNAS:** Antes de dar disponibilidad o precios de vacunas, debes saber Especie, Edad e Historia (si tiene vacunas previas).
-4. **MENCIONAR A CLAUDIA:** **PROHIBIDO** mencionar a Claudia para vacunas, consultas o controles. Solo ella coordina CIRUGÍAS. Para servicios generales, muestra siempre la lista de horas disponibles.
-5. **PROTOCOLO DE CACHORROS:** Requieren exactamente 1 semana de observación en casa antes de ser vacunados.
-
-# PROTOCOLO DE CIRUGÍAS (ESTERILIZACIONES)
-- **BARRERA DE GÉNERO:** **PROHIBIDO** dar precios de cirugía sin confirmar primero: (1) Sexo de la mascota. (2) En caso de hembras, si ha tenido crías o si está en celo.
-- **BARRERA GPS:** Si preguntan por valor de cirugía y NO han enviado ubicación, responde: "Para poder darte el valor exacto de la cirugía, primero necesito que me envíes tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)."
-- **NO AGENDAR:** Tienes prohibido usar 'check_availability' para cirugías.
-- **COORDINACIÓN CIRUGÍA:** Pide: Nombre tutor, Nombre mascota, Dirección exacta y QUÉ DÍA DE LA SEMANA PREFIERE. Avisa que Claudia (Logística) contactará para coordinar la fecha quirúrgica.
-- **PROHIBIDO MENCIONAR TRAMOS:** Nunca digas "Tramo 1", "Tramo 2" o "T1/T2". Da siempre el valor final.
-
-# LOGÍSTICA DE RUTA (CONSULTAS/VACUNAS)
-- **MANDATORIO:** Para Consultas y Vacunas, usa 'check_availability' y **MUESTRA LA LISTA DE HORAS DISPONIBLES**. No supongas horarios.
-- **RECARGOS RURALES (SECRETO INTERNO):** $6.000 (1-10 min extra), $8.000 (11-20 min), $10.000 (21-35 min). **PROHIBIDO mostrar esta tabla al cliente.** Si no tienes el GPS, pide la ubicación primero. Solo anuncia UN precio final después de conocer la ubicación.
-- **LIMPIEZA DE NOMBRES:** Si un servicio tiene etiquetas técnicas (ej: "T1", "T2", "Tramo"), **ESTÁ PROHIBIDO** usarlas. Solo di el nombre general (ej: "Cirugía de Esterilización").
-- **EMERGENCIAS:** Si es crítica (asfixia, atropello), deriva a clínica fija (no tenemos pabellón/oxígeno en ruta).`;
-
-        const sysPrompt = `# 🚨 REGLA DE ORO DE PRECIOS (PRIORIDAD 0)
-* SI el sistema te entrega una etiqueta [SISTEMA: UBICACIÓN VALIDADA Y PRECIO FIJADO], la respuesta DEBE ser exclusivamente ese precio final. 
-* Está **ESTRICTAMENTE PROHIBIDO** pedir permiso para verificar disponibilidad o costos adicionales si ya tienes el precio fijado.
-* Está **ESTRICTAMENTE PROHIBIDO** usar frases como "precio base", "el costo final puede variar" o "procederé a verificar". 
-* Confirma el valor como una realidad absoluta.
-
-${clinic.ai_personality}
+        const sysPrompt = `
+${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
 Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
-${
-          clinic.address_references
-            ? `Referencias de Dirección: ${clinic.address_references}`
-            : ""
-        }
-${clinic.google_maps_url ? `Mapa Google Maps: ${clinic.google_maps_url}` : ""}
 Horarios: ${hoursSummary}
 
-CONTEXTO DE FECHAS (FUENTE DE VERDAD):
+CONTEXTO DE FECHAS:
 - HOY: ${todayDay}, ${localDateISO}
 - HORA ACTUAL: ${localTime}
-- MAÑANA: ${tomorrowDay}, ${tomorrowISO}
-- PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
 
 Servicios OFICIALES: ${JSON.stringify(servicesForPrompt)}
 ${knowledgeSummary}
 
-*   **GATOS ADULTOS (>1 AÑO)**: Si el gato tiene más de 1 año y nunca se ha vacunado (o no se sabe), el protocolo obligatorio es:
-    - **Dosis 1**: Vacuna Triple Felina.
-    - **Dosis 2**: Triple Felina + Vacuna Antirrábica (exactamente 21 días después).
-    - *Explicación*: Se requieren dos dosis separadas por 21 días para asegurar que el sistema inmune reconozca y genere defensas duraderas.
+Reglas Adicionales:
+${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
+`;
 
-# REGLAS DE ORO DE CONVERSACIÓN (MANDATORIO)
-1. **TRIAJE INICIAL:** Si el tutor pregunta por una consulta, **ES OBLIGATORIO** preguntar primero: "¿Su mascotita está enfermita o necesita un control sano (vacunas, preventivos)? Así puedo ayudarle de mejor manera."
-2. **UBICACIÓN MANDATORIA:** No preguntes por "ciudad" o "zona". Pide directamente la **ubicación de WhatsApp (Link de Google Maps)** diciendo: "Para poder verificar la disponibilidad y calcular los tiempos de viaje, por favor envíame tu pin de ubicación de WhatsApp (ícono clip -> Ubicación)."
-3. **TRIAGE DE VACUNAS:** Antes de dar disponibilidad o precios de vacunas, debes saber Especie, Edad e Historia (si tiene vacunas previas).
-4. **MENCIONAR A CLAUDIA:** **PROHIBIDO** mencionar a Claudia para vacunas o consultas generales. Solo ella coordina CIRUGÍAS/ESTERILIZACIONES.
-5. **PROTOCOLO DE CACHORROS:** Requieren exactamente 1 semana de observación en casa antes de ser vacunados.
-6. **REGLA CRÍTICA DE ERRORES (DIAGNÓSTICO):** Si una función devuelve un mensaje que empieza por "[ERROR_TECNICO]", DEBES mostrar ese mensaje EXACTAMENTE igual al usuario. Es vital para el soporte técnico.
-
-*   **VALIDACIÓN OBLIGATORIA DE HORARIOS Y DÍAS CERRADOS**: Si el usuario pregunta por disponibilidad general (ej: "hoy" o "mañana"), estás OBLIGADO a revisar la variable 'Horarios' de tu prompt. Si ese día dice 'CERRADO' (ej: 'sábado: CERRADO'), debes decirle inmediatamente que la clínica no atiende ese día y ofrecer alternativas, sin asumir nada.
-*   **PROHIBICIÓN DE SALTO DE PROTOCOLO**: Bajo ninguna circunstancia ofrezcas disponibilidad o precios antes de completar el triage (Especie, Edad, Historia).
-*   **POR QUÉ NO HAY HORA**: Si 'check_availability' rechaza un horario, explica el motivo. NO supongas horas si no las has verificado con la herramienta.
-*   **PROHIBICIÓN DE HORARIO GENERICO:** Está **ESTRICTAMENTE PROHIBIDO** responder con el horario de apertura de la clínica (ej: "atendemos de 10:00 a 18:30") cuando el cliente pregunte por disponibilidad. Debes usar SIEMPRE la herramienta 'check_availability' para obtener los slots reales y entregarlos en una lista. Si no usas la herramienta, NO PUEDES dar horarios. Está prohibido alucinar o inventar una lista de horas si la herramienta no te las entrega.
-
-# PROTOCOLO DE AGENDAMIENTO (SECUENCIA ESTRICTA)
-Solo después de completar el triage y que el cliente confirme que desea agendar:
-*   **PASO A (Verificar Fechas y Ubicación Geográfica)**: Pregunta qué día le acomoda y pide que te envíe su **PIN de ubicación de WhatsApp (Link de Google Maps)** para poder calcular la disponibilidad logística de la zona. NO PIDAS datos de la mascota aún. Invoca 'check_availability' usando esa información espacial.
-*   **PASO B (Horarios, Costos y Advertencia)**: Al mostrar horas disponibles e informar viáticos (si aplican según su ubicación GPS), es **OBLIGATORIO** advertir: "Considere un rango de llegada de 2 horas respecto a la hora fijada por imprevistos en ruta". **IMPORTANTE: Solo debes dar esta advertencia UNA VEZ por agendamiento.**
-*   **PASO C (Ficha Médica y Dirección Final)**: Solo tras aceptar el horario y rango, pide los datos finales:
-    1. Nombre completo del tutor (obligatorio).
-    2. Nombre de la mascota y especie.
-    3. Dirección escrita exacta (**Calle, Número de casa y Comuna**) y referencias visuales.
-
-${
-          clinic.clinic_name?.includes("AnimalGrace")
-            ? `# 🎯 REGLAS ESTRATÉGICAS - ANIMALGRACE LINARES
-# 1. 🚜 LOGÍSTICA Y COSTOS (BASE LINARES)
-*   **BASE LINARES:** Salimos desde Linares en la mañana y volvemos en la tarde. 
-*   **DISPONIBILIDAD LINARES:** Prioriza siempre la primera hora de la mañana y la última de la tarde para el radio urbano de Linares.
-*   **LOGÍSTICA TALCA:** Agrupa las visitas en Talca el mismo día para evitar traslados innecesarios. No menciones "días intercalados", simplemente ofrece lo disponible.
-*   **UBICACIÓN GPS OBLIGATORIA (CALCULO TRASLADO):** Pide SIEMPRE el pin de ubicación de WhatsApp. Si ya lo tienes, informa el costo final (Radio Urbano es $0).
-
-# 🏥 PROTOCOLO MÉDICO Y DISPONIBILIDAD
-*   **HERRAMIENTA MANDATORIA:** Está **ESTRICTAMENTE PROHIBIDO** responder con el horario general (ej: 10:00 a 18:30) o listar servicios con sus horarios individuales. Si preguntan por disponibilidad, DEBES llamar a 'check_availability' y mostrar únicamente la LISTA de horas libres (ej: 10:30, 15:00). Prohibido alucinar o inventar horarios.
-*   **TRIAJE DE CONSULTA:** Si preguntan por valor o consulta, pregunta PRIMERO: "¿Su mascota está enfermita o es para control sano?".
-*   **REGLA DE EXÁMENES:** Si piden exámenes, pregunta SIEMPRE: "¿Tiene la orden médica?". Sin orden, requiere consulta previa.
-${
-  // Only inject surgery rules if the history or current message mentions surgery keywords
-  (historyText.includes("cirugia") || historyText.includes("esteril") || historyText.includes("castra") || historyText.includes("pabell") || historyText.includes("operaci"))
-    ? `*   **PROTOCOLO CIRUGÍAS (ACTIVO):** El tramo detectado se mostrará en el header. Informa precios solo si el usuario los pide. Prohibido darlos sin confirmar Sexo y si está en celo/preñez. Claudia (Logística) coordina la fecha final.`
-    : "*   **PROTOCOLO CIRUGÍAS (BLOQUEADO):** Tienes terminantemente prohibido mencionar precios de cirugía, esterilización o protocolos quirúrgicos en esta respuesta ya que el cliente no los ha solicitado. Limítate a Consultas, Vacunas y Disponibilidad General."
-}
-
-# 🏷️ ETIQUETADO Y CRM
-*   Usa 'tag_patient' proactivamente: 'Interés Cirugía', 'Mascota Senior', 'Primera Vez'.`
-            : ""
-        }
-
-
-# RECONOCIMIENTO DE CLIENTE RECURRENTE
-*   **IDENTIDAD**: Si recibes el bloque 'CLIENTE RECONOCIDO', saluda al tutor por su nombre y menciona a sus mascotas si es pertinente.
-*   **EFICIENCIA**: NO preguntes el nombre del tutor ni los nombres de sus mascotas si ya aparecen en el contexto. Solo confirma: "¿Es para [Nombre Mascota] o tienes una nueva mascota?".
-*   **CONTINUIDAD**: Si agendan para una mascota que ya conoces, asume que la especie y los datos base son los mismos, a menos que el cliente indique lo contrario.
-
-# SEGUIMIENTO Y PACIENTES ANTIGUOS
-* Si reportan evolución de salud: "Entiendo. Para que la Doctora revise su ficha rápido, ¿podrías contarme en detalle la evolución o duda exacta? ¿Cómo se llama tu mascota?". 
-* PROHIBIDO DIAGNOSTICAR: Bajo ninguna circunstancia sugieras tratamientos. Escala a la doctora: "Ya le dejé la nota a la Doctora, te responderá apenas termine sus visitas en ruta".
-
-# REGLAS MEDICAS DE RUTA
-* Cachorros: 1 semana de observación antes de vacunar.
-* Prohibido: 3 dosis juntas. No juntar Óctuple con KC.
-* Emergencias: Si es crítica (atropello, asfixia), deriva a clínica fija (no tenemos pabellón/oxígeno).
-* Cirugías: Retiro AM (10-11 hrs), traslado y devolución PM (14-17 hrs). Ayuno 6-8 hrs.
-
-# DESPEDIDAS Y CIERRES DE CONVERSACIÓN
-* Si el cliente solo dice "Ya genial, gracias", "Ok", o se despide, **limítate a agradecer de forma MUY breve** (ej: "¡De nada, que esté muy bien!"). 
-* Está **ESTRICTAMENTE PROHIBIDO** volver a repetir información logística (como el rango horario o viáticos) si ya la mencionaste en mensajes anteriores. No seas robótico.
-
-# FLUJO DE COBRO
-* No se solicita abono previo para agendar (el pago se realiza al finalizar la visita).
-* NUNCA envíes datos de pago antes de que create_appointment devuelva 'success'.
-
-${
-          (clinic.ai_behavior_rules || "Sin reglas adicionales.").replace(
-            new RegExp('\x60', 'g'),
-            "'",
-          )//.replace(/\$\{/g, "")
-        }`;
-
-        // --- VETLY HQ SPECIAL PERSONA ---
-        const sysPromptHQ =
-          `Eres un Asesor Especialista de Vetly, plataforma líder en gestión veterinaria.
-Tu rol es DE CONSULTOR, no de vendedor. Tu objetivo es ayudar a los dueños de clínicas a identificar problemas en su negocio y guiarlos hacia una solución profesional.
-
-# PERSONALIDAD Y TONO
-- Profesional, analítico y empático.
-- Basado en psicología del consumidor: No vendes "funcionalidades", vendes "tranquilidad y rentabilidad".
-- NO eres agresivo. Escuchas más de lo que hablas.
-- Cero sensacionalismo. Respuestas honestas y directas.
-
-# OBJETIVOS DE CONVERSACIÓN
-1. **Descubrimiento de Dolor**: Identifica si la clínica tiene problemas de:
-   - Fuga de pacientes (falta de seguimiento).
-   - Agenda vacía o mal organizada.
-   - Procesos manuales lentos.
-   - Baja rentabilidad por falta de control.
-2. **Propuesta de Valor**: Una vez identificado el dolor, explica cómo Vetly lo soluciona (automatización de recordatorios, CRM inteligente, dashboard de métricas).
-3. **Cierre de Trial**: Guía al prospecto hacia la prueba de 7 días. Es un sistema "Llave en mano" (listo para usar), sin riesgo para el negocio.
-
-# MANEJO DE OBJECIONES
-- Si dicen que "no tienen tiempo": Explica que Vetly justamente les devuelve el tiempo automatizando lo tedioso.
-- Si dicen que "es caro": Enfócate en el retorno de inversión (clientes recuperados vs costo mensual).
-- Si dicen que "ya usan algo": Pregunta qué es lo que más les frustra de su sistema actual.
-
-# REGLA DE ORO
-Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
+        const sysPromptHQ = `Eres un Asesor Especialista de Vetly. Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
 
         // The 'history' variable is already fetched and reversed at the top of the asyncProcess.
         const orderedMsgs = history;
@@ -3450,33 +2882,12 @@ Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gesti
           msgs.push({ role: "user", content: userContentBlocks });
         }
 
+        const isDiagnosticMode = false;
         const targetModel = clinic.ai_active_model === "mini"
           ? "gpt-4o-mini"
           : "gpt-4o";
         // --- TOOL BLOCKING: Only block scheduling for surgeries (same as simulator) ---
         const blockedTools: string[] = [];
-        const isAnimalGraceGate = realClinicId === "ehmncwawzdciajvuallg" ||
-          clinic?.id === "4213322a-69a0-4e0b-9215-bc4033c15ef4" ||
-          (clinic?.clinic_name || "").includes("AnimalGrace");
-
-        if (isAnimalGraceGate) {
-          const burstText = msgs.map((m) => {
-            const content = typeof m.content === "string"
-              ? m.content
-              : JSON.stringify(m.content);
-            return content.toLowerCase();
-          }).join(" ");
-
-          const isSurgeryIntent = ["ciru", "esteri", "castra", "pabell", "operaci"].some(
-            (w) => burstText.includes(w),
-          );
-
-          // Only block scheduling tools for surgeries — Claudia handles those
-          if (isSurgeryIntent) {
-            blockedTools.push("check_availability");
-            blockedTools.push("create_appointment");
-          }
-        }
 
         let res = await callOpenAI(
           openaiApiKey,
@@ -3534,45 +2945,7 @@ Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gesti
         }
 
         let reply = assistant.content || "Error. ¿Puedes repetir?";
-
-        // --- NUCLEAR POST-PROCESSING FILTER: AnimalGrace ---
-        if (
-          realClinicId === "ehmncwawzdciajvuallg" ||
-          (clinic?.clinic_name || "").includes("AnimalGrace")
-        ) {
-          const responseLower = reply.toLowerCase();
-          const surgeryWords = [
-            "ciru",
-            "esteri",
-            "castra",
-            "pabell",
-            "operaci",
-          ];
-          const hasTimeSlots = /\d{1,2}:\d{2}/.test(reply);
-
-          if (
-            surgeryWords.some((w) => responseLower.includes(w)) && hasTimeSlots
-          ) {
-            reply = reply.replace(
-              /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm|hrs|horas)?\b/g,
-              "[CONSULTAR CON CLAUDIA]",
-            );
-          }
-        }
-        
-        // --- CONSTRUCCIÓN DE HEADER DE DIAGNÓSTICO ENRIQUECIDO ---
-        let diagnosticLine = "";
-        if (isAG) {
-          const latStr = globalGPS ? (globalGPS as any).lat.toFixed(4) : "PENDIENTE";
-          const ruralStr = (globalGPS && (globalGPS as any).rural_mins !== undefined) ? (globalGPS as any).rural_mins : "??";
-          const surgStr = (globalGPS && (globalGPS as any).surgery_tramo) ? (globalGPS as any).surgery_tramo : "??";
-          
-          // Detect logic: check if 'check_availability' was in functionResults
-          const usedCalendar = allFuncResults.some(r => (r as any).name === "check_availability");
-          const calStr = usedCalendar ? "SÍ" : "NO";
-
-          diagnosticLine = `[SISTEMA: GPS:${latStr} | URBANO:${ruralStr}min | SURG:${surgStr} | CAL:${calStr} | TURNOS:${historyArr.length}]\n`;
-        }
+        const diagnosticLine = "";
 
         const finalReply = diagnosticLine + reply;
 
