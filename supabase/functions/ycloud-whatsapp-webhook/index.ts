@@ -2102,6 +2102,18 @@ const callOpenAI = async (
   useFns = true,
   blockedTools: string[] = [],
 ) => {
+  const AI_GATEWAY_API_KEY = Deno.env.get("AI_GATEWAY_API_KEY");
+  const targetModel = model || "openai/gpt-5.4-mini"; // Latest high-efficiency flagship mini
+  
+  // Use AI Gateway if available, fallback to direct OpenAI
+  const apiUrl = AI_GATEWAY_API_KEY 
+    ? "https://ai-gateway.vercel.sh/v1/chat/completions"
+    : "https://api.openai.com/v1/chat/completions";
+    
+  const authHeader = AI_GATEWAY_API_KEY 
+    ? `Bearer ${AI_GATEWAY_API_KEY}`
+    : `Bearer ${key}`;
+
   let functions = [
     {
       name: "check_availability",
@@ -2190,14 +2202,14 @@ const callOpenAI = async (
     functions = functions.filter((f) => !blockedTools.includes(f.name));
   }
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
+      Authorization: authHeader,
     },
     body: JSON.stringify({
-      model: model || "gpt-4o-mini",
+      model: targetModel,
       messages: msgs,
       functions: useFns
         ? (functions.length > 0 ? functions : undefined)
@@ -3030,8 +3042,8 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 
         const isDiagnosticMode = false;
         const targetModel = clinic.ai_active_model === "mini"
-          ? "gpt-4o-mini"
-          : "gpt-4o";
+          ? "openai/gpt-5.4-mini" 
+          : "openai/gpt-5-pro";
         // --- TOOL BLOCKING: Only block scheduling for surgeries (same as simulator) ---
         const blockedTools: string[] = [];
 

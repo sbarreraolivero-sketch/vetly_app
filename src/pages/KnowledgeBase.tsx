@@ -21,6 +21,8 @@ import {
     Lightbulb,
     Check,
     Info,
+    Cpu,
+    Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -99,6 +101,7 @@ export default function KnowledgeBase() {
         ],
         is_active: true
     })
+    const [activeModel, setActiveModel] = useState<'mini' | 'pro'>('mini')
     const [savingPrompt, setSavingPrompt] = useState(false)
     const [promptSaved, setPromptSaved] = useState(false)
     const [showPromptSection, setShowPromptSection] = useState(true)
@@ -145,6 +148,7 @@ export default function KnowledgeBase() {
             if (data?.ai_personality) setMasterPrompt(data.ai_personality)
             if (data?.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
             if (data?.transfer_details) setTransferDetails(data.transfer_details)
+            if (data?.ai_active_model) setActiveModel(data.ai_active_model as 'mini' | 'pro')
             
                 // Migration: Handle old schema if necessary
                 let finalConfig = data.logistics_config;
@@ -188,6 +192,7 @@ export default function KnowledgeBase() {
                     ai_behavior_rules: behaviorRules.trim(),
                     transfer_details: transferDetails.trim(),
                     logistics_config: logisticsConfig,
+                    ai_active_model: activeModel,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
@@ -447,8 +452,43 @@ export default function KnowledgeBase() {
                 </button>
 
                 {showPromptSection && (
-                    <div className="px-5 pb-5 space-y-4 border-t border-silk-beige/50">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                    <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
+                        {/* Model Selection */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-5 pb-2 border-b border-silk-beige/30">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-ivory rounded-soft flex items-center justify-center border border-silk-beige/50">
+                                    <Cpu className="w-5 h-5 text-primary-500" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-charcoal">Cerebro de la IA (Modelos GPT-5)</h4>
+                                    <p className="text-[11px] text-charcoal/50">Selecciona el nivel de inteligencia y costo del sistema.</p>
+                                </div>
+                            </div>
+                            <div className="flex bg-ivory p-1 rounded-soft border border-silk-beige/40">
+                                <button
+                                    onClick={() => setActiveModel('mini')}
+                                    className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
+                                        activeModel === 'mini' 
+                                        ? 'bg-white text-emerald-600 shadow-sm border border-silk-beige/50' 
+                                        : 'text-charcoal/40 hover:text-charcoal'
+                                    }`}
+                                >
+                                    <Zap className="w-3.5 h-3.5" /> Flash Mini (GPT-5.4)
+                                </button>
+                                <button
+                                    onClick={() => setActiveModel('pro')}
+                                    className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
+                                        activeModel === 'pro' 
+                                        ? 'bg-hero-gradient text-white shadow-md' 
+                                        : 'text-charcoal/40 hover:text-charcoal'
+                                    }`}
+                                >
+                                    <Sparkles className="w-3.5 h-3.5" /> Sovereign Pro (GPT-5)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-sm font-medium text-charcoal">Master Prompt (Personalidad)</label>
