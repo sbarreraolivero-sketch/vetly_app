@@ -180,13 +180,10 @@ export default function Register() {
         setError('')
         setLoading(true)
 
-        // IMPORT lemonsqueezy redirect
-        const { redirectToLemonCheckout } = await import('@/lib/lemonsqueezy')
-
-        const { error, data }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'lemonsqueezy' : 'mercadopago')
+        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'lemonsqueezy' : 'mercadopago')
 
         if (error) {
-            setError(error.message || 'Error al crear la cuenta. Intenta con otro email o revisa tu tarjeta.')
+            setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
             setLoading(false)
             console.error('Registration Error:', error)
             return
@@ -201,22 +198,7 @@ export default function Register() {
             console.error('Error enviando email de bienvenida:', e);
         }
 
-        /* 
-        // Comentado para eliminar requisito de tarjeta en registro internacional
-        if (paymentRegion === 'international') {
-            try {
-                const clinicId = data?.clinic_id
-                if (clinicId) {
-                    await redirectToLemonCheckout(clinicId, email, selectedPlan as any)
-                    return // Redirecting...
-                }
-            } catch (err: any) {
-                setError('Error al conectar con la pasarela de pago: ' + err.message)
-                setLoading(false)
-                return
-            }
-        }
-        */
+        // Note: Payment redirects disabled for card-free onboarding
 
         // Success - redirect to pending activation for scheduling
         navigate('/pending-activation')
