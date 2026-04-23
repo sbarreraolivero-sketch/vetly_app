@@ -81,9 +81,17 @@ export default function KnowledgeBase() {
     const [masterPrompt, setMasterPrompt] = useState('')
     const [behaviorRules, setBehaviorRules] = useState('')
     const [transferDetails, setTransferDetails] = useState('')
+    const [logisticsConfig, setLogisticsConfig] = useState({
+        base_coordinates: { lat: -35.8450, lng: -71.5979 },
+        base_visit_cost: 25000,
+        urban_radius_km: 8,
+        rural_km_extra_cost: 800,
+        is_active: true
+    })
     const [savingPrompt, setSavingPrompt] = useState(false)
     const [promptSaved, setPromptSaved] = useState(false)
     const [showPromptSection, setShowPromptSection] = useState(true)
+    const [showLogisticsSection, setShowLogisticsSection] = useState(false)
 
     // Form state
     const [formTitle, setFormTitle] = useState('')
@@ -121,12 +129,15 @@ export default function KnowledgeBase() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ai_personality, ai_behavior_rules, transfer_details')
+                .select('ai_personality, ai_behavior_rules, transfer_details, logistics_config')
                 .eq('id', profile.clinic_id)
                 .single()
             if (data?.ai_personality) setMasterPrompt(data.ai_personality)
             if (data?.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
             if (data?.transfer_details) setTransferDetails(data.transfer_details)
+            if (data?.logistics_config && Object.keys(data.logistics_config).length > 0) {
+                setLogisticsConfig(data.logistics_config)
+            }
         } catch (e) {
             console.error('Error fetching master prompt:', e)
         }
@@ -146,6 +157,7 @@ export default function KnowledgeBase() {
                     ai_personality: masterPrompt.trim(),
                     ai_behavior_rules: behaviorRules.trim(),
                     transfer_details: transferDetails.trim(),
+                    logistics_config: logisticsConfig,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
@@ -533,6 +545,157 @@ export default function KnowledgeBase() {
                                 <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-3 py-1.5 rounded-soft">
                                     <CheckCircle2 className="w-4 h-4" />
                                     ¡Guardado!
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Logistics Configuration Section */}
+            <div className="card-soft overflow-hidden">
+                <button
+                    onClick={() => setShowLogisticsSection(!showLogisticsSection)}
+                    className="w-full p-5 flex items-center justify-between hover:bg-ivory/50 transition-colors"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 bg-premium-gradient rounded-soft flex items-center justify-center shadow-md">
+                            <Tag className="w-5.5 h-5.5 text-charcoal" />
+                        </div>
+                        <div className="text-left">
+                            <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
+                                Configuración Logística
+                                <Info className="w-4 h-4 text-primary-500" />
+                            </h2>
+                            <p className="text-sm text-charcoal/50">Coordenadas, radios urbanos y costos de visita</p>
+                        </div>
+                    </div>
+                    <svg className={`w-5 h-5 text-charcoal/40 transition-transform ${showLogisticsSection ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+
+                {showLogisticsSection && (
+                    <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50 pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {/* Base Coordinates */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
+                                    <Search className="w-4 h-4 text-primary-500" />
+                                    Ubicación Base (Casa Matriz)
+                                </h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Latitud</label>
+                                        <input
+                                            type="number"
+                                            step="0.0001"
+                                            value={logisticsConfig.base_coordinates.lat}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                base_coordinates: { ...logisticsConfig.base_coordinates, lat: parseFloat(e.target.value) }
+                                            })}
+                                            className="input-soft w-full text-sm"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Longitud</label>
+                                        <input
+                                            type="number"
+                                            step="0.0001"
+                                            value={logisticsConfig.base_coordinates.lng}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                base_coordinates: { ...logisticsConfig.base_coordinates, lng: parseFloat(e.target.value) }
+                                            })}
+                                            className="input-soft w-full text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-charcoal/50 italic">Coordenadas GPS desde donde se calculan las distancias.</p>
+                            </div>
+
+                            {/* Costs */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
+                                    <Save className="w-4 h-4 text-emerald-500" />
+                                    Costos de Visita
+                                </h3>
+                                <div className="space-y-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Costo Base ($)</label>
+                                        <input
+                                            type="number"
+                                            value={logisticsConfig.base_visit_cost}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                base_visit_cost: parseInt(e.target.value)
+                                            })}
+                                            className="input-soft w-full text-sm"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Recargo Rural por KM extra ($)</label>
+                                        <input
+                                            type="number"
+                                            value={logisticsConfig.rural_km_extra_cost}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                rural_km_extra_cost: parseInt(e.target.value)
+                                            })}
+                                            className="input-soft w-full text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Urban Radius */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                                    Radios de Operación
+                                </h3>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Radio Urbano (KM)</label>
+                                    <input
+                                        type="number"
+                                        value={logisticsConfig.urban_radius_km}
+                                        onChange={(e) => setLogisticsConfig({
+                                            ...logisticsConfig,
+                                            urban_radius_km: parseInt(e.target.value)
+                                        })}
+                                        className="input-soft w-full text-sm"
+                                    />
+                                    <p className="text-[10px] text-charcoal/50 italic mt-1 font-medium">Dentro de este radio se aplica el costo base sin recargos.</p>
+                                </div>
+                                <div className="flex items-center gap-2 mt-4 p-3 bg-primary-50 rounded-soft border border-primary-100">
+                                    <input
+                                        type="checkbox"
+                                        checked={logisticsConfig.is_active}
+                                        onChange={(e) => setLogisticsConfig({
+                                            ...logisticsConfig,
+                                            is_active: e.target.checked
+                                        })}
+                                        className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500"
+                                    />
+                                    <span className="text-xs font-bold text-primary-700">Motor Logístico Activo</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-4 border-t border-silk-beige/30">
+                            <button
+                                onClick={handleSaveMasterPrompt}
+                                disabled={savingPrompt}
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-soft text-sm font-bold shadow-md transition-all flex items-center gap-2"
+                            >
+                                {savingPrompt ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                ) : (
+                                    <><Save className="w-4 h-4" /> Guardar Configuración Logística</>
+                                )}
+                            </button>
+                            {promptSaved && (
+                                <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-bold bg-emerald-50 px-3 py-2 rounded-soft border border-emerald-100">
+                                    <Check className="w-3.5 h-3.5" /> Configuraciones Guardadas
                                 </div>
                             )}
                         </div>

@@ -633,6 +633,7 @@ const checkAvail = async (
   profName?: string,
   clinicWorkingHours?: any,
   address?: string,
+  logisticsConfig?: any,
 ) => {
   // No hardcoded blocks
 
@@ -691,12 +692,15 @@ const checkAvail = async (
   }
 
   const { data: clinic } = await sb.from("clinic_settings").select(
-    "business_model, latitude, longitude",
+    "business_model, latitude, longitude, logistics_config",
   ).eq("id", clinicId).single();
   const isMobile = clinic?.business_model !== "physical";
-  const clinicBase = clinic?.latitude && clinic?.longitude
+
+  // Use the provided config, or the one from the DB, or a default
+  const finalLogistics = logisticsConfig || clinic?.logistics_config || {};
+  const clinicBase = finalLogistics.base_coordinates || (clinic?.latitude && clinic?.longitude
     ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) }
-    : null;
+    : null);
 
   // FEAT: Use Fuzzy/Multiple Service Matching
   const serviceDetails = await getServiceDetails(
@@ -1108,7 +1112,31 @@ const checkAvail = async (
         s.slot_time.substring(0, 5)
       ),
       duration_used: duration,
-      total_price: serviceDetails.price,
+      total_price: (() => {
+        let basePrice = serviceDetails.price;
+        // Apply logistics logic if active
+        if (isMobile && finalLogistics.is_active && travelInfo && clinicBase) {
+          const distance = parseFloat(travelInfo.distance_km);
+          const urbanRadius = finalLogistics.urban_radius_km || 8;
+          const baseCost = finalLogistics.base_visit_cost || 25000;
+          const extraKmCost = finalLogistics.rural_km_extra_cost || 800;
+
+          if (distance > urbanRadius) {
+            const extraKm = distance - urbanRadius;
+            const surcharge = Math.ceil(extraKm * extraKmCost);
+            // If the service is a consultation, it might be the base price itself, 
+            // but usually we add the rural surcharge to the service price.
+            basePrice += surcharge;
+            console.log(`[checkAvail] Rural surcharge applied: ${surcharge} for ${extraKm}km extra.`);
+          } else {
+            // Within urban radius, we ensure at least the base visit cost if it's a consultation
+            if (basePrice < baseCost && lowerService.includes("consult")) {
+              basePrice = baseCost;
+            }
+          }
+        }
+        return basePrice;
+      })(),
       service_found: serviceDetails.name,
       travel_details: travelInfo,
     }
@@ -1139,6 +1167,7 @@ const createAppt = async (
   },
   timezone: string = "America/Santiago",
   refId?: string,
+  logisticsConfig?: any,
 ) => {
   const normalizedPhone = normalizePhone(phone);
 
@@ -1283,6 +1312,7 @@ const createAppt = async (
     profName,
     null,
     args.address,
+    logisticsConfig,
   );
 
   // Check if the specific time requested is in the available slots (using raw format HH:MM)
@@ -1924,6 +1954,19 @@ const processFunc = async (
         console.error("[ROUTE_CONTEXT] Error:", err);
       }
 
+      // --- GENERIC LOGISTICS ENGINE RE-PARSING (Safe for tool execution) ---
+      let logisticsConfig: any = clinic?.logistics_config || null;
+      try {
+        if (!logisticsConfig || Object.keys(logisticsConfig).length === 0) {
+          const logMatch = (clinic?.ai_behavior_rules || "").match(/\[LOGISTICS_CONFIG\]([\s\S]*?)\[\/LOGISTICS_CONFIG\]/);
+          if (logMatch) {
+            logisticsConfig = JSON.parse(logMatch[1]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to re-parse logistics config:", e);
+      }
+
       const avail = await checkAvail(
         sb,
         clinicId,
@@ -1934,6 +1977,7 @@ const processFunc = async (
         args.professional_name as string,
         clinic?.working_hours,
         args.address as string,
+        logisticsConfig,
       );
 
       if (avail.message && routeContext) {
@@ -1942,7 +1986,19 @@ const processFunc = async (
       return avail;
     }
     case "create_appointment": {
-      return createAppt(sb, clinicId, phone, args as any, timezone, clinicId);
+      // Re-parse it for creation too
+      let logisticsConfig: any = clinic?.logistics_config || null;
+      try {
+        if (!logisticsConfig || Object.keys(logisticsConfig).length === 0) {
+          const logMatch = (clinic?.ai_behavior_rules || "").match(/\[LOGISTICS_CONFIG\]([\s\S]*?)\[\/LOGISTICS_CONFIG\]/);
+          if (logMatch) {
+            logisticsConfig = JSON.parse(logMatch[1]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to re-parse logistics config:", e);
+      }
+      return createAppt(sb, clinicId, phone, args as any, timezone, clinicId, logisticsConfig);
     }
     case "get_services":
       return getServices(sb, clinicId);
@@ -2623,11 +2679,13 @@ Deno.serve(async (req) => {
         }
 
         // --- GENERIC LOGISTICS ENGINE ---
-        let logisticsConfig: any = null;
+        let logisticsConfig: any = clinic.logistics_config || null;
         try {
-          const logMatch = (clinic.ai_behavior_rules || "").match(/\[LOGISTICS_CONFIG\]([\s\S]*?)\[\/LOGISTICS_CONFIG\]/);
-          if (logMatch) {
-            logisticsConfig = JSON.parse(logMatch[1]);
+          if (!logisticsConfig || Object.keys(logisticsConfig).length === 0) {
+            const logMatch = (clinic.ai_behavior_rules || "").match(/\[LOGISTICS_CONFIG\]([\s\S]*?)\[\/LOGISTICS_CONFIG\]/);
+            if (logMatch) {
+              logisticsConfig = JSON.parse(logMatch[1]);
+            }
           }
         } catch (e) {
           console.error("Failed to parse logistics config:", e);
