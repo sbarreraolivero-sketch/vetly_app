@@ -395,169 +395,6 @@ export default function KnowledgeBase() {
                 </div>
             </div>
 
-            {/* Logistics Configuration Section */}
-            <div className="card-soft overflow-hidden">
-                <button
-                    onClick={() => setShowLogisticsSection(!showLogisticsSection)}
-                    className="w-full p-5 flex items-center justify-between hover:bg-ivory/50 transition-colors"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-11 h-11 bg-premium-gradient rounded-soft flex items-center justify-center shadow-md">
-                            <Tag className="w-5.5 h-5.5 text-charcoal" />
-                        </div>
-                        <div className="text-left">
-                            <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
-                                Configuración Logística
-                                <Info className="w-4 h-4 text-primary-500" />
-                            </h2>
-                            <p className="text-sm text-charcoal/50">Coordenadas, radios urbanos y costos de visita</p>
-                        </div>
-                    </div>
-                    <svg className={`w-5 h-5 text-charcoal/40 transition-transform ${showLogisticsSection ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </button>
-
-                {showLogisticsSection && (
-                    <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50 pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {/* Base Coordinates */}
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
-                                    <Search className="w-4 h-4 text-primary-500" />
-                                    Ubicación Base (Casa Matriz)
-                                </h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Latitud</label>
-                                        <input
-                                            type="number"
-                                            step="0.0001"
-                                            value={logisticsConfig.base_coordinates.lat}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                base_coordinates: { ...logisticsConfig.base_coordinates, lat: parseFloat(e.target.value) }
-                                            })}
-                                            className="input-soft w-full text-sm"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Longitud</label>
-                                        <input
-                                            type="number"
-                                            step="0.0001"
-                                            value={logisticsConfig.base_coordinates.lng}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                base_coordinates: { ...logisticsConfig.base_coordinates, lng: parseFloat(e.target.value) }
-                                            })}
-                                            className="input-soft w-full text-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-charcoal/50 italic">Coordenadas GPS desde donde se calculan las distancias.</p>
-                            </div>
-
-                            {/* Costs */}
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
-                                    <Save className="w-4 h-4 text-emerald-500" />
-                                    Costos de Visita
-                                </h3>
-                                <div className="space-y-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Costo Base ($)</label>
-                                        <input
-                                            type="number"
-                                            value={logisticsConfig.base_visit_cost}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                base_visit_cost: parseInt(e.target.value)
-                                            })}
-                                            className="input-soft w-full text-sm"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Recargo Rural por KM extra ($)</label>
-                                        <input
-                                            type="number"
-                                            value={logisticsConfig.rural_km_extra_cost}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                rural_km_extra_cost: parseInt(e.target.value)
-                                            })}
-                                            className="input-soft w-full text-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Urban Radius */}
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-bold text-charcoal flex items-center gap-2">
-                                    <Globe className="w-4 h-4 text-amber-500" />
-                                    Radio Urbano
-                                </h3>
-                                <div className="space-y-4">
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-[10px] uppercase font-bold text-charcoal/40 tracking-wider mb-1">
-                                            <span>Radio de cortesía</span>
-                                            <span className="text-primary-600">{logisticsConfig.urban_radius_km} KM</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="50"
-                                            step="1"
-                                            value={logisticsConfig.urban_radius_km}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                urban_radius_km: parseInt(e.target.value)
-                                            })}
-                                            className="w-full h-1.5 bg-silk-beige rounded-lg appearance-none cursor-pointer accent-primary-600"
-                                        />
-                                        <div className="flex justify-between text-[9px] text-charcoal/30 mt-1">
-                                            <span>0 km</span>
-                                            <span>50 km</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-silk-beige/20 p-3 rounded-soft border border-silk-beige/30">
-                                        <label className="flex items-center gap-3 cursor-pointer group">
-                                            <div className="relative">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={logisticsConfig.is_active}
-                                                    onChange={(e) => setLogisticsConfig({
-                                                        ...logisticsConfig,
-                                                        is_active: e.target.checked
-                                                    })}
-                                                    className="sr-only"
-                                                />
-                                                <div className={`w-10 h-5 rounded-full transition-colors ${logisticsConfig.is_active ? 'bg-emerald-500' : 'bg-charcoal/20'}`}></div>
-                                                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${logisticsConfig.is_active ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-charcoal group-hover:text-primary-600 transition-colors">Activar Motor Logístico</span>
-                                                <span className="text-[10px] text-charcoal/40">Si se apaga, la IA ignorará estas reglas.</span>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end pt-2">
-                             <button
-                                onClick={handleSaveMasterPrompt}
-                                disabled={savingPrompt}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                {savingPrompt ? (
-                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                ) : (
-                                    <><Save className="w-4 h-4" /> Guardar Configuración Logística</>
-                                )}
-                            </button>
-                        </div>
                     </div>
                 )}
             </div>
@@ -661,7 +498,117 @@ export default function KnowledgeBase() {
                             </div>
                         </div>
 
-                        <div className="mt-4">
+                        {/* NEW: Logistics Section Integrated Here */}
+                        <div className="border-t border-silk-beige/30 pt-6 mt-2">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Tag className="w-5 h-5 text-primary-500" />
+                                <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider">Configuración Logística Movil</h3>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-ivory/30 p-4 rounded-soft border border-silk-beige/50">
+                                {/* Base Coordinates */}
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-bold text-charcoal/60 flex items-center gap-1">
+                                        <Search className="w-3.5 h-3.5" /> UBICACIÓN BASE (GPS)
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="number"
+                                            step="0.0001"
+                                            value={logisticsConfig.base_coordinates.lat}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                base_coordinates: { ...logisticsConfig.base_coordinates, lat: parseFloat(e.target.value) }
+                                            })}
+                                            placeholder="Latitud"
+                                            className="input-soft w-full text-xs py-1.5"
+                                        />
+                                        <input
+                                            type="number"
+                                            step="0.0001"
+                                            value={logisticsConfig.base_coordinates.lng}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                base_coordinates: { ...logisticsConfig.base_coordinates, lng: parseFloat(e.target.value) }
+                                            })}
+                                            placeholder="Longitud"
+                                            className="input-soft w-full text-xs py-1.5"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Costs */}
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-bold text-charcoal/60 flex items-center gap-1">
+                                        <DollarSign className="w-3.5 h-3.5" /> TARIFAS ($)
+                                    </label>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[10px] text-charcoal/50">Costo Base:</span>
+                                            <input
+                                                type="number"
+                                                value={logisticsConfig.base_visit_cost}
+                                                onChange={(e) => setLogisticsConfig({
+                                                    ...logisticsConfig,
+                                                    base_visit_cost: parseInt(e.target.value)
+                                                })}
+                                                className="input-soft w-24 text-xs py-1"
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[10px] text-charcoal/50">Recargo Rural:</span>
+                                            <input
+                                                type="number"
+                                                value={logisticsConfig.rural_km_extra_cost}
+                                                onChange={(e) => setLogisticsConfig({
+                                                    ...logisticsConfig,
+                                                    rural_km_extra_cost: parseInt(e.target.value)
+                                                })}
+                                                className="input-soft w-24 text-xs py-1"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Radio & Toggle */}
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-bold text-charcoal/60 flex items-center gap-1">
+                                        <Globe className="w-3.5 h-3.5" /> COBERTURA
+                                    </label>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] text-charcoal/50">R. Urbano:</span>
+                                            <span className="text-[10px] font-bold text-primary-600">{logisticsConfig.urban_radius_km} km</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="50"
+                                            value={logisticsConfig.urban_radius_km}
+                                            onChange={(e) => setLogisticsConfig({
+                                                ...logisticsConfig,
+                                                urban_radius_km: parseInt(e.target.value)
+                                            })}
+                                            className="w-full h-1 bg-silk-beige rounded-lg appearance-none cursor-pointer accent-primary-600"
+                                        />
+                                        <label className="flex items-center gap-2 cursor-pointer mt-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={logisticsConfig.is_active}
+                                                onChange={(e) => setLogisticsConfig({
+                                                    ...logisticsConfig,
+                                                    is_active: e.target.checked
+                                                })}
+                                                className="w-3 h-3 rounded text-primary-600 focus:ring-primary-500"
+                                            />
+                                            <span className="text-[10px] font-bold text-charcoal/70">Activar Motor IA</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8">
                             <div className="flex items-center justify-between mb-2">
                                 <label className="text-sm font-medium text-charcoal">Datos Oficiales (Transferencia / Pagos)</label>
                                 <span className="text-xs text-charcoal/40">{transferDetails.length} caracteres</span>
