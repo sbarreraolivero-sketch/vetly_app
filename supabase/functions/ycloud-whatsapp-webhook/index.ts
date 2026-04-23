@@ -615,11 +615,23 @@ const getServiceDetails = async (
   return {
     name: matchedNames.length > 0 ? matchedNames.join(" + ") : serviceName,
     duration: totalDuration,
-    price: totalPrice,
+  price: totalPrice,
     service_ids: serviceIds,
     is_multiple: names.length > 1,
   };
 };
+// Helper to calculate Haversine distance (straight line) across multiple potential bases
+const calculateHaversine = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth radius in KM
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 // =============================================
 // Tool Implementations
 // =============================================
@@ -698,9 +710,30 @@ const checkAvail = async (
 
   // Use the provided config, or the one from the DB, or a default
   const finalLogistics = logisticsConfig || clinic?.logistics_config || {};
-  const clinicBase = finalLogistics.base_coordinates || (clinic?.latitude && clinic?.longitude
-    ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) }
-    : null);
+  
+  // SUPPORT MULTIPLE LOCATIONS: Find the nearest base if multiple exist
+  let clinicBase = null;
+  if (tutorCoords) {
+    if (finalLogistics.locations && finalLogistics.locations.length > 0) {
+      let minDistance = Infinity;
+      let nearestLoc = finalLogistics.locations[0];
+      
+      for (const loc of finalLogistics.locations) {
+        const d = calculateHaversine(tutorCoords.lat, tutorCoords.lng, loc.lat, loc.lng);
+        if (d < minDistance) {
+          minDistance = d;
+          nearestLoc = loc;
+        }
+      }
+      clinicBase = { lat: nearestLoc.lat, lng: nearestLoc.lng, name: nearestLoc.name };
+      console.log(`[checkAvail] Nearest base found: ${nearestLoc.name} (${minDistance.toFixed(2)}km away)`);
+    } else {
+      // Legacy fallback
+      clinicBase = finalLogistics.base_coordinates || (clinic?.latitude && clinic?.longitude
+        ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) }
+        : null);
+    }
+  }
 
   // FEAT: Use Fuzzy/Multiple Service Matching
   const serviceDetails = await getServiceDetails(

@@ -84,7 +84,9 @@ export default function KnowledgeBase() {
     const [behaviorRules, setBehaviorRules] = useState('')
     const [transferDetails, setTransferDetails] = useState('')
     const [logisticsConfig, setLogisticsConfig] = useState({
-        base_coordinates: { lat: -35.8450, lng: -71.5979 },
+        locations: [
+            { id: '1', name: 'Base Principal', lat: -35.8450, lng: -71.5979 }
+        ],
         base_visit_cost: 25000,
         urban_radius_km: 8,
         rural_km_extra_cost: 800,
@@ -136,9 +138,20 @@ export default function KnowledgeBase() {
             if (data?.ai_personality) setMasterPrompt(data.ai_personality)
             if (data?.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
             if (data?.transfer_details) setTransferDetails(data.transfer_details)
-            if (data?.logistics_config && Object.keys(data.logistics_config).length > 0) {
-                setLogisticsConfig(data.logistics_config)
+            
+            // Migration: Handle old schema if necessary
+            let finalConfig = data.logistics_config;
+            if (finalConfig && finalConfig.base_coordinates && !finalConfig.locations) {
+                finalConfig = {
+                    ...finalConfig,
+                    locations: [
+                        { id: '1', name: 'Base Principal', lat: finalConfig.base_coordinates.lat, lng: finalConfig.base_coordinates.lng }
+                    ]
+                };
+                delete finalConfig.base_coordinates;
             }
+
+            if (finalConfig) setLogisticsConfig(finalConfig)
         } catch (e) {
             console.error('Error fetching master prompt:', e)
         }
@@ -503,34 +516,90 @@ export default function KnowledgeBase() {
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-ivory/30 p-4 rounded-soft border border-silk-beige/50">
-                                {/* Base Coordinates */}
-                                <div className="space-y-3">
-                                    <label className="text-[11px] font-bold text-charcoal/60 flex items-center gap-1">
-                                        <Search className="w-3.5 h-3.5" /> UBICACIÓN BASE (GPS)
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <input
-                                            type="number"
-                                            step="0.0001"
-                                            value={logisticsConfig.base_coordinates.lat}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                base_coordinates: { ...logisticsConfig.base_coordinates, lat: parseFloat(e.target.value) }
-                                            })}
-                                            placeholder="Latitud"
-                                            className="input-soft w-full text-xs py-1.5"
-                                        />
-                                        <input
-                                            type="number"
-                                            step="0.0001"
-                                            value={logisticsConfig.base_coordinates.lng}
-                                            onChange={(e) => setLogisticsConfig({
-                                                ...logisticsConfig,
-                                                base_coordinates: { ...logisticsConfig.base_coordinates, lng: parseFloat(e.target.value) }
-                                            })}
-                                            placeholder="Longitud"
-                                            className="input-soft w-full text-xs py-1.5"
-                                        />
+                                {/* Named Locations List */}
+                                <div className="space-y-3 col-span-1 md:col-span-1 lg:col-span-1">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[11px] font-bold text-charcoal/60 flex items-center gap-1">
+                                            <Search className="w-3.5 h-3.5" /> BASES OPERATIVAS (GPS)
+                                        </label>
+                                        <button 
+                                            onClick={() => {
+                                                const newLoc = {
+                                                    id: Math.random().toString(36).substr(2, 9),
+                                                    name: `Nueva Base ${logisticsConfig.locations.length + 1}`,
+                                                    lat: -35.8450,
+                                                    lng: -71.5979
+                                                };
+                                                setLogisticsConfig({
+                                                    ...logisticsConfig,
+                                                    locations: [...logisticsConfig.locations, newLoc]
+                                                });
+                                            }}
+                                            className="text-[10px] bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-bold hover:bg-primary-200 transition-colors"
+                                        >
+                                            + Agregar
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {logisticsConfig.locations.map((loc, index) => (
+                                            <div key={loc.id} className="p-3 bg-white rounded-soft border border-silk-beige/50 shadow-sm space-y-2 relative group">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={loc.name}
+                                                        onChange={(e) => {
+                                                            const newLocs = [...logisticsConfig.locations];
+                                                            newLocs[index].name = e.target.value;
+                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                        }}
+                                                        placeholder="Nombre de la base"
+                                                        className="bg-transparent border-none p-0 text-[11px] font-bold text-charcoal focus:ring-0 w-full"
+                                                    />
+                                                    {logisticsConfig.locations.length > 1 && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newLocs = logisticsConfig.locations.filter(l => l.id !== loc.id);
+                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                            }}
+                                                            className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="space-y-0.5">
+                                                        <span className="text-[9px] text-charcoal/30 uppercase font-bold">Lat</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.0001"
+                                                            value={loc.lat}
+                                                            onChange={(e) => {
+                                                                const newLocs = [...logisticsConfig.locations];
+                                                                newLocs[index].lat = parseFloat(e.target.value);
+                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                            }}
+                                                            className="input-soft w-full text-[10px] py-1"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        <span className="text-[9px] text-charcoal/30 uppercase font-bold">Lng</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.0001"
+                                                            value={loc.lng}
+                                                            onChange={(e) => {
+                                                                const newLocs = [...logisticsConfig.locations];
+                                                                newLocs[index].lng = parseFloat(e.target.value);
+                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                            }}
+                                                            className="input-soft w-full text-[10px] py-1"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
