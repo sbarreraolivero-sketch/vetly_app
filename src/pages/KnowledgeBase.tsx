@@ -21,6 +21,8 @@ import {
     Lightbulb,
     Check,
     Info,
+    DollarSign,
+    Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -91,7 +93,6 @@ export default function KnowledgeBase() {
     const [savingPrompt, setSavingPrompt] = useState(false)
     const [promptSaved, setPromptSaved] = useState(false)
     const [showPromptSection, setShowPromptSection] = useState(true)
-    const [showLogisticsSection, setShowLogisticsSection] = useState(false)
 
     // Form state
     const [formTitle, setFormTitle] = useState('')
