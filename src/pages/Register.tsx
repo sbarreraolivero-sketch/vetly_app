@@ -126,8 +126,8 @@ export default function Register() {
         }
 
         if (step === 3) {
-            // Move to payment step
-            setStep(4)
+            // Create account directly without card
+            handleCreate()
             return
         }
 
@@ -205,7 +205,8 @@ export default function Register() {
             console.error('Error enviando email de bienvenida:', e);
         }
 
-        // If LemonSqueezy, redirect to checkout
+        /* 
+        // Comentado para eliminar requisito de tarjeta en registro internacional
         if (paymentRegion === 'international') {
             try {
                 const clinicId = data?.clinic_id
@@ -219,6 +220,7 @@ export default function Register() {
                 return
             }
         }
+        */
 
         // Success - redirect to pending activation for scheduling
         navigate('/pending-activation')
@@ -240,7 +242,7 @@ export default function Register() {
                     {/* Progress Indicator (Hidden in Join Mode) */}
                     {!isJoinMode && (
                         <div className="flex items-center gap-2 mb-8">
-                            {[1, 2, 3, 4].map((s) => (
+                            {[1, 2, 3].map((s) => (
                                 <div key={s} className="flex items-center">
                                     <div
                                         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${s < step
@@ -252,7 +254,7 @@ export default function Register() {
                                     >
                                         {s < step ? <Check className="w-4 h-4" /> : s}
                                     </div>
-                                    {s < 4 && (
+                                    {s < 3 && (
                                         <div className={`w-12 h-0.5 mx-1 ${s < step ? 'bg-primary-500' : 'bg-silk-beige'}`} />
                                     )}
                                 </div>
@@ -272,8 +274,7 @@ export default function Register() {
                         {isJoinMode ? 'Ingresa tus datos para aceptar la invitación' : (
                             step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
                                 step === 2 ? 'Configura los datos básicos de tu negocio' :
-                                    step === 3 ? 'Selecciona el plan que mejor se adapte a ti' :
-                                        'Finaliza tu registro'
+                                    'Selecciona el plan que mejor se adapte a ti'
                         )}
                     </p>
 
@@ -481,72 +482,7 @@ export default function Register() {
                             </div>
                         )}
 
-                        {/* Step 4: Payment Info */}
-                        {step === 4 && !isJoinMode && (
-                            <div className="space-y-4">
-                                <div className="bg-primary-50 rounded-soft p-4 mb-6">
-                                    <div className="flex items-start gap-3">
-                                        <div className="mt-1 bg-white p-1 rounded">
-                                            <ShieldCheck className="w-4 h-4 text-primary-600" />
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold text-charcoal text-sm">Prueba de 7 días sin costo</p>
-                                            <p className="text-xs text-charcoal/70 mt-1">
-                                                No se realizará ningún cargo hoy. Tu tarjeta es solo para garantizar tu sesión de activación estratégica. Cancela cuando quieras antes de los 7 días.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {paymentRegion === 'chile' ? (
-                                    <div className="border border-gray-200 rounded-soft p-4 bg-white min-h-[400px]">
-                                        <CardPayment
-                                            initialization={{
-                                                amount: plans.find(p => p.id === selectedPlan)?.price || 159
-                                            }}
-                                            customization={{
-                                                visual: {
-                                                    style: {
-                                                        theme: 'default'
-                                                    },
-                                                    texts: {
-                                                        formSubmit: 'Comenzar Prueba Gratis'
-                                                    }
-                                                },
-                                                paymentMethods: {
-                                                    maxInstallments: 1
-                                                }
-                                            }}
-                                            onSubmit={async (formData) => {
-                                                await handleCreate(formData.token);
-                                            }}
-                                            onError={(error) => {
-                                                console.error("Mercado Pago Error:", error);
-                                                setError('Error al procesar la tarjeta. Revisa los datos ingresados.');
-                                            }}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="text-center p-8 border border-silk-beige rounded-soft bg-white shadow-soft">
-                                        <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <Sparkles className="w-8 h-8 text-primary-500" />
-                                        </div>
-                                        <h3 className="text-lg font-semibold text-charcoal mb-2">Pago Internacional (USD)</h3>
-                                        <p className="text-sm text-charcoal/60 mb-6">
-                                            Serás redirigido a nuestra pasarela segura Lemon Squeezy para finalizar tu registro. 
-                                            Tu prueba gratuita de 7 días comenzará de inmediato.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleCreate()}
-                                            disabled={loading}
-                                            className="btn-primary w-full py-4 flex items-center justify-center gap-2"
-                                        >
-                                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar y Pagar'}
-                                            <ArrowRight className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                )}
+                        {/* Step 4: Removed - Payment Info is no longer required at registration */}
 
                                 <div className="mt-6 flex flex-col items-center gap-2">
                                     <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro o el pago?</p>
@@ -575,7 +511,7 @@ export default function Register() {
                                     Atrás
                                 </button>
                             )}
-                            {step !== 4 && (
+                            {step <= 3 && (
                                 <button
                                     type="submit"
                                     disabled={loading}
@@ -589,11 +525,6 @@ export default function Register() {
                                     ) : step < 3 || (isJoinMode && step < 1) ? (
                                         <>
                                             Continuar
-                                            <ArrowRight className="w-5 h-5" />
-                                        </>
-                                    ) : step === 3 && !isJoinMode ? (
-                                        <>
-                                            Agregar Método de Pago
                                             <ArrowRight className="w-5 h-5" />
                                         </>
                                     ) : (
