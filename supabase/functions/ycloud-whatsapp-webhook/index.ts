@@ -714,19 +714,36 @@ const checkAvail = async (
   // SUPPORT MULTIPLE LOCATIONS: Find the nearest base if multiple exist
   let clinicBase = null;
   if (tutorCoords) {
+    const lowerService = serviceName?.toLowerCase() || "";
+    // Detect if this is a surgery request
+    const isSurgery = lowerService.includes("cirug") || 
+                     lowerService.includes("esterili") || 
+                     lowerService.includes("castra");
+
     if (finalLogistics.locations && finalLogistics.locations.length > 0) {
       let minDistance = Infinity;
-      let nearestLoc = finalLogistics.locations[0];
+      let nearestLoc = null;
       
-      for (const loc of finalLogistics.locations) {
+      // Filter locations based on service type
+      const relevantLocations = finalLogistics.locations.filter((l: any) => 
+        isSurgery ? l.type === 'surgical_hub' : l.type === 'operational'
+      );
+
+      // If no locations of that type exist, fallback to all locations
+      const locsToSearch = relevantLocations.length > 0 ? relevantLocations : finalLogistics.locations;
+
+      for (const loc of locsToSearch) {
         const d = calculateHaversine(tutorCoords.lat, tutorCoords.lng, loc.lat, loc.lng);
         if (d < minDistance) {
           minDistance = d;
           nearestLoc = loc;
         }
       }
-      clinicBase = { lat: nearestLoc.lat, lng: nearestLoc.lng, name: nearestLoc.name };
-      console.log(`[checkAvail] Nearest base found: ${nearestLoc.name} (${minDistance.toFixed(2)}km away)`);
+      
+      if (nearestLoc) {
+        clinicBase = { lat: nearestLoc.lat, lng: nearestLoc.lng, name: nearestLoc.name };
+        console.log(`[checkAvail] Nearest ${isSurgery ? 'Hub' : 'Base'} found: ${nearestLoc.name} (${minDistance.toFixed(2)}km away)`);
+      }
     } else {
       // Legacy fallback
       clinicBase = finalLogistics.base_coordinates || (clinic?.latitude && clinic?.longitude
@@ -1147,24 +1164,35 @@ const checkAvail = async (
       duration_used: duration,
       total_price: (() => {
         let basePrice = serviceDetails.price;
+        const lowerService = serviceName?.toLowerCase() || "";
+        const isSurgery = lowerService.includes("cirug") || 
+                         lowerService.includes("esterili") || 
+                         lowerService.includes("castra");
+
         // Apply logistics logic if active
         if (isMobile && finalLogistics.is_active && travelInfo && clinicBase) {
-          const distance = parseFloat(travelInfo.distance_km);
-          const urbanRadius = finalLogistics.urban_radius_km || 8;
-          const baseCost = finalLogistics.base_visit_cost || 25000;
-          const extraKmCost = finalLogistics.rural_km_extra_cost || 800;
+          const travelTime = travelInfo.travel_time_minutes;
+          
+          // Find the specific location rules in the config if available
+          const locConfig = finalLogistics.locations?.find((l: any) => 
+            l.lat === clinicBase.lat && l.lng === clinicBase.lng
+          );
 
-          if (distance > urbanRadius) {
-            const extraKm = distance - urbanRadius;
-            const surcharge = Math.ceil(extraKm * extraKmCost);
-            // If the service is a consultation, it might be the base price itself, 
-            // but usually we add the rural surcharge to the service price.
-            basePrice += surcharge;
-            console.log(`[checkAvail] Rural surcharge applied: ${surcharge} for ${extraKm}km extra.`);
-          } else {
-            // Within urban radius, we ensure at least the base visit cost if it's a consultation
-            if (basePrice < baseCost && lowerService.includes("consult")) {
-              basePrice = baseCost;
+          if (locConfig && locConfig.time_ranges) {
+            // Find matching range
+            const matchingRange = locConfig.time_ranges.find((r: any) => 
+              travelTime >= r.min && travelTime <= r.max
+            );
+
+            if (matchingRange) {
+              basePrice += (matchingRange.surcharge || 0);
+              // Attach tier info to travel details for AI to read
+              travelInfo.logistics_tier = matchingRange.label;
+              console.log(`[checkAvail] Time-based surcharge applied: ${matchingRange.surcharge} for ${travelTime}min (Tier: ${matchingRange.label})`);
+            } else if (travelTime > (locConfig.max_time_mins || 45)) {
+              // Mark as out of range if it exceeds max
+              travelInfo.out_of_range = true;
+              console.log(`[checkAvail] Travel time ${travelTime}min exceeds max ${locConfig.max_time_mins}min.`);
             }
           }
         }
