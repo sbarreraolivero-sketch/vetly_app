@@ -4,11 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react'
-
-// Initialize MercadoPago outside the component
-const MP_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY || 'APP_USR-61b727c4-a571-46c2-833a-89e68836e5db'
-initMercadoPago(MP_PUBLIC_KEY, { locale: 'es-CL' })
+// Payment SDKs removed for free-trial onboarding
 
 const plans = [
     { id: 'essence', name: 'Essence', price: 99, popular: false },
@@ -484,20 +480,18 @@ export default function Register() {
 
                         {/* Step 4: Removed - Payment Info is no longer required at registration */}
 
-                                <div className="mt-6 flex flex-col items-center gap-2">
-                                    <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro o el pago?</p>
-                                    <a
-                                        href="https://wa.me/56996600259?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-bold bg-primary-50 px-4 py-2 rounded-full border border-primary-100 transition-colors"
-                                    >
-                                        <MessageCircle className="w-4 h-4" />
-                                        Escríbenos por WhatsApp (+56 9 9660 0259)
-                                    </a>
-                                </div>
-                            </div>
-                        )}
+                        <div className="mt-6 flex flex-col items-center gap-2">
+                            <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro?</p>
+                            <a
+                                href="https://wa.me/56996600259?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-bold bg-primary-50 px-4 py-2 rounded-full border border-primary-100 transition-colors"
+                            >
+                                <MessageCircle className="w-4 h-4" />
+                                Escríbenos por WhatsApp (+56 9 9660 0259)
+                            </a>
+                        </div>
 
                         {/* Navigation Buttons */}
                         <div className="flex gap-3 mt-8">
