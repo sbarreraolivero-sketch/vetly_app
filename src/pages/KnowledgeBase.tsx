@@ -101,7 +101,7 @@ export default function KnowledgeBase() {
         ],
         is_active: true
     })
-    const [activeModel, setActiveModel] = useState<'mini' | 'pro'>('mini')
+    const [activeModel, setActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [savingPrompt, setSavingPrompt] = useState(false)
     const [promptSaved, setPromptSaved] = useState(false)
     const [showPromptSection, setShowPromptSection] = useState(true)
@@ -148,7 +148,7 @@ export default function KnowledgeBase() {
             if (data?.ai_personality) setMasterPrompt(data.ai_personality)
             if (data?.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
             if (data?.transfer_details) setTransferDetails(data.transfer_details)
-            if (data?.ai_active_model) setActiveModel(data.ai_active_model as 'mini' | 'pro')
+            if (data?.ai_active_model) setActiveModel(data.ai_active_model as 'hybrid' | 'mini' | 'pro')
             
                 // Migration: Handle old schema if necessary
                 let finalConfig = data.logistics_config;
@@ -454,37 +454,76 @@ export default function KnowledgeBase() {
                 {showPromptSection && (
                     <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
                         {/* Model Selection */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-5 pb-2 border-b border-silk-beige/30">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-5 pb-2 border-b border-silk-beige/30">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-ivory rounded-soft flex items-center justify-center border border-silk-beige/50">
                                     <Cpu className="w-5 h-5 text-primary-500" />
                                 </div>
                                 <div>
-                                    <h4 className="text-sm font-bold text-charcoal">Cerebro de la IA (Modelos GPT-5)</h4>
-                                    <p className="text-[11px] text-charcoal/50">Selecciona el nivel de inteligencia y costo del sistema.</p>
+                                    <h4 className="text-sm font-bold text-charcoal">Estrategia de Inteligencia (Cerebro IA)</h4>
+                                    <p className="text-[11px] text-charcoal/50 mr-4">El sistema elige el mejor modelo según la complejidad del mensaje.</p>
                                 </div>
                             </div>
-                            <div className="flex bg-ivory p-1 rounded-soft border border-silk-beige/40">
+                            
+                            <div className="flex flex-wrap bg-ivory p-1 rounded-soft border border-silk-beige/40 gap-1">
+                                <button
+                                    onClick={() => setActiveModel('hybrid')}
+                                    className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
+                                        activeModel === 'hybrid' 
+                                        ? 'bg-emerald-500 text-white shadow-md' 
+                                        : 'text-charcoal/40 hover:text-charcoal'
+                                    }`}
+                                >
+                                    <Sparkles className="w-3.5 h-3.5" /> Híbrido Auto <span className="text-[9px] opacity-70">(Ahorro Pro)</span>
+                                </button>
                                 <button
                                     onClick={() => setActiveModel('mini')}
                                     className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
                                         activeModel === 'mini' 
-                                        ? 'bg-white text-emerald-600 shadow-sm border border-silk-beige/50' 
+                                        ? 'bg-white text-charcoal shadow-sm border border-silk-beige/50' 
                                         : 'text-charcoal/40 hover:text-charcoal'
                                     }`}
                                 >
-                                    <Zap className="w-3.5 h-3.5" /> Flash Mini (GPT-5.4)
+                                    <Zap className="w-3.5 h-3.5" /> Ahorro Máximo <span className="text-[9px] opacity-50">(Nivel 1)</span>
                                 </button>
                                 <button
                                     onClick={() => setActiveModel('pro')}
                                     className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
                                         activeModel === 'pro' 
-                                        ? 'bg-hero-gradient text-white shadow-md' 
-                                        : 'text-charcoal/40 hover:text-charcoal'
+                                        ? 'bg-charcoal text-white shadow-md' 
+                                        : 'text-white/40 hover:text-white'
                                     }`}
                                 >
-                                    <Sparkles className="w-3.5 h-3.5" /> Sovereign Pro (GPT-5)
+                                    <Cpu className="w-3.5 h-3.5" /> Máximo Poder <span className="text-[9px] opacity-70">(Nivel 3)</span>
                                 </button>
+                            </div>
+                        </div>
+
+                        {/* Credit Explanation Table */}
+                        <div className="bg-silk-beige/10 rounded-soft p-4 border border-silk-beige/20">
+                            <h5 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest mb-3">Escala de Consumo de Créditos (Sugerido)</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="flex items-start gap-2.5">
+                                    <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">1x</div>
+                                    <div>
+                                        <p className="text-[11px] font-bold text-charcoal">Nivel 1: Respuestas Simples</p>
+                                        <p className="text-[10px] text-charcoal/50 leading-tight">Saludos, agradecimientos y confirmación de horarios.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-2.5">
+                                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">8x</div>
+                                    <div>
+                                        <p className="text-[11px] font-bold text-charcoal">Nivel 2: Consultas Estándar</p>
+                                        <p className="text-[10px] text-charcoal/50 leading-tight">Agendamientos, dudas de salud y lógica de logística.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-2.5">
+                                    <div className="w-6 h-6 rounded-full bg-charcoal/10 flex items-center justify-center text-[10px] font-bold text-charcoal/60">60x</div>
+                                    <div>
+                                        <p className="text-[11px] font-bold text-charcoal">Nivel 3: Inteligencia Crítica</p>
+                                        <p className="text-[10px] text-charcoal/50 leading-tight">Cirugías extremas, lectura de comprobantes y fotos.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

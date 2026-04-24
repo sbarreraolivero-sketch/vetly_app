@@ -2095,6 +2095,37 @@ const processFunc = async (
   }
 };
 
+// ====== Helper: Route message to the optimal model tier ======
+const selectModelTier = (content: string, hasImage: boolean = false): { model: string, tier: number } => {
+  const text = content.toLowerCase();
+  
+  // Tier 3: Critical cases, surgeries, or complex medical inquiries + Images
+  const isComplex = hasImage || 
+                    text.includes("cirug") || 
+                    text.includes("esterili") || 
+                    text.includes("castra") || 
+                    text.includes("grave") || 
+                    text.includes("sangre") || 
+                    text.includes("emergencia");
+  
+  if (isComplex) return { model: "openai/gpt-5-pro", tier: 3 };
+
+  // Tier 1: Very simple interactions
+  const isSimple = text.length < 30 && (
+    text.includes("hola") || 
+    text.includes("gracias") || 
+    text.includes("chau") || 
+    text.includes("ok") || 
+    text.includes("bueno") ||
+    text.match(/^[\p{Emoji}\s]+$/u)
+  );
+
+  if (isSimple) return { model: "openai/gpt-5.4-mini", tier: 1 };
+
+  // Default Tier 2: Standard conversation
+  return { model: "openai/gpt-5.4-mini", tier: 2 };
+};
+
 const callOpenAI = async (
   key: string,
   model: string,
@@ -3040,11 +3071,25 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
           msgs.push({ role: "user", content: userContentBlocks });
         }
 
-        const isDiagnosticMode = false;
-        const targetModel = clinic.ai_active_model === "mini"
-          ? "openai/gpt-5.4-mini" 
-          : "openai/gpt-5-pro";
-        // --- TOOL BLOCKING: Only block scheduling for surgeries (same as simulator) ---
+        // --- NEW: INTELLIGENT MODEL ROUTING ---
+        let targetModel = "openai/gpt-5.4-mini";
+        let tierUsed = 2;
+
+        if (clinic.ai_active_model === "hybrid") {
+          const lastUserText = userContentBlocks.map(b => b.text || "").join(" ");
+          const hasImageInBurst = userContentBlocks.some(b => b.type === "image_url");
+          const route = selectModelTier(lastUserText, hasImageInBurst);
+          targetModel = route.model;
+          tierUsed = route.tier;
+          console.log(`[Router] Selecting Tier ${tierUsed} (${targetModel}) based on content complexity.`);
+        } else if (clinic.ai_active_model === "pro") {
+          targetModel = "openai/gpt-5-pro";
+          tierUsed = 3;
+        } else {
+          targetModel = "openai/gpt-5.4-mini";
+          tierUsed = 1;
+        }
+
         const blockedTools: string[] = [];
 
         let res = await callOpenAI(
