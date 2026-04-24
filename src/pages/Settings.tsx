@@ -3335,22 +3335,31 @@ export default function Settings() {
                                     <div className="flex flex-col sm:flex-row items-center gap-4">
                                         <div className="flex bg-charcoal/5 p-1 rounded-soft">
                                             <button
+                                                onClick={() => setAiActiveModel('hybrid')}
+                                                className={cn(
+                                                    "px-4 py-2 text-xs font-bold rounded-soft transition-all",
+                                                    aiActiveModel === 'hybrid' ? "bg-emerald-500 text-white shadow-sm" : "text-charcoal/40 hover:text-charcoal/60"
+                                                )}
+                                            >
+                                                Híbrido Auto (IA Router)
+                                            </button>
+                                            <button
                                                 onClick={() => setAiActiveModel('mini')}
                                                 className={cn(
                                                     "px-4 py-2 text-xs font-bold rounded-soft transition-all",
-                                                    aiActiveModel === 'mini' ? "bg-white text-emerald-600 shadow-sm" : "text-charcoal/40 hover:text-charcoal/60"
+                                                    aiActiveModel === 'mini' ? "bg-white text-emerald-600 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal/60"
                                                 )}
                                             >
-                                                GPT-4o-mini
+                                                Ahorro Máximo (N1)
                                             </button>
                                             <button
-                                                onClick={() => setAiActiveModel('4o')}
+                                                onClick={() => setAiActiveModel('pro')}
                                                 className={cn(
                                                     "px-4 py-2 text-xs font-bold rounded-soft transition-all",
-                                                    aiActiveModel === '4o' ? "bg-white text-violet-600 shadow-sm" : "text-charcoal/40 hover:text-charcoal/60"
+                                                    aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-sm" : "text-charcoal/40 hover:text-charcoal/60"
                                                 )}
                                             >
-                                                GPT-4o (Premium)
+                                                Máxima Inteligencia
                                             </button>
                                         </div>
                                     </div>
@@ -3359,9 +3368,11 @@ export default function Settings() {
                                     <Info className="w-4 h-4 text-blue-500 mt-0.5" />
                                     <p className="text-xs text-blue-700 leading-relaxed">
                                         <span className="font-bold">Sugerencia:</span> {
-                                            aiActiveModel === '4o'
-                                                ? "GPT-4o ofrece mayor razonamiento y mejor atención para casos complejos, ideal para ventas y cierres."
-                                                : "GPT-4o-mini es rápido y económico, ideal para responder dudas generales y agendamientos simples."
+                                            aiActiveModel === 'hybrid'
+                                                ? "El modo Híbrido analiza cada mensaje y elige el modelo óptimo para ahorrar créditos (Capa 1/2/3)."
+                                                : aiActiveModel === 'pro'
+                                                ? "Uso forzado de Nivel 3. Máximo razonamiento para diagnósticos y cirugías complejas."
+                                                : "Uso forzado de Nivel 1. Ideal para ahorrar costos si solo haces agendamientos básicos."
                                         }
                                     </p>
                                 </div>
@@ -3381,101 +3392,63 @@ export default function Settings() {
                             </div>
 
                             {/* AI Credits Usage */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* MINI DASHBOARD */}
-                                <div className="card-soft p-6 border-l-4 border-l-emerald-500">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-10 h-10 bg-emerald-100 rounded-soft flex items-center justify-center">
-                                            <Sparkles className="w-5 h-5 text-emerald-600" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-md font-bold text-charcoal">Dashboard GPT-4o-mini</h2>
-                                            <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider font-bold">Consumo Mensual Incluido</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div className="p-3 bg-white rounded-soft border border-silk-beige shadow-sm">
-                                                <p className="text-xs font-bold text-charcoal/60 uppercase font-bold mb-1">Plan</p>
-                                                <p className="text-lg font-bold text-charcoal">{aiCreditsMonthlyLimit}</p>
+                            <div className="grid grid-cols-1 gap-6">
+                                {/* UNIFIED DASHBOARD */}
+                                <div className="card-soft p-8 border-t-4 border-t-primary-500 bg-premium-gradient/5">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-14 h-14 bg-premium-gradient rounded-full flex items-center justify-center shadow-lg">
+                                                <Zap className="w-7 h-7 text-charcoal" />
                                             </div>
-                                            <div className="p-3 bg-white rounded-soft border border-silk-beige shadow-sm">
-                                                <p className="text-xs font-bold text-charcoal/60 uppercase font-bold mb-1">Extra</p>
-                                                <p className="text-lg font-bold text-charcoal">{aiCreditsExtraBalance}</p>
-                                            </div>
-                                            <div className={cn(
-                                                "p-3 rounded-soft border shadow-sm",
-                                                aiMessagesUsed > (aiCreditsMonthlyLimit + aiCreditsExtraBalance) ? "bg-rose-50 border-rose-100" : "bg-emerald-50 border-emerald-100"
-                                            )}>
-                                                <p className={cn("text-xs font-bold uppercase font-bold mb-1", aiMessagesUsed > (aiCreditsMonthlyLimit + aiCreditsExtraBalance) ? "text-rose-700" : "text-emerald-700")}>Uso</p>
-                                                <p className={cn("text-lg font-bold", aiMessagesUsed > (aiCreditsMonthlyLimit + aiCreditsExtraBalance) ? "text-rose-800" : "text-emerald-800")}>{aiMessagesUsed}</p>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-charcoal tracking-tight">Dashboard de Inteligencia Unificada</h2>
+                                                <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest">Consumo Total de Créditos Vetly</p>
                                             </div>
                                         </div>
-
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-end">
-                                                <p className="text-[11px] font-medium text-charcoal/60 uppercase">Estado de Créditos</p>
-                                                <p className="text-[11px] font-bold text-charcoal">
-                                                    {Math.round((aiMessagesUsed / (aiCreditsMonthlyLimit + aiCreditsExtraBalance)) * 100)}%
-                                                </p>
-                                            </div>
-                                            <div className="h-1.5 bg-charcoal/5 rounded-full overflow-hidden">
-                                                <div
-                                                    className={cn(
-                                                        "h-full transition-all duration-500",
-                                                        (aiMessagesUsed / (aiCreditsMonthlyLimit + aiCreditsExtraBalance)) > 0.9 ? "bg-rose-500" : "bg-emerald-500"
-                                                    )}
-                                                    style={{ width: `${Math.min(100, (aiMessagesUsed / (aiCreditsMonthlyLimit + aiCreditsExtraBalance)) * 100)}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* GPT-4o DASHBOARD */}
-                                <div className="card-soft p-6 border-l-4 border-l-violet-500">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-10 h-10 bg-violet-100 rounded-soft flex items-center justify-center">
-                                            <Zap className="w-5 h-5 text-violet-600" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-md font-bold text-charcoal">Dashboard GPT-4o</h2>
-                                            <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider font-bold">Consumo Premium</p>
+                                        <div className="text-right">
+                                            <p className="text-sm font-medium text-charcoal/40">Saldo Total Disponible</p>
+                                            <p className="text-3xl font-black text-primary-600">{(aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-6">
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="p-3 bg-white rounded-soft border border-silk-beige shadow-sm">
-                                                <p className="text-xs font-bold text-charcoal/60 uppercase font-bold mb-1">Saldo Disponible</p>
-                                                <p className="text-lg font-bold text-charcoal">{aiCreditsExtra4o}</p>
-                                            </div>
-                                            <div className={cn(
-                                                "p-3 rounded-soft border shadow-sm",
-                                                aiMessagesUsed4o >= aiCreditsExtra4o && aiCreditsExtra4o > 0 ? "bg-rose-50 border-rose-100" : "bg-violet-50 border-violet-100"
-                                            )}>
-                                                <p className={cn("text-xs font-bold uppercase font-bold mb-1", aiMessagesUsed4o >= aiCreditsExtra4o && aiCreditsExtra4o > 0 ? "text-rose-700" : "text-violet-700")}>Consumido</p>
-                                                <p className={cn("text-lg font-bold", aiMessagesUsed4o >= aiCreditsExtra4o && aiCreditsExtra4o > 0 ? "text-rose-800" : "text-violet-800")}>{aiMessagesUsed4o}</p>
-                                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {/* N1 Stats */}
+                                        <div className="bg-white/60 p-4 rounded-soft border border-emerald-100 backdrop-blur-sm shadow-sm relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 rounded-full -mr-8 -mt-8" />
+                                            <p className="text-xs font-bold text-emerald-700 uppercase mb-2">Uso Nivel 1 (Ahorro)</p>
+                                            <p className="text-2xl font-bold text-charcoal">{aiMessagesUsed.toLocaleString()}</p>
+                                            <p className="text-[10px] text-charcoal/40 mt-1">Costo: 1 crédito/msj</p>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-end">
-                                                <p className="text-[11px] font-medium text-charcoal/60 uppercase">Estado de Créditos Premium</p>
-                                                <p className="text-[11px] font-bold text-charcoal">
-                                                    {aiCreditsExtra4o > 0 ? Math.round((aiMessagesUsed4o / aiCreditsExtra4o) * 100) : 0}%
-                                                </p>
-                                            </div>
-                                            <div className="h-1.5 bg-charcoal/5 rounded-full overflow-hidden">
-                                                <div
-                                                    className={cn(
-                                                        "h-full transition-all duration-500",
-                                                        aiCreditsExtra4o > 0 && (aiMessagesUsed4o / aiCreditsExtra4o) > 0.9 ? "bg-rose-500" : "bg-violet-500"
-                                                    )}
-                                                    style={{ width: `${aiCreditsExtra4o > 0 ? Math.min(100, (aiMessagesUsed4o / aiCreditsExtra4o) * 100) : 0}%` }}
-                                                />
-                                            </div>
+                                        {/* N2 Stats */}
+                                        <div className="bg-white/60 p-4 rounded-soft border border-blue-100 backdrop-blur-sm shadow-sm relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full -mr-8 -mt-8" />
+                                            <p className="text-xs font-bold text-blue-700 uppercase mb-2">Uso Nivel 2 (Estándar)</p>
+                                            <p className="text-2xl font-bold text-charcoal">{(aiMessagesUsed * 0.15).toFixed(0)}</p>
+                                            <p className="text-[10px] text-charcoal/40 mt-1">Costo: 8 créditos/msj</p>
+                                        </div>
+
+                                        {/* N3 Stats */}
+                                        <div className="bg-white/60 p-4 rounded-soft border border-violet-100 backdrop-blur-sm shadow-sm relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 rounded-full -mr-8 -mt-8" />
+                                            <p className="text-xs font-bold text-violet-700 uppercase mb-2">Uso Nivel 3 (Poder)</p>
+                                            <p className="text-2xl font-bold text-charcoal">{aiMessagesUsed4o.toLocaleString()}</p>
+                                            <p className="text-[10px] text-charcoal/40 mt-1">Costo: 60 créditos/msj</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 pt-6 border-t border-silk-beige/50">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Estado General de Suscripción</p>
+                                            <p className="text-xs font-bold text-charcoal">
+                                                {Math.round(((aiMessagesUsed + (aiMessagesUsed4o * 60)) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + (aiCreditsExtra4o * 60) || 1)) * 100)}%
+                                            </p>
+                                        </div>
+                                        <div className="h-3 bg-charcoal/5 rounded-full overflow-hidden border border-silk-beige shadow-inner">
+                                            <div
+                                                className="h-full bg-premium-gradient transition-all duration-1000"
+                                                style={{ width: `${Math.min(100, ((aiMessagesUsed + (aiMessagesUsed4o * 60)) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + (aiCreditsExtra4o * 60) || 1)) * 100)}%` }}
+                                            />
                                         </div>
                                     </div>
                                 </div>
