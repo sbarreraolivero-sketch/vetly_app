@@ -50,6 +50,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
     politicas: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
     promociones: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
     horarios: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    protocolos: { bg: 'bg-slate-100', text: 'text-slate-800', border: 'border-slate-300' },
 }
 
 const CATEGORY_OPTIONS = [
@@ -61,6 +62,7 @@ const CATEGORY_OPTIONS = [
     { value: 'politicas', label: 'Políticas' },
     { value: 'promociones', label: 'Promociones' },
     { value: 'horarios', label: 'Horarios' },
+    { value: 'protocolos', label: 'Protocolos Operativos' },
 ]
 
 function getCategoryColor(category: string) {
