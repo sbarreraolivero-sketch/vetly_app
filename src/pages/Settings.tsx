@@ -40,8 +40,8 @@ import {
     Calendar,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, CREDIT_PACKS_4O, redirectToCreditsCheckout } from '@/lib/mercadopago'
-import { LS_PLANS, type LSPlanId, LS_CREDIT_PACKS, LS_CREDIT_PACKS_4O, redirectToLemonCheckout, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
+import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
+import { LS_PLANS, type LSPlanId, LS_CREDIT_PACKS, redirectToLemonCheckout, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { TagManager } from '@/components/settings/TagManager'
