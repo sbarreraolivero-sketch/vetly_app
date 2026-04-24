@@ -410,25 +410,6 @@ export default function KnowledgeBase() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <label className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-soft text-sm font-medium text-white transition-all cursor-pointer backdrop-blur-sm">
-                            <Upload className="w-4 h-4" />
-                            {uploadingFile ? 'Leyendo...' : 'Subir Archivo'}
-                            <input
-                                type="file"
-                                accept=".txt,.md,.csv,.json"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
-                        </label>
-                        <button
-                            onClick={openNewModal}
-                            className="bg-white text-primary-700 hover:bg-ivory px-5 py-2 rounded-soft text-sm font-bold transition-all shadow-sm flex items-center gap-2"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Nuevo Registro
-                        </button>
-                    </div>
                 </div>
             </div>
 
@@ -955,7 +936,32 @@ export default function KnowledgeBase() {
                     <BookOpen className="w-5 h-5 text-charcoal" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-bold text-charcoal">Documentos de Conocimiento</h2>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+                    <div>
+                        <h2 className="text-lg font-bold text-charcoal tracking-tight">Documentos de Conocimiento</h2>
+                        <p className="text-xs text-charcoal/40 font-medium uppercase tracking-widest mt-0.5">Biblioteca Técnica del Agente</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-2 px-4 py-2.5 bg-charcoal/5 hover:bg-charcoal/10 border border-charcoal/10 rounded-soft text-xs font-bold text-charcoal transition-all cursor-pointer">
+                            <Upload className="w-3.5 h-3.5" />
+                            {uploadingFile ? 'Procesando...' : 'Subir Archivo'}
+                            <input
+                                type="file"
+                                accept=".txt,.md,.csv,.json"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                            />
+                        </label>
+                        <button
+                            onClick={openNewModal}
+                            className="bg-primary-600 text-white hover:bg-primary-700 px-5 py-2.5 rounded-soft text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Nuevo Registro
+                        </button>
+                    </div>
+                </div>
                     <GuideBox 
                         title="Guía: Tu Biblioteca Técnica" 
                         summary="Usa esto como el cerebro estático de la IA."
