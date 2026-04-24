@@ -160,8 +160,8 @@ export default function Settings() {
     const [aiMessagesUsed, setAiMessagesUsed] = useState(0)
     const [aiMessagesUsed4o, setAiMessagesUsed4o] = useState(0)
     const [aiAutoRespond, setAiAutoRespond] = useState(true)
-    const [aiActiveModel, setAiActiveModel] = useState<'mini' | '4o'>('4o')
-    const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For the purchase cards selector
+    const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
+    const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For purchase, keep legacy values for payment backend
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
     const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
     const [copiedWebhook, setCopiedWebhook] = useState(false)
@@ -1076,7 +1076,8 @@ export default function Settings() {
             }
 
             toast.success('Configuración de IA guardada exitosamente')
-            setSelectedAiModel(aiActiveModel)
+            if (aiActiveModel === 'pro') setSelectedAiModel('4o')
+            else setSelectedAiModel('mini')
             
         } catch (err: any) {
             console.error('Unexpected Error:', err)
@@ -3316,16 +3317,21 @@ export default function Settings() {
                                     <div className="flex items-center gap-4">
                                         <div className={cn(
                                             "w-12 h-12 rounded-soft flex items-center justify-center transition-colors",
-                                            aiActiveModel === '4o' ? "bg-violet-100" : "bg-emerald-100"
+                                            aiActiveModel === 'pro' ? "bg-charcoal text-white" : aiActiveModel === 'hybrid' ? "bg-emerald-100" : "bg-silk-beige"
                                         )}>
-                                            <Bot className={cn("w-6 h-6", aiActiveModel === '4o' ? "text-violet-600" : "text-emerald-600")} />
+                                            <Bot className={cn("w-6 h-6", aiActiveModel === 'pro' ? "text-white" : aiActiveModel === 'hybrid' ? "text-emerald-600" : "text-charcoal/60")} />
                                         </div>
                                         <div>
                                             <h3 className="text-lg font-bold text-charcoal flex items-center gap-2">
                                                 Motor de Respuesta Activo
-                                                {aiActiveModel === '4o' && (
-                                                    <span className="bg-violet-100 text-violet-700 text-xs font-bold uppercase px-2 py-0.5 rounded-full font-bold animate-pulse-subtle">
-                                                        Premium
+                                                {aiActiveModel === 'hybrid' && (
+                                                    <span className="bg-emerald-100 text-emerald-700 text-xs font-bold uppercase px-2 py-0.5 rounded-full font-bold animate-pulse-subtle">
+                                                        Auto-Optimización
+                                                    </span>
+                                                )}
+                                                {aiActiveModel === 'pro' && (
+                                                    <span className="bg-charcoal text-white text-xs font-bold uppercase px-2 py-0.5 rounded-full font-bold">
+                                                        Máximo Poder
                                                     </span>
                                                 )}
                                             </h3>
