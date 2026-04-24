@@ -942,9 +942,9 @@ export default function KnowledgeBase() {
                         <p className="text-xs text-charcoal/40 font-medium uppercase tracking-widest mt-0.5">Biblioteca Técnica del Agente</p>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-2 px-4 py-2.5 bg-charcoal/5 hover:bg-charcoal/10 border border-charcoal/10 rounded-soft text-xs font-bold text-charcoal transition-all cursor-pointer">
-                            <Upload className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 px-6 py-3 bg-charcoal/5 hover:bg-charcoal/10 border border-charcoal/10 rounded-soft text-sm font-bold text-charcoal transition-all cursor-pointer shadow-sm hover:shadow-md">
+                            <Upload className="w-5 h-5 text-charcoal/60" />
                             {uploadingFile ? 'Procesando...' : 'Subir Archivo'}
                             <input
                                 type="file"
@@ -955,9 +955,9 @@ export default function KnowledgeBase() {
                         </label>
                         <button
                             onClick={openNewModal}
-                            className="bg-primary-600 text-white hover:bg-primary-700 px-5 py-2.5 rounded-soft text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                            className="bg-primary-600 text-white hover:bg-primary-700 px-7 py-3 rounded-soft text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
                         >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-5 h-5" />
                             Nuevo Registro
                         </button>
                     </div>
