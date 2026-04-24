@@ -3474,51 +3474,22 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                {/* Model Selector */}
-                                <div className="mb-6 p-4 bg-ivory rounded-soft border border-silk-beige">
-                                    <p className="text-xs font-semibold text-charcoal/60 uppercase tracking-wider mb-3">Modelo de IA</p>
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            onClick={() => setSelectedAiModel('mini')}
-                                            className={cn(
-                                                "flex-1 py-3 px-4 rounded-soft text-sm font-semibold transition-all border-2",
-                                                selectedAiModel === 'mini'
-                                                    ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm"
-                                                    : "bg-white border-silk-beige text-charcoal/60 hover:border-charcoal/20"
-                                            )}
-                                        >
-                                            <div className="text-center">
-                                                <p className="font-bold">GPT-4o-mini</p>
-                                                <p className="text-xs mt-0.5 font-normal opacity-70">Económico · Rápido</p>
-                                            </div>
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectedAiModel('4o')}
-                                            className={cn(
-                                                "flex-1 py-3 px-4 rounded-soft text-sm font-semibold transition-all border-2",
-                                                selectedAiModel === '4o'
-                                                    ? "bg-violet-50 border-violet-500 text-violet-700 shadow-sm"
-                                                    : "bg-white border-silk-beige text-charcoal/60 hover:border-charcoal/20"
-                                            )}
-                                        >
-                                            <div className="text-center">
-                                                <p className="font-bold">GPT-4o</p>
-                                                <p className="text-xs mt-0.5 font-normal opacity-70">Premium · Mayor calidad</p>
-                                            </div>
-                                        </button>
-                                    </div>
-                                    <p className="text-sm text-charcoal/70 mt-3">
-                                        {selectedAiModel === 'mini'
-                                            ? '💡 Ideal para atención general. Respuestas rápidas y económicas.'
-                                            : '⚡ Atención premium con respuestas más detalladas, contextuales y personalizadas. Ideal para clínicas que priorizan la calidad de atención.'}
+                                {/* Unified Packs Description */}
+                                <div className="mb-8 p-6 bg-premium-gradient/5 rounded-soft border border-primary-200">
+                                    <h3 className="text-sm font-bold text-charcoal flex items-center gap-2 mb-2">
+                                        <Sparkles className="w-4 h-4 text-primary-500" />
+                                        Créditos Vetly Universales
+                                    </h3>
+                                    <p className="text-xs text-charcoal/70 leading-relaxed">
+                                        Compra créditos que se adaptan a tu uso. El sistema descontará automáticamente el costo según el nivel de inteligencia requerido para cada respuesta (1x por saludos, 8x por agendamientos, 60x por cirugías complejas).
                                     </p>
                                 </div>
 
                                 {/* Pack Cards */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {(() => {
-                                        const mpPacks = selectedAiModel === '4o' ? { ...CREDIT_PACKS_4O } : { ...CREDIT_PACKS };
-                                        const lsPacks = selectedAiModel === '4o' ? { ...LS_CREDIT_PACKS_4O } : { ...LS_CREDIT_PACKS };
+                                        const mpPacks = { ...CREDIT_PACKS };
+                                        const lsPacks = { ...LS_CREDIT_PACKS };
                                         const currentPacks = paymentRegion === 'international' ? lsPacks : mpPacks;
                                         const currencySymbol = paymentRegion === 'international' ? 'US$' : '$';
                                         const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP';
@@ -3527,53 +3498,40 @@ export default function Settings() {
                                             const pack = (currentPacks as any)[packId]
 
                                             return (
-                                                <div key={packId} className={cn(
-                                                    "p-6 bg-white border rounded-soft hover:shadow-md transition-all flex flex-col",
-                                                    selectedAiModel === '4o'
-                                                        ? "border-violet-200 hover:border-violet-400"
-                                                        : "border-silk-beige hover:border-primary-300"
-                                                )}>
+                                                <div key={packId} className="p-6 bg-white border border-silk-beige rounded-soft hover:shadow-md hover:border-primary-300 transition-all flex flex-col group">
                                                     <div className="mb-4">
-                                                        <h3 className="text-lg font-bold text-charcoal">{pack.name}</h3>
+                                                        <h3 className="text-lg font-extrabold text-charcoal group-hover:text-primary-600 transition-colors">{pack.name}</h3>
                                                         <div className="flex items-baseline gap-1 mt-1">
-                                                            <span className={cn(
-                                                                "text-2xl font-bold",
-                                                                selectedAiModel === '4o' ? "text-violet-600" : "text-primary-600"
-                                                            )}>
+                                                            <span className="text-2xl font-black text-primary-600">
                                                                 {currencySymbol}{pack.price.toLocaleString()}
                                                             </span>
                                                             <span className="text-xs text-charcoal/60 font-medium">{currencyCode}</span>
                                                         </div>
                                                     </div>
                                                     <ul className="mb-6 space-y-2 flex-grow">
-                                                        <li className="flex items-center gap-2 text-sm text-charcoal/70">
-                                                            <Check className="w-4 h-4 text-emerald-500" />
-                                                            {pack.credits} mensajes de IA
+                                                        <li className="flex items-center gap-2 text-sm text-charcoal/70 font-bold">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                            {pack.credits.toLocaleString()} Créditos Vetly
                                                         </li>
-                                                        <li className="flex items-center gap-2 text-sm text-charcoal/70">
-                                                            <Check className="w-4 h-4 text-emerald-500" />
-                                                            Modelo {selectedAiModel === '4o' ? 'GPT-4o (Premium)' : 'GPT-4o-mini'}
+                                                        <li className="flex items-center gap-2 text-xs text-charcoal/40">
+                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                                            IA Híbrida (T1, T2, T3)
                                                         </li>
-                                                        <li className="flex items-center gap-2 text-sm text-charcoal/70">
-                                                            <Check className="w-4 h-4 text-emerald-500" />
+                                                        <li className="flex items-center gap-2 text-xs text-charcoal/40">
+                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
                                                             Sin fecha de vencimiento
                                                         </li>
-                                                        <li className="flex items-center gap-2 text-sm text-charcoal/70">
-                                                            <Check className="w-4 h-4 text-emerald-500" />
+                                                        <li className="flex items-center gap-2 text-xs text-charcoal/40">
+                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
                                                             Activación instantánea
                                                         </li>
                                                     </ul>
                                                     <button
                                                         onClick={() => handleBuyCredits(packId)}
-                                                        className={cn(
-                                                            "w-full py-2 text-white rounded-soft font-semibold text-sm transition-colors flex items-center justify-center gap-2",
-                                                            selectedAiModel === '4o'
-                                                                ? "bg-violet-600 hover:bg-violet-700"
-                                                                : "bg-primary-600 hover:bg-primary-700"
-                                                        )}
+                                                        className="w-full py-3 bg-charcoal text-white rounded-soft font-bold text-sm hover:bg-primary-600 transition-all flex items-center justify-center gap-2 group-hover:shadow-lg"
                                                     >
                                                         <CreditCard className="w-4 h-4" />
-                                                        Comprar Pack
+                                                        Comprar Créditos
                                                     </button>
                                                 </div>
                                             )
