@@ -888,19 +888,6 @@ export default function KnowledgeBase() {
                                     </div>
                                 )}
                             </div>
-                                                                            <X className="w-3 h-3" />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                             
                             <div className="mt-4 flex items-center gap-2 p-3 bg-primary-50/50 rounded-soft border border-primary-200/50">
                                 <label className="flex items-center gap-3 cursor-pointer group">
