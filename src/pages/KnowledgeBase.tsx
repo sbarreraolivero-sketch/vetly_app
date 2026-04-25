@@ -229,7 +229,7 @@ export default function KnowledgeBase() {
                     };
                 }
 
-                if (finalConfig) setLogisticsConfig(finalConfig)
+                // if (finalConfig) setLogisticsConfig(finalConfig)
         } catch (e) {
             console.error('Error fetching master prompt:', e)
         }
