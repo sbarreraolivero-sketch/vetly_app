@@ -653,13 +653,16 @@ export default function KnowledgeBase() {
                                 onClick={() => setShowLogisticsSection(!showLogisticsSection)}
                                 className="w-full flex items-center justify-between py-5 px-0 hover:bg-ivory/30 transition-colors group"
                             >
-                                <div className="flex items-center gap-2.5">
-                                    <div className={`p-2 rounded-soft transition-colors ${showLogisticsSection ? 'bg-primary-100 text-primary-600' : 'bg-silk-beige/30 text-charcoal/40 group-hover:text-charcoal'}`}>
-                                        <Tag className="w-5 h-5" />
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-11 h-11 rounded-soft flex items-center justify-center shadow-md transition-all duration-300 ${showLogisticsSection ? 'bg-premium-gradient ring-2 ring-primary-100' : 'bg-silk-beige/30 group-hover:bg-silk-beige/50'}`}>
+                                        <Tag className={`w-5.5 h-5.5 ${showLogisticsSection ? 'text-charcoal' : 'text-charcoal/40 group-hover:text-charcoal'}`} />
                                     </div>
                                     <div className="text-left">
-                                        <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider">Logística Pro (Tramos por Tiempo)</h3>
-                                        <p className="text-[11px] text-charcoal/40">Gestiona múltiples sedes, radios urbanos y tramos quirúrgicos</p>
+                                        <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
+                                            Logística Pro (Tramos por Tiempo)
+                                            <Sparkles className="w-4 h-4 text-emerald-500" />
+                                        </h2>
+                                        <p className="text-sm text-charcoal/50">Gestiona múltiples sedes, radios urbanos y tramos quirúrgicos</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
