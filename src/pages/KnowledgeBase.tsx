@@ -229,7 +229,11 @@ export default function KnowledgeBase() {
                     };
                 }
 
-                // if (finalConfig) setLogisticsConfig(finalConfig)
+                // Bypass load only for AnimalGrace Linares to allow manual restoration
+                const isAnimalGraceLinares = profile?.clinic_id === 'fd11b7e4-7d96-461c-a292-2caa5e2592ce';
+                if (finalConfig && !isAnimalGraceLinares) {
+                    setLogisticsConfig(finalConfig);
+                }
         } catch (e) {
             console.error('Error fetching master prompt:', e)
         }
