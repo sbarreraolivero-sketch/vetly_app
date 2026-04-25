@@ -88,16 +88,71 @@ export default function KnowledgeBase() {
     const [logisticsConfig, setLogisticsConfig] = useState({
         locations: [
             { 
-                id: '1', 
-                name: 'Linares Urbano', 
+                id: 'linares-base', 
+                name: 'Linares Base', 
                 lat: -35.8453, 
                 lng: -71.5979, 
                 type: 'operational',
+                max_time_mins: 45,
+                time_ranges: [
+                    { min: 0, max: 14, surcharge: 0, label: 'Radio Urbano' },
+                    { min: 15, max: 24, surcharge: 6000, label: 'T1 Rural' },
+                    { min: 25, max: 34, surcharge: 8000, label: 'T2 Rural' },
+                    { min: 35, max: 44, surcharge: 10000, label: 'T4 Rural' }
+                ]
+            },
+            { 
+                id: 'talca-base', 
+                name: 'Talca Base', 
+                lat: -35.4264, 
+                lng: -71.6554, 
+                type: 'operational',
+                max_time_mins: 50,
+                time_ranges: [
+                    { min: 0, max: 20, surcharge: 0, label: 'Radio Urbano' },
+                    { min: 21, max: 30, surcharge: 6000, label: 'T2 Rural' },
+                    { min: 31, max: 40, surcharge: 8000, label: 'T3 Rural' },
+                    { min: 41, max: 50, surcharge: 10000, label: 'T4 Rural' }
+                ]
+            },
+            { 
+                id: 'sj-base', 
+                name: 'San Javier Base', 
+                lat: -35.5974, 
+                lng: -71.7423, 
+                type: 'operational',
                 max_time_mins: 30,
                 time_ranges: [
-                    { min: 0, max: 10, surcharge: 0, label: 'Urbano' },
-                    { min: 11, max: 20, surcharge: 6000, label: 'Rural 1' },
-                    { min: 21, max: 30, surcharge: 8000, label: 'Rural 2' }
+                    { min: 0, max: 10, surcharge: 0, label: 'Radio Urbano' },
+                    { min: 11, max: 20, surcharge: 6000, label: 'T2 Rural' },
+                    { min: 21, max: 30, surcharge: 8000, label: 'T3 Rural' },
+                    { min: 31, max: 40, surcharge: 10000, label: 'T4 Rural' }
+                ]
+            },
+            { 
+                id: 'surgical-norte', 
+                name: 'Hub Quirúrgico Norte (Talca)', 
+                lat: -35.4232, 
+                lng: -71.6734, 
+                type: 'surgical_hub',
+                max_time_mins: 45,
+                time_ranges: [
+                    { min: 0, max: 25, surcharge: 0, label: 'T1 Cirugía' },
+                    { min: 26, max: 35, surcharge: 8000, label: 'T2 Cirugía' },
+                    { min: 36, max: 45, surcharge: 16000, label: 'T3 Cirugía' }
+                ]
+            },
+            { 
+                id: 'surgical-sur', 
+                name: 'Hub Quirúrgico Sur (Linares)', 
+                lat: -35.8500, 
+                lng: -71.6000, 
+                type: 'surgical_hub',
+                max_time_mins: 45,
+                time_ranges: [
+                    { min: 0, max: 25, surcharge: 0, label: 'T1 Cirugía' },
+                    { min: 26, max: 35, surcharge: 8000, label: 'T2 Cirugía' },
+                    { min: 36, max: 45, surcharge: 16000, label: 'T3 Cirugía' }
                 ]
             }
         ],
