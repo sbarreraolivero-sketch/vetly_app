@@ -138,7 +138,7 @@ export default function Settings() {
     const [currency, setCurrency] = useState('CLP')
     const [timezone, setTimezone] = useState('America/Santiago')
     const [templateSurvey, setTemplateSurvey] = useState('')
-    const [templateReactivation, setTemplateReactivation] = useState('')
+
     const currencySymbols: Record<string, string> = {
         'MXN': '$',
         'USD': '$',
@@ -396,7 +396,7 @@ export default function Settings() {
                     setCurrency(data.currency || 'CLP')
                     setTimezone(data.timezone || 'America/Santiago')
                     setTemplateSurvey(data.template_survey || '')
-                    setTemplateReactivation(data.template_reactivation || '')
+
 
                     setYCloudApiKey(data.ycloud_api_key || '')
                     setYCloudPhoneNumber(data.ycloud_phone_number || '')
@@ -898,7 +898,7 @@ export default function Settings() {
                 timezone,
                 business_model: businessModel,
                 template_survey: templateSurvey,
-                template_reactivation: templateReactivation,
+
                 updated_at: new Date().toISOString()
             })
 
@@ -917,7 +917,7 @@ export default function Settings() {
                     timezone,
                     business_model: businessModel,
                     template_survey: templateSurvey,
-                    template_reactivation: templateReactivation,
+
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
@@ -1721,12 +1721,6 @@ export default function Settings() {
                                         onChange={setTemplateSurvey}
                                     />
 
-                                    <TemplateSelector
-                                        label="Plantilla: Reactivación de Pacientes"
-                                        description="Se envía a pacientes que no han visitado en meses para ofrecer un nuevo servicio y recuperar la relación."
-                                        value={templateReactivation}
-                                        onChange={setTemplateReactivation}
-                                    />
                                 </div>
 
                             </div>
