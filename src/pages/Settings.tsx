@@ -1856,52 +1856,6 @@ export default function Settings() {
                                             </div>
                                         </div>
 
-                                        {/* Upselling Section */}
-                                        <div className="border-t border-silk-beige pt-4 mt-4">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div>
-                                                    <p className="text-sm font-medium text-charcoal flex items-center gap-2">
-                                                        <Zap className="w-4 h-4 text-primary-500" />
-                                                        Upselling Automático
-                                                    </p>
-                                                    <p className="text-xs text-charcoal/50">Mensaje de seguimiento post-tratamiento</p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setNewUpsellEnabled(!newUpsellEnabled)}
-                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${newUpsellEnabled ? 'bg-primary-500' : 'bg-charcoal/20'}`}
-                                                >
-                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newUpsellEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                </button>
-                                            </div>
-
-                                            {newUpsellEnabled && (
-                                                <div className="space-y-3 animate-fade-in">
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-charcoal mb-2">Días después del tratamiento</label>
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            max="365"
-                                                            value={newUpsellDays}
-                                                            onChange={(e) => setNewUpsellDays(e.target.value)}
-                                                            className="input-soft"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-charcoal mb-2">Mensaje de seguimiento</label>
-                                                        <textarea
-                                                            placeholder="Ej: ¿Te gustaría agendar la próxima desparasitación? Los mejores resultados se obtienen con tratamientos periódicos."
-                                                            value={newUpsellMessage}
-                                                            onChange={(e) => setNewUpsellMessage(e.target.value)}
-                                                            rows={3}
-                                                            className="input-soft resize-none"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
                                         {/* Professional Assignment Section */}
                                         {clinicProfessionals.length > 0 && (
                                             <div className="border-t border-silk-beige pt-4 mt-4">
