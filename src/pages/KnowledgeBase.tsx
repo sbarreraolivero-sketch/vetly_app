@@ -584,12 +584,7 @@ export default function KnowledgeBase() {
                                             </ul>
                                         </div>
                                     </div>
-                                </GuideBox>
-                            </div>
-                        </div>
-
-                        {/* NEW: Advanced Logistics Section */}
-                        {/* Advanced Logistics Section */}
+                                {/* Advanced Logistics Section */}
                         <div className="border-t border-silk-beige/30 mt-6 pt-0 overflow-hidden rounded-b-soft">
                             <button 
                                 onClick={() => setShowLogisticsSection(!showLogisticsSection)}
@@ -616,7 +611,7 @@ export default function KnowledgeBase() {
                                                     lng: -71.5979,
                                                     type: 'operational',
                                                     max_time_mins: 30,
-                                                    time_ranges: [{ min: 0, max: 10, surcharge: 0, label: 'T1' }]
+                                                    time_ranges: [{ min: 0, max: 10, surcharge: 0, label: 'Urbano' }]
                                                 };
                                                 setLogisticsConfig({
                                                     ...logisticsConfig,
@@ -726,7 +721,6 @@ export default function KnowledgeBase() {
                                                     </div>
                                                     
                                                     <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                                                        {/* GPS Coords with visual clue */}
                                                         <div className="lg:col-span-3 space-y-4">
                                                             <div className="p-3 bg-white/50 rounded-soft border border-silk-beige/30 space-y-3">
                                                                 <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest flex items-center gap-1.5">
@@ -763,7 +757,6 @@ export default function KnowledgeBase() {
                                                             </div>
                                                         </div>
 
-                                                        {/* Time Ranges Table */}
                                                         <div className="lg:col-span-9 space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <label className="text-[11px] uppercase font-bold text-charcoal/60 tracking-wider flex items-center gap-2">
@@ -782,9 +775,7 @@ export default function KnowledgeBase() {
                                                                         });
                                                                         setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                     }}
-                                                                    className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all shadow-soft-sm bg-white ${
-                                                                        isSurgical ? 'text-violet-600 border-violet-200 hover:bg-violet-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
-                                                                    }`}
+                                                                    className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all shadow-soft-sm bg-white ${isSurgical ? 'text-violet-600 border-violet-200 hover:bg-violet-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
                                                                 >
                                                                     + Agregar Tramo
                                                                 </button>
@@ -853,43 +844,40 @@ export default function KnowledgeBase() {
                                                                                             type="number"
                                                                                             value={range.surcharge}
                                                                                             onChange={(e) => {
-                                                                                                    const newLocs = [...logisticsConfig.locations];
-                                                                                                    newLocs[index].time_ranges[rIndex].surcharge = parseInt(e.target.value);
-                                                                                                    setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                                                }}
-                                                                                                className={`w-24 text-right rounded-soft border-none py-1.5 focus:ring-1 font-bold text-sm ${
-                                                                                                    isSurgical ? 'bg-violet-50/50 focus:ring-violet-400' : 'bg-emerald-50/50 focus:ring-emerald-400'
-                                                                                                }`}
-                                                                                            />
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td className="px-4 py-3 text-center">
-                                                                                        <button 
-                                                                                            onClick={() => {
                                                                                                 const newLocs = [...logisticsConfig.locations];
-                                                                                                newLocs[index].time_ranges.splice(rIndex, 1);
+                                                                                                newLocs[index].time_ranges[rIndex].surcharge = parseInt(e.target.value);
                                                                                                 setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                                             }}
-                                                                                            className="text-charcoal/10 hover:text-red-500 transition-colors p-1"
-                                                                                        >
-                                                                                            <Trash2 className="w-4 h-4" />
-                                                                                        </button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
+                                                                                            className={`w-24 text-right rounded-soft border-none py-1.5 focus:ring-1 font-bold text-sm ${isSurgical ? 'bg-violet-50/50 focus:ring-violet-400' : 'bg-emerald-50/50 focus:ring-emerald-400'}`}
+                                                                                        />
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-center">
+                                                                                    <button 
+                                                                                        onClick={() => {
+                                                                                            const newLocs = [...logisticsConfig.locations];
+                                                                                            newLocs[index].time_ranges.splice(rIndex, 1);
+                                                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                                                        }}
+                                                                                        className="text-charcoal/10 hover:text-red-500 transition-colors p-1"
+                                                                                    >
+                                                                                        <Trash2 className="w-4 h-4" />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                )
-                                            })}
-                                        </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                )}
-                            </div>
-                            
+                                </div>
+                            )}
+
                             <div className="mt-4 flex items-center gap-2 p-3 bg-primary-50/50 rounded-soft border border-primary-200/50">
                                 <label className="flex items-center gap-3 cursor-pointer group">
                                     <div className="relative">
@@ -908,6 +896,7 @@ export default function KnowledgeBase() {
                                     </div>
                                 </label>
                             </div>
+                        </div>
 
                         <div className="mt-8">
                             <div className="flex items-center justify-between mb-2">
