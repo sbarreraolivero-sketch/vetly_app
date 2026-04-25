@@ -1,0 +1,141 @@
+386:            <div className="flex items-center justify-center h-96">
+387:                <div className="flex flex-col items-center gap-4">
+396:        <div className="space-y-6 animate-fade-in">
+398:            <div className="bg-hero-gradient rounded-softer p-6 text-white shadow-soft-md relative overflow-hidden">
+399:                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+401:                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+402:                    <div className="flex items-center gap-4">
+403:                        <div className="w-14 h-14 bg-premium-gradient rounded-full flex items-center justify-center shadow-lg shrink-0">
+406:                        <div>
+418:            <div className="card-soft overflow-hidden">
+423:                    <div className="flex items-center gap-4">
+424:                        <div className="w-11 h-11 bg-premium-gradient rounded-soft flex items-center justify-center shadow-md">
+427:                        <div className="text-left">
+439:                    <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
+441:                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-5 pb-2 border-b border-silk-beige/30">
+442:                            <div className="flex items-center gap-3">
+443:                                <div className="w-10 h-10 bg-ivory rounded-soft flex items-center justify-center border border-silk-beige/50">
+446:                                <div>
+452:                            <div className="flex flex-wrap bg-ivory p-1 rounded-soft border border-silk-beige/40 gap-1">
+487:                        <div className="bg-silk-beige/10 rounded-soft p-4 border border-silk-beige/20">
+489:                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+490:                                <div className="flex items-start gap-2.5">
+491:                                    <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">1x</div>
+492:                                    <div>
+497:                                <div className="flex items-start gap-2.5">
+498:                                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">8x</div>
+499:                                    <div>
+504:                                <div className="flex items-start gap-2.5">
+505:                                    <div className="w-6 h-6 rounded-full bg-charcoal/10 flex items-center justify-center text-[10px] font-bold text-charcoal/60">60x</div>
+506:                                    <div>
+514:                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+515:                            <div>
+516:                                <div className="flex items-center justify-between mb-2">
+532:                                    <div className="bg-white/50 p-3 rounded-soft border border-silk-beige/30">
+538:                                    <div className="mt-3 grid grid-cols-2 gap-2 text-[10.5px]">
+539:                                        <div className="p-2 bg-silk-beige/20 rounded border border-silk-beige/30">
+542:                                        <div className="p-2 bg-silk-beige/20 rounded border border-silk-beige/30">
+549:                            <div>
+550:                                <div className="flex items-center justify-between mb-2">
+566:                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+567:                                        <div className="bg-emerald-50/50 p-2.5 rounded-soft border border-emerald-100">
+576:                                        <div className="bg-red-50/50 p-2.5 rounded-soft border border-red-100">
+592:                        <div className="border-t border-silk-beige/30 mt-6 pt-0 overflow-hidden rounded-b-soft">
+597:                                <div className="flex items-center gap-2.5">
+598:                                    <div className={`p-2 rounded-soft transition-colors ${showLogisticsSection ? 'bg-primary-100 text-primary-600' : 'bg-silk-beige/30 text-charcoal/40 group-hover:text-charcoal'}`}>
+601:                                    <div className="text-left">
+606:                                <div className="flex items-center gap-3">
+637:                                <div className="space-y-5 py-4 animate-slide-up">
+639:                                        <div className="text-center py-10 bg-ivory/20 rounded-soft border border-dashed border-silk-beige/50">
+644:                                    <div className="grid grid-cols-1 gap-5">
+648:                                                <div 
+656:                                                    <div className={`p-4 flex items-center justify-between gap-4 border-b ${
+659:                                                        <div className="flex items-center gap-4 flex-1">
+660:                                                            <div className={`w-10 h-10 rounded-soft flex items-center justify-center shadow-sm ${
+665:                                                            <div className="flex-1 space-y-1">
+677:                                                                <div className="flex items-center gap-2">
+698:                                                        <div className="flex items-center gap-3">
+699:                                                            <div className="flex items-center gap-1.5 bg-white/80 px-3 py-1.5 rounded-soft border border-silk-beige/50 backdrop-blur-sm">
+727:                                                    <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-8">
+729:                                                        <div className="lg:col-span-3 space-y-4">
+730:                                                            <div className="p-3 bg-white/50 rounded-soft border border-silk-beige/30 space-y-3">
+734:                                                                <div className="space-y-1">
+748:                                                                <div className="space-y-1">
+766:                                                        <div className="lg:col-span-9 space-y-4">
+767:                                                            <div className="flex items-center justify-between">
+791:                                                            <div className="bg-white/80 rounded-soft border border-silk-beige/40 shadow-soft-sm overflow-hidden">
+818:                                                                                    <div className="flex items-center justify-center gap-3">
+819:                                                                                        <div className="relative group/input">
+833:                                                                                        <div className="relative group/input">
+849:                                                                                    <div className="flex justify-end items-center gap-2">
+892:                            <div className="mt-4 flex items-center gap-2 p-3 bg-primary-50/50 rounded-soft border border-primary-200/50">
+894:                                    <div className="relative">
+901:                                        <div className={`w-10 h-5 rounded-full transition-colors ${logisticsConfig.is_active ? 'bg-emerald-500' : 'bg-charcoal/20'}`}></div>
+902:                                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${logisticsConfig.is_active ? 'translate-x-5' : 'translate-x-0'}`}></div>
+904:                                    <div className="flex flex-col">
+912:                        <div className="mt-8">
+913:                            <div className="flex items-center justify-between mb-2">
+929:                                <div className="bg-white/50 p-3 rounded-soft border border-silk-beige/30 mt-2">
+934:                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Nombre del Titular</li>
+935:                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> RUT de la Empresa/Persona</li>
+936:                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Banco y Tipo de Cuenta</li>
+937:                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Número de Cuenta</li>
+938:                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Link de pago (Transbank/Flow)</li>
+939:                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Política de Devoluciones</li>
+947:                        <div className="flex items-center gap-3">
+960:                                <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-3 py-1.5 rounded-soft">
+971:            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+972:                <div className="card-soft p-5 flex items-center justify-between group hover:shadow-premium transition-shadow">
+973:                    <div>
+977:                    <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+981:                <div className="card-soft p-5 flex items-center justify-between group hover:shadow-premium transition-shadow">
+982:                    <div>
+986:                    <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+990:                <div className="card-soft p-5 flex items-center justify-between group hover:shadow-premium transition-shadow">
+991:                    <div>
+995:                    <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+999:                <div className="card-soft p-5 flex items-center justify-between group hover:shadow-premium transition-shadow">
+1000:                    <div>
+1004:                    <div className="w-10 h-10 bg-violet-50 rounded-full flex items-center justify-center text-violet-500 group-hover:scale-110 transition-transform">
+1011:            <div className="mt-8 mb-4">
+1012:                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full">
+1013:                    <div className="flex items-center gap-3">
+1014:                        <div className="w-10 h-10 bg-premium-gradient rounded-soft flex items-center justify-center shadow-sm shrink-0">
+1017:                        <div>
+1023:                    <div className="flex flex-1 items-center justify-end gap-4">
+1049:                    <div className="bg-white/50 p-4 rounded-soft border border-silk-beige/30 flex gap-4 mt-2">
+1050:                        <div className="bg-violet-100 w-12 h-12 rounded-full flex items-center justify-center shrink-0">
+1053:                        <div className="space-y-1">
+1063:            <div className="card-soft p-4">
+1064:                <div className="flex flex-col md:flex-row gap-3">
+1065:                    <div className="relative flex-1">
+1099:                <div className="card-soft p-12 text-center">
+1100:                    <div className="flex flex-col items-center gap-4">
+1101:                        <div className="w-16 h-16 bg-silk-beige/30 rounded-full flex items-center justify-center">
+1104:                        <div>
+1123:                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+1129:                            <div
+1138:                                <div className="mb-3">
+1158:                                <div className="flex items-center justify-between pt-3 border-t border-silk-beige/50">
+1159:                                    <div className="flex items-center gap-1.5">
+1183:                                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+1217:                <div className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+1218:                    <div className="bg-white rounded-soft shadow-premium-lg w-full max-w-sm animate-scale-in p-6">
+1219:                        <div className="flex items-center gap-3 mb-4">
+1220:                            <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
+1228:                        <div className="flex justify-end gap-3">
+1245:                <div className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+1246:                    <div className="bg-white rounded-soft shadow-premium-lg w-full max-w-2xl animate-scale-in max-h-[90vh] flex flex-col">
+1248:                        <div className="flex items-center justify-between p-6 border-b border-silk-beige">
+1249:                            <div className="flex items-center gap-3">
+1250:                                <div className="w-10 h-10 bg-primary-50 rounded-full flex items-center justify-center">
+1270:                        <div className="p-6 space-y-5 overflow-y-auto flex-1">
+1271:                            <div>
+1284:                            <div className="grid grid-cols-2 gap-4">
+1285:                                <div>
+1299:                                <div>
+1314:                            <div>
+1331:                            <div className="p-4 border-2 border-dashed border-silk-beige rounded-soft bg-ivory/30 hover:bg-ivory/60 transition-colors">
+1348:                        <div className="flex justify-between items-center p-6 border-t border-silk-beige">
+1349:                            <div>
+1362:                            <div className="flex gap-3">

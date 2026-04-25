@@ -436,7 +436,8 @@ export default function KnowledgeBase() {
                 </button>
 
                 {showPromptSection && (
-                    <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
+                    <>
+                        <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
                         {/* Model Selection */}
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-5 pb-2 border-b border-silk-beige/30">
                             <div className="flex items-center gap-3">
@@ -907,7 +908,6 @@ export default function KnowledgeBase() {
                                     </div>
                                 </label>
                             </div>
-                        </div>
 
                         <div className="mt-8">
                             <div className="flex items-center justify-between mb-2">
@@ -964,6 +964,7 @@ export default function KnowledgeBase() {
                             )}
                         </div>
                     </div>
+                </>
                 )}
             </div>
 
@@ -1008,18 +1009,19 @@ export default function KnowledgeBase() {
             </div>
 
             {/* Search & Filters */}
-            <div className="mt-8 mb-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-premium-gradient rounded-soft flex items-center justify-center shadow-sm shrink-0">
-                    <BookOpen className="w-5 h-5 text-charcoal" />
-                </div>
-                <div>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
-                    <div>
-                        <h2 className="text-lg font-bold text-charcoal tracking-tight">Documentos de Conocimiento</h2>
-                        <p className="text-xs text-charcoal/40 font-medium uppercase tracking-widest mt-0.5">Biblioteca Técnica del Agente</p>
+            <div className="mt-8 mb-4">
+                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-premium-gradient rounded-soft flex items-center justify-center shadow-sm shrink-0">
+                            <BookOpen className="w-5 h-5 text-charcoal" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-charcoal tracking-tight">Documentos de Conocimiento</h2>
+                            <p className="text-xs text-charcoal/40 font-medium uppercase tracking-widest mt-0.5">Biblioteca Técnica del Agente</p>
+                        </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-1 items-center justify-end gap-4">
                         <label className="flex items-center gap-2 px-6 py-3 bg-charcoal/5 hover:bg-charcoal/10 border border-charcoal/10 rounded-soft text-sm font-bold text-charcoal transition-all cursor-pointer shadow-sm hover:shadow-md">
                             <Upload className="w-5 h-5 text-charcoal/60" />
                             {uploadingFile ? 'Procesando...' : 'Subir Archivo'}
@@ -1039,24 +1041,24 @@ export default function KnowledgeBase() {
                         </button>
                     </div>
                 </div>
-                    <GuideBox 
-                        title="Guía: Tu Biblioteca Técnica" 
-                        summary="Usa esto como el cerebro estático de la IA."
-                    >
-                        <p>Aquí vive toda la información técnica que no cambia seguido. El Agente IA la consultará como una enciclopedia antes de responder.</p>
-                        <div className="bg-white/50 p-4 rounded-soft border border-silk-beige/30 flex gap-4 mt-2">
-                            <div className="bg-violet-100 w-12 h-12 rounded-full flex items-center justify-center shrink-0">
-                                <FileText className="w-6 h-6 text-violet-600" />
-                            </div>
-                            <div className="space-y-1">
-                                <p className="font-bold text-[13px] text-charcoal">¿Qué es ideal subir aquí?</p>
-                                <p className="text-[11px] text-charcoal/70 leading-relaxed">
-                                    Listas de precios detalladas, descripción de cada tratamiento, horarios de todas las sucursales, ubicación exacta con links a Google Maps y una lista de preguntas frecuentes (FAQ) con sus respuestas ideales.
-                                </p>
-                            </div>
+
+                <GuideBox 
+                    title="Guía: Tu Biblioteca Técnica" 
+                    summary="Usa esto como el cerebro estático de la IA."
+                >
+                    <p>Aquí vive toda la información técnica que no cambia seguido. El Agente IA la consultará como una enciclopedia antes de responder.</p>
+                    <div className="bg-white/50 p-4 rounded-soft border border-silk-beige/30 flex gap-4 mt-2">
+                        <div className="bg-violet-100 w-12 h-12 rounded-full flex items-center justify-center shrink-0">
+                            <FileText className="w-6 h-6 text-violet-600" />
                         </div>
-                    </GuideBox>
-                </div>
+                        <div className="space-y-1">
+                            <p className="font-bold text-[13px] text-charcoal">¿Qué es ideal subir aquí?</p>
+                            <p className="text-[11px] text-charcoal/70 leading-relaxed">
+                                Listas de precios detalladas, descripción de cada tratamiento, horarios de todas las sucursales, ubicación exacta con links a Google Maps y una lista de preguntas frecuentes (FAQ) con sus respuestas ideales.
+                            </p>
+                        </div>
+                    </div>
+                </GuideBox>
             </div>
 
             <div className="card-soft p-4">
