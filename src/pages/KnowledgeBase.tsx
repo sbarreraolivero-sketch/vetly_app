@@ -395,8 +395,8 @@ export default function KnowledgeBase() {
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Header Banner */}
-            <div className="bg-hero-gradient rounded-softer p-6 text-white shadow-soft-md relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+            <div className="bg-hero-gradient from-primary-600 to-primary-800 rounded-soft p-8 text-white relative overflow-hidden shadow-premium mb-8">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                     <div className="flex items-center gap-4">
@@ -436,7 +436,7 @@ export default function KnowledgeBase() {
                 </button>
 
                 {showPromptSection && (
-                    <>
+                    <div className="animate-fade-in">
                         <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
                         {/* Model Selection */}
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-5 pb-2 border-b border-silk-beige/30">
@@ -584,7 +584,11 @@ export default function KnowledgeBase() {
                                             </ul>
                                         </div>
                                     </div>
-                                {/* Advanced Logistics Section */}
+                                </GuideBox>
+                            </div>
+                        </div>
+
+                        {/* Advanced Logistics Section */}
                         <div className="border-t border-silk-beige/30 mt-6 pt-0 overflow-hidden rounded-b-soft">
                             <button 
                                 onClick={() => setShowLogisticsSection(!showLogisticsSection)}
@@ -920,12 +924,12 @@ export default function KnowledgeBase() {
                                         <Info className="w-3.5 h-3.5" /> Datos recomendados:
                                     </p>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] text-charcoal/80">
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Nombre del Titular</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> RUT de la Empresa/Persona</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Banco y Tipo de Cuenta</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Número de Cuenta</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Link de pago (Transbank/Flow)</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full" /> Política de Devoluciones</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Nombre del Titular</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> RUT de la Empresa/Persona</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Banco y Tipo de Cuenta</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Número de Cuenta</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Link de pago (Transbank/Flow)</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Política de Devoluciones</li>
                                     </ul>
                                 </div>
                                 <p className="text-xs font-bold text-charcoal/50 mt-3 italic flex items-center gap-1.5">
@@ -953,7 +957,7 @@ export default function KnowledgeBase() {
                             )}
                         </div>
                     </div>
-                </>
+                </div>
                 )}
             </div>
 
