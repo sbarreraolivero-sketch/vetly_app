@@ -2184,19 +2184,21 @@ const callOpenAI = async (
     },
     {
       name: "create_appointment",
-      description: "Crea una cita en el calendario.",
+      description: "Crea una cita en el calendario. OBLIGATORIO: Debes recolectar todos los datos requeridos antes de llamar a esta función.",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string", description: "Fecha (YYYY-MM-DD)" },
           time: { type: "string", description: "Hora (HH:MM)" },
           service_name: { type: "string" },
-          pet_name: { type: "string" },
-          tutor_name: { type: "string" },
+          tutor_name: { type: "string", description: "Nombre completo del tutor" },
+          pet_name: { type: "string", description: "Nombre de la mascota" },
+          pet_details: { type: "string", description: "Especie, sexo y peso de la mascota" },
+          address: { type: "string", description: "Dirección exacta y referencias para llegar" },
+          visit_reason: { type: "string", description: "Motivo detallado de la visita o síntomas" },
           professional_name: { type: "string" },
-          address: { type: "string" },
         },
-        required: ["date", "time", "service_name", "pet_name", "tutor_name"],
+        required: ["date", "time", "service_name", "tutor_name", "pet_name", "pet_details", "address", "visit_reason"],
       },
     },
     {
