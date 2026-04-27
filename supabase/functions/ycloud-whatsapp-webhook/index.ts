@@ -2108,7 +2108,7 @@ const selectModelTier = (content: string, hasImage: boolean = false): { model: s
                     text.includes("sangre") || 
                     text.includes("emergencia");
   
-  if (isComplex) return { model: "openai/gpt-5-pro", tier: 3 };
+  if (isComplex) return { model: "gpt-5.5", tier: 3 };
 
   // Tier 1: Very simple interactions
   const isSimple = text.length < 30 && (
@@ -2120,10 +2120,10 @@ const selectModelTier = (content: string, hasImage: boolean = false): { model: s
     text.match(/^[\p{Emoji}\s]+$/u)
   );
 
-  if (isSimple) return { model: "openai/gpt-5.4-mini", tier: 1 };
+  if (isSimple) return { model: "gpt-5.4-mini", tier: 1 };
 
   // Default Tier 2: Standard conversation
-  return { model: "openai/gpt-5.4-mini", tier: 2 };
+  return { model: "gpt-5.4", tier: 2 };
 };
 
 const callOpenAI = async (
@@ -2133,21 +2133,20 @@ const callOpenAI = async (
   useFns = true,
   blockedTools: string[] = [],
 ) => {
-  // Map internal branding models to real OpenAI models
-  let realModel = model || "gpt-4o-mini";
+  // Use the models directly as available in the user's OpenAI account
+  let realModel = model || "gpt-5.4-mini";
   
-  // Handlers for the user's custom naming (Citenly/Vetly internal branding)
-  if (realModel.includes("gpt-5.4-mini")) realModel = "gpt-4o-mini";
-  else if (realModel.includes("gpt-5-pro")) realModel = "gpt-4o";
-  else if (realModel.includes("gpt-5.4")) realModel = "gpt-4o-mini";
-  else if (realModel.includes("gpt-5")) realModel = "gpt-4o";
-  
-  // Clean up prefix if any (e.g. "openai/gpt-4o" -> "gpt-4o")
+  // Clean up prefix if any (e.g. "openai/gpt-5.4" -> "gpt-5.4")
   if (realModel.startsWith("openai/")) {
     realModel = realModel.replace("openai/", "");
   }
 
-  // The user uses direct OpenAI API
+  // Ensure naming consistency with OpenAI IDs
+  if (realModel === "pro" || realModel === "gpt-5-pro") realModel = "gpt-5.5";
+  if (realModel === "hybrid") realModel = "gpt-5.4";
+  if (realModel === "mini" || realModel === "gpt-5.4-mini") realModel = "gpt-5.4-mini";
+  if (realModel === "gpt-5") realModel = "gpt-5.5"; // Fallback for anyone saying gpt-5
+
   const apiUrl = "https://api.openai.com/v1/chat/completions";
   const authHeader = `Bearer ${key}`;
 
@@ -2254,8 +2253,8 @@ const callOpenAI = async (
       function_call: useFns
         ? (functions.length > 0 ? "auto" : undefined)
         : undefined,
-      temperature: 0.7,
-      max_tokens: 500,
+      temperature: 0,
+      max_completion_tokens: 800,
     }),
   });
   if (!r.ok) throw new Error(await r.text());
@@ -2415,6 +2414,7 @@ Deno.serve(async (req) => {
     }
 
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const googleMapsApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
     if (!openaiApiKey) {
       await debugLog(sb, "Missing global OPENAI_API_KEY", {
         clinic_id: clinic.id,
@@ -2524,26 +2524,14 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }).eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${from.replace(/^\+/, "")}`);
 
-      immediateContext = `[SISTEMA: GPS RECIBIDO - UBICACIÓN: ${formattedAddress || "Validada"} - CIUDAD: ${detectedCity}]`;
-      console.log(`[GPS] Location context set for ${from}`);
-
-      urbanDeductionNote = minRuralMins <= 0 ? "URBANO ($0 recargo)" : `RURAL (+${minRuralMins} min cargo)`;
-
-      body = `📍 Ubicación compartida`;
-      payloadExtra = {
-        ...payloadExtra,
-        ai_context: `[UBICACIÓN COMPARTIDA] ${cityAnchor}${surgeryContext}
-                Pin: ${lat}, ${lng}. ${formattedAddress ? `Dirección aproximada: ${formattedAddress}. ` : ""}
-                ${urbanDeductionNote}
-                REGLA ESTRICTA 1: Informa el recargo rural de $${surcharge.toLocaleString("es-CL")} o si es $0.
-                REGLA ESTRICTA 2: ¡PROHIBIDO MENCIONAR "TRAMO"! Solo informa el valor final.
-                REGLA ESTRICTA 3: Pide detalles exactos al final si el cliente quiere agendar.`,
+      immediateContext = {
+        gps: { lat, lng },
+        aiContext: `[SISTEMA: GPS RECIBIDO - UBICACIÓN: ${formattedAddress || "Validada"} - CIUDAD: ${detectedCity}]`
       };
 
-      await debugLog(sb, `Location analyzed`, {
+      await debugLog(sb, `Location received and saved`, {
         lat,
         lng,
-        distanceKm: distanceKmStr,
         address: formattedAddress,
         city: detectedCity,
       });
@@ -2769,8 +2757,8 @@ Deno.serve(async (req) => {
     ) => {
       try {
         const realClinicId = clinic.ref_id || clinic.id;
-        // DEBOUNCE / HUMANIZE - WAIT FOR 10 SECONDS
-        await new Promise((r) => setTimeout(r, 10000));
+        // DEBOUNCE / HUMANIZE - WAIT FOR 20 SECONDS
+        await new Promise((r) => setTimeout(r, 20000));
 
         // CHECK IF A NEWER USER MESSAGE ARRIVED WHILE WE WAITED
         const { data: latestMsg } = await sb.from("messages")
@@ -3014,7 +3002,7 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
         // --- MOTOR DE PERSISTENCIA GEOGRÁFICA GLOBAL ---
         const finalSysPrompt = (clinic.id === HQ_ID ? sysPromptHQ : (
           globalLocContext
-            ? `### REALIDAD GEOGRÁFICA HISTÓRICA VALIDADA ###\n${globalLocContext}\nIGNORA cualquier regla sobre pedir zona o ciudad. Ya sabes exactamente dónde está el tutor.\n\n${sysPrompt}`
+            ? `### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}\n\n${sysPrompt}`
             : sysPrompt
         )) + (tutorContext || "");
 
@@ -3078,7 +3066,7 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
         }
 
         // --- NEW: INTELLIGENT MODEL ROUTING ---
-        let targetModel = "openai/gpt-5.4-mini";
+        let targetModel = "gpt-5.4-mini";
         let tierUsed = 2;
 
         if (clinic.ai_active_model === "hybrid") {
@@ -3089,10 +3077,10 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
           tierUsed = route.tier;
           console.log(`[Router] Selecting Tier ${tierUsed} (${targetModel}) based on content complexity.`);
         } else if (clinic.ai_active_model === "pro") {
-          targetModel = "openai/gpt-5-pro";
+          targetModel = "gpt-5.5";
           tierUsed = 3;
         } else {
-          targetModel = "openai/gpt-5.4-mini";
+          targetModel = "gpt-5.4-mini";
           tierUsed = 1;
         }
 

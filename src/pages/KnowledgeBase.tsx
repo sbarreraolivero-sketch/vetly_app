@@ -21,6 +21,8 @@ import {
     Lightbulb,
     Check,
     Info,
+    Maximize2,
+    Minimize2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -161,6 +163,8 @@ export default function KnowledgeBase() {
     const [promptSaved, setPromptSaved] = useState(false)
     const [showPromptSection, setShowPromptSection] = useState(true)
     const [showLogisticsSection, setShowLogisticsSection] = useState(false)
+    const [showDocumentsSection, setShowDocumentsSection] = useState(true)
+    const [fullscreenPrompt, setFullscreenPrompt] = useState<'personality' | 'behavior' | null>(null)
 
     // Form state
     const [formTitle, setFormTitle] = useState('')
@@ -529,7 +533,16 @@ export default function KnowledgeBase() {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-sm font-medium text-charcoal">Master Prompt (Personalidad)</label>
-                                    <span className="text-xs text-charcoal/40">{masterPrompt.length} caracteres</span>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => setFullscreenPrompt('personality')}
+                                            className="p-1 rounded hover:bg-silk-beige/20 text-charcoal/40 hover:text-charcoal transition-colors"
+                                            title="Pantalla completa"
+                                        >
+                                            <Maximize2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="text-xs text-charcoal/40">{masterPrompt.length} caracteres</span>
+                                    </div>
                                 </div>
                                 <textarea
                                     value={masterPrompt}
@@ -563,7 +576,16 @@ export default function KnowledgeBase() {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-sm font-medium text-charcoal">Instrucciones de Comportamiento</label>
-                                    <span className="text-xs text-charcoal/60">{behaviorRules.length} caracteres</span>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => setFullscreenPrompt('behavior')}
+                                            className="p-1 rounded hover:bg-silk-beige/20 text-charcoal/40 hover:text-charcoal transition-colors"
+                                            title="Pantalla completa"
+                                        >
+                                            <Maximize2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="text-xs text-charcoal/60">{behaviorRules.length} caracteres</span>
+                                    </div>
                                 </div>
                                 <textarea
                                     value={behaviorRules}
@@ -1017,91 +1039,101 @@ export default function KnowledgeBase() {
                 </div>
             </div>
 
-            {/* Search & Filters */}
-            <div className="mt-8 mb-4">
-                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-premium-gradient rounded-soft flex items-center justify-center shadow-sm shrink-0">
-                            <BookOpen className="w-5 h-5 text-charcoal" />
+            {/* Knowledge Documents Section (Collapsible) */}
+            <div className="card-soft overflow-hidden">
+                <button
+                    onClick={() => setShowDocumentsSection(!showDocumentsSection)}
+                    className="w-full p-5 flex items-center justify-between hover:bg-ivory/50 transition-colors bg-white"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 bg-premium-gradient rounded-soft flex items-center justify-center shadow-md">
+                            <BookOpen className="w-5.5 h-5.5 text-charcoal" />
                         </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-charcoal tracking-tight">Documentos de Conocimiento</h2>
-                            <p className="text-xs text-charcoal/40 font-medium uppercase tracking-widest mt-0.5">Biblioteca Técnica del Agente</p>
+                        <div className="text-left">
+                            <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
+                                Documentos de Conocimiento
+                                <BookOpen className="w-4 h-4 text-primary-500" />
+                            </h2>
+                            <p className="text-sm text-charcoal/50 uppercase text-[10px] font-bold tracking-wider">BIBLIOTECA TÉCNICA DEL AGENTE</p>
                         </div>
                     </div>
                     
-                    <div className="flex flex-1 items-center justify-end gap-4">
-                        <label className="flex items-center gap-2 px-6 py-3 bg-charcoal/5 hover:bg-charcoal/10 border border-charcoal/10 rounded-soft text-sm font-bold text-charcoal transition-all cursor-pointer shadow-sm hover:shadow-md">
-                            <Upload className="w-5 h-5 text-charcoal/60" />
-                            {uploadingFile ? 'Procesando...' : 'Subir Archivo'}
-                            <input
-                                type="file"
-                                accept=".txt,.md,.csv,.json"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
-                        </label>
-                        <button
-                            onClick={openNewModal}
-                            className="bg-primary-600 text-white hover:bg-primary-700 px-7 py-3 rounded-soft text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Nuevo Registro
-                        </button>
-                    </div>
-                </div>
-
-                <GuideBox 
-                    title="Guía: Tu Biblioteca Técnica" 
-                    summary="Usa esto como el cerebro estático de la IA."
-                >
-                    <p>Aquí vive toda la información técnica que no cambia seguido. El Agente IA la consultará como una enciclopedia antes de responder.</p>
-                    <div className="bg-white/50 p-4 rounded-soft border border-silk-beige/30 flex gap-4 mt-2">
-                        <div className="bg-violet-100 w-12 h-12 rounded-full flex items-center justify-center shrink-0">
-                            <FileText className="w-6 h-6 text-violet-600" />
+                    <div className="flex items-center gap-4">
+                        <div className="hidden md:flex gap-2">
+                            <label className="btn-secondary py-2 px-4 shadow-soft-sm text-xs flex items-center gap-2 cursor-pointer">
+                                {uploadingFile ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <Upload className="w-3.5 h-3.5" />
+                                )}
+                                Subir Archivo
+                                <input type="file" accept=".txt,.md,.csv,.json" onChange={handleFileUpload} className="hidden" />
+                            </label>
+                            <button onClick={(e) => { e.stopPropagation(); openNewModal(); }} className="btn-primary py-2 px-4 shadow-soft-sm text-xs flex items-center gap-2">
+                                <Plus className="w-3.5 h-3.5" /> Nuevo Registro
+                            </button>
                         </div>
-                        <div className="space-y-1">
-                            <p className="font-bold text-[13px] text-charcoal">¿Qué es ideal subir aquí?</p>
-                            <p className="text-[11px] text-charcoal/70 leading-relaxed">
-                                Listas de precios detalladas, descripción de cada tratamiento, horarios de todas las sucursales, ubicación exacta con links a Google Maps y una lista de preguntas frecuentes (FAQ) con sus respuestas ideales.
-                            </p>
+                        <svg className={`w-5 h-5 text-charcoal/40 transition-transform ${showDocumentsSection ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                </button>
+
+                {showDocumentsSection && (
+                    <div className="animate-fade-in border-t border-silk-beige/50">
+                        <div className="p-5 space-y-6">
+                            <GuideBox 
+                                title="GUÍA: TU BIBLIOTECA TÉCNICA" 
+                                summary="Usa esto como el cerebro estático de la IA."
+                            >
+                                <p className="text-sm leading-relaxed mb-4">
+                                    Aquí vive toda la información técnica que no cambia seguido. El Agente IA la consultará como una enciclopedia antes de responder.
+                                </p>
+                                <div className="bg-white/50 p-4 rounded-soft border border-silk-beige/30 flex gap-4 mt-2">
+                                    <div className="bg-violet-100 w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-sm">
+                                        <FileText className="w-6 h-6 text-violet-600" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="font-bold text-[13px] text-charcoal">¿Qué es ideal subir aquí?</p>
+                                        <p className="text-[11px] text-charcoal/70 leading-relaxed">
+                                            Listas de precios detalladas, descripción de cada tratamiento, horarios de todas las sucursales, ubicación exacta con links a Google Maps y una lista de preguntas frecuentes (FAQ).
+                                        </p>
+                                    </div>
+                                </div>
+                            </GuideBox>
+
+                            <div className="flex flex-col md:flex-row gap-3 bg-ivory/5 p-4 rounded-soft border border-silk-beige/30">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por título o contenido..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="input-soft w-full pl-10"
+                                    />
+                                </div>
+                                <select
+                                    value={filterCategory}
+                                    onChange={(e) => setFilterCategory(e.target.value)}
+                                    className="input-soft min-w-[180px]"
+                                >
+                                    <option value="all">Todas las categorías</option>
+                                    {CATEGORY_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={filterStatus}
+                                    onChange={(e) => setFilterStatus(e.target.value)}
+                                    className="input-soft min-w-[120px]"
+                                >
+                                    <option value="all">Todos</option>
+                                    <option value="active">Activos</option>
+                                    <option value="inactive">Inactivos</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                </GuideBox>
-            </div>
-
-            <div className="card-soft p-4">
-                <div className="flex flex-col md:flex-row gap-3">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por título o contenido..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input-soft w-full pl-10"
-                        />
-                    </div>
-                    <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="input-soft min-w-[180px]"
-                    >
-                        <option value="all">Todas las categorías</option>
-                        {CATEGORY_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
-                    <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="input-soft min-w-[120px]"
-                    >
-                        <option value="all">Todos</option>
-                        <option value="active">Activos</option>
-                        <option value="inactive">Inactivos</option>
-                    </select>
-                </div>
+                )}
             </div>
 
             {/* Documents Grid */}
@@ -1385,6 +1417,58 @@ export default function KnowledgeBase() {
                                     )}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Fullscreen Prompt Modal */}
+            {fullscreenPrompt && (
+                <div className="fixed inset-0 bg-charcoal/90 backdrop-blur-md z-[200] flex items-center justify-center p-6 md:p-12">
+                    <div className="bg-white rounded-soft shadow-premium-lg w-full max-w-6xl h-full flex flex-col animate-scale-in">
+                        <div className="flex items-center justify-between p-6 border-b border-silk-beige">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-premium-gradient rounded-full flex items-center justify-center shadow-sm">
+                                    <Sparkles className="w-5 h-5 text-charcoal" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-charcoal">
+                                        {fullscreenPrompt === 'personality' ? 'Master Prompt (Personalidad)' : 'Instrucciones de Comportamiento'}
+                                    </h2>
+                                    <p className="text-sm text-charcoal/50">Edición en pantalla completa para máximo enfoque</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm text-charcoal/40 font-mono">
+                                    {fullscreenPrompt === 'personality' ? masterPrompt.length : behaviorRules.length} caracteres
+                                </span>
+                                <button
+                                    onClick={() => setFullscreenPrompt(null)}
+                                    className="p-2 hover:bg-ivory rounded-soft transition-colors flex items-center gap-2 text-charcoal/60 hover:text-charcoal"
+                                >
+                                    <Minimize2 className="w-5 h-5" />
+                                    <span className="text-sm font-medium">Cerrar</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 p-6">
+                            <textarea
+                                value={fullscreenPrompt === 'personality' ? masterPrompt : behaviorRules}
+                                onChange={(e) => fullscreenPrompt === 'personality' ? setMasterPrompt(e.target.value) : setBehaviorRules(e.target.value)}
+                                className="w-full h-full p-6 text-lg font-mono leading-relaxed bg-ivory/20 rounded-soft border-2 border-primary-100 focus:border-primary-500 focus:ring-0 overflow-y-auto resize-none shadow-inner"
+                                spellCheck={false}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="p-6 border-t border-silk-beige flex justify-between items-center bg-ivory/5">
+                            <p className="text-xs text-charcoal/50 max-w-md">
+                                Los cambios realizados aquí se reflejan automáticamente en el formulario principal. No olvides guardar al finalizar.
+                            </p>
+                            <button
+                                onClick={() => setFullscreenPrompt(null)}
+                                className="btn-primary py-3 px-8 shadow-premium"
+                            >
+                                Volver al Panel
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -3339,8 +3339,8 @@ export default function Settings() {
                                             <Cpu className="w-6 h-6" />
                                         </div>
                                         <h3 className="text-lg font-black text-charcoal mb-1">Máximo Poder</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3) — GPT-5</p>
-                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-5 para casos clínicos complejos.</p>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3) — GPT-5.5</p>
+                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-5.5 para casos clínicos complejos.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
                                             aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
@@ -3448,7 +3448,7 @@ export default function Settings() {
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">60x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro — GPT-5</p>
+                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro — GPT-5.5</p>
                                                 <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia clínica y quirúrgica extrema de última generación.</p>
                                             </div>
                                         </div>
