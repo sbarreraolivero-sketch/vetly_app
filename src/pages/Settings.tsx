@@ -38,6 +38,7 @@ import {
     ExternalLink,
     RefreshCw,
     Calendar,
+    Cpu,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
@@ -1044,20 +1045,21 @@ export default function Settings() {
         setSavingModel(true)
         
         const payload = { 
+            id: profile.clinic_id,
             ai_active_model: aiActiveModel, 
             ai_auto_respond: aiAutoRespond,
             updated_at: new Date().toISOString() 
         }
         
-        console.log('--- PERISTENCE DEBUG ---')
+        console.log('--- AI PERISTENCE DEBUG ---')
         console.log('Clinic ID:', profile.clinic_id)
         console.log('Payload:', payload)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error, status } = await (supabase as any)
                 .from('clinic_settings')
-                .update(payload)
-                .eq('id', profile.clinic_id)
+                .upsert(payload, { onConflict: 'id' })
                 .select()
 
             if (error) {
@@ -1070,7 +1072,7 @@ export default function Settings() {
             console.log('Updated Data:', data)
 
             if (!data || data.length === 0) {
-                console.warn('Update successful but no rows returned. Possible RLS issue.')
+                console.warn('Upsert successful but no rows returned. Possible RLS issue.')
                 toast.error('No se pudo actualizar. Verifica tus permisos de administrador.')
                 return
             }
@@ -3225,215 +3227,248 @@ export default function Settings() {
 
 
 
-                    {/* AI Settings */}
                     {activeTab === 'ai' && (
-                        <div className="space-y-6">
-                            {/* Header + Auto-Respond */}
-                            <div className="card-soft p-6">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-12 h-12 bg-violet-100 rounded-soft flex items-center justify-center">
-                                        <Sparkles className="w-6 h-6 text-violet-600" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-charcoal">Configuración de IA</h2>
-                                        <p className="text-sm text-charcoal/50">Gestiona tu asistente de inteligencia artificial</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white p-4 rounded-soft border border-silk-beige flex items-center justify-between">
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-charcoal">Atención Automática IA</h3>
-                                        <p className="text-xs text-charcoal/60 mt-1">
-                                            Si está desactivado, la IA no responderá mensajes en WhatsApp real. El Simulador seguirá funcionando para pruebas.
-                                        </p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={aiAutoRespond}
-                                            onChange={(e) => setAiAutoRespond(e.target.checked)}
-                                        />
-                                        <div className="w-11 h-6 bg-charcoal/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-charcoal/10 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                                    </label>
-                                </div>
-                            </div>
-
-                            {/* AI Model Switcher (Active Response Mode) */}
-                            <div className="card-soft p-6 mb-6">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className={cn(
-                                            "w-12 h-12 rounded-soft flex items-center justify-center transition-colors",
-                                            aiActiveModel === 'pro' ? "bg-charcoal text-white" : aiActiveModel === 'hybrid' ? "bg-emerald-100" : "bg-silk-beige"
-                                        )}>
-                                            <Bot className={cn("w-6 h-6", aiActiveModel === 'pro' ? "text-white" : aiActiveModel === 'hybrid' ? "text-emerald-600" : "text-charcoal/60")} />
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Citenly Hybrid Intelligence Header */}
+                            <div className="card-soft p-8 bg-gradient-to-br from-white to-silk-beige/30 border-2 border-primary-500/10 shadow-premium-lg relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/5 rounded-full -mr-32 -mt-32 blur-3xl" />
+                                
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 relative z-10">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-16 h-16 bg-charcoal rounded-2xl flex items-center justify-center shadow-xl border-4 border-white transform rotate-3">
+                                            <Sparkles className="w-8 h-8 text-primary-400" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-bold text-charcoal flex items-center gap-2">
-                                                Motor de Respuesta Activo
-                                                {aiActiveModel === 'hybrid' && (
-                                                    <span className="bg-emerald-100 text-emerald-700 text-xs font-bold uppercase px-2 py-0.5 rounded-full font-bold animate-pulse-subtle">
-                                                        Auto-Optimización
-                                                    </span>
-                                                )}
-                                                {aiActiveModel === 'pro' && (
-                                                    <span className="bg-charcoal text-white text-xs font-bold uppercase px-2 py-0.5 rounded-full font-bold">
-                                                        Máximo Poder
-                                                    </span>
-                                                )}
-                                            </h3>
-                                            <p className="text-sm font-medium text-charcoal/70">Define qué modelo usará la IA para atender a tus pacientes actualmente</p>
+                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Citenly Hybrid Intelligence</h2>
+                                            <p className="text-sm font-bold text-charcoal/40 uppercase tracking-widest mt-1">Motor de ruteo inteligente de modelos AI</p>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                                        <div className="flex bg-charcoal/5 p-1 rounded-soft">
-                                            <button
-                                                onClick={() => setAiActiveModel('hybrid')}
-                                                className={cn(
-                                                    "px-4 py-2 text-xs font-bold rounded-soft transition-all",
-                                                    aiActiveModel === 'hybrid' ? "bg-emerald-500 text-white shadow-sm" : "text-charcoal/40 hover:text-charcoal/60"
-                                                )}
-                                            >
-                                                Híbrido Auto (IA Router)
-                                            </button>
-                                            <button
-                                                onClick={() => setAiActiveModel('mini')}
-                                                className={cn(
-                                                    "px-4 py-2 text-xs font-bold rounded-soft transition-all",
-                                                    aiActiveModel === 'mini' ? "bg-white text-emerald-600 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal/60"
-                                                )}
-                                            >
-                                                Ahorro Máximo (N1)
-                                            </button>
-                                            <button
-                                                onClick={() => setAiActiveModel('pro')}
-                                                className={cn(
-                                                    "px-4 py-2 text-xs font-bold rounded-soft transition-all",
-                                                    aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-sm" : "text-charcoal/40 hover:text-charcoal/60"
-                                                )}
-                                            >
-                                                Máxima Inteligencia
-                                            </button>
+                                    <div className="flex items-center gap-4 bg-white/80 backdrop-blur-md px-6 py-4 rounded-3xl border border-silk-beige shadow-sm">
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Estado del Motor</p>
+                                            <p className={cn("text-sm font-black uppercase", aiAutoRespond ? "text-emerald-500" : "text-amber-500")}>
+                                                {aiAutoRespond ? 'En Línea • Activo' : 'Desconectado'}
+                                            </p>
                                         </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={aiAutoRespond}
+                                                onChange={(e) => setAiAutoRespond(e.target.checked)}
+                                            />
+                                            <div className="w-14 h-7 bg-charcoal/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-1 after:left-[4px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
+                                        </label>
                                     </div>
                                 </div>
-                                <div className="mt-4 p-3 bg-blue-50/50 rounded-soft border border-blue-100/50 flex items-start gap-2">
-                                    <Info className="w-4 h-4 text-blue-500 mt-0.5" />
-                                    <p className="text-xs text-blue-700 leading-relaxed">
-                                        <span className="font-bold">Sugerencia:</span> {
-                                            aiActiveModel === 'hybrid'
-                                                ? "El modo Híbrido analiza cada mensaje y elige el modelo óptimo para ahorrar créditos (Capa 1/2/3)."
-                                                : aiActiveModel === 'pro'
-                                                ? "Uso forzado de Nivel 3. Máximo razonamiento para diagnósticos y cirugías complejas."
-                                                : "Uso forzado de Nivel 1. Ideal para ahorrar costos si solo haces agendamientos básicos."
-                                        }
-                                    </p>
+
+                                {/* Strategy Selection Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                                    {/* Saving Strategy */}
+                                    <button
+                                        onClick={() => setAiActiveModel('mini')}
+                                        className={cn(
+                                            "flex flex-col p-6 rounded-[2rem] border-2 transition-all duration-500 text-left group",
+                                            aiActiveModel === 'mini' 
+                                            ? "bg-white border-primary-500 shadow-premium ring-4 ring-primary-500/10" 
+                                            : "bg-white/40 border-silk-beige hover:border-primary-300 hover:bg-white"
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            "w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-all duration-500 shadow-sm",
+                                            aiActiveModel === 'mini' ? "bg-emerald-500 text-white rotate-6" : "bg-silk-beige text-charcoal/40"
+                                        )}>
+                                            <Zap className="w-6 h-6" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-charcoal mb-1">Ahorro Máximo</h3>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Eficiencia N1</p>
+                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed">Ideal para saludos y agendamientos básicos usando Flash Mini.</p>
+                                        <div className={cn(
+                                            "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
+                                            aiActiveModel === 'mini' ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-charcoal/30"
+                                        )}>
+                                            {aiActiveModel === 'mini' ? '✓ Seleccionado' : 'Activar Estrategia'}
+                                        </div>
+                                    </button>
+
+                                    {/* Hybrid Strategy (Recomended) */}
+                                    <button
+                                        onClick={() => setAiActiveModel('hybrid')}
+                                        className={cn(
+                                            "flex flex-col p-6 rounded-[2.5rem] border-2 transition-all duration-500 text-left relative group",
+                                            aiActiveModel === 'hybrid' 
+                                            ? "bg-white border-primary-500 shadow-premium-lg ring-8 ring-primary-500/5 scale-105 z-10" 
+                                            : "bg-white/40 border-silk-beige hover:border-primary-300 hover:bg-white"
+                                        )}
+                                    >
+                                        {aiActiveModel === 'hybrid' && (
+                                            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary-600 text-white text-[9px] font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-widest whitespace-nowrap animate-bounce-subtle">
+                                                Recomendado
+                                            </div>
+                                        )}
+                                        <div className={cn(
+                                            "w-14 h-14 rounded-2xl mb-4 flex items-center justify-center transition-all duration-500 shadow-xl",
+                                            aiActiveModel === 'hybrid' ? "bg-primary-500 text-white rotate-12 scale-110" : "bg-silk-beige text-charcoal/40"
+                                        )}>
+                                            <RefreshCw className={cn("w-7 h-7", aiActiveModel === 'hybrid' && "animate-spin-slow")} />
+                                        </div>
+                                        <h3 className="text-xl font-black text-charcoal mb-1 text-primary-600">Híbrido Automático</h3>
+                                        <p className="text-xs font-black text-primary-400 uppercase tracking-widest mb-4">IA Router (N1/N2/N3)</p>
+                                        <p className="text-sm font-medium text-charcoal/70 leading-relaxed font-bold">El sistema elige el mejor modelo según la complejidad del mensaje.</p>
+                                        <div className={cn(
+                                            "mt-6 py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
+                                            aiActiveModel === 'hybrid' ? "bg-primary-500 text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
+                                        )}>
+                                            {aiActiveModel === 'hybrid' ? 'Motor Inteligente Activo' : 'Activar IA Router'}
+                                        </div>
+                                    </button>
+
+                                    {/* Power Strategy */}
+                                    <button
+                                        onClick={() => setAiActiveModel('pro')}
+                                        className={cn(
+                                            "flex flex-col p-6 rounded-[2rem] border-2 transition-all duration-500 text-left group",
+                                            aiActiveModel === 'pro' 
+                                            ? "bg-white border-charcoal shadow-premium ring-4 ring-charcoal/10" 
+                                            : "bg-white/40 border-silk-beige hover:border-primary-300 hover:bg-white"
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            "w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-all duration-500 shadow-sm",
+                                            aiActiveModel === 'pro' ? "bg-charcoal text-white -rotate-6" : "bg-silk-beige text-charcoal/40"
+                                        )}>
+                                            <Cpu className="w-6 h-6" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-charcoal mb-1">Máximo Poder</h3>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3)</p>
+                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de modelos premium para respuestas de alta precisión.</p>
+                                        <div className={cn(
+                                            "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
+                                            aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
+                                        )}>
+                                            {aiActiveModel === 'pro' ? '✓ Modo Pro Activo' : 'Activar Modo Pro'}
+                                        </div>
+                                    </button>
                                 </div>
-                                <div className="mt-4 flex items-center gap-4">
+
+                                <div className="mt-8 pt-6 border-t border-silk-beige/50 flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                        <p className="text-sm font-bold text-charcoal/60">Sincronización en tiempo real habilitada con YCloud</p>
+                                    </div>
                                     <button
                                         onClick={handleSaveAI}
                                         disabled={savingModel}
-                                        className="btn-primary flex items-center gap-2"
+                                        className="btn-primary px-10 py-4 shadow-xl hover:shadow-2xl transition-all flex items-center gap-3 active:scale-95"
                                     >
                                         {savingModel ? (
-                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                            <><Loader2 className="w-5 h-5 animate-spin" /> Guardando...</>
                                         ) : (
-                                            <><Save className="w-4 h-4" /> Guardar Configuración de IA</>
+                                            <><Save className="w-5 h-5" /> Confirmar Configuración</>
                                         )}
                                     </button>
                                 </div>
                             </div>
 
-                            {/* AI Credits Usage */}
-                            <div className="grid grid-cols-1 gap-6">
-                                {/* UNIFIED DASHBOARD */}
-                                <div className="card-soft p-8 border-t-4 border-t-primary-500 bg-premium-gradient/5">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-14 h-14 bg-premium-gradient rounded-full flex items-center justify-center shadow-lg">
-                                                <Zap className="w-7 h-7 text-charcoal" />
-                                            </div>
+                            {/* Citenly Credits Dashboard */}
+                            <div className="card-soft p-8 border-t-8 border-t-charcoal bg-white shadow-premium">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-16 h-16 bg-hero-gradient rounded-[1.5rem] flex items-center justify-center shadow-2xl relative">
+                                            <Zap className="w-9 h-9 text-white" />
+                                            <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow-sm">LIVE</div>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Citenly Credits</h2>
+                                            <p className="text-sm font-bold text-charcoal/30 uppercase tracking-widest mt-1">Créditos Unificados de Inteligencia</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-charcoal text-white p-6 rounded-[2rem] shadow-2xl min-w-[240px] text-center transform hover:scale-105 transition-transform duration-500">
+                                        <p className="text-xs font-black uppercase tracking-widest text-primary-400 mb-1">Total Disponibles</p>
+                                        <p className="text-4xl font-black tabular-nums">{(aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
+                                        <p className="text-[10px] font-bold text-white/40 mt-1 uppercase">Créditos Vetly Global</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                                    {/* Plan Credits */}
+                                    <div className="bg-silk-beige/20 p-6 rounded-[2rem] border border-silk-beige/50 relative group overflow-hidden">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-widest">Plan Base</p>
+                                            <div className="p-2 bg-white rounded-xl shadow-sm"><CreditCard className="w-4 h-4 text-charcoal/40" /></div>
+                                        </div>
+                                        <p className="text-3xl font-black text-charcoal">{aiCreditsMonthlyLimit.toLocaleString()}</p>
+                                        <p className="text-xs font-bold text-charcoal/40 mt-1 uppercase">Recarga Mensual</p>
+                                        <div className="absolute bottom-0 left-0 h-1 bg-primary-500 transition-all duration-1000 w-full" />
+                                    </div>
+
+                                    {/* Extra Credits */}
+                                    <div className="bg-emerald-50/30 p-6 rounded-[2rem] border border-emerald-100 relative group overflow-hidden">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <p className="text-xs font-black text-emerald-600/60 uppercase tracking-widest">Cargas Extra</p>
+                                            <div className="p-2 bg-white rounded-xl shadow-sm"><Plus className="w-4 h-4 text-emerald-500" /></div>
+                                        </div>
+                                        <p className="text-3xl font-black text-emerald-600">{(aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
+                                        <p className="text-xs font-bold text-emerald-400 mt-1 uppercase">Saldo Acumulado</p>
+                                        <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 w-full" />
+                                    </div>
+
+                                    {/* Monthly Consumption */}
+                                    <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100 relative group overflow-hidden">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <p className="text-xs font-black text-red-600/60 uppercase tracking-widest">Consumo Mes</p>
+                                            <div className="p-2 bg-white rounded-xl shadow-sm"><Zap className="w-4 h-4 text-red-500" /></div>
+                                        </div>
+                                        <p className="text-3xl font-black text-red-600">{(aiMessagesUsed + (aiMessagesUsed4o * 60)).toLocaleString()}</p>
+                                        <p className="text-xs font-bold text-red-400 mt-1 uppercase">Créditos Usados</p>
+                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, ((aiMessagesUsed + (aiMessagesUsed4o * 60)) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
+                                    </div>
+                                </div>
+
+                                {/* Custom Cost Table */}
+                                <div className="bg-ivory/50 rounded-[2.5rem] border border-silk-beige p-8">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <Info className="w-5 h-5 text-charcoal/30" />
+                                        <h3 className="text-sm font-black text-charcoal uppercase tracking-widest">Tabla de Costos Híbridos</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-black shadow-inner">1x</div>
                                             <div>
-                                                <h2 className="text-xl font-bold text-charcoal tracking-tight">Dashboard de Inteligencia Unificada</h2>
-                                                <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest">Consumo Total de Créditos Vetly</p>
+                                                <p className="text-sm font-black text-charcoal">N1: Flash Mini</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">GPT-4o-mini optimizado para velocidad y costo mínimo.</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-medium text-charcoal/40">Saldo Total Disponible</p>
-                                            <p className="text-3xl font-black text-primary-600">{(aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-700 font-black shadow-inner">8x</div>
+                                            <div>
+                                                <p className="text-sm font-black text-charcoal">N2: Standard</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento intermedio para ventas y logística.</p>
+                                            </div>
                                         </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        {/* N1 Stats */}
-                                        <div className="bg-white/60 p-4 rounded-soft border border-emerald-100 backdrop-blur-sm shadow-sm relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 rounded-full -mr-8 -mt-8" />
-                                            <p className="text-xs font-bold text-emerald-700 uppercase mb-2">Uso Nivel 1 (Ahorro)</p>
-                                            <p className="text-2xl font-bold text-charcoal">{aiMessagesUsed.toLocaleString()}</p>
-                                            <p className="text-[10px] text-charcoal/40 mt-1">Costo: 1 crédito/msj</p>
-                                        </div>
-
-                                        {/* N2 Stats */}
-                                        <div className="bg-white/60 p-4 rounded-soft border border-blue-100 backdrop-blur-sm shadow-sm relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full -mr-8 -mt-8" />
-                                            <p className="text-xs font-bold text-blue-700 uppercase mb-2">Uso Nivel 2 (Estándar)</p>
-                                            <p className="text-2xl font-bold text-charcoal">{(aiMessagesUsed * 0.15).toFixed(0)}</p>
-                                            <p className="text-[10px] text-charcoal/40 mt-1">Costo: 8 créditos/msj</p>
-                                        </div>
-
-                                        {/* N3 Stats */}
-                                        <div className="bg-white/60 p-4 rounded-soft border border-violet-100 backdrop-blur-sm shadow-sm relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 rounded-full -mr-8 -mt-8" />
-                                            <p className="text-xs font-bold text-violet-700 uppercase mb-2">Uso Nivel 3 (Poder)</p>
-                                            <p className="text-2xl font-bold text-charcoal">{aiMessagesUsed4o.toLocaleString()}</p>
-                                            <p className="text-[10px] text-charcoal/40 mt-1">Costo: 60 créditos/msj</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-8 pt-6 border-t border-silk-beige/50">
-                                        <div className="flex justify-between items-end mb-2">
-                                            <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Estado General de Suscripción</p>
-                                            <p className="text-xs font-bold text-charcoal">
-                                                {Math.round(((aiMessagesUsed + (aiMessagesUsed4o * 60)) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + (aiCreditsExtra4o * 60) || 1)) * 100)}%
-                                            </p>
-                                        </div>
-                                        <div className="h-3 bg-charcoal/5 rounded-full overflow-hidden border border-silk-beige shadow-inner">
-                                            <div
-                                                className="h-full bg-premium-gradient transition-all duration-1000"
-                                                style={{ width: `${Math.min(100, ((aiMessagesUsed + (aiMessagesUsed4o * 60)) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + (aiCreditsExtra4o * 60) || 1)) * 100)}%` }}
-                                            />
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">60x</div>
+                                            <div>
+                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">GPT-4o Original. Inteligencia clínica y quirúrgica extrema.</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Credit Packs with Model Switch */}
-                            <div id="ai-credits-packs" className="card-soft p-6">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-soft flex items-center justify-center shadow-md">
-                                            <CreditCard className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-lg font-semibold text-charcoal">Recarga de Créditos IA</h2>
-                                            <p className="text-sm text-charcoal/50">Selecciona el modelo y el pack que prefieras</p>
-                                        </div>
+                            {/* Credit Packs */}
+                            <div id="ai-credits-packs" className="card-soft p-8 bg-white border-2 border-primary-500/5 shadow-premium-lg">
+                                <div className="flex items-center gap-5 mb-8">
+                                    <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3">
+                                        <Plus className="w-8 h-8 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black text-charcoal tracking-tight">Recarga de Créditos IA</h2>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mt-1">Saldo que nunca vence • Activación inmediata</p>
                                     </div>
                                 </div>
 
-                                {/* Unified Packs Description */}
-                                <div className="mb-8 p-6 bg-premium-gradient/5 rounded-soft border border-primary-200">
-                                    <h3 className="text-sm font-bold text-charcoal flex items-center gap-2 mb-2">
-                                        <Sparkles className="w-4 h-4 text-primary-500" />
-                                        Créditos Vetly Universales
-                                    </h3>
-                                    <p className="text-xs text-charcoal/70 leading-relaxed">
-                                        Compra créditos que se adaptan a tu uso. El sistema descontará automáticamente el costo según el nivel de inteligencia requerido para cada respuesta (1x por saludos, 8x por agendamientos, 60x por cirugías complejas).
-                                    </p>
-                                </div>
-
-                                {/* Pack Cards */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {(() => {
                                         const mpPacks = { ...CREDIT_PACKS };
@@ -3446,49 +3481,53 @@ export default function Settings() {
                                             const pack = (currentPacks as any)[packId]
 
                                             return (
-                                                <div key={packId} className="p-6 bg-white border border-silk-beige rounded-soft hover:shadow-md hover:border-primary-300 transition-all flex flex-col group">
-                                                    <div className="mb-4">
-                                                        <h3 className="text-lg font-extrabold text-charcoal group-hover:text-primary-600 transition-colors">{pack.name}</h3>
-                                                        <div className="flex items-baseline gap-1 mt-1">
-                                                            <span className="text-2xl font-black text-primary-600">
+                                                <div key={packId} className="p-8 bg-white border border-silk-beige rounded-[2.5rem] hover:shadow-2xl hover:border-primary-500 transition-all duration-500 flex flex-col group relative overflow-hidden">
+                                                    {packId === 'heavy' && (
+                                                        <div className="absolute top-0 right-0 bg-primary-500 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-2xl shadow-md uppercase tracking-widest">Sugerido</div>
+                                                    )}
+                                                    <div className="mb-6">
+                                                        <h3 className="text-xl font-black text-charcoal group-hover:text-primary-600 transition-colors uppercase tracking-tighter">{pack.name}</h3>
+                                                        <div className="flex items-baseline gap-2 mt-2">
+                                                            <span className="text-3xl font-black text-primary-600">
                                                                 {currencySymbol}{pack.price.toLocaleString()}
                                                             </span>
-                                                            <span className="text-xs text-charcoal/60 font-medium">{currencyCode}</span>
+                                                            <span className="text-xs font-black text-charcoal/30 uppercase">{currencyCode}</span>
                                                         </div>
                                                     </div>
-                                                    <ul className="mb-6 space-y-2 flex-grow">
-                                                        <li className="flex items-center gap-2 text-sm text-charcoal/70 font-bold">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                            {pack.credits.toLocaleString()} Créditos Vetly
-                                                        </li>
-                                                        <li className="flex items-center gap-2 text-xs text-charcoal/40">
-                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                                            IA Híbrida (T1, T2, T3)
-                                                        </li>
-                                                        <li className="flex items-center gap-2 text-xs text-charcoal/40">
-                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                                            Sin fecha de vencimiento
-                                                        </li>
-                                                        <li className="flex items-center gap-2 text-xs text-charcoal/40">
-                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                                            Activación instantánea
-                                                        </li>
-                                                    </ul>
+                                                    <div className="space-y-4 mb-8 flex-grow">
+                                                        <div className="bg-silk-beige/20 p-4 rounded-2xl border border-silk-beige/30">
+                                                            <p className="text-sm font-black text-charcoal flex items-center gap-2">
+                                                                <Zap className="w-4 h-4 text-primary-500" />
+                                                                {pack.credits.toLocaleString()} Créditos
+                                                            </p>
+                                                        </div>
+                                                        <ul className="space-y-2.5">
+                                                            <li className="flex items-center gap-3 text-xs font-bold text-charcoal/50">
+                                                                <Check className="w-4 h-4 text-emerald-500" />
+                                                                Uso Universal (N1/N2/N3)
+                                                            </li>
+                                                            <li className="flex items-center gap-3 text-xs font-bold text-charcoal/50">
+                                                                <Check className="w-4 h-4 text-emerald-500" />
+                                                                Sin fecha de vencimiento
+                                                            </li>
+                                                        </ul>
+                                                    </div>
                                                     <button
                                                         onClick={() => handleBuyCredits(packId)}
-                                                        className="w-full py-3 bg-charcoal text-white rounded-soft font-bold text-sm hover:bg-primary-600 transition-all flex items-center justify-center gap-2 group-hover:shadow-lg"
+                                                        className="w-full py-4 bg-charcoal text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary-600 shadow-lg hover:shadow-primary-500/20 transition-all active:scale-95"
                                                     >
-                                                        <CreditCard className="w-4 h-4" />
-                                                        Comprar Créditos
+                                                        Comprar Pack
                                                     </button>
                                                 </div>
                                             )
                                         })
                                     })()}
                                 </div>
-                                <p className="mt-6 text-sm text-charcoal/60 italic text-center">
-                                    * Los créditos extra se consumen solo después de agotar el cupo mensual de tu plan.
-                                </p>
+                                <div className="mt-8 p-4 bg-charcoal/5 rounded-2xl border border-dashed border-silk-beige">
+                                    <p className="text-[11px] text-charcoal/40 font-bold italic text-center leading-relaxed">
+                                        * Los créditos de recarga actúan como un monedero virtual. Se consumen únicamente si agotas los créditos gratuitos de tu plan mensual y permanecen activos para siempre.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     )}

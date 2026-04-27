@@ -198,18 +198,22 @@ export default function KnowledgeBase() {
         if (!profile?.clinic_id) return
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data } = await (supabase as any)
+            const { data, error: fetchError } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ai_personality, ai_behavior_rules, transfer_details, logistics_config')
+                .select('ai_personality, ai_behavior_rules, transfer_details, logistics_config, ai_active_model')
                 .eq('id', profile.clinic_id)
                 .single()
-            if (data?.ai_personality) setMasterPrompt(data.ai_personality)
-            if (data?.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
-            if (data?.transfer_details) setTransferDetails(data.transfer_details)
-            if (data?.ai_active_model) setActiveModel(data.ai_active_model as 'hybrid' | 'mini' | 'pro')
+
+            if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+            if (!data) return;
+
+            if (data.ai_personality) setMasterPrompt(data.ai_personality)
+            if (data.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
+            if (data.transfer_details) setTransferDetails(data.transfer_details)
+            if (data.ai_active_model) setActiveModel(data.ai_active_model as 'hybrid' | 'mini' | 'pro')
             
-                // Migration: Handle old schema if necessary
-                let finalConfig = data.logistics_config;
+            // Migration: Handle old schema if necessary
+            let finalConfig = data.logistics_config;
                 if (finalConfig && !finalConfig.locations) {
                     finalConfig = {
                         is_active: finalConfig.is_active ?? true,
@@ -229,9 +233,7 @@ export default function KnowledgeBase() {
                     };
                 }
 
-                // Bypass load only for AnimalGrace Linares to allow manual restoration
-                const isAnimalGraceLinares = profile?.clinic_id === 'fd11b7e4-7d96-461c-a292-2caa5e2592ce';
-                if (finalConfig && !isAnimalGraceLinares) {
+                if (finalConfig) {
                     setLogisticsConfig(finalConfig);
                 }
         } catch (e) {
@@ -246,28 +248,55 @@ export default function KnowledgeBase() {
         }
         setSavingPrompt(true)
         try {
+            console.log('KnowledgeBase: Saving started for clinic_id:', profile.clinic_id);
+            console.log('KnowledgeBase: Saving logisticsConfig:', logisticsConfig);
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
+            const { data, error } = await (supabase as any)
                 .from('clinic_settings')
-                .update({
-                    ai_personality: masterPrompt.trim(),
-                    ai_behavior_rules: behaviorRules.trim(),
-                    transfer_details: transferDetails.trim(),
+                .upsert({
+                    id: profile.clinic_id,
+                    ai_personality: (masterPrompt || '').trim(),
+                    ai_behavior_rules: (behaviorRules || '').trim(),
+                    transfer_details: (transferDetails || '').trim(),
                     logistics_config: logisticsConfig,
                     ai_active_model: activeModel,
                     updated_at: new Date().toISOString()
-                })
-                .eq('id', profile.clinic_id)
-            if (error) throw error
+                }, { onConflict: 'id' })
+                .select()
+
+            if (error) {
+                console.error('Supabase Persistence Error:', error)
+                throw error
+            }
+
+            if (!data || data.length === 0) {
+                throw new Error('Supabase no retornó datos después del guardado. Verifica si el registro existe.');
+            }
+
+            console.log('KnowledgeBase Save Success:', data)
+            
+            if (data && data[0]) {
+                const savedData = data[0];
+                if (savedData.ai_personality) setMasterPrompt(savedData.ai_personality);
+                if (savedData.ai_behavior_rules) setBehaviorRules(savedData.ai_behavior_rules);
+                if (savedData.transfer_details) setTransferDetails(savedData.transfer_details);
+                if (savedData.ai_active_model) setActiveModel(savedData.ai_active_model);
+                if (savedData.logistics_config) setLogisticsConfig(savedData.logistics_config);
+            }
+
             setPromptSaved(true)
             setTimeout(() => setPromptSaved(false), 3000)
+            
+            // Success feedback
+            // alert('Configuración guardada correctamente.')
         } catch (e: any) {
-            console.error('Error saving prompt settings:', e)
-            const errorMsg = e?.message || ''
+            console.error('Error in handleSaveMasterPrompt:', e)
+            const errorMsg = e?.message || e?.error_description || 'Error desconocido'
             if (errorMsg.includes('permission denied') || e?.code === '42501') {
-                alert('No tienes los permisos necesarios para modificar la configuración de la clínica. Solo los Administradores o Dueños pueden realizar esta acción.')
+                alert('No tienes permisos suficientes (RLS) para modificar la configuración de la clínica.')
             } else {
-                alert('Error al guardar la configuración. Por favor, verifica tu conexión e intenta de nuevo.')
+                alert(`Error al guardar: ${errorMsg}`)
             }
         } finally {
             setSavingPrompt(false)
@@ -497,81 +526,8 @@ export default function KnowledgeBase() {
                 {showPromptSection && (
                     <div className="animate-fade-in">
                         <div className="px-5 pb-5 space-y-6 border-t border-silk-beige/50">
-                        {/* Model Selection */}
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-5 pb-2 border-b border-silk-beige/30">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-ivory rounded-soft flex items-center justify-center border border-silk-beige/50">
-                                    <Cpu className="w-5 h-5 text-primary-500" />
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-charcoal">Estrategia de Inteligencia (Cerebro IA)</h4>
-                                    <p className="text-[11px] text-charcoal/50 mr-4">El sistema elige el mejor modelo según la complejidad del mensaje.</p>
-                                </div>
-                            </div>
-                            
-                            <div className="flex flex-wrap bg-ivory p-1 rounded-soft border border-silk-beige/40 gap-1">
-                                <button
-                                    onClick={() => setActiveModel('hybrid')}
-                                    className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
-                                        activeModel === 'hybrid' 
-                                        ? 'bg-emerald-500 text-white shadow-md' 
-                                        : 'text-charcoal/40 hover:text-charcoal'
-                                    }`}
-                                >
-                                    <Sparkles className="w-3.5 h-3.5" /> Híbrido Auto <span className="text-[9px] opacity-70">(Ahorro Pro)</span>
-                                </button>
-                                <button
-                                    onClick={() => setActiveModel('mini')}
-                                    className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
-                                        activeModel === 'mini' 
-                                        ? 'bg-white text-charcoal shadow-sm border border-silk-beige/50' 
-                                        : 'text-charcoal/40 hover:text-charcoal'
-                                    }`}
-                                >
-                                    <Zap className="w-3.5 h-3.5" /> Ahorro Máximo <span className="text-[9px] opacity-50">(Nivel 1)</span>
-                                </button>
-                                <button
-                                    onClick={() => setActiveModel('pro')}
-                                    className={`px-4 py-1.5 rounded-soft text-xs font-bold transition-all flex items-center gap-2 ${
-                                        activeModel === 'pro' 
-                                        ? 'bg-charcoal text-white shadow-md' 
-                                        : 'text-white/40 hover:text-white'
-                                    }`}
-                                >
-                                    <Cpu className="w-3.5 h-3.5" /> Máximo Poder <span className="text-[9px] opacity-70">(Nivel 3)</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Credit Explanation Table */}
-                        <div className="bg-silk-beige/10 rounded-soft p-4 border border-silk-beige/20">
-                            <h5 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest mb-3">Escala de Consumo de Créditos (Sugerido)</h5>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="flex items-start gap-2.5">
-                                    <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">1x</div>
-                                    <div>
-                                        <p className="text-[11px] font-bold text-charcoal">Nivel 1: Respuestas Simples</p>
-                                        <p className="text-[10px] text-charcoal/50 leading-tight">Saludos, agradecimientos y confirmación de horarios.</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-2.5">
-                                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">8x</div>
-                                    <div>
-                                        <p className="text-[11px] font-bold text-charcoal">Nivel 2: Consultas Estándar</p>
-                                        <p className="text-[10px] text-charcoal/50 leading-tight">Agendamientos, dudas de salud y lógica de logística.</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-2.5">
-                                    <div className="w-6 h-6 rounded-full bg-charcoal/10 flex items-center justify-center text-[10px] font-bold text-charcoal/60">60x</div>
-                                    <div>
-                                        <p className="text-[11px] font-bold text-charcoal">Nivel 3: Inteligencia Crítica</p>
-                                        <p className="text-[10px] text-charcoal/50 leading-tight">Cirugías extremas, lectura de comprobantes y fotos.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-sm font-medium text-charcoal">Master Prompt (Personalidad)</label>
@@ -766,7 +722,7 @@ export default function KnowledgeBase() {
                                                                     value={loc.max_time_mins}
                                                                     onChange={(e) => {
                                                                         const newLocs = [...logisticsConfig.locations];
-                                                                        newLocs[index].max_time_mins = parseInt(e.target.value);
+                                                                        newLocs[index].max_time_mins = parseInt(e.target.value) || 0;
                                                                         setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                     }}
                                                                     className="w-8 text-[11px] font-bold bg-transparent border-none p-0 focus:ring-0 text-center"
@@ -800,7 +756,7 @@ export default function KnowledgeBase() {
                                                                         value={loc.lat}
                                                                         onChange={(e) => {
                                                                             const newLocs = [...logisticsConfig.locations];
-                                                                            newLocs[index].lat = parseFloat(e.target.value);
+                                                                            newLocs[index].lat = parseFloat(e.target.value) || 0;
                                                                             setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                         }}
                                                                         className="input-soft w-full text-xs py-1.5 focus:bg-white"
@@ -814,7 +770,7 @@ export default function KnowledgeBase() {
                                                                         value={loc.lng}
                                                                         onChange={(e) => {
                                                                             const newLocs = [...logisticsConfig.locations];
-                                                                            newLocs[index].lng = parseFloat(e.target.value);
+                                                                            newLocs[index].lng = parseFloat(e.target.value) || 0;
                                                                             setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                         }}
                                                                         className="input-soft w-full text-xs py-1.5 focus:bg-white"
@@ -881,7 +837,7 @@ export default function KnowledgeBase() {
                                                                                                 value={range.min}
                                                                                                 onChange={(e) => {
                                                                                                     const newLocs = [...logisticsConfig.locations];
-                                                                                                    newLocs[index].time_ranges[rIndex].min = parseInt(e.target.value);
+                                                                                                    newLocs[index].time_ranges[rIndex].min = parseInt(e.target.value) || 0;
                                                                                                     setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                                                 }}
                                                                                                 className="w-14 text-center bg-silk-beige/20 rounded-soft border border-silk-beige/10 py-1.5 focus:ring-1 focus:ring-primary-400 focus:bg-white text-xs font-bold"
@@ -895,7 +851,7 @@ export default function KnowledgeBase() {
                                                                                                 value={range.max}
                                                                                                 onChange={(e) => {
                                                                                                     const newLocs = [...logisticsConfig.locations];
-                                                                                                    newLocs[index].time_ranges[rIndex].max = parseInt(e.target.value);
+                                                                                                    newLocs[index].time_ranges[rIndex].max = parseInt(e.target.value) || 0;
                                                                                                     setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                                                 }}
                                                                                                 className="w-14 text-center bg-silk-beige/20 rounded-soft border border-silk-beige/10 py-1.5 focus:ring-1 focus:ring-primary-400 focus:bg-white text-xs font-bold"
@@ -911,7 +867,7 @@ export default function KnowledgeBase() {
                                                                                             value={range.surcharge}
                                                                                             onChange={(e) => {
                                                                                                 const newLocs = [...logisticsConfig.locations];
-                                                                                                newLocs[index].time_ranges[rIndex].surcharge = parseInt(e.target.value);
+                                                                                                newLocs[index].time_ranges[rIndex].surcharge = parseInt(e.target.value) || 0;
                                                                                                 setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
                                                                                             }}
                                                                                             className={`w-24 text-right rounded-soft border-none py-1.5 focus:ring-1 font-bold text-sm ${isSurgical ? 'bg-violet-50/50 focus:ring-violet-400' : 'bg-emerald-50/50 focus:ring-emerald-400'}`}
