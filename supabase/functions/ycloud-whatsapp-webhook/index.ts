@@ -2752,6 +2752,7 @@ Deno.serve(async (req) => {
     ) => {
       try {
         const realClinicId = clinic.ref_id || clinic.id;
+        const googleMapsApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
         // DEBOUNCE / HUMANIZE - WAIT FOR 20 SECONDS
         await new Promise((r) => setTimeout(r, 20000));
 
