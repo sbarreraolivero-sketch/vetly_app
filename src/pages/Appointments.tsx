@@ -784,7 +784,7 @@ export default function Appointments() {
                             </div>
                             <h1 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight drop-shadow-sm uppercase text-white">
                                 {isProfessional
-                                    ? `Citas: ${profile?.first_name || 'Personal'}`
+                                    ? `Citas: ${profile?.full_name || 'Personal'}`
                                     : professionalFilter === 'all'
                                         ? 'Citas de toda la Clínica'
                                         : `Citas: ${professionals.find(p => p.member_id === professionalFilter)?.first_name || ''}`}
