@@ -2524,6 +2524,8 @@ Deno.serve(async (req) => {
         console.error("Geocoding failed", e);
       }
 
+      body = `📍 [UBICACIÓN COMPARTIDA: ${formattedAddress || "Ver Mapa"}]`;
+
       await sb.from("crm_prospects").update({
         address: formattedAddress || `Coords: ${lat}, ${lng}`,
         updated_at: new Date().toISOString(),
