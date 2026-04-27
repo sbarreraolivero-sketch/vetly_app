@@ -2553,12 +2553,7 @@ Deno.serve(async (req) => {
         clinic.id,
       ).eq("phone", normalizedPhone);
 
-      // INJECT IMMEDIATE CONTEXT TO BYPASS DB LAG
-      immediateContext = {
-        gps: { lat, lng },
-        ruralMins: minRuralMins,
-        aiContext: payloadExtra.ai_context
-      };
+      // Location processing complete
     }
 
     // Add context from Facebook Ad referral if present
