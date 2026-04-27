@@ -1021,7 +1021,7 @@ export default function Appointments() {
             </div>
             
             {/* Professional Filter Pills */}
-            {!isProfessional && professionals.length > 1 && (
+            {!isProfessional && professionals.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap mb-2 mt-4 px-2">
                     <span className="text-xs font-medium text-charcoal/50 uppercase tracking-wide mr-1">Filtrar por Profesional:</span>
                     <button
