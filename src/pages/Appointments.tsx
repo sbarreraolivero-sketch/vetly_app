@@ -1063,6 +1063,29 @@ export default function Appointments() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
+                                className={cn(
+                                    'whitespace-nowrap flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-soft text-sm font-medium transition-colors',
+                                    activeTab === tab.id
+                                        ? 'bg-primary-500 text-white'
+                                        : 'text-charcoal/60 hover:bg-silk-beige/50 hover:text-charcoal'
+                                )}
+                            >
+                                {tab.label}
+                                <span
+                                    className={cn(
+                                        'w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0',
+                                        activeTab === tab.id ? 'bg-white/20' : 'bg-silk-beige'
+                                    )}
+                                >
+                                    {getTabCount(tab.id)}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {viewMode === 'calendar' ? (
                 <>
                     {/* Desktop Calendar View */}
                     <div className="hidden md:block">
