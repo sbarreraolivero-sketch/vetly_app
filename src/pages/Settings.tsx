@@ -23,7 +23,6 @@ import {
     User,
     Webhook,
     Globe,
-    Bot,
     Info,
     ToggleLeft,
     ToggleRight,
