@@ -46,10 +46,12 @@ interface YCloudPayload {
 }
 
 interface Msg {
-  role: "system" | "user" | "assistant" | "function";
-  content: string | any[];
+  role: "system" | "user" | "assistant" | "function" | "tool";
+  content: string | any[] | null;
   name?: string;
   function_call?: { name: string; arguments: string };
+  tool_calls?: any[];
+  tool_call_id?: string;
 }
 
 // ====== Helper: Download Media from YCloud ======
@@ -2252,12 +2254,10 @@ const callOpenAI = async (
     body: JSON.stringify({
       model: realModel,
       messages: msgs,
-      functions: useFns
-        ? (functions.length > 0 ? functions : undefined)
+      tools: useFns && functions.length > 0
+        ? functions.map((f) => ({ type: "function", function: f }))
         : undefined,
-      function_call: useFns
-        ? (functions.length > 0 ? "auto" : undefined)
-        : undefined,
+      tool_choice: useFns && functions.length > 0 ? "auto" : undefined,
       temperature: 0,
       max_completion_tokens: 800,
     }),
@@ -3116,39 +3116,63 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
         let funcResult: Record<string, unknown> | null = null;
         let allFuncResults: Record<string, unknown>[] = [];
 
-        // Handle function calls (support multiple sequential calls)
-        let maxCalls = 3;
-        while (assistant.function_call && maxCalls > 0) {
-          const fnArgs = JSON.parse(assistant.function_call.arguments);
-          funcResult = await processFunc(
-            sb,
-            clinic.id,
-            from,
-            assistant.function_call.name,
-            fnArgs,
-            clinic.timezone || "America/Santiago",
-            clinic,
-            msgs,
-          );
-          allFuncResults.push({
-            name: assistant.function_call.name,
-            result: funcResult,
-          });
+        // Handle function/tool calls (support multiple sequential calls)
+        let maxCalls = 5;
+        while ((assistant.function_call || (assistant.tool_calls && assistant.tool_calls.length > 0)) && maxCalls > 0) {
+          const assistantMsg = { ...assistant, role: "assistant" };
+          msgs.push(assistantMsg);
 
-          msgs.push(
-            {
-              role: "assistant",
-              content: "",
-              function_call: assistant.function_call,
-            },
-            {
+          if (assistant.tool_calls && assistant.tool_calls.length > 0) {
+            for (const toolCall of assistant.tool_calls) {
+              const fnName = toolCall.function.name;
+              const fnArgs = JSON.parse(toolCall.function.arguments);
+              
+              const result = await processFunc(
+                sb,
+                clinic.id,
+                from,
+                fnName,
+                fnArgs,
+                clinic.timezone || "America/Santiago",
+                clinic,
+                msgs,
+              );
+
+              allFuncResults.push({ name: fnName, result });
+
+              msgs.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                name: fnName,
+                content: JSON.stringify(result),
+              });
+            }
+          } else if (assistant.function_call) {
+            // Legacy fallback
+            const fnName = assistant.function_call.name;
+            const fnArgs = JSON.parse(assistant.function_call.arguments);
+            
+            const result = await processFunc(
+              sb,
+              clinic.id,
+              from,
+              fnName,
+              fnArgs,
+              clinic.timezone || "America/Santiago",
+              clinic,
+              msgs,
+            );
+
+            allFuncResults.push({ name: fnName, result });
+
+            msgs.push({
               role: "function",
-              name: assistant.function_call.name,
-              content: JSON.stringify(funcResult),
-            },
-          );
+              name: fnName,
+              content: JSON.stringify(result),
+            });
+          }
 
-          // --- FIX: Pass blockedTools also in the recursive loop calls! ---
+          // Recursive call for next step
           res = await callOpenAI(
             openaiApiKey,
             targetModel,
