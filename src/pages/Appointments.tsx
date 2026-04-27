@@ -1019,36 +1019,36 @@ export default function Appointments() {
                     </div>
                 )}
             </div>
-
+            
             {/* Professional Filter Pills */}
             {!isProfessional && professionals.length > 1 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium text-charcoal/50 uppercase tracking-wide mr-1">Profesional:</span>
+                <div className="flex items-center gap-2 flex-wrap mb-2 mt-4 px-2">
+                    <span className="text-xs font-medium text-charcoal/50 uppercase tracking-wide mr-1">Filtrar por Profesional:</span>
                     <button
                         onClick={() => setProfessionalFilter('all')}
                         className={cn(
-                            'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
+                            'px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm',
                             professionalFilter === 'all'
-                                ? 'bg-charcoal text-white border-charcoal'
-                                : 'bg-ivory text-charcoal/60 border-silk-beige hover:border-charcoal/30'
+                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                : 'bg-white text-charcoal/60 border-silk-beige hover:border-emerald-300'
                         )}
                     >
-                        Todos
+                        Todos los Calendarios
                     </button>
                     {professionals.map((prof) => (
                         <button
                             key={prof.member_id}
                             onClick={() => setProfessionalFilter(prof.member_id)}
                             className={cn(
-                                'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
+                                'flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm',
                                 professionalFilter === prof.member_id
-                                    ? 'bg-charcoal text-white border-charcoal'
-                                    : 'bg-ivory text-charcoal/60 border-silk-beige hover:border-charcoal/30'
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-white text-charcoal/60 border-silk-beige hover:border-emerald-300'
                             )}
                         >
                             <div
-                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: prof.color || '#8B5CF6' }}
+                                className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-inner"
+                                style={{ backgroundColor: prof.color || '#10b981' }}
                             />
                             {prof.first_name || prof.email}
                         </button>
@@ -1056,7 +1056,13 @@ export default function Appointments() {
                 </div>
             )}
 
-            {viewMode === 'calendar' ? (
+            <div className="mt-4">
+                {viewMode === 'list' && (
+                    <div className="flex gap-2 border-t border-silk-beige pt-4 overflow-x-auto pb-2 scrollbar-none">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
                 <>
                     {/* Desktop Calendar View */}
                     <div className="hidden md:block">
