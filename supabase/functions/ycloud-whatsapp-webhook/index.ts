@@ -194,18 +194,23 @@ const getOffset = (timeZone: string = "America/Santiago", date: Date) => {
 
 // ====== Helper: Get Travel Duration and Distance between points ======
 const getTravelDetails = async (
-  origin: { lat: number; lng: number },
-  destination: { lat: number; lng: number },
+  origin: any,
+  destination: any,
 ): Promise<{ duration: number; distance: number }> => {
-  if (!GOOGLE_MAPS_API_KEY) return { duration: 0, distance: 0 };
+  if (!GOOGLE_MAPS_API_KEY && !Deno.env.get("GOOGLE_MAPS_API_KEY")) return { duration: 0, distance: 0 };
+  const apiKey = GOOGLE_MAPS_API_KEY || Deno.env.get("GOOGLE_MAPS_API_KEY");
+  
   try {
+    const originStr = typeof origin === 'string' ? origin : `${origin.lat},${origin.lng}`;
+    const destStr = typeof destination === 'string' ? destination : `${destination.lat},${destination.lng}`;
+    
     const url =
-      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}&destinations=${destination.lat},${destination.lng}&key=${GOOGLE_MAPS_API_KEY}`;
+      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originStr}&destinations=${destStr}&key=${apiKey}`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.status === "OK" && data.rows[0].elements[0].status === "OK") {
       return {
-        duration: data.rows[0].elements[0].duration.value, // seconds
+        duration: Math.ceil(data.rows[0].elements[0].duration.value / 60), // Convert to minutes
         distance: data.rows[0].elements[0].distance.value, // meters
       };
     }
@@ -2840,17 +2845,24 @@ Deno.serve(async (req) => {
         if (globalGPS && logisticsConfig && googleMapsApiKey) {
           try {
             const urbanResults = await Promise.all((logisticsConfig.urban_bases || []).map(async (base: any) => {
-              const details = await getTravelDetails(googleMapsApiKey, `${base.lat},${base.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
+              const details = await getTravelDetails(`${base.lat},${base.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
               return { ...base, ...details };
             }));
 
             const surgeryResults = await Promise.all((logisticsConfig.surgery_hubs || []).map(async (hub: any) => {
-              const details = await getTravelDetails(googleMapsApiKey, `${hub.lat},${hub.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
+              const details = await getTravelDetails(`${hub.lat},${hub.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
               return { ...hub, ...details };
             }));
 
             const closestUrban = urbanResults.sort((a, b) => (a.duration || 999) - (b.duration || 999))[0];
             const closestSurgery = surgeryResults.sort((a, b) => (a.duration || 999) - (b.duration || 999))[0];
+
+            await debugLog(sb, `Logistics Search Results`, { 
+                urbanCount: urbanResults.length, 
+                surgeryCount: surgeryResults.length,
+                closestUrban: closestUrban?.name,
+                duration: closestUrban?.duration 
+            });
 
             if (closestUrban) {
               const threshold = closestUrban.urban_threshold !== undefined ? closestUrban.urban_threshold : 10;
@@ -3001,6 +3013,12 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
             ? `### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}\n\n${sysPrompt}`
             : sysPrompt
         )) + (tutorContext || "");
+
+        await debugLog(sb, `Prompt Construction`, { 
+            hasLoc: !!globalLocContext, 
+            locContext: globalLocContext,
+            totalLen: finalSysPrompt.length 
+        });
 
         const historyArr = (history && Array.isArray(history)) ? history : [];
 
