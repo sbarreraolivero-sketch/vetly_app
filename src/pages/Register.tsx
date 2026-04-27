@@ -265,7 +265,7 @@ export default function Register() {
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-charcoal leading-snug">
-                                        La Regla de Éxito Citenly
+                                        La Regla de Éxito Vetly
                                     </p>
                                     <p className="text-xs text-charcoal/65 mt-1 leading-relaxed">
                                         Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
@@ -556,7 +556,7 @@ export default function Register() {
                                     <ShieldCheck className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <p className="font-bold text-white text-base mb-1">La Regla de Éxito Citenly</p>
+                                    <p className="font-bold text-white text-base mb-1">La Regla de Éxito Vetly</p>
                                     <p className="text-white/80 text-sm leading-relaxed">
                                         Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
                                     </p>
@@ -568,7 +568,7 @@ export default function Register() {
                         <div className="bg-white/10 backdrop-blur-sm rounded-softer p-5">
                             <p className="text-white/90 italic text-sm mb-4">
                                 "Antes pasaba 3 horas diarias respondiendo mensajes.
-                                Ahora mi asistente de Citenly lo hace todo mientras
+                                Ahora mi asistente de Vetly lo hace todo mientras
                                 yo me enfoco en mis pacientes."
                             </p>
                             <div className="flex items-center gap-3">

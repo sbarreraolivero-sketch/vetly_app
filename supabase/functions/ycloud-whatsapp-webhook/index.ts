@@ -2133,17 +2133,23 @@ const callOpenAI = async (
   useFns = true,
   blockedTools: string[] = [],
 ) => {
-  const AI_GATEWAY_API_KEY = Deno.env.get("AI_GATEWAY_API_KEY");
-  const targetModel = model || "openai/gpt-5.4-mini"; // Latest high-efficiency flagship mini
+  // Map internal branding models to real OpenAI models
+  let realModel = model || "gpt-4o-mini";
   
-  // Use AI Gateway if available, fallback to direct OpenAI
-  const apiUrl = AI_GATEWAY_API_KEY 
-    ? "https://ai-gateway.vercel.sh/v1/chat/completions"
-    : "https://api.openai.com/v1/chat/completions";
-    
-  const authHeader = AI_GATEWAY_API_KEY 
-    ? `Bearer ${AI_GATEWAY_API_KEY}`
-    : `Bearer ${key}`;
+  // Handlers for the user's custom naming (Citenly/Vetly internal branding)
+  if (realModel.includes("gpt-5.4-mini")) realModel = "gpt-4o-mini";
+  else if (realModel.includes("gpt-5-pro")) realModel = "gpt-4o";
+  else if (realModel.includes("gpt-5.4")) realModel = "gpt-4o-mini";
+  else if (realModel.includes("gpt-5")) realModel = "gpt-4o";
+  
+  // Clean up prefix if any (e.g. "openai/gpt-4o" -> "gpt-4o")
+  if (realModel.startsWith("openai/")) {
+    realModel = realModel.replace("openai/", "");
+  }
+
+  // The user uses direct OpenAI API
+  const apiUrl = "https://api.openai.com/v1/chat/completions";
+  const authHeader = `Bearer ${key}`;
 
   let functions = [
     {
@@ -2240,7 +2246,7 @@ const callOpenAI = async (
       Authorization: authHeader,
     },
     body: JSON.stringify({
-      model: targetModel,
+      model: realModel,
       messages: msgs,
       functions: useFns
         ? (functions.length > 0 ? functions : undefined)

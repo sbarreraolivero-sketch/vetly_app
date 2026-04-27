@@ -373,7 +373,7 @@ export default function Settings() {
                     })
                 }
 
-                // Fetch clinic settings with auto-creation for stability (Citenly pattern)
+                // Fetch clinic settings with auto-creation for stability (Vetly pattern)
                 const { data, error } = await (supabase as any)
                     .from('clinic_settings')
                     .select('*')
@@ -737,7 +737,7 @@ export default function Settings() {
                 body: JSON.stringify({
                     event: 'test.ping',
                     timestamp: new Date().toISOString(),
-                    data: { message: 'Test webhook from Citenly AI' },
+                    data: { message: 'Test webhook from Vetly AI' },
                 }),
             })
             // With no-cors we can't read status, so we just mark it as sent
@@ -3228,7 +3228,7 @@ export default function Settings() {
 
                     {activeTab === 'ai' && (
                         <div className="space-y-6 animate-fade-in">
-                            {/* Citenly Hybrid Intelligence Header */}
+                            {/* Vetly Hybrid Intelligence Header */}
                             <div className="card-soft p-8 bg-gradient-to-br from-white to-silk-beige/30 border-2 border-primary-500/10 shadow-premium-lg relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/5 rounded-full -mr-32 -mt-32 blur-3xl" />
                                 
@@ -3238,7 +3238,7 @@ export default function Settings() {
                                             <Sparkles className="w-8 h-8 text-primary-400" />
                                         </div>
                                         <div>
-                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Citenly Hybrid Intelligence</h2>
+                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Vetly Hybrid Intelligence</h2>
                                             <p className="text-sm font-bold text-charcoal/40 uppercase tracking-widest mt-1">Motor de ruteo inteligente de modelos AI</p>
                                         </div>
                                     </div>
@@ -3280,8 +3280,8 @@ export default function Settings() {
                                             <Zap className="w-6 h-6" />
                                         </div>
                                         <h3 className="text-lg font-black text-charcoal mb-1">Ahorro Máximo</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Eficiencia N1</p>
-                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed">Ideal para saludos y agendamientos básicos usando Flash Mini.</p>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Eficiencia N1 — GPT-5.4</p>
+                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Ideal para saludos y agendamientos rápidos usando Flash Mini.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
                                             aiActiveModel === 'mini' ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-charcoal/30"
@@ -3339,8 +3339,8 @@ export default function Settings() {
                                             <Cpu className="w-6 h-6" />
                                         </div>
                                         <h3 className="text-lg font-black text-charcoal mb-1">Máximo Poder</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3)</p>
-                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de modelos premium para respuestas de alta precisión.</p>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3) — GPT-5</p>
+                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-5 para casos clínicos complejos.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
                                             aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
@@ -3369,7 +3369,7 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                            {/* Citenly Credits Dashboard */}
+                            {/* Vetly Credits Dashboard */}
                             <div className="card-soft p-8 border-t-8 border-t-charcoal bg-white shadow-premium">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
                                     <div className="flex items-center gap-5">
@@ -3378,7 +3378,7 @@ export default function Settings() {
                                             <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow-sm">LIVE</div>
                                         </div>
                                         <div>
-                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Citenly Credits</h2>
+                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Vetly Credits</h2>
                                             <p className="text-sm font-bold text-charcoal/30 uppercase tracking-widest mt-1">Créditos Unificados de Inteligencia</p>
                                         </div>
                                     </div>
@@ -3434,22 +3434,22 @@ export default function Settings() {
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-black shadow-inner">1x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N1: Flash Mini</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">GPT-4o-mini optimizado para velocidad y costo mínimo.</p>
+                                                <p className="text-sm font-black text-charcoal">N1: Flash Mini — GPT-5.4</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia Lite optimizada para velocidad y costo mínimo.</p>
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-700 font-black shadow-inner">8x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N2: Standard</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento intermedio para ventas y logística.</p>
+                                                <p className="text-sm font-black text-charcoal">N2: Standard — GPT-5.4</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento intermedio para ventas y logística avanzada.</p>
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">60x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">GPT-4o Original. Inteligencia clínica y quirúrgica extrema.</p>
+                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro — GPT-5</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia clínica y quirúrgica extrema de última generación.</p>
                                             </div>
                                         </div>
                                     </div>
