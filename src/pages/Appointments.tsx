@@ -783,10 +783,14 @@ export default function Appointments() {
                                 <span className="text-amber-50">Control de Agenda</span>
                             </div>
                             <h1 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight drop-shadow-sm uppercase text-white">
-                                Citas y Calendario
+                                {isProfessional
+                                    ? `Citas: ${profile?.first_name || 'Personal'}`
+                                    : professionalFilter === 'all'
+                                        ? 'Citas de toda la Clínica'
+                                        : `Citas: ${professionals.find(p => p.member_id === professionalFilter)?.first_name || ''}`}
                             </h1>
                             <p className="text-emerald-50/90 text-sm sm:text-base max-w-xl font-semibold leading-relaxed">
-                                Administra tus consultas, cirugías y seguimientos con una visión clara de tu tiempo y productividad.
+                                Administra tus consultas, cirugías y seguimientos con una visión clara de tu tiempo y productividad. {isProfessional ? '' : '(Mostrando ' + (professionalFilter === 'all' ? 'todos los profesionales' : 'calendario individual') + ')'}
                             </p>
                         </div>
                     </div>
