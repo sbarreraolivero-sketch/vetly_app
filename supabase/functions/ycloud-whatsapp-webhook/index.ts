@@ -2844,12 +2844,15 @@ Deno.serve(async (req) => {
         // --- PERFORM LOGISTICS CALCULATIONS IF GPS IS AVAILABLE ---
         if (globalGPS && logisticsConfig && googleMapsApiKey) {
           try {
-            const urbanResults = await Promise.all((logisticsConfig.urban_bases || []).map(async (base: any) => {
+            const urbanBases = logisticsConfig.locations?.filter((l: any) => l.type === 'operational') || logisticsConfig.urban_bases || [];
+            const surgeryHubs = logisticsConfig.locations?.filter((l: any) => l.type === 'surgical_hub') || logisticsConfig.surgery_hubs || [];
+
+            const urbanResults = await Promise.all(urbanBases.map(async (base: any) => {
               const details = await getTravelDetails(`${base.lat},${base.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
               return { ...base, ...details };
             }));
 
-            const surgeryResults = await Promise.all((logisticsConfig.surgery_hubs || []).map(async (hub: any) => {
+            const surgeryResults = await Promise.all(surgeryHubs.map(async (hub: any) => {
               const details = await getTravelDetails(`${hub.lat},${hub.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
               return { ...hub, ...details };
             }));
