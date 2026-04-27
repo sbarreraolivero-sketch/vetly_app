@@ -947,33 +947,77 @@ const checkAvail = async (
   }
 
   // --- SAFETY NET: Manual Booked Slots Filter ---
-  // appointment_date stores full timestamps, must use gte/lte range (not eq)
-  const { data: existingAppts } = await sb.from("appointments")
-    .select("appointment_time")
+  // appointment_date stores full UTC timestamps
+  const { data: existingAppts, error: errAppts } = await sb.from("appointments")
+    .select("appointment_date, duration_minutes, professional_id")
     .eq("clinic_id", clinicId)
-    .gte("appointment_date", `${date}T00:00:00`)
-    .lte("appointment_date", `${date}T23:59:59`)
     .neq("status", "cancelled");
 
-  const bookedTimes = (existingAppts || [])
-    .map((a: any) => (a.appointment_time || "").substring(0, 5))
-    .filter(Boolean);
-  if (bookedTimes.length > 0) {
-    console.log(
-      `[checkAvail] Found ${bookedTimes.length} real appointments, filtering slots...`,
-    );
+  if (errAppts) console.error("[checkAvail] Error fetching existing appts:", errAppts);
+
+  const blockedSlots: string[] = [];
+  
+  (existingAppts || []).forEach((a: any) => {
+    // Check if the professional matches (or if this is a global slot check)
+    if (professionalId && a.professional_id && a.professional_id !== professionalId) return;
+
+    if (!a.appointment_date) return;
+    
+    // Get local date string for the appointment
+    const _d = new Date(a.appointment_date);
+    const localDateStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(_d);
+
+    if (localDateStr === date) {
+      // Extract local hour/minute
+      const timeParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: timezone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(_d);
+      const h = parseInt(timeParts.find((p) => p.type === "hour")?.value || "0");
+      const m = parseInt(timeParts.find((p) => p.type === "minute")?.value || "0");
+      
+      const apptMinutes = h * 60 + m;
+      const apptDuration = a.duration_minutes || 60; // default 1 hour if not specified
+      
+      // Block all slots that overlap with [apptMinutes, apptMinutes + apptDuration)
+      for (let s = 0; s < filteredSlots.length; s++) {
+        const [sh, sm] = filteredSlots[s].slot_time.split(":").map(Number);
+        const slotMin = sh * 60 + sm;
+        // If the slot starts during the appointment
+        if (slotMin >= apptMinutes && slotMin < apptMinutes + apptDuration) {
+           blockedSlots.push(filteredSlots[s].slot_time);
+        }
+        // If the appointment starts during the slot
+        if (apptMinutes > slotMin && apptMinutes < slotMin + duration) {
+           blockedSlots.push(filteredSlots[s].slot_time);
+        }
+      }
+    }
+  });
+
+  if (blockedSlots.length > 0) {
+    console.log(`[checkAvail] Found overlapping real appointments, filtering out: ${blockedSlots.join(', ')}`);
     filteredSlots = filteredSlots.filter((s: { slot_time: string }) =>
-      !bookedTimes.includes(s.slot_time.substring(0, 5))
+      !blockedSlots.includes(s.slot_time)
     );
   }
 
-  // Fetch day summary for better routing logic
-  const { data: dayApptsSummary } = await sb.from("appointments")
-    .select("address, status")
-    .eq("clinic_id", clinicId)
-    .gte("appointment_date", `${date}T00:00:00`)
-    .lte("appointment_date", `${date}T23:59:59`)
-    .neq("status", "cancelled");
+  // Fetch day summary for better routing logic (do it based on local date string now that we have memory logic)
+  const dayApptsSummary = (existingAppts || []).filter((a: any) => {
+    if (!a.appointment_date) return false;
+    const localDateStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(new Date(a.appointment_date));
+    return localDateStr === date;
+  });
 
   const activeZones = [
     ...new Set((dayApptsSummary || []).map((a: any) => {
