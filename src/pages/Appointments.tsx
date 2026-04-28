@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import {
     Calendar,
     Clock,
@@ -730,7 +731,7 @@ export default function Appointments() {
 
         setSaving(true)
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('appointments')
                 .insert({
                     clinic_id: profile.clinic_id,
