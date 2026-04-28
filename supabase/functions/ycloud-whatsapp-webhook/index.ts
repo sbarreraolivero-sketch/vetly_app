@@ -1268,7 +1268,10 @@ const createAppt = async (
   clinicId: string,
   phone: string,
   args: {
-    patient_name: string;
+    patient_name?: string;
+    pet_name?: string;
+    pet_details?: string;
+    visit_reason?: string;
     date: string;
     time: string;
     service_name: string;
@@ -1282,6 +1285,20 @@ const createAppt = async (
   logisticsConfig?: any,
 ) => {
   const normalizedPhone = normalizePhone(phone);
+
+  // Schema Mapping
+  if (!args.patient_name && args.pet_name) {
+    args.patient_name = args.pet_name;
+  }
+  
+  const additionalNotes = [
+    args.pet_details ? `Detalles del paciente: ${args.pet_details}` : '',
+    args.visit_reason ? `Motivo de visita: ${args.visit_reason}` : ''
+  ].filter(Boolean).join(' | ');
+
+  if (additionalNotes) {
+    args.notes = args.notes ? `${args.notes}\n${additionalNotes}` : additionalNotes;
+  }
 
   // Save address if provided in creation
   if (args.address) {
