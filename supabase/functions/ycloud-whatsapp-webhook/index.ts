@@ -1276,6 +1276,7 @@ const createAppt = async (
     time: string;
     service_name: string;
     address?: string;
+    address_references?: string;
     tutor_name?: string;
     professional_name?: string;
     notes?: string;
@@ -1302,14 +1303,15 @@ const createAppt = async (
 
   // Save address if provided in creation
   if (args.address) {
-    await sb.from("tutors").update({ address: args.address }).eq(
-      "clinic_id",
-      clinicId,
-    ).eq("phone_number", normalizedPhone);
-    await sb.from("crm_prospects").update({ address: args.address }).eq(
-      "clinic_id",
-      clinicId,
-    ).eq("phone", normalizedPhone);
+    await sb.from("tutors").update({ 
+      address: args.address,
+      address_references: args.address_references || null
+    }).eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
+
+    await sb.from("crm_prospects").update({ 
+      address: args.address,
+      address_references: args.address_references || null
+    }).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
   }
   // FEAT: Support Combined Services
   const serviceDetails = await getServiceDetails(
@@ -1489,6 +1491,7 @@ const createAppt = async (
     service: args.service_name,
     appointment_date: appointmentDateWithOffset,
     address: args.address || tutorGeo?.address || null,
+    address_references: args.address_references || null,
     status: "pending",
     duration: duration,
     price: price,
@@ -2237,7 +2240,11 @@ const callOpenAI = async (
           },
           address: {
             type: "string",
-            description: "Dirección opcional del cliente",
+            description: "Dirección del cliente (Ej: Alto del Rayo 211, Linares)",
+          },
+          address_references: {
+            type: "string",
+            description: "Referencias de ubicación (Ej: Casa amarilla con portón verde)",
           },
         },
         required: ["date", "address"],
@@ -2255,11 +2262,12 @@ const callOpenAI = async (
           tutor_name: { type: "string", description: "Nombre completo del tutor" },
           pet_name: { type: "string", description: "Nombre de la mascota" },
           pet_details: { type: "string", description: "Especie, sexo y peso de la mascota" },
-          address: { type: "string", description: "Dirección exacta y referencias para llegar" },
+          address: { type: "string", description: "Dirección exacta del cliente" },
+          address_references: { type: "string", description: "Referencias para llegar (ej: color de casa, entre calles)" },
           visit_reason: { type: "string", description: "Motivo detallado de la visita o síntomas" },
           professional_name: { type: "string" },
         },
-        required: ["date", "time", "service_name", "tutor_name", "pet_name", "pet_details", "address", "visit_reason"],
+        required: ["date", "time", "service_name", "tutor_name", "pet_name", "pet_details", "address", "visit_reason", "address_references"],
       },
     },
     {
