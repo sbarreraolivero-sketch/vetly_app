@@ -1746,10 +1746,11 @@ const escalateToHuman = async (
     const { error: notifError } = await sb.from("notifications").insert({
       clinic_id: clinicId,
       type: "human_handoff",
-      title: "Atención Requerida 🚨",
+      title: "Derivación Quirúrgica / Humana 🚨",
       message:
-        `El paciente ${normalizedPhone} fue derivado a humano por la IA.`,
+        `URGENTE: El paciente ${normalizedPhone} requiere coordinación humana (Cirugía/Duda Compleja).`,
       link: `/app/messages?phone=${normalizedPhone}`,
+      is_read: false,
     });
 
     if (notifError) {
