@@ -623,6 +623,60 @@ export default function KnowledgeBase() {
                             </div>
                         </div>
 
+                        <div className="mt-8">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium text-charcoal">Datos Oficiales (Transferencia / Pagos)</label>
+                                <span className="text-xs text-charcoal/40">{transferDetails.length} caracteres</span>
+                            </div>
+                            <textarea
+                                value={transferDetails}
+                                onChange={(e) => setTransferDetails(e.target.value)}
+                                placeholder={`Ej: Datos para el abono de reserva ($15.000):\n- Nombre: [Nombre del Titular]\n- RUT: [12.345.678-9]\n- Banco: [Nombre del Banco]\n- Tipo de Cuenta: [Corriente/Vista]\n- Número de Cuenta: [1234567890]\n- Email: pagos@tuclínica.com`}
+                                rows={6}
+                                className="input-soft w-full resize-none font-mono text-sm leading-relaxed"
+                            />
+                            <GuideBox 
+                                title="Guía: Pagos y Datos de Transferencia" 
+                                summary="Configura la información bancaria oficial para reservas."
+                            >
+                                <p>Esta información es <b>crítica</b> para cerrar procesos de reserva. El bot solo la entrega cuando el paciente ya está listo para pagar o confirmar una cita.</p>
+                                <div className="bg-white/50 p-3 rounded-soft border border-silk-beige/30 mt-2">
+                                    <p className="font-bold mb-2 flex items-center gap-1.5 text-amber-700 text-[11px] uppercase tracking-wider">
+                                        <Info className="w-3.5 h-3.5" /> Datos recomendados:
+                                    </p>
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] text-charcoal/80">
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Nombre del Titular</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> RUT de la Empresa/Persona</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Banco y Tipo de Cuenta</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Número de Cuenta</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Link de pago (Transbank/Flow)</li>
+                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Política de Devoluciones</li>
+                                    </ul>
+                                </div>
+                                <p className="text-xs font-bold text-charcoal/50 mt-3 italic flex items-center gap-1.5">
+                                    <Lightbulb className="w-3 h-3" /> Tip: Incluir un email para comprobantes acelera la validación manual por parte de tu equipo.
+                                </p>
+                            </GuideBox>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleSaveMasterPrompt}
+                                disabled={savingPrompt}
+                                className="btn-primary flex items-center gap-2"
+                            >
+                                {savingPrompt ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                ) : (
+                                    <><Save className="w-4 h-4" /> Guardar Prompt</>
+                                )}
+                            </button>
+                            {promptSaved && (
+                                <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-3 py-1.5 rounded-soft">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    ¡Guardado!
+                                </div>
+                            )}
+                        </div>
                         </div>
                     </div>
                 )}
@@ -956,65 +1010,6 @@ export default function KnowledgeBase() {
                             </button>
                         </div>
                     </div>
-                )}
-            </div>
-
-                        <div className="mt-8">
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-sm font-medium text-charcoal">Datos Oficiales (Transferencia / Pagos)</label>
-                                <span className="text-xs text-charcoal/40">{transferDetails.length} caracteres</span>
-                            </div>
-                            <textarea
-                                value={transferDetails}
-                                onChange={(e) => setTransferDetails(e.target.value)}
-                                placeholder={`Ej: Datos para el abono de reserva ($15.000):\n- Nombre: [Nombre del Titular]\n- RUT: [12.345.678-9]\n- Banco: [Nombre del Banco]\n- Tipo de Cuenta: [Corriente/Vista]\n- Número de Cuenta: [1234567890]\n- Email: pagos@tuclínica.com`}
-                                rows={6}
-                                className="input-soft w-full resize-none font-mono text-sm leading-relaxed"
-                            />
-                            <GuideBox 
-                                title="Guía: Pagos y Datos de Transferencia" 
-                                summary="Configura la información bancaria oficial para reservas."
-                            >
-                                <p>Esta información es <b>crítica</b> para cerrar procesos de reserva. El bot solo la entrega cuando el paciente ya está listo para pagar o confirmar una cita.</p>
-                                <div className="bg-white/50 p-3 rounded-soft border border-silk-beige/30 mt-2">
-                                    <p className="font-bold mb-2 flex items-center gap-1.5 text-amber-700 text-[11px] uppercase tracking-wider">
-                                        <Info className="w-3.5 h-3.5" /> Datos recomendados:
-                                    </p>
-                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] text-charcoal/80">
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Nombre del Titular</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> RUT de la Empresa/Persona</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Banco y Tipo de Cuenta</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Número de Cuenta</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Link de pago (Transbank/Flow)</li>
-                                        <li className="flex items-center gap-1.5"><div className="w-1 h-1 bg-amber-400 rounded-full"></div> Política de Devoluciones</li>
-                                    </ul>
-                                </div>
-                                <p className="text-xs font-bold text-charcoal/50 mt-3 italic flex items-center gap-1.5">
-                                    <Lightbulb className="w-3 h-3" /> Tip: Incluir un email para comprobantes acelera la validación manual por parte de tu equipo.
-                                </p>
-                            </GuideBox>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleSaveMasterPrompt}
-                                disabled={savingPrompt}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                {savingPrompt ? (
-                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                ) : (
-                                    <><Save className="w-4 h-4" /> Guardar Prompt</>
-                                )}
-                            </button>
-                            {promptSaved && (
-                                <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-3 py-1.5 rounded-soft">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    ¡Guardado!
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
                 )}
             </div>
 

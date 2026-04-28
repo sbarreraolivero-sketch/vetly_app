@@ -2957,9 +2957,25 @@ Deno.serve(async (req) => {
             });
 
             if (closestUrban) {
-              const threshold = closestUrban.urban_threshold !== undefined ? closestUrban.urban_threshold : 10;
-              const extraMins = Math.max(0, (closestUrban.duration || 0) - threshold);
-              let logNote = `[LOGÍSTICA: Base Urbana: ${closestUrban.name} | Tiempo al Centro: ${closestUrban.duration} min | Extra Ciudad: +${extraMins} min]`;
+              const duration = closestUrban.duration || 0;
+              let logNote = `[LOGÍSTICA: Base Urbana: ${closestUrban.name} | Tiempo al Centro: ${duration} min]`;
+              
+              if (closestUrban.time_ranges && closestUrban.time_ranges.length > 0) {
+                 const range = closestUrban.time_ranges.find((r: any) => duration >= r.min && duration <= r.max);
+                 if (range) {
+                    logNote += ` [RECARGO TRASLADO CORRESPONDIENTE: $${range.surcharge} (${range.label})]`;
+                 } else {
+                    const maxRange = closestUrban.time_ranges[closestUrban.time_ranges.length - 1];
+                    if (duration > maxRange.max) {
+                       logNote += ` [ALERTA: FUERA DE RADIO. Tiempo excede el límite máximo de ${maxRange.max} min. Informar al cliente que su ubicación está fuera del área de cobertura estándar.]`;
+                    }
+                 }
+              } else {
+                 const threshold = closestUrban.urban_threshold !== undefined ? closestUrban.urban_threshold : 10;
+                 const extraMins = Math.max(0, duration - threshold);
+                 logNote += ` | Extra Ciudad: +${extraMins} min`;
+              }
+
               if (closestSurgery) {
                 logNote += `\n[LOGÍSTICA: Pabellón más cercano: ${closestSurgery.name} a ${closestSurgery.duration} min]`;
               }
