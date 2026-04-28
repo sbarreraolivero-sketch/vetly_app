@@ -137,7 +137,20 @@ const eventPropGetter = (event: CalendarEvent) => {
     const status = event.resource?.status || 'pending'
     const professionalColor = event.resource?.professionalColor
 
+    const isBlocked = event.resource?.service === 'Bloqueo' || event.title === 'Bloqueo de Agenda'
+
     let className = "border-l-4 text-xs rounded transition-all hover:brightness-95"
+
+    if (isBlocked) {
+        return {
+            className: className + " !text-charcoal/40 font-bold italic opacity-60",
+            style: {
+                border: 'none',
+                borderLeft: '4px solid #4B5563',
+                background: 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 10px, #e5e7eb 10px, #e5e7eb 20px)'
+            }
+        }
+    }
 
     // If professional has a color, use it for the border (except if appointment is cancelled)
     if (professionalColor && !isGoogle && status !== 'cancelled') {

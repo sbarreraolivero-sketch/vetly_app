@@ -1665,39 +1665,59 @@ const getKnowledge = async (
       ? specificKeywords
       : allKeywords;
 
-    let queryBuilder = sb.from("knowledge_base")
+    // Fetch all active knowledge base documents for this clinic
+    const { data: docs } = await sb.from("knowledge_base")
       .select("title, content, category")
       .eq("clinic_id", clinicId)
-      .eq("status", "active");
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(20);
 
-    if (searchKeywords.length > 0) {
-      const orFilters = searchKeywords.flatMap((kw) => [
-        `title.ilike.%${kw}%`,
-        `content.ilike.%${kw}%`,
-        `category.ilike.%${kw}%`,
-      ]).join(",");
-      queryBuilder = queryBuilder.or(orFilters);
-    }
-
-    const { data: docs } = await queryBuilder.limit(10);
     if (!docs || docs.length === 0) return "";
 
-    const rankedDocs = docs.map((d) => {
+    // Calculate relevancy scores if we have keywords
+    const scoredDocs = docs.map((d) => {
       let score = 0;
-      const docText = `${d.title} ${d.content} ${d.category}`.toLowerCase();
-      allKeywords.forEach((kw) => {
-        if (d.title.toLowerCase().includes(kw)) score += 10;
-        if (d.category?.toLowerCase().includes(kw)) score += 5;
-        if (d.content.toLowerCase().includes(kw)) score += 1;
-      });
+      if (searchKeywords.length > 0) {
+        const docText = `${d.title} ${d.content} ${d.category}`.toLowerCase();
+        searchKeywords.forEach((kw) => {
+          if (d.title.toLowerCase().includes(kw)) score += 10;
+          if (d.category?.toLowerCase().includes(kw)) score += 5;
+          if (d.content.toLowerCase().includes(kw)) score += 1;
+        });
+      } else {
+        // If no keywords (e.g. just saying "hola"), give a base score to all docs 
+        // so they aren't all zero, preferring more "General" categories.
+        score = d.category?.toLowerCase().includes("general") || d.category?.toLowerCase().includes("protocol") ? 5 : 1;
+      }
       return { ...d, score };
-    }).sort((a, b) => b.score - a.score).slice(0, 5);
+    });
 
-    let content = rankedDocs.map((d: any) =>
+    // Sort by score
+    const sortedDocs = scoredDocs.sort((a, b) => b.score - a.score);
+
+    // Instead of strictly cutting at 5, let's include as many as we can up to a character limit
+    let finalDocs: any[] = [];
+    let currentLen = 0;
+    const MAX_KB_CHARS = 15000; 
+
+    for (const d of sortedDocs) {
+      const docText = `📄 ${d.title} (${d.category}):\n${d.content}`;
+      if (currentLen + docText.length < MAX_KB_CHARS) {
+        finalDocs.push(d);
+        currentLen += docText.length;
+      } else {
+        break; 
+      }
+    }
+
+    if (finalDocs.length === 0 && sortedDocs.length > 0) {
+        finalDocs = [sortedDocs[0]]; // Always include at least the most relevant one
+    }
+
+    return finalDocs.map((d: any) =>
       `📄 ${d.title} (${d.category}):\n${d.content}`
     ).join("\n\n---\n\n");
-
-    return content;
   } catch (e) {
     console.error("getKnowledge error:", e);
     return "";
@@ -2973,7 +2993,13 @@ Deno.serve(async (req) => {
               } else {
                  const threshold = closestUrban.urban_threshold !== undefined ? closestUrban.urban_threshold : 10;
                  const extraMins = Math.max(0, duration - threshold);
-                 logNote += ` | Extra Ciudad: +${extraMins} min`;
+                 if (extraMins === 0) {
+                     logNote += ` [RECARGO TRASLADO CORRESPONDIENTE: $0 (Radio Urbano)]`;
+                 } else {
+                     // Si supera el threshold y no hay time_ranges, aplicamos fórmula antigua asumiendo $1000 por minuto extra aprox,
+                     // pero para ser seguros solo informamos los minutos y dejamos que la regla de la IA aplique el precio.
+                     logNote += ` | Extra Ciudad: +${extraMins} min`;
+                 }
               }
 
               if (closestSurgery) {
@@ -3103,11 +3129,14 @@ CONTEXTO DE FECHAS:
 - HOY: ${todayDay}, ${localDateISO}
 - HORA ACTUAL: ${localTime}
 
-Servicios OFICIALES: ${JSON.stringify(servicesForPrompt)}
-${knowledgeSummary}
-
-Reglas Adicionales:
+⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
+--------------------------------------------------------
+
+BASE DE CONOCIMIENTO (Servicios y Precios):
+${JSON.stringify(servicesForPrompt)}
+
+${knowledgeSummary}
 `;
 
         const sysPromptHQ = `Eres un Asesor Especialista de Vetly. Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
