@@ -2479,15 +2479,30 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    // Fetch recent appointments for this client
+    const { data: recentAppts } = await sb.from("appointments")
+      .select("appointment_date, service, status, notes")
+      .eq("clinic_id", clinic.id)
+      .eq("phone_number", from)
+      .order("appointment_date", { ascending: false })
+      .limit(3);
+
     let tutorContext = "";
     if (tutor) {
       const petNames = tutor.patients?.map((p: any) =>
         `${p.name} (${p.species || "mascota"})`
       ).join(", ");
+
+      const apptHistory = (recentAppts || []).map((a: any) => {
+        const d = new Date(a.appointment_date);
+        return `- ${d.toLocaleDateString("es-CL")}: ${a.service} (${a.status})${a.notes ? ` Obs: ${a.notes}` : ""}`;
+      }).join("\n");
+
       tutorContext =
-        `\n\nCLIENTE RECONOCIDO: Estás hablando con ${tutor.name}. Sus mascotas registradas son: ${
-          petNames || "ninguna aún"
-        }. Trátalo como cliente recurrente y evita pedirle datos que ya conoces.`;
+        `\n\n### CLIENTE RECONOCIDO: ${tutor.name} ###\n` +
+        `Mascotas registradas: ${petNames || "ninguna aún"}.\n` +
+        `Historial de Citas Recientes:\n${apptHistory || "Sin citas previas registradas."}\n` +
+        `INSTRUCCIÓN: Trátalo como cliente recurrente. Si tuvo una cita reciente, pregúntale cómo sigue su mascota (Post-Venta).`;
     }
 
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");

@@ -623,322 +623,341 @@ export default function KnowledgeBase() {
                             </div>
                         </div>
 
-                        {/* Advanced Logistics Section */}
-                        <div className="border-t border-silk-beige/30 mt-6 pt-0 overflow-hidden rounded-b-soft">
-                            <button 
-                                onClick={() => setShowLogisticsSection(!showLogisticsSection)}
-                                className="w-full flex items-center justify-between py-5 px-0 hover:bg-ivory/30 transition-colors group"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-11 h-11 rounded-soft flex items-center justify-center shadow-md transition-all duration-300 ${showLogisticsSection ? 'bg-premium-gradient ring-2 ring-primary-100' : 'bg-silk-beige/30 group-hover:bg-silk-beige/50'}`}>
-                                        <Tag className={`w-5.5 h-5.5 ${showLogisticsSection ? 'text-charcoal' : 'text-charcoal/40 group-hover:text-charcoal'}`} />
-                                    </div>
-                                    <div className="text-left">
-                                        <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
-                                            Logística Pro (Tramos por Tiempo)
-                                            <Sparkles className="w-4 h-4 text-emerald-500" />
-                                        </h2>
-                                        <p className="text-sm text-charcoal/50">Gestiona múltiples sedes, radios urbanos y tramos quirúrgicos</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {showLogisticsSection && (
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const newLoc = {
-                                                    id: Math.random().toString(36).substr(2, 9),
-                                                    name: `Nueva Sede ${logisticsConfig.locations.length + 1}`,
-                                                    lat: -35.8450,
-                                                    lng: -71.5979,
-                                                    type: 'operational',
-                                                    max_time_mins: 30,
-                                                    time_ranges: [{ min: 0, max: 10, surcharge: 0, label: 'Urbano' }]
-                                                };
-                                                setLogisticsConfig({
-                                                    ...logisticsConfig,
-                                                    locations: [...logisticsConfig.locations, newLoc]
-                                                });
-                                            }}
-                                            className="btn-primary py-1.5 px-4 text-xs flex items-center gap-1.5 shadow-soft-sm"
-                                        >
-                                            <Plus className="w-3.5 h-3.5" /> Agregar Sede/Hub
-                                        </button>
-                                    )}
-                                    <svg className={`w-5 h-5 text-charcoal/30 transition-transform duration-300 ${showLogisticsSection ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
 
+            {/* Logística Pro (Independent Section) */}
+            <div className="card-soft overflow-hidden">
+                <button 
+                    onClick={() => setShowLogisticsSection(!showLogisticsSection)}
+                    className="w-full p-5 flex items-center justify-between hover:bg-ivory/50 transition-colors bg-white"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 bg-premium-gradient rounded-soft flex items-center justify-center shadow-md">
+                            <Tag className="w-5.5 h-5.5 text-charcoal" />
+                        </div>
+                        <div className="text-left">
+                            <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
+                                Logística Pro (Tramos por Tiempo)
+                                <Sparkles className="w-4 h-4 text-emerald-500" />
+                            </h2>
+                            <p className="text-sm text-charcoal/50 uppercase text-[10px] font-bold tracking-wider">Gestiona múltiples sedes, radios urbanos y tramos quirúrgicos</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
                             {showLogisticsSection && (
-                                <div className="space-y-5 py-4 animate-slide-up">
-                                    {logisticsConfig.locations.length === 0 && (
-                                        <div className="text-center py-10 bg-ivory/20 rounded-soft border border-dashed border-silk-beige/50">
-                                            <p className="text-sm text-charcoal/40">No hay sedes configuradas. Haz clic en "Agregar Sede/Hub" para comenzar.</p>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="grid grid-cols-1 gap-5">
-                                        {logisticsConfig.locations.map((loc, index) => {
-                                            const isSurgical = loc.type === 'surgical_hub';
-                                            return (
-                                                <div 
-                                                    key={loc.id} 
-                                                    className={`rounded-soft border shadow-soft-sm overflow-hidden transition-all hover:shadow-soft-md ${
-                                                        isSurgical 
-                                                        ? 'border-violet-200 bg-violet-50/20' 
-                                                        : 'border-emerald-200 bg-emerald-50/20'
-                                                    }`}
-                                                >
-                                                    <div className={`p-4 flex items-center justify-between gap-4 border-b ${
-                                                        isSurgical ? 'bg-violet-100/40 border-violet-200' : 'bg-emerald-100/40 border-emerald-200'
-                                                    }`}>
-                                                        <div className="flex items-center gap-4 flex-1">
-                                                            <div className={`w-10 h-10 rounded-soft flex items-center justify-center shadow-sm ${
-                                                                isSurgical ? 'bg-violet-500 text-white' : 'bg-emerald-500 text-white'
-                                                            }`}>
-                                                                {isSurgical ? <Bot className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                                                            </div>
-                                                            <div className="flex-1 space-y-1">
-                                                                <input
-                                                                    type="text"
-                                                                    value={loc.name}
-                                                                    onChange={(e) => {
-                                                                        const newLocs = [...logisticsConfig.locations];
-                                                                        newLocs[index].name = e.target.value;
-                                                                        setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                    }}
-                                                                    className="bg-transparent border-none p-0 text-base font-bold text-charcoal focus:ring-0 w-full placeholder:text-charcoal/30"
-                                                                    placeholder="Nombre de la sede..."
-                                                                />
-                                                                <div className="flex items-center gap-2">
-                                                                    <select
-                                                                        value={loc.type}
-                                                                        onChange={(e) => {
-                                                                            const newLocs = [...logisticsConfig.locations];
-                                                                            newLocs[index].type = e.target.value as any;
-                                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                        }}
-                                                                        className={`text-[10px] font-bold uppercase rounded-full px-2.5 py-0.5 border shadow-sm ${
-                                                                            isSurgical 
-                                                                            ? 'bg-white border-violet-300 text-violet-700' 
-                                                                            : 'bg-white border-emerald-300 text-emerald-700'
-                                                                        }`}
-                                                                    >
-                                                                        <option value="operational">📍 Mundo A: Base Domicilios</option>
-                                                                        <option value="surgical_hub">✂️ Mundo B: Centro Quirúrgico</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex items-center gap-1.5 bg-white/80 px-3 py-1.5 rounded-soft border border-silk-beige/50 backdrop-blur-sm">
-                                                                <Clock className="w-3.5 h-3.5 text-charcoal/40" />
-                                                                <span className="text-[10px] uppercase font-bold text-charcoal/40">Límite:</span>
-                                                                <input
-                                                                    type="number"
-                                                                    value={loc.max_time_mins}
-                                                                    onChange={(e) => {
-                                                                        const newLocs = [...logisticsConfig.locations];
-                                                                        newLocs[index].max_time_mins = parseInt(e.target.value) || 0;
-                                                                        setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                    }}
-                                                                    className="w-8 text-[11px] font-bold bg-transparent border-none p-0 focus:ring-0 text-center"
-                                                                />
-                                                                <span className="text-[10px] font-bold text-charcoal/40">min</span>
-                                                            </div>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    const newLocs = logisticsConfig.locations.filter(l => l.id !== loc.id);
-                                                                    setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                }}
-                                                                className="text-red-400 p-2 hover:bg-red-100/50 rounded-soft transition-colors shadow-soft-sm bg-white"
-                                                                title="Eliminar Sede"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                                                        <div className="lg:col-span-3 space-y-4">
-                                                            <div className="p-3 bg-white/50 rounded-soft border border-silk-beige/30 space-y-3">
-                                                                <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest flex items-center gap-1.5">
-                                                                    <Tag className="w-3 h-3" /> Coordenadas GPS
-                                                                </h4>
-                                                                <div className="space-y-1">
-                                                                    <label className="text-[9px] uppercase font-bold text-charcoal/30">Latitud</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        step="0.0001"
-                                                                        value={loc.lat}
-                                                                        onChange={(e) => {
-                                                                            const newLocs = [...logisticsConfig.locations];
-                                                                            newLocs[index].lat = parseFloat(e.target.value) || 0;
-                                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                        }}
-                                                                        className="input-soft w-full text-xs py-1.5 focus:bg-white"
-                                                                    />
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <label className="text-[9px] uppercase font-bold text-charcoal/30">Longitud</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        step="0.0001"
-                                                                        value={loc.lng}
-                                                                        onChange={(e) => {
-                                                                            const newLocs = [...logisticsConfig.locations];
-                                                                            newLocs[index].lng = parseFloat(e.target.value) || 0;
-                                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                        }}
-                                                                        className="input-soft w-full text-xs py-1.5 focus:bg-white"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newLoc = {
+                                            id: Math.random().toString(36).substr(2, 9),
+                                            name: `Nueva Sede ${logisticsConfig.locations.length + 1}`,
+                                            lat: -35.8450,
+                                            lng: -71.5979,
+                                            type: 'operational',
+                                            max_time_mins: 30,
+                                            time_ranges: [{ min: 0, max: 10, surcharge: 0, label: 'Urbano' }]
+                                        };
+                                        setLogisticsConfig({
+                                            ...logisticsConfig,
+                                            locations: [...logisticsConfig.locations, newLoc]
+                                        });
+                                    }}
+                                    className="btn-primary py-1.5 px-4 text-xs flex items-center gap-1.5 shadow-soft-sm animate-fade-in"
+                                >
+                                    <Plus className="w-3.5 h-3.5" /> Agregar Sede/Hub
+                                </button>
+                            )}
+                            <svg className={`w-5 h-5 text-charcoal/30 transition-transform duration-300 ${showLogisticsSection ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </button>
 
-                                                        <div className="lg:col-span-9 space-y-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <label className="text-[11px] uppercase font-bold text-charcoal/60 tracking-wider flex items-center gap-2">
-                                                                    <Clock className="w-4 h-4 text-primary-500" />
-                                                                    Tramos de Tiempo y Recargos
-                                                                </label>
-                                                                <button 
-                                                                    onClick={() => {
-                                                                        const newLocs = [...logisticsConfig.locations];
-                                                                        const lastMax = newLocs[index].time_ranges[newLocs[index].time_ranges.length - 1]?.max || 0;
-                                                                        newLocs[index].time_ranges.push({
-                                                                            min: lastMax + 1,
-                                                                            max: lastMax + 15,
-                                                                            surcharge: 0,
-                                                                            label: `T${newLocs[index].time_ranges.length + 1} Rural`
-                                                                        });
-                                                                        setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                    }}
-                                                                    className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all shadow-soft-sm bg-white ${isSurgical ? 'text-violet-600 border-violet-200 hover:bg-violet-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
-                                                                >
-                                                                    + Agregar Tramo
-                                                                </button>
-                                                            </div>
-                                                            <div className="bg-white/80 rounded-soft border border-silk-beige/40 shadow-soft-sm overflow-hidden">
-                                                                <table className="w-full text-left border-collapse">
-                                                                    <thead className={`${isSurgical ? 'bg-violet-100/30' : 'bg-emerald-100/30'} text-[9px] uppercase font-bold text-charcoal/40`}>
-                                                                        <tr>
-                                                                            <th className="px-4 py-3">Etiqueta/Tramo</th>
-                                                                            <th className="px-4 py-3 text-center">Rango Tiempo (Mins)</th>
-                                                                            <th className="px-4 py-3 text-right">Recargo ($)</th>
-                                                                            <th className="px-4 py-3 w-10"></th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-silk-beige/20">
-                                                                        {loc.time_ranges.map((range, rIndex) => (
-                                                                            <tr key={rIndex} className="text-[12px] hover:bg-ivory/20 transition-colors">
-                                                                                <td className="px-4 py-3">
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        value={range.label}
-                                                                                        onChange={(e) => {
-                                                                                            const newLocs = [...logisticsConfig.locations];
-                                                                                            newLocs[index].time_ranges[rIndex].label = e.target.value;
-                                                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                                        }}
-                                                                                        className="bg-transparent border-none p-0 w-full focus:ring-0 font-bold text-charcoal/70 placeholder:text-charcoal/20"
-                                                                                        placeholder="Ej: Rural 1"
-                                                                                    />
-                                                                                </td>
-                                                                                <td className="px-4 py-3">
-                                                                                    <div className="flex items-center justify-center gap-3">
-                                                                                        <div className="relative group/input">
-                                                                                            <span className="absolute -top-3 left-0 text-[8px] font-bold text-charcoal/30 uppercase">Desde</span>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                value={range.min}
-                                                                                                onChange={(e) => {
-                                                                                                    const newLocs = [...logisticsConfig.locations];
-                                                                                                    newLocs[index].time_ranges[rIndex].min = parseInt(e.target.value) || 0;
-                                                                                                    setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                                                }}
-                                                                                                className="w-14 text-center bg-silk-beige/20 rounded-soft border border-silk-beige/10 py-1.5 focus:ring-1 focus:ring-primary-400 focus:bg-white text-xs font-bold"
-                                                                                            />
-                                                                                        </div>
-                                                                                        <span className="text-silk-beige">→</span>
-                                                                                        <div className="relative group/input">
-                                                                                            <span className="absolute -top-3 left-0 text-[8px] font-bold text-charcoal/30 uppercase">Hasta</span>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                value={range.max}
-                                                                                                onChange={(e) => {
-                                                                                                    const newLocs = [...logisticsConfig.locations];
-                                                                                                    newLocs[index].time_ranges[rIndex].max = parseInt(e.target.value) || 0;
-                                                                                                    setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                                                }}
-                                                                                                className="w-14 text-center bg-silk-beige/20 rounded-soft border border-silk-beige/10 py-1.5 focus:ring-1 focus:ring-primary-400 focus:bg-white text-xs font-bold"
-                                                                                            />
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td className="px-4 py-3 text-right">
-                                                                                    <div className="flex justify-end items-center gap-2">
-                                                                                        <span className="text-charcoal/30 font-bold">$</span>
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            value={range.surcharge}
-                                                                                            onChange={(e) => {
-                                                                                                const newLocs = [...logisticsConfig.locations];
-                                                                                                newLocs[index].time_ranges[rIndex].surcharge = parseInt(e.target.value) || 0;
-                                                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                                            }}
-                                                                                            className={`w-24 text-right rounded-soft border-none py-1.5 focus:ring-1 font-bold text-sm ${isSurgical ? 'bg-violet-50/50 focus:ring-violet-400' : 'bg-emerald-50/50 focus:ring-emerald-400'}`}
-                                                                                        />
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td className="px-4 py-3 text-center">
-                                                                                    <button 
-                                                                                        onClick={() => {
-                                                                                            const newLocs = [...logisticsConfig.locations];
-                                                                                            newLocs[index].time_ranges.splice(rIndex, 1);
-                                                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
-                                                                                        }}
-                                                                                        className="text-charcoal/10 hover:text-red-500 transition-colors p-1"
-                                                                                    >
-                                                                                        <Trash2 className="w-4 h-4" />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
+                {showLogisticsSection && (
+                    <div className="animate-fade-in border-t border-silk-beige/50 p-5 space-y-5">
+                        {logisticsConfig.locations.length === 0 && (
+                            <div className="text-center py-10 bg-ivory/20 rounded-soft border border-dashed border-silk-beige/50">
+                                <p className="text-sm text-charcoal/40">No hay sedes configuradas. Haz clic en "Agregar Sede/Hub" para comenzar.</p>
+                            </div>
+                        )}
+                        
+                        <div className="grid grid-cols-1 gap-5">
+                            {logisticsConfig.locations.map((loc, index) => {
+                                const isSurgical = loc.type === 'surgical_hub';
+                                return (
+                                    <div 
+                                        key={loc.id} 
+                                        className={`rounded-soft border shadow-soft-sm overflow-hidden transition-all hover:shadow-soft-md ${
+                                            isSurgical 
+                                            ? 'border-violet-200 bg-violet-50/20' 
+                                            : 'border-emerald-200 bg-emerald-50/20'
+                                        }`}
+                                    >
+                                        <div className={`p-4 flex items-center justify-between gap-4 border-b ${
+                                            isSurgical ? 'bg-violet-100/40 border-violet-200' : 'bg-emerald-100/40 border-emerald-200'
+                                        }`}>
+                                            <div className="flex items-center gap-4 flex-1">
+                                                <div className={`w-10 h-10 rounded-soft flex items-center justify-center shadow-sm ${
+                                                    isSurgical ? 'bg-violet-500 text-white' : 'bg-emerald-500 text-white'
+                                                }`}>
+                                                    {isSurgical ? <Bot className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                                                </div>
+                                                <div className="flex-1 space-y-1">
+                                                    <input
+                                                        type="text"
+                                                        value={loc.name}
+                                                        onChange={(e) => {
+                                                            const newLocs = [...logisticsConfig.locations];
+                                                            newLocs[index].name = e.target.value;
+                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                        }}
+                                                        className="bg-transparent border-none p-0 text-base font-bold text-charcoal focus:ring-0 w-full placeholder:text-charcoal/30"
+                                                        placeholder="Nombre de la sede..."
+                                                    />
+                                                    <div className="flex items-center gap-2">
+                                                        <select
+                                                            value={loc.type}
+                                                            onChange={(e) => {
+                                                                const newLocs = [...logisticsConfig.locations];
+                                                                newLocs[index].type = e.target.value as any;
+                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                            }}
+                                                            className={`text-[10px] font-bold uppercase rounded-full px-2.5 py-0.5 border shadow-sm ${
+                                                                isSurgical 
+                                                                ? 'bg-white border-violet-300 text-violet-700' 
+                                                                : 'bg-white border-emerald-300 text-emerald-700'
+                                                            }`}
+                                                        >
+                                                            <option value="operational">📍 Mundo A: Base Domicilios</option>
+                                                            <option value="surgical_hub">✂️ Mundo B: Centro Quirúrgico</option>
+                                                        </select>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-1.5 bg-white/80 px-3 py-1.5 rounded-soft border border-silk-beige/50 backdrop-blur-sm">
+                                                    <Clock className="w-3.5 h-3.5 text-charcoal/40" />
+                                                    <span className="text-[10px] uppercase font-bold text-charcoal/40">Límite:</span>
+                                                    <input
+                                                        type="number"
+                                                        value={loc.max_time_mins}
+                                                        onChange={(e) => {
+                                                            const newLocs = [...logisticsConfig.locations];
+                                                            newLocs[index].max_time_mins = parseInt(e.target.value) || 0;
+                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                        }}
+                                                        className="w-8 text-[11px] font-bold bg-transparent border-none p-0 focus:ring-0 text-center"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-charcoal/40">min</span>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        const newLocs = logisticsConfig.locations.filter(l => l.id !== loc.id);
+                                                        setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                    }}
+                                                    className="text-red-400 p-2 hover:bg-red-100/50 rounded-soft transition-colors shadow-soft-sm bg-white"
+                                                    title="Eliminar Sede"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                            <div className="lg:col-span-3 space-y-4">
+                                                <div className="p-3 bg-white/50 rounded-soft border border-silk-beige/30 space-y-3">
+                                                    <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest flex items-center gap-1.5">
+                                                        <Tag className="w-3 h-3" /> Coordenadas GPS
+                                                    </h4>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] uppercase font-bold text-charcoal/30">Latitud</label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.0001"
+                                                            value={loc.lat}
+                                                            onChange={(e) => {
+                                                                const newLocs = [...logisticsConfig.locations];
+                                                                newLocs[index].lat = parseFloat(e.target.value) || 0;
+                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                            }}
+                                                            className="input-soft w-full text-xs py-1.5 focus:bg-white"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] uppercase font-bold text-charcoal/30">Longitud</label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.0001"
+                                                            value={loc.lng}
+                                                            onChange={(e) => {
+                                                                const newLocs = [...logisticsConfig.locations];
+                                                                newLocs[index].lng = parseFloat(e.target.value) || 0;
+                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                            }}
+                                                            className="input-soft w-full text-xs py-1.5 focus:bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                            <div className="mt-4 flex items-center gap-2 p-3 bg-primary-50/50 rounded-soft border border-primary-200/50">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <div className="relative">
-                                        <input
-                                            type="checkbox"
-                                            checked={logisticsConfig.is_active}
-                                            onChange={(e) => setLogisticsConfig({ ...logisticsConfig, is_active: e.target.checked })}
-                                            className="sr-only"
-                                        />
-                                        <div className={`w-10 h-5 rounded-full transition-colors ${logisticsConfig.is_active ? 'bg-emerald-500' : 'bg-charcoal/20'}`}></div>
-                                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${logisticsConfig.is_active ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                            <div className="lg:col-span-9 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[11px] uppercase font-bold text-charcoal/60 tracking-wider flex items-center gap-2">
+                                                        <Clock className="w-4 h-4 text-primary-500" />
+                                                        Tramos de Tiempo y Recargos
+                                                    </label>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const newLocs = [...logisticsConfig.locations];
+                                                            const lastMax = newLocs[index].time_ranges[newLocs[index].time_ranges.length - 1]?.max || 0;
+                                                            newLocs[index].time_ranges.push({
+                                                                min: lastMax + 1,
+                                                                max: lastMax + 15,
+                                                                surcharge: 0,
+                                                                label: `T${newLocs[index].time_ranges.length + 1} Rural`
+                                                            });
+                                                            setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                        }}
+                                                        className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all shadow-soft-sm bg-white ${isSurgical ? 'text-violet-600 border-violet-200 hover:bg-violet-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
+                                                    >
+                                                        + Agregar Tramo
+                                                    </button>
+                                                </div>
+                                                <div className="bg-white/80 rounded-soft border border-silk-beige/40 shadow-soft-sm overflow-hidden">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className={`${isSurgical ? 'bg-violet-100/30' : 'bg-emerald-100/30'} text-[9px] uppercase font-bold text-charcoal/40`}>
+                                                            <tr>
+                                                                <th className="px-4 py-3">Etiqueta/Tramo</th>
+                                                                <th className="px-4 py-3 text-center">Rango Tiempo (Mins)</th>
+                                                                <th className="px-4 py-3 text-right">Recargo ($)</th>
+                                                                <th className="px-4 py-3 w-10"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-silk-beige/20">
+                                                            {loc.time_ranges.map((range, rIndex) => (
+                                                                <tr key={rIndex} className="text-[12px] hover:bg-ivory/20 transition-colors">
+                                                                    <td className="px-4 py-3">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={range.label}
+                                                                            onChange={(e) => {
+                                                                                const newLocs = [...logisticsConfig.locations];
+                                                                                newLocs[index].time_ranges[rIndex].label = e.target.value;
+                                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                                            }}
+                                                                            className="bg-transparent border-none p-0 w-full focus:ring-0 font-bold text-charcoal/70 placeholder:text-charcoal/20"
+                                                                            placeholder="Ej: Rural 1"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="flex items-center justify-center gap-3">
+                                                                            <div className="relative group/input">
+                                                                                <span className="absolute -top-3 left-0 text-[8px] font-bold text-charcoal/30 uppercase">Desde</span>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    value={range.min}
+                                                                                    onChange={(e) => {
+                                                                                        const newLocs = [...logisticsConfig.locations];
+                                                                                        newLocs[index].time_ranges[rIndex].min = parseInt(e.target.value) || 0;
+                                                                                        setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                                                    }}
+                                                                                    className="w-14 text-center bg-silk-beige/20 rounded-soft border border-silk-beige/10 py-1.5 focus:ring-1 focus:ring-primary-400 focus:bg-white text-xs font-bold"
+                                                                                />
+                                                                            </div>
+                                                                            <span className="text-silk-beige">→</span>
+                                                                            <div className="relative group/input">
+                                                                                <span className="absolute -top-3 left-0 text-[8px] font-bold text-charcoal/30 uppercase">Hasta</span>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    value={range.max}
+                                                                                    onChange={(e) => {
+                                                                                        const newLocs = [...logisticsConfig.locations];
+                                                                                        newLocs[index].time_ranges[rIndex].max = parseInt(e.target.value) || 0;
+                                                                                        setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                                                    }}
+                                                                                    className="w-14 text-center bg-silk-beige/20 rounded-soft border border-silk-beige/10 py-1.5 focus:ring-1 focus:ring-primary-400 focus:bg-white text-xs font-bold"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="flex justify-end items-center gap-2">
+                                                                            <span className="text-charcoal/30 font-bold">$</span>
+                                                                            <input
+                                                                                type="number"
+                                                                                value={range.surcharge}
+                                                                                onChange={(e) => {
+                                                                                    const newLocs = [...logisticsConfig.locations];
+                                                                                    newLocs[index].time_ranges[rIndex].surcharge = parseInt(e.target.value) || 0;
+                                                                                    setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                                                }}
+                                                                                className={`w-24 text-right rounded-soft border-none py-1.5 focus:ring-1 font-bold text-sm ${isSurgical ? 'bg-violet-50/50 focus:ring-violet-400' : 'bg-emerald-50/50 focus:ring-emerald-400'}`}
+                                                                            />
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center">
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                const newLocs = [...logisticsConfig.locations];
+                                                                                newLocs[index].time_ranges.splice(rIndex, 1);
+                                                                                setLogisticsConfig({ ...logisticsConfig, locations: newLocs });
+                                                                            }}
+                                                                            className="text-charcoal/10 hover:text-red-500 transition-colors p-1"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[11px] font-bold text-charcoal uppercase tracking-wider">Activar Motor Logístico Pro</span>
-                                        <span className="text-[10px] text-charcoal/50">Utiliza Google Maps para validar tramos de tiempo.</span>
-                                    </div>
-                                </label>
-                            </div>
+                                );
+                            })}
                         </div>
+
+                        <div className="mt-4 flex items-center justify-between p-4 bg-primary-50/30 rounded-soft border border-primary-100">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        checked={logisticsConfig.is_active}
+                                        onChange={(e) => setLogisticsConfig({ ...logisticsConfig, is_active: e.target.checked })}
+                                        className="sr-only"
+                                    />
+                                    <div className={`w-10 h-5 rounded-full transition-colors ${logisticsConfig.is_active ? 'bg-emerald-500' : 'bg-charcoal/20'}`}></div>
+                                    <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${logisticsConfig.is_active ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[11px] font-bold text-charcoal uppercase tracking-wider">Activar Motor Logístico Pro</span>
+                                    <span className="text-[10px] text-charcoal/50">Utiliza Google Maps para validar tramos de tiempo.</span>
+                                </div>
+                            </label>
+                            
+                            <button
+                                onClick={handleSaveMasterPrompt}
+                                disabled={savingPrompt}
+                                className="btn-primary py-2 px-6 flex items-center gap-2 shadow-premium"
+                            >
+                                {savingPrompt ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                ) : (
+                                    <><Save className="w-4 h-4" /> Guardar Logística</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
 
                         <div className="mt-8">
                             <div className="flex items-center justify-between mb-2">
@@ -1059,20 +1078,22 @@ export default function KnowledgeBase() {
                     </div>
                     
                     <div className="flex items-center gap-4">
-                        <div className="hidden md:flex gap-2">
-                            <label className="btn-secondary py-2 px-4 shadow-soft-sm text-xs flex items-center gap-2 cursor-pointer">
-                                {uploadingFile ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                    <Upload className="w-3.5 h-3.5" />
-                                )}
-                                Subir Archivo
-                                <input type="file" accept=".txt,.md,.csv,.json" onChange={handleFileUpload} className="hidden" />
-                            </label>
-                            <button onClick={(e) => { e.stopPropagation(); openNewModal(); }} className="btn-primary py-2 px-4 shadow-soft-sm text-xs flex items-center gap-2">
-                                <Plus className="w-3.5 h-3.5" /> Nuevo Registro
-                            </button>
-                        </div>
+                        {showDocumentsSection && (
+                            <div className="hidden md:flex gap-2 animate-fade-in">
+                                <label className="btn-secondary py-2 px-4 shadow-soft-sm text-xs flex items-center gap-2 cursor-pointer">
+                                    {uploadingFile ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Upload className="w-3.5 h-3.5" />
+                                    )}
+                                    Subir Archivo
+                                    <input type="file" accept=".txt,.md,.csv,.json" onChange={handleFileUpload} className="hidden" />
+                                </label>
+                                <button onClick={(e) => { e.stopPropagation(); openNewModal(); }} className="btn-primary py-2 px-4 shadow-soft-sm text-xs flex items-center gap-2">
+                                    <Plus className="w-3.5 h-3.5" /> Nuevo Registro
+                                </button>
+                            </div>
+                        )}
                         <svg className={`w-5 h-5 text-charcoal/40 transition-transform ${showDocumentsSection ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                     </div>
                 </button>
@@ -1131,128 +1152,130 @@ export default function KnowledgeBase() {
                                     <option value="inactive">Inactivos</option>
                                 </select>
                             </div>
+
+                            {/* Documents Grid inside collapsible section */}
+                            <div className="mt-8">
+                                {filteredDocuments.length === 0 ? (
+                                    <div className="bg-silk-beige/10 p-12 text-center rounded-soft border border-dashed border-silk-beige">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="w-16 h-16 bg-silk-beige/30 rounded-full flex items-center justify-center">
+                                                <BookOpen className="w-8 h-8 text-charcoal/30" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-medium text-charcoal mb-1">
+                                                    {documents.length === 0 ? 'Sin documentos aún' : 'Sin resultados'}
+                                                </h3>
+                                                <p className="text-charcoal/50 text-sm max-w-sm mx-auto">
+                                                    {documents.length === 0
+                                                        ? 'Crea tu primer documento de conocimiento para que tu agente IA pueda responder mejor a tus clientes.'
+                                                        : 'No se encontraron documentos con los filtros seleccionados.'}
+                                                </p>
+                                            </div>
+                                            {documents.length === 0 && (
+                                                <button onClick={openNewModal} className="btn-primary flex items-center gap-2 mt-2">
+                                                    <Plus className="w-4 h-4" />
+                                                    Crear primer documento
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {filteredDocuments.map((doc) => {
+                                            const catColor = getCategoryColor(doc.category)
+                                            const catLabel = CATEGORY_OPTIONS.find(o => o.value === doc.category)?.label || doc.category
+
+                                            return (
+                                                <div
+                                                    key={doc.id}
+                                                    className={cn(
+                                                        'bg-white p-5 rounded-soft border border-silk-beige/50 hover:shadow-premium transition-all duration-200 cursor-pointer group relative',
+                                                        doc.status === 'inactive' && 'opacity-60 text-charcoal/40'
+                                                    )}
+                                                    onClick={() => openEditModal(doc)}
+                                                >
+                                                    {/* Category Badge */}
+                                                    <div className="mb-3">
+                                                        <span className={cn(
+                                                            'inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border',
+                                                            catColor.bg, catColor.text, catColor.border
+                                                        )}>
+                                                            {catLabel}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Title */}
+                                                    <h3 className="font-bold text-charcoal text-[15px] mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors uppercase tracking-tight">
+                                                        {doc.title}
+                                                    </h3>
+
+                                                    {/* Content Preview */}
+                                                    <p className="text-[13px] text-charcoal/60 line-clamp-3 mb-4 leading-relaxed italic">
+                                                        {doc.content}
+                                                    </p>
+
+                                                    {/* Footer */}
+                                                    <div className="flex items-center justify-between pt-3 border-t border-silk-beige/50">
+                                                        <div className="flex items-center gap-1.5">
+                                                            {doc.sync_status === 'synced' ? (
+                                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                                            ) : (
+                                                                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                                            )}
+                                                            <span className={cn(
+                                                                'text-[10px] font-bold uppercase tracking-widest',
+                                                                doc.sync_status === 'synced' ? 'text-emerald-600' : 'text-amber-600'
+                                                            )}>
+                                                                {doc.sync_status === 'synced' ? 'Sincronizado' : 'Pendiente'}
+                                                            </span>
+                                                        </div>
+                                                        <span className={cn(
+                                                            'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest',
+                                                            doc.status === 'active'
+                                                                ? 'bg-emerald-50 text-emerald-600'
+                                                                : 'bg-gray-100 text-gray-500'
+                                                        )}>
+                                                            {doc.status === 'active' ? 'Activo' : 'Inactivo'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Quick Actions (on hover) */}
+                                                    <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleToggleStatus(doc)
+                                                            }}
+                                                            className="p-1.5 rounded-soft bg-ivory shadow-sm border border-silk-beige hover:bg-white transition-colors"
+                                                            title={doc.status === 'active' ? 'Desactivar' : 'Activar'}
+                                                        >
+                                                            {doc.status === 'active' ? (
+                                                                <ToggleRight className="w-4 h-4 text-emerald-500" />
+                                                            ) : (
+                                                                <ToggleLeft className="w-4 h-4 text-gray-400" />
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                setDeleteConfirm(doc.id)
+                                                            }}
+                                                            className="p-1.5 rounded-soft bg-red-50 shadow-sm border border-red-100 hover:bg-red-100 transition-colors"
+                                                            title="Eliminar"
+                                                        >
+                                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
-
-            {/* Documents Grid */}
-            {filteredDocuments.length === 0 ? (
-                <div className="card-soft p-12 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-16 h-16 bg-silk-beige/30 rounded-full flex items-center justify-center">
-                            <BookOpen className="w-8 h-8 text-charcoal/30" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-medium text-charcoal mb-1">
-                                {documents.length === 0 ? 'Sin documentos aún' : 'Sin resultados'}
-                            </h3>
-                            <p className="text-charcoal/50 text-sm max-w-sm mx-auto">
-                                {documents.length === 0
-                                    ? 'Crea tu primer documento de conocimiento para que tu agente IA pueda responder mejor a tus clientes.'
-                                    : 'No se encontraron documentos con los filtros seleccionados.'}
-                            </p>
-                        </div>
-                        {documents.length === 0 && (
-                            <button onClick={openNewModal} className="btn-primary flex items-center gap-2 mt-2">
-                                <Plus className="w-4 h-4" />
-                                Crear primer documento
-                            </button>
-                        )}
-                    </div>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDocuments.map((doc) => {
-                        const catColor = getCategoryColor(doc.category)
-                        const catLabel = CATEGORY_OPTIONS.find(o => o.value === doc.category)?.label || doc.category
-
-                        return (
-                            <div
-                                key={doc.id}
-                                className={cn(
-                                    'card-soft p-5 hover:shadow-premium transition-all duration-200 cursor-pointer group relative',
-                                    doc.status === 'inactive' && 'opacity-60'
-                                )}
-                                onClick={() => openEditModal(doc)}
-                            >
-                                {/* Category Badge */}
-                                <div className="mb-3">
-                                    <span className={cn(
-                                        'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border',
-                                        catColor.bg, catColor.text, catColor.border
-                                    )}>
-                                        {catLabel}
-                                    </span>
-                                </div>
-
-                                {/* Title */}
-                                <h3 className="font-semibold text-charcoal text-base mb-2 line-clamp-1 group-hover:text-primary-600 transition-colors">
-                                    {doc.title}
-                                </h3>
-
-                                {/* Content Preview */}
-                                <p className="text-sm text-charcoal/60 line-clamp-3 mb-4 leading-relaxed">
-                                    {doc.content}
-                                </p>
-
-                                {/* Footer */}
-                                <div className="flex items-center justify-between pt-3 border-t border-silk-beige/50">
-                                    <div className="flex items-center gap-1.5">
-                                        {doc.sync_status === 'synced' ? (
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                        ) : (
-                                            <Clock className="w-3.5 h-3.5 text-amber-500" />
-                                        )}
-                                        <span className={cn(
-                                            'text-xs font-medium',
-                                            doc.sync_status === 'synced' ? 'text-emerald-600' : 'text-amber-600'
-                                        )}>
-                                            {doc.sync_status === 'synced' ? 'Sincronizado' : 'Pendiente'}
-                                        </span>
-                                    </div>
-                                    <span className={cn(
-                                        'text-xs font-medium px-2 py-0.5 rounded-full',
-                                        doc.status === 'active'
-                                            ? 'bg-emerald-50 text-emerald-600'
-                                            : 'bg-gray-100 text-gray-500'
-                                    )}>
-                                        {doc.status === 'active' ? 'Activo' : 'Inactivo'}
-                                    </span>
-                                </div>
-
-                                {/* Quick Actions (on hover) */}
-                                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleToggleStatus(doc)
-                                        }}
-                                        className="p-1.5 rounded-soft hover:bg-ivory transition-colors"
-                                        title={doc.status === 'active' ? 'Desactivar' : 'Activar'}
-                                    >
-                                        {doc.status === 'active' ? (
-                                            <ToggleRight className="w-4 h-4 text-emerald-500" />
-                                        ) : (
-                                            <ToggleLeft className="w-4 h-4 text-gray-400" />
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setDeleteConfirm(doc.id)
-                                        }}
-                                        className="p-1.5 rounded-soft hover:bg-red-50 transition-colors"
-                                        title="Eliminar"
-                                    >
-                                        <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
-                                    </button>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
 
             {/* Delete Confirmation Modal */}
             {deleteConfirm && (
