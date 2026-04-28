@@ -2205,18 +2205,18 @@ const callOpenAI = async (
   blockedTools: string[] = [],
 ) => {
   // Use the models directly as available in the user's OpenAI account
-  let realModel = model || "gpt-5.4-mini";
+  let realModel = model || "gpt-4o-mini";
   
-  // Clean up prefix if any (e.g. "openai/gpt-5.4" -> "gpt-5.4")
+  // Clean up prefix if any (e.g. "openai/gpt-4o" -> "gpt-4o")
   if (realModel.startsWith("openai/")) {
     realModel = realModel.replace("openai/", "");
   }
 
   // Ensure naming consistency with OpenAI IDs
-  if (realModel === "pro" || realModel === "gpt-5-pro") realModel = "gpt-5.5";
-  if (realModel === "hybrid") realModel = "gpt-5.4";
-  if (realModel === "mini" || realModel === "gpt-5.4-mini") realModel = "gpt-5.4-mini";
-  if (realModel === "gpt-5") realModel = "gpt-5.5"; // Fallback for anyone saying gpt-5
+  if (realModel === "pro" || realModel === "gpt-5-pro" || realModel === "gpt-5.5") realModel = "gpt-4o";
+  if (realModel === "hybrid" || realModel === "gpt-5.4") realModel = "gpt-4o";
+  if (realModel === "mini" || realModel === "gpt-5.4-mini") realModel = "gpt-4o-mini";
+  if (realModel === "gpt-5") realModel = "gpt-4o"; // Fallback
 
   const apiUrl = "https://api.openai.com/v1/chat/completions";
   const authHeader = `Bearer ${key}`;
@@ -3155,22 +3155,22 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
           msgs.push({ role: "user", content: userContentBlocks });
         }
 
-        // --- NEW: INTELLIGENT MODEL ROUTING ---
-        let targetModel = "gpt-5.4-mini";
+        // --- INTELLIGENT MODEL ROUTING ---
+        let targetModel = "gpt-4o-mini";
         let tierUsed = 2;
 
         if (clinic.ai_active_model === "hybrid") {
           const lastUserText = userContentBlocks.map(b => b.text || "").join(" ");
           const hasImageInBurst = userContentBlocks.some(b => b.type === "image_url");
           const route = selectModelTier(lastUserText, hasImageInBurst);
-          targetModel = route.model;
+          targetModel = route.model === "gpt-5.5" ? "gpt-4o" : "gpt-4o-mini";
           tierUsed = route.tier;
           console.log(`[Router] Selecting Tier ${tierUsed} (${targetModel}) based on content complexity.`);
         } else if (clinic.ai_active_model === "pro") {
-          targetModel = "gpt-5.5";
+          targetModel = "gpt-4o";
           tierUsed = 3;
         } else {
-          targetModel = "gpt-5.4-mini";
+          targetModel = "gpt-4o-mini";
           tierUsed = 1;
         }
 
