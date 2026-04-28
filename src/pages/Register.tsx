@@ -465,13 +465,13 @@ export default function Register() {
                         <div className="mt-6 flex flex-col items-center gap-2">
                             <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro?</p>
                             <a
-                                href="https://wa.me/56996600259?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
+                                href="https://wa.me/56958897996?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-bold bg-primary-50 px-4 py-2 rounded-full border border-primary-100 transition-colors"
                             >
                                 <MessageCircle className="w-4 h-4" />
-                                Escríbenos por WhatsApp (+56 9 9660 0259)
+                                Escríbenos por WhatsApp (+56 9 5889 7996)
                             </a>
                         </div>
 
