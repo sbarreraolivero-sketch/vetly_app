@@ -846,13 +846,33 @@ export default function Appointments() {
                             <span>{viewMode === 'list' ? 'Ver Calendario' : 'Ver Lista'}</span>
                         </button>
                         {!isProfessional && (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        const now = new Date()
+                                        setNewAppointment({
+                                            ...INITIAL_FORM_STATE,
+                                            patient_name: 'Bloqueo de Agenda',
+                                            tutor_name: 'Sistema',
+                                            service: 'Bloqueo',
+                                            phone_number: '000000000',
+                                            appointment_date: format(now, 'yyyy-MM-dd'),
+                                            appointment_time: format(now, 'HH:mm'),
+                                        })
+                                        setShowModal(true)
+                                    }}
+                                    className="w-full sm:w-auto px-6 py-3.5 bg-charcoal/90 hover:bg-charcoal text-white transition-all font-bold rounded-xl flex items-center justify-center gap-2 shadow-premium hover:scale-105 active:scale-95 uppercase text-[10px] tracking-widest border border-white/10"
+                                >
+                                    <XCircle className="w-4 h-4 text-red-400" />
+                                    Bloquear Horario
+                                </button>
                                 <button
                                     onClick={() => {
                                         const now = new Date()
                                         setNewAppointment({
                                             ...INITIAL_FORM_STATE,
                                             appointment_date: format(now, 'yyyy-MM-dd'),
-                                            appointment_time: '09:00',
+                                            appointment_time: format(now, 'HH:mm'),
                                         })
                                         setShowModal(true)
                                     }}
@@ -861,6 +881,7 @@ export default function Appointments() {
                                     <Plus className="w-5 h-5" />
                                     Nueva Cita
                                 </button>
+                            </>
                         )}
                     </div>
                 </div>

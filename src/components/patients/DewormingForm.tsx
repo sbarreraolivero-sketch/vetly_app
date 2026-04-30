@@ -65,7 +65,7 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
             const { data: settings } = await (supabase as any)
                 .from('clinic_settings')
                 .select('deworming_reminder_template')
-                .eq('clinic_id', profile!.clinic_id)
+                .eq('id', profile!.clinic_id)
                 .single()
             
             if (settings?.deworming_reminder_template) {

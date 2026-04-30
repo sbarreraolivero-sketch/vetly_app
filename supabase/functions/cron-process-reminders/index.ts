@@ -22,6 +22,37 @@ serve(async (req) => {
 
         log.push('Starting cron-process-reminders')
 
+        // Helper: Fetch template variable counts from YCloud (cached per clinic)
+        const tplVarCache: Record<string, Record<string, number>> = {}
+        const getVarCount = async (apiKey: string, cId: string, tplName: string): Promise<number> => {
+            if (!tplVarCache[cId]) {
+                try {
+                    const res = await fetch('https://api.ycloud.com/v2/whatsapp/templates?limit=100', {
+                        headers: { 'X-API-Key': apiKey }
+                    })
+                    const d = await res.json()
+                    const m: Record<string, number> = {}
+                    for (const t of (d.items || [])) {
+                        const body = t.components?.find((c: any) => c.type === 'BODY')
+                        const matches = body?.text?.match(/\{\{\d+\}\}/g)
+                        m[t.name] = matches ? matches.length : 0
+                    }
+                    tplVarCache[cId] = m
+                } catch { tplVarCache[cId] = {} }
+            }
+            return tplVarCache[cId][tplName] ?? 5
+        }
+        const mkParams = (n: number, pName: string, svc: string, dt: string, tm: string, cName: string) => {
+            const all = [
+                { type: 'text', text: pName },
+                { type: 'text', text: svc },
+                { type: 'text', text: dt },
+                { type: 'text', text: tm },
+                { type: 'text', text: cName },
+            ]
+            return n > 0 ? all.slice(0, n) : all
+        }
+
         // 1. Fetch all clinics with 24h reminders enabled
         // We join with clinic_settings to get keys and timezone
         const { data: settingsList, error: settingsError } = await supabaseClient
@@ -71,7 +102,7 @@ serve(async (req) => {
             }
 
             // 3. Timezone Check
-            const timeZone = clinic.timezone || 'America/Mexico_City'
+            const timeZone = clinic.timezone || 'America/Santiago'
             const now = new Date()
 
             // Get current clinic time
@@ -146,10 +177,13 @@ serve(async (req) => {
                     const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
                     const formattedTime = apptDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone })
 
-                    let tplName = settings.template_24h || 'appointment_reminder'
+                    let tplName = settings.template_24h || '24hrs_recordatorio_cita'
                     if (settings.request_confirmation && settings.template_confirmation && appt.status === 'pending') {
                         tplName = settings.template_confirmation
                     }
+
+                    const vc24 = await getVarCount(clinic.ycloud_api_key, clinic.id, tplName)
+                    const params24 = mkParams(vc24, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
 
                     const messagePayload = {
                         to: appt.phone_number,
@@ -157,18 +191,12 @@ serve(async (req) => {
                         template: {
                             name: tplName,
                             language: { code: 'es' },
-                            components: [
+                            components: params24.length > 0 ? [
                                 {
                                     type: 'body',
-                                    parameters: [
-                                        { type: 'text', text: appt.patient_name },
-                                        { type: 'text', text: appt.service || 'consulta' },
-                                        { type: 'text', text: formattedDate },
-                                        { type: 'text', text: formattedTime },
-                                        { type: 'text', text: clinic.clinic_name }
-                                    ]
+                                    parameters: params24
                                 }
-                            ]
+                            ] : []
                         }
                     }
 
@@ -277,7 +305,7 @@ serve(async (req) => {
                     continue
                 }
 
-                const timeZone = clinic.timezone || 'America/Mexico_City'
+                const timeZone = clinic.timezone || 'America/Santiago'
                 const now = new Date()
 
                 // Calculate target time: Now + 2 hours
@@ -354,10 +382,13 @@ serve(async (req) => {
                         const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
                         const formattedTime = apptDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone })
 
-                        let tplName2h = settings.template_2h || 'appointment_reminder'
+                        let tplName2h = settings.template_2h || '2hrs_recordatorio_cita'
                         if (settings.request_confirmation && settings.template_confirmation && appt.status === 'pending') {
                             tplName2h = settings.template_confirmation
                         }
+
+                        const vc2h = await getVarCount(clinic.ycloud_api_key, clinic.id, tplName2h)
+                        const params2h = mkParams(vc2h, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
 
                         const messagePayload = {
                             to: appt.phone_number,
@@ -365,18 +396,12 @@ serve(async (req) => {
                             template: {
                                 name: tplName2h,
                                 language: { code: 'es' },
-                                components: [
+                                components: params2h.length > 0 ? [
                                     {
                                         type: 'body',
-                                        parameters: [
-                                            { type: 'text', text: appt.patient_name },
-                                            { type: 'text', text: appt.service || 'consulta' },
-                                            { type: 'text', text: formattedDate },
-                                            { type: 'text', text: formattedTime },
-                                            { type: 'text', text: clinic.clinic_name }
-                                        ]
+                                        parameters: params2h
                                     }
-                                ]
+                                ] : []
                             }
                         }
 
@@ -477,7 +502,7 @@ serve(async (req) => {
                     continue
                 }
 
-                const timeZone = clinic.timezone || 'America/Mexico_City'
+                const timeZone = clinic.timezone || 'America/Santiago'
                 const now = new Date()
 
                 // Target: Now + 1 hour
@@ -525,10 +550,13 @@ serve(async (req) => {
                         const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
                         const formattedTime = apptDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone })
 
-                        let tplName1h = settings.template_1h || 'appointment_reminder'
+                        let tplName1h = settings.template_1h || '24hrs_recordatorio_cita'
                         if (settings.request_confirmation && settings.template_confirmation && appt.status === 'pending') {
                             tplName1h = settings.template_confirmation
                         }
+
+                        const vc1h = await getVarCount(clinic.ycloud_api_key, clinic.id, tplName1h)
+                        const params1h = mkParams(vc1h, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
 
                         const messagePayload = {
                             to: appt.phone_number,
@@ -536,18 +564,12 @@ serve(async (req) => {
                             template: {
                                 name: tplName1h,
                                 language: { code: 'es' },
-                                components: [
+                                components: params1h.length > 0 ? [
                                     {
                                         type: 'body',
-                                        parameters: [
-                                            { type: 'text', text: appt.patient_name },
-                                            { type: 'text', text: appt.service || 'consulta' },
-                                            { type: 'text', text: formattedDate },
-                                            { type: 'text', text: formattedTime },
-                                            { type: 'text', text: clinic.clinic_name }
-                                        ]
+                                        parameters: params1h
                                     }
-                                ]
+                                ] : []
                             }
                         }
                         const response = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
@@ -625,7 +647,7 @@ serve(async (req) => {
             for (const clinic of (allClinics || [])) {
                 if (!clinic.ycloud_api_key) continue
 
-                const timeZone = clinic.timezone || 'America/Mexico_City'
+                const timeZone = clinic.timezone || 'America/Santiago'
                 
                 // Calculate "Tomorrow" in clinic timezone
                 const clinicNow = new Date(new Date().toLocaleString('en-US', { timeZone }))
@@ -683,24 +705,21 @@ serve(async (req) => {
                             weekday: 'long', day: 'numeric', month: 'long' 
                         })
 
+                        const vcGen = await getVarCount(clinic.ycloud_api_key, clinic.id, templateName)
+                        const paramsGen = mkParams(vcGen, patientName || 'Paciente', rem.title || 'servicio', formattedDate, 'Durante el día', clinic.clinic_name)
+
                         const messagePayload = {
                             to: phoneNumber,
                             type: 'template',
                             template: {
                                 name: templateName,
                                 language: { code: 'es' },
-                                components: [
+                                components: paramsGen.length > 0 ? [
                                     {
                                         type: 'body',
-                                        parameters: [
-                                            { type: 'text', text: patientName }, // {{1}}
-                                            { type: 'text', text: rem.title || 'servicio' }, // {{2}}
-                                            { type: 'text', text: formattedDate }, // {{3}}
-                                            { type: 'text', text: 'Durante el día' }, // {{4}}
-                                            { type: 'text', text: clinic.clinic_name } // {{5}}
-                                        ]
+                                        parameters: paramsGen
                                     }
-                                ]
+                                ] : []
                             }
                         }
 

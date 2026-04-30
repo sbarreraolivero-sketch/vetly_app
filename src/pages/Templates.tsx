@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { FileText, Plus, X, MessageSquare, Clock, ShieldAlert, CheckCircle2, Sparkles, Smartphone, Trash2, Code, Lightbulb, Check, Info } from 'lucide-react'
 import { retentionService, YCloudTemplate } from '@/services/retentionService'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
 
@@ -66,6 +67,8 @@ export default function Templates() {
         try {
             setLoading(true)
             setError(null)
+            // Refresh session to prevent expired JWT errors in the edge function
+            await supabase.auth.getSession()
             const remoteTemplates = await retentionService.getRemoteTemplates(clinicId)
             setTemplates(remoteTemplates)
         } catch (err: any) {

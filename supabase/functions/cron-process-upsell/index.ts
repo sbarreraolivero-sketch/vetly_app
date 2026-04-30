@@ -118,22 +118,42 @@ serve(async (req) => {
             // Params: {{1}} Patient Name, {{2}} Service Name
 
             try {
+                // Use service-specific template if configured, otherwise skip
+                const upsellTemplate = appt.services?.upselling_template || 'recordatorio_vacunas'
+
+                // Fetch template variable count from YCloud
+                let upsellVarCount = 2
+                try {
+                    const tplRes = await fetch('https://api.ycloud.com/v2/whatsapp/templates?limit=100', {
+                        headers: { 'X-API-Key': ycloudKey }
+                    })
+                    const tplData = await tplRes.json()
+                    const tpl = (tplData.items || []).find((t: any) => t.name === upsellTemplate)
+                    if (tpl) {
+                        const body = tpl.components?.find((c: any) => c.type === 'BODY')
+                        const matches = body?.text?.match(/\{\{\d+\}\}/g)
+                        upsellVarCount = matches ? matches.length : 0
+                    }
+                } catch (e) { console.warn('Could not fetch template info:', e) }
+
+                const upsellAllParams = [
+                    { type: 'text', text: appt.patient_name },
+                    { type: 'text', text: appt.services.name },
+                ]
+                const upsellParams = upsellAllParams.slice(0, upsellVarCount)
+
                 const messagePayload = {
                     to: appt.phone_number,
                     type: 'template',
                     template: {
-                        name: 'appointment_followup', // Assumed template name
+                        name: upsellTemplate,
                         language: { code: 'es' },
-                        components: [
+                        components: upsellParams.length > 0 ? [
                             {
                                 type: 'body',
-                                parameters: [
-                                    { type: 'text', text: appt.patient_name }, // {{1}} Name
-                                    { type: 'text', text: appt.services.name }, // {{2}} Service
-                                    // { type: 'text', text: appt.services.upselling_message || 'Esperamos verte pronto.' } // {{3}} Custom? Risk of template mismatch.
-                                ]
+                                parameters: upsellParams
                             }
-                        ]
+                        ] : []
                     }
                 }
 

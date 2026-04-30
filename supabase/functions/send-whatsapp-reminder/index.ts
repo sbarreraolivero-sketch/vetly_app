@@ -43,36 +43,60 @@ serve(async (req) => {
             throw new Error('Clinic has not configured WhatsApp (YCloud API Key missing)')
         }
 
-        // 2. Prepare message (Using Template 'appointment_reminder')
-        // Variable mapping:
-        // {{1}} = Patient Name
-        // {{2}} = Service
-        // {{3}} = Date
-        // {{4}} = Time
-        // {{5}} = Clinic Name
+        // 2. Get template from reminder_settings (instead of hardcoding)
+        const { data: reminderSettings } = await supabaseClient
+            .from('reminder_settings')
+            .select('template_24h, template_confirmation, request_confirmation')
+            .eq('clinic_id', appointment.clinic_id)
+            .single()
 
+        let templateName = reminderSettings?.template_24h || '24hrs_recordatorio_cita'
+        if (reminderSettings?.request_confirmation && reminderSettings?.template_confirmation && appointment.status === 'pending') {
+            templateName = reminderSettings.template_confirmation
+        }
+
+        // Variable mapping: dynamically match template variable count
         const date = new Date(appointment.appointment_date)
-        const formattedDate = date.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
-        const formattedTime = date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+        const tz = clinic_settings?.timezone || 'America/Santiago'
+        const formattedDate = date.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz })
+        const formattedTime = date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: tz })
+
+        // Fetch template to count variables
+        let varCount = 5
+        try {
+            const tplRes = await fetch('https://api.ycloud.com/v2/whatsapp/templates?limit=100', {
+                headers: { 'X-API-Key': ycloudKey }
+            })
+            const tplData = await tplRes.json()
+            const tpl = (tplData.items || []).find((t: any) => t.name === templateName)
+            if (tpl) {
+                const body = tpl.components?.find((c: any) => c.type === 'BODY')
+                const matches = body?.text?.match(/\{\{\d+\}\}/g)
+                varCount = matches ? matches.length : 0
+            }
+        } catch (e) { console.warn('Could not fetch template info:', e) }
+
+        const allParams = [
+            { type: 'text', text: appointment.patient_name },
+            { type: 'text', text: appointment.service || 'consulta' },
+            { type: 'text', text: formattedDate },
+            { type: 'text', text: formattedTime },
+            { type: 'text', text: clinic_settings.clinic_name }
+        ]
+        const params = varCount > 0 ? allParams.slice(0, varCount) : allParams
 
         const messagePayload = {
             to: appointment.phone_number,
             type: 'template',
             template: {
-                name: 'appointment_reminder',
+                name: templateName,
                 language: { code: 'es' },
-                components: [
+                components: params.length > 0 ? [
                     {
                         type: 'body',
-                        parameters: [
-                            { type: 'text', text: appointment.patient_name }, // {{1}}
-                            { type: 'text', text: appointment.service || 'consulta' }, // {{2}}
-                            { type: 'text', text: formattedDate }, // {{3}}
-                            { type: 'text', text: formattedTime }, // {{4}}
-                            { type: 'text', text: clinic_settings.clinic_name } // {{5}}
-                        ]
+                        parameters: params
                     }
-                ]
+                ] : []
             }
         }
 

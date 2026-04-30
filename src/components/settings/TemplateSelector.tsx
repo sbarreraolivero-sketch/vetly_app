@@ -50,7 +50,12 @@ export function TemplateSelector({
                 if (data?.isError || data?.error) throw new Error(data.error || 'API Error')
 
                 if (isMounted && data?.templates) {
-                    setTemplates(data.templates.filter((t: any) => t.status === 'APPROVED'))
+                    // Accept APPROVED and any active-* status variants from YCloud
+                    setTemplates(data.templates.filter((t: any) => 
+                        t.status === 'APPROVED' || 
+                        t.status?.toUpperCase?.()?.startsWith?.('ACTIVE') ||
+                        t.status?.toLowerCase?.() === 'approved'
+                    ))
                 }
             } catch (err) {
                 console.error('Error fetching templates:', err)

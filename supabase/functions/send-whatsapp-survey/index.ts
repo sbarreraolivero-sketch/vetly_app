@@ -113,7 +113,7 @@ serve(async (req) => {
 
             await supabaseClient.from('satisfaction_surveys').insert({
                 clinic_id: appointment.clinic_id,
-                appointment_id: appointment.appointment_id, // Note: using 'id' from appointment object
+                appointment_id: appointment.id,
                 patient_id: appointment.patient_id, // Make sure this exists
                 status: 'sent',
                 whatsapp_message_id: result.id,
