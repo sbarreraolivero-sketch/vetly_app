@@ -183,7 +183,7 @@ export default function Appointments() {
                             const nameLower = app.tutor_name?.toLowerCase().trim()
                             if (nameLower && !tutorMap.has(nameLower)) {
                                 tutorMap.set(nameLower, {
-                                    id: app.tutor_id || `hist-${Math.random()}`,
+                                    id: app.tutor_id || null,
                                     name: app.tutor_name,
                                     phone_number: app.phone_number,
                                     address: app.address,
@@ -503,12 +503,14 @@ export default function Appointments() {
     }
 
     const handleTutorSelect = (tutor: any) => {
+        // Only use the tutor ID if it's a valid UUID (not a historical placeholder)
+        const isValidUuid = tutor.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tutor.id)
         setNewAppointment({
             ...newAppointment,
             tutor_name: tutor.name || '',
             phone_number: tutor.phone_number || '',
             address: tutor.address || '',
-            tutor_id: tutor.id,
+            tutor_id: isValidUuid ? tutor.id : null,
             patient_name: '',
             pet_id: null
         })
@@ -581,7 +583,6 @@ export default function Appointments() {
                     .update(updateData)
                     .eq('id', editingId)
                     .select()
-                    .single()
 
                 if (error) throw error
 
