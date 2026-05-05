@@ -38,6 +38,7 @@ import {
     RefreshCw,
     Calendar,
     Cpu,
+    Phone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
