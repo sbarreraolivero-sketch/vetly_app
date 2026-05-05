@@ -225,7 +225,7 @@ serve(async (req) => {
                         continue
                     }
 
-                    const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para mañana a las *${formatTime(appt.appointment_time)}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
+                    const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para mañana a las *${formattedTime}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
 
                     // Log to DB messages (legacy)
                     await supabaseClient.from('messages').insert({
@@ -424,7 +424,7 @@ serve(async (req) => {
                         const responseData = await response.json().catch(() => ({}));
 
                         if (response.ok) {
-                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formatTime(appt.appointment_time)}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
+                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formattedTime}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
 
                             await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
@@ -597,7 +597,7 @@ serve(async (req) => {
                         const responseData = await response.json().catch(() => ({}));
 
                         if (response.ok) {
-                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formatTime(appt.appointment_time)}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
+                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formattedTime}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
 
                             await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
