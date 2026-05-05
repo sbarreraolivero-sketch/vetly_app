@@ -2625,10 +2625,12 @@ Deno.serve(async (req) => {
         body =
           "[La persona envió una imagen pero no pude verla. Pídele que te describa lo que envió.]";
       }
+    } else if (msgObj?.type === "button" && msgObj.button) {
+      body = msgObj.button.text || msgObj.button.payload || "";
     } else if (msgObj?.type === "interactive" && msgObj.interactive) {
       const interactive = msgObj.interactive;
       if (interactive.type === "button_reply") {
-        body = interactive.button_reply?.title || "";
+        body = interactive.button_reply?.title || interactive.button_reply?.id || "";
       } else if (interactive.type === "list_reply") {
         body = interactive.list_reply?.title || "";
       }
@@ -2743,7 +2745,7 @@ Deno.serve(async (req) => {
     }
 
     // --- WHATSAPP QUICK REPLY BUTTON INTERCEPTION ---
-    if (msgObj?.type === "interactive" && msgObj.interactive?.type === "button_reply") {
+    if ((msgObj?.type === "interactive" && msgObj.interactive?.type === "button_reply") || msgObj?.type === "button") {
       const lowerTitle = (body || "").toLowerCase();
       // Detect confirmation
       if (lowerTitle.includes("confirmo") || lowerTitle.includes("confirmar") || lowerTitle === "sí" || lowerTitle === "si") {
@@ -3185,7 +3187,7 @@ ${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
 Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
-Horarios: ${hoursSummary}
+Horarios: ${hoursSummary}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone} (Entrégalo si el cliente pide llamar o hablar con un humano)` : ""}
 
 CONTEXTO DE FECHAS:
 - HOY: ${todayDay}, ${localDateISO}

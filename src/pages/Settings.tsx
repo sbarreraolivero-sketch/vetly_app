@@ -113,6 +113,7 @@ export default function Settings() {
     const [facebookUrl, setFacebookUrl] = useState('')
     const [tiktokUrl, setTiktokUrl] = useState('')
     const [websiteUrl, setWebsiteUrl] = useState('')
+    const [contactPhone, setContactPhone] = useState('')
     const [services, setServices] = useState<any[]>([])
     const [workingHours, setWorkingHours] = useState<any>(mockWorkingHours)
     const [businessModel, setBusinessModel] = useState<'physical' | 'mobile' | 'hybrid'>('physical')
@@ -393,6 +394,7 @@ export default function Settings() {
                     setFacebookUrl(data.facebook_url || '')
                     setTiktokUrl(data.tiktok_url || '')
                     setWebsiteUrl(data.website_url || '')
+                    setContactPhone(data.contact_phone || '')
                     setCurrency(data.currency || 'CLP')
                     setTimezone(data.timezone || 'America/Santiago')
                     setTemplateSurvey(data.template_survey || '')
@@ -913,6 +915,7 @@ export default function Settings() {
                     facebook_url: facebookUrl,
                     tiktok_url: tiktokUrl,
                     website_url: websiteUrl,
+                    contact_phone: contactPhone,
                     currency,
                     timezone,
                     business_model: businessModel,
@@ -1627,6 +1630,23 @@ export default function Settings() {
                                                 className="input-soft"
                                             />
                                         </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="flex items-center gap-2 text-sm font-medium text-charcoal mb-2">
+                                            <Phone className="w-4 h-4 text-primary-600" />
+                                            Número de Contacto
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            placeholder="Ej: +56912345678"
+                                            value={contactPhone}
+                                            onChange={(e) => setContactPhone(e.target.value)}
+                                            className="input-soft"
+                                        />
+                                        <p className="text-xs text-charcoal/40 mt-1">
+                                            Si la IA necesita derivar a una llamada o alguien pide hablar con un humano, entregará este número
+                                        </p>
                                     </div>
 
                                     <div>

@@ -225,15 +225,18 @@ serve(async (req) => {
                         continue
                     }
 
+                    const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para mañana a las *${formatTime(appt.appointment_time)}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
+
                     // Log to DB messages (legacy)
                     await supabaseClient.from('messages').insert({
                         clinic_id: clinic.id,
                         phone_number: appt.phone_number,
                         direction: 'outbound',
-                        content: `Recordatorio automático 24h enviado a ${appt.patient_name}`,
+                        content: reminderText,
                         ycloud_message_id: responseData.id,
                         ycloud_status: 'sent',
-                        ai_generated: false
+                        ai_generated: false,
+                        metadata: { type: 'system_reminder_24h' }
                     })
 
                     // Log to reminder_logs (new)
@@ -421,13 +424,17 @@ serve(async (req) => {
                         const responseData = await response.json().catch(() => ({}));
 
                         if (response.ok) {
+                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formatTime(appt.appointment_time)}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
+
                             await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
                                 phone_number: appt.phone_number,
                                 direction: 'outbound',
-                                content: `Recordatorio 2h antes enviado a ${appt.patient_name}`,
+                                content: reminderText,
                                 ycloud_message_id: responseData.id,
-                                ycloud_status: 'sent'
+                                ycloud_status: 'sent',
+                                ai_generated: false,
+                                metadata: { type: 'system_reminder_2h' }
                             })
                             await supabaseClient.from('reminder_logs').insert({
                                 clinic_id: clinic.id,
@@ -590,13 +597,17 @@ serve(async (req) => {
                         const responseData = await response.json().catch(() => ({}));
 
                         if (response.ok) {
+                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formatTime(appt.appointment_time)}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
+
                             await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
                                 phone_number: appt.phone_number,
                                 direction: 'outbound',
-                                content: `Recordatorio 1h antes enviado a ${appt.patient_name}`,
+                                content: reminderText,
                                 ycloud_message_id: responseData.id,
-                                ycloud_status: 'sent'
+                                ycloud_status: 'sent',
+                                ai_generated: false,
+                                metadata: { type: 'system_reminder_1h' }
                             })
                             await supabaseClient.from('reminder_logs').insert({
                                 clinic_id: clinic.id,
@@ -748,15 +759,17 @@ serve(async (req) => {
                                 sent_at: new Date().toISOString()
                             }).eq('id', rem.id)
 
-                            // Log message
+                            const reminderText = `Hola 👋\nTe recordamos que es momento de agendar el próximo control/vacuna de *${patientName || 'tu mascota'}*.\n\n¿Deseas que coordinemos una visita?`;
+
                             await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
                                 phone_number: phoneNumber,
                                 direction: 'outbound',
-                                content: `Recordatorio automático enviado: ${rem.title} para ${patientName}`,
+                                content: reminderText,
                                 ycloud_message_id: responseData.id,
                                 ycloud_status: 'sent',
-                                ai_generated: false
+                                ai_generated: false,
+                                metadata: { type: 'system_reminder_general' }
                             })
 
                             // Increment usage

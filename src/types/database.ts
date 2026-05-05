@@ -53,7 +53,8 @@ export interface Database {
                     template_survey: string | null
                     template_reactivation: string | null
                     vaccine_reminder_template: string | null
-                    deworming_reminder_template: string | null
+                    template_deworming: string | null
+                    contact_phone: string | null
                 }
                 Insert: {
                     id?: string
@@ -97,6 +98,7 @@ export interface Database {
                     currency?: string | null
                     template_survey?: string | null
                     template_reactivation?: string | null
+                    contact_phone?: string | null
                 }
                 Update: {
                     id?: string
@@ -140,6 +142,7 @@ export interface Database {
                     currency?: string | null
                     template_survey?: string | null
                     template_reactivation?: string | null
+                    contact_phone?: string | null
                 }
             }
             subscriptions: {
