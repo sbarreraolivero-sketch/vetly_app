@@ -114,8 +114,9 @@ serve(async (req) => {
             const [prefHourStr] = (settings.preferred_hour || '09:00').split(':')
             const prefHour = parseInt(prefHourStr)
 
-            // Strict check: only run if hours match
-            if (currentHour !== prefHour) {
+            // Check: run if current hour is >= preferred hour. 
+            // This ensures we start sending at the preferred hour, but also catch any appointments created after it.
+            if (currentHour < prefHour) {
                 continue
             }
 
