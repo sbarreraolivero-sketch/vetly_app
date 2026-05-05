@@ -858,7 +858,7 @@ export default function Appointments() {
                                             service: 'Bloqueo',
                                             phone_number: '000000000',
                                             appointment_date: format(now, 'yyyy-MM-dd'),
-                                            appointment_time: format(now, 'HH:mm'),
+                                            appointment_time: format(now, 'HH:00'),
                                         })
                                         setShowModal(true)
                                     }}
@@ -873,7 +873,7 @@ export default function Appointments() {
                                         setNewAppointment({
                                             ...INITIAL_FORM_STATE,
                                             appointment_date: format(now, 'yyyy-MM-dd'),
-                                            appointment_time: format(now, 'HH:mm'),
+                                            appointment_time: format(now, 'HH:00'),
                                         })
                                         setShowModal(true)
                                     }}

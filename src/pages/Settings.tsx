@@ -551,7 +551,7 @@ export default function Settings() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data, error } = await (supabase as any)
                     .from('reminder_logs')
-                    .select('*, appointments(patient_name)')
+                    .select('*, appointments(patient_name, tutor_name)')
                     .eq('clinic_id', profile.clinic_id)
                     .order('sent_at', { ascending: false })
                     .limit(20)
@@ -3152,6 +3152,8 @@ export default function Settings() {
                                                 <thead>
                                                     <tr className="bg-ivory/50 border-b border-silk-beige text-[11px] uppercase tracking-wider text-charcoal/40 font-bold">
                                                         <th className="px-6 py-4">Paciente</th>
+                                                        <th className="px-6 py-4">Tutor</th>
+                                                        <th className="px-6 py-4">WhatsApp</th>
                                                         <th className="px-6 py-4">Tipo</th>
                                                         <th className="px-6 py-4">Estado</th>
                                                         <th className="px-6 py-4">Fecha/Hora</th>
@@ -3164,6 +3166,16 @@ export default function Settings() {
                                                             <td className="px-6 py-4">
                                                                 <p className="font-semibold text-charcoal text-sm">
                                                                     {log.appointments?.patient_name || 'Paciente'}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <p className="text-sm text-charcoal/80">
+                                                                    {log.appointments?.tutor_name || '-'}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <p className="text-sm text-charcoal/80 whitespace-nowrap">
+                                                                    {log.phone_number || '-'}
                                                                 </p>
                                                             </td>
                                                             <td className="px-6 py-4">

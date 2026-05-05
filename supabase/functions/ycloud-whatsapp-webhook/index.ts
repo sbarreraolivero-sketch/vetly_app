@@ -748,7 +748,7 @@ const checkAvail = async (
       }
       
       if (nearestLoc) {
-        clinicBase = { lat: nearestLoc.lat, lng: nearestLoc.lng, name: nearestLoc.name };
+        clinicBase = { ...nearestLoc };
         console.log(`[checkAvail] Nearest ${isSurgery ? 'Hub' : 'Base'} found: ${nearestLoc.name} (${minDistance.toFixed(2)}km away)`);
       }
     } else {
@@ -756,6 +756,10 @@ const checkAvail = async (
       clinicBase = finalLogistics.base_coordinates || (clinic?.latitude && clinic?.longitude
         ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) }
         : null);
+      if (clinicBase) {
+        // Ensure it has a name for logging
+        clinicBase = { ...clinicBase, name: clinicBase.name || "Clinic Base" };
+      }
     }
   }
 
@@ -1197,8 +1201,9 @@ const checkAvail = async (
       const td = await getTravelDetails(clinicBase, tutorCoords);
       travelInfo = {
         distance_km: (td.distance / 1000).toFixed(1),
-        travel_time_minutes: Math.ceil(td.duration / 60),
+        travel_time_minutes: td.duration, // td.duration is already in minutes from getTravelDetails
       };
+      console.log(`[checkAvail] Travel Info from ${clinicBase.name || 'Base'}: ${travelInfo.travel_time_minutes} min, ${travelInfo.distance_km} km`);
     } catch (e) {
       console.error("Travel info failed", e);
     }
@@ -1225,8 +1230,10 @@ const checkAvail = async (
           const travelTime = travelInfo.travel_time_minutes;
           
           // Find the specific location rules in the config if available
+          // Robust matching: Try by name first, then by approximate coordinates
           const locConfig = finalLogistics.locations?.find((l: any) => 
-            l.lat === clinicBase.lat && l.lng === clinicBase.lng
+            (clinicBase.name && l.name === clinicBase.name) ||
+            (Math.abs(l.lat - clinicBase.lat) < 0.0001 && Math.abs(l.lng - clinicBase.lng) < 0.0001)
           );
 
           if (locConfig && locConfig.time_ranges) {
@@ -1670,7 +1677,7 @@ const getKnowledge = async (
       .select("title, content, category")
       .eq("clinic_id", clinicId)
       .eq("status", "active")
-      .order("created_at", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(20);
 
     if (!docs || docs.length === 0) return "";
@@ -2036,6 +2043,7 @@ const getKnowledgeSummary = async (
       .select("title, content, category")
       .eq("clinic_id", clinicId)
       .eq("status", "active")
+      .order("updated_at", { ascending: false })
       .limit(10);
 
     if (!docs || docs.length === 0) return "";
@@ -2513,16 +2521,35 @@ Deno.serve(async (req) => {
         `${p.name} (${p.species || "mascota"})`
       ).join(", ");
 
+      const nowLocal = new Date().toLocaleString("en-CA", { timeZone: clinic.timezone || "America/Santiago" }).split(',')[0];
+      let hasPendingAppointmentToday = false;
+
       const apptHistory = (recentAppts || []).map((a: any) => {
         const d = new Date(a.appointment_date);
-        return `- ${d.toLocaleDateString("es-CL")}: ${a.service} (${a.status})${a.notes ? ` Obs: ${a.notes}` : ""}`;
+        const apptDateStr = d.toLocaleString("en-CA", { timeZone: clinic.timezone || "America/Santiago" }).split(',')[0];
+        let statusMarker = "";
+        
+        if (apptDateStr === nowLocal && (a.status === 'pending' || a.status === 'confirmed')) {
+            statusMarker = " (PENDIENTE PARA HOY)";
+            hasPendingAppointmentToday = true;
+        } else if (d > new Date() && (a.status === 'pending' || a.status === 'confirmed')) {
+            statusMarker = " (FUTURA)";
+        } else {
+            statusMarker = " (PASADA)";
+        }
+
+        return `- ${d.toLocaleDateString("es-CL")}: ${a.service} (${a.status})${statusMarker}${a.notes ? ` Obs: ${a.notes}` : ""}`;
       }).join("\n");
 
       tutorContext =
         `\n\n### CLIENTE RECONOCIDO: ${tutor.name} ###\n` +
         `Mascotas registradas: ${petNames || "ninguna aún"}.\n` +
-        `Historial de Citas Recientes:\n${apptHistory || "Sin citas previas registradas."}\n` +
-        `INSTRUCCIÓN: Trátalo como cliente recurrente. Si tuvo una cita reciente, pregúntale cómo sigue su mascota (Post-Venta).`;
+        `Historial de Citas:\n${apptHistory || "Sin citas previas registradas."}\n` +
+        `INSTRUCCIÓN: Trátalo como cliente recurrente. Si tuvo una cita reciente, pregúntale cómo sigue su mascota (Post-Venta).\n`;
+
+      if (hasPendingAppointmentToday) {
+        tutorContext += `[¡ATENCIÓN CRÍTICA! ESTE CLIENTE TIENE UNA CITA PENDIENTE PARA HOY. Si dice "voy en camino", "estoy llegando" o manda su ubicación, NO le pidas datos para agendar ni actúes como si fuera la primera vez. Confírmale que el equipo está avisado y esperándolo.]\n`;
+      }
     }
 
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
@@ -2713,6 +2740,41 @@ Deno.serve(async (req) => {
         message_type: msgObj.type,
         payload: payloadExtra,
       }).eq("id", msgRowId);
+    }
+
+    // --- WHATSAPP QUICK REPLY BUTTON INTERCEPTION ---
+    if (msgObj?.type === "interactive" && msgObj.interactive?.type === "button_reply") {
+      const lowerTitle = (body || "").toLowerCase();
+      // Detect confirmation
+      if (lowerTitle.includes("confirmo") || lowerTitle.includes("confirmar") || lowerTitle === "sí" || lowerTitle === "si") {
+        const confirmRes = await confirmAppt(sb, clinic.id, from, "yes");
+        await sendWA(clinic.ycloud_api_key, from, clinic.ycloud_phone_number || to, confirmRes.message);
+        await sb.from("messages").insert({
+          clinic_id: clinic.id,
+          phone_number: from,
+          direction: "outbound",
+          content: confirmRes.message,
+          ai_generated: true,
+          status: "sent",
+          metadata: { type: "system_confirmation" }
+        });
+        return new Response(JSON.stringify({ status: "confirmed_via_button" }), { headers: corsHeaders });
+      } 
+      // Detect cancellation
+      else if (lowerTitle.includes("no confirmo") || lowerTitle.includes("cancelar") || lowerTitle === "no") {
+        const cancelRes = await confirmAppt(sb, clinic.id, from, "no");
+        await sendWA(clinic.ycloud_api_key, from, clinic.ycloud_phone_number || to, cancelRes.message);
+        await sb.from("messages").insert({
+          clinic_id: clinic.id,
+          phone_number: from,
+          direction: "outbound",
+          content: cancelRes.message,
+          ai_generated: true,
+          status: "sent",
+          metadata: { type: "system_cancellation" }
+        });
+        return new Response(JSON.stringify({ status: "cancelled_via_button" }), { headers: corsHeaders });
+      }
     }
 
     // CRM auto-sync restored: Create prospect if not exists and not a tutor
@@ -3127,16 +3189,21 @@ Horarios: ${hoursSummary}
 
 CONTEXTO DE FECHAS:
 - HOY: ${todayDay}, ${localDateISO}
+- MAÑANA: ${tomorrowDay}, ${tomorrowISO}
+- PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
 - HORA ACTUAL: ${localTime}
 
 ⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 --------------------------------------------------------
 
-BASE DE CONOCIMIENTO (Servicios y Precios):
+LISTA OFICIAL DE SERVICIOS Y PRECIOS:
 ${JSON.stringify(servicesForPrompt)}
 
+BASE DE CONOCIMIENTO (PROTOCOLOS Y DETALLES ACTUALIZADOS):
 ${knowledgeSummary}
+
+⚠️ NOTA PARA IA: Si existe una discrepancia entre la 'Lista Oficial' y la 'Base de Conocimiento', prioriza SIEMPRE la Base de Conocimiento, ya que contiene los protocolos y valores más recientemente actualizados por el equipo médico.
 `;
 
         const sysPromptHQ = `Eres un Asesor Especialista de Vetly. Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
@@ -3154,6 +3221,8 @@ ${knowledgeSummary}
         await debugLog(sb, `Prompt Construction`, { 
             hasLoc: !!globalLocContext, 
             locContext: globalLocContext,
+            services: servicesForPrompt,
+            knowledgeSnippet: knowledgeSummary.substring(0, 500),
             totalLen: finalSysPrompt.length 
         });
 

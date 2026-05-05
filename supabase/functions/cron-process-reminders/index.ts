@@ -59,16 +59,16 @@ serve(async (req) => {
             .from('reminder_settings')
             .select(`
                 *,
-                clinic_settings (
+                clinic_settings!inner (
                     id,
                     clinic_name,
                     timezone,
                     ycloud_api_key,
-                    ycloud_phone_number
-                ),
-                subscriptions:clinic_id (
-                    monthly_reminders_limit,
-                    monthly_reminders_used
+                    ycloud_phone_number,
+                    subscriptions (
+                        monthly_reminders_limit,
+                        monthly_reminders_used
+                    )
                 )
             `)
             .eq('reminder_24h_before', true)
@@ -85,14 +85,15 @@ serve(async (req) => {
         for (const settings of (settingsList || [])) {
             const clinic = settings.clinic_settings
 
-            // Skip if no API key
-            if (!clinic?.ycloud_api_key) {
-                results.push({ clinicId: settings.clinic_id, status: 'skipped', reason: 'No YCloud API Key' })
+            // Skip if no API key or phone number
+            if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) {
+                results.push({ clinicId: settings.clinic_id, status: 'skipped', reason: 'No YCloud API Key or Phone Number' })
                 continue
             }
 
             // Check Limits
-            const sub = Array.isArray(settings.subscriptions) ? settings.subscriptions[0] : settings.subscriptions
+            const subArray = clinic?.subscriptions || []
+            const sub = Array.isArray(subArray) ? subArray[0] : subArray
             const limit = sub?.monthly_reminders_limit
             const used = sub?.monthly_reminders_used || 0
 
@@ -186,6 +187,7 @@ serve(async (req) => {
                     const params24 = mkParams(vc24, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
 
                     const messagePayload = {
+                        from: clinic.ycloud_phone_number,
                         to: appt.phone_number,
                         type: 'template',
                         template: {
@@ -251,9 +253,9 @@ serve(async (req) => {
                     }).eq('id', appt.id)
 
                     // Increment usage
-                    await supabaseClient.rpc('increment_subscription_usage', { 
-                        column_name: 'monthly_reminders_used', 
-                        clinic_uuid: clinic.id 
+                    await supabaseClient.rpc('increment_subscription_usage', {
+                        column_name: 'monthly_reminders_used',
+                        clinic_uuid: clinic.id
                     })
 
                     sentCount++
@@ -275,16 +277,16 @@ serve(async (req) => {
             .from('reminder_settings')
             .select(`
                 *,
-                clinic_settings (
+                clinic_settings!inner (
                     id,
                     clinic_name,
                     timezone,
                     ycloud_api_key,
-                    ycloud_phone_number
-                ),
-                subscriptions:clinic_id (
-                    monthly_reminders_limit,
-                    monthly_reminders_used
+                    ycloud_phone_number,
+                    subscriptions (
+                        monthly_reminders_limit,
+                        monthly_reminders_used
+                    )
                 )
             `)
             .eq('reminder_2h_before', true)
@@ -294,10 +296,11 @@ serve(async (req) => {
 
             for (const settings of earlySettingsList) {
                 const clinic = settings.clinic_settings
-                if (!clinic?.ycloud_api_key) continue
+                if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) continue
 
                 // Check Limits
-                const sub = Array.isArray(settings.subscriptions) ? settings.subscriptions[0] : settings.subscriptions
+                const subArray = clinic?.subscriptions || []
+                const sub = Array.isArray(subArray) ? subArray[0] : subArray
                 const limit = sub?.monthly_reminders_limit
                 const used = sub?.monthly_reminders_used || 0
 
@@ -391,6 +394,7 @@ serve(async (req) => {
                         const params2h = mkParams(vc2h, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
 
                         const messagePayload = {
+                            from: clinic.ycloud_phone_number,
                             to: appt.phone_number,
                             type: 'template',
                             template: {
@@ -439,9 +443,9 @@ serve(async (req) => {
                             }).eq('id', appt.id)
 
                             // Increment usage
-                            await supabaseClient.rpc('increment_subscription_usage', { 
-                                column_name: 'monthly_reminders_used', 
-                                clinic_uuid: clinic.id 
+                            await supabaseClient.rpc('increment_subscription_usage', {
+                                column_name: 'monthly_reminders_used',
+                                clinic_uuid: clinic.id
                             })
 
                             sentCount++
@@ -472,16 +476,16 @@ serve(async (req) => {
             .from('reminder_settings')
             .select(`
                 *,
-                clinic_settings (
+                clinic_settings!inner (
                     id,
                     clinic_name,
                     timezone,
                     ycloud_api_key,
-                    ycloud_phone_number
-                ),
-                subscriptions:clinic_id (
-                    monthly_reminders_limit,
-                    monthly_reminders_used
+                    ycloud_phone_number,
+                    subscriptions (
+                        monthly_reminders_limit,
+                        monthly_reminders_used
+                    )
                 )
             `)
             .eq('reminder_1h_before', true)
@@ -491,10 +495,11 @@ serve(async (req) => {
 
             for (const settings of oneHourSettingsList) {
                 const clinic = settings.clinic_settings
-                if (!clinic?.ycloud_api_key) continue
+                if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) continue
 
                 // Check Limits
-                const sub = Array.isArray(settings.subscriptions) ? settings.subscriptions[0] : settings.subscriptions
+                const subArray = clinic?.subscriptions || []
+                const sub = Array.isArray(subArray) ? subArray[0] : subArray
                 const limit = sub?.monthly_reminders_limit
                 const used = sub?.monthly_reminders_used || 0
 
@@ -559,6 +564,7 @@ serve(async (req) => {
                         const params1h = mkParams(vc1h, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
 
                         const messagePayload = {
+                            from: clinic.ycloud_phone_number,
                             to: appt.phone_number,
                             type: 'template',
                             template: {
@@ -606,9 +612,9 @@ serve(async (req) => {
                             }).eq('id', appt.id)
 
                             // Increment usage
-                            await supabaseClient.rpc('increment_subscription_usage', { 
-                                column_name: 'monthly_reminders_used', 
-                                clinic_uuid: clinic.id 
+                            await supabaseClient.rpc('increment_subscription_usage', {
+                                column_name: 'monthly_reminders_used',
+                                clinic_uuid: clinic.id
                             })
 
                             sentCount++
@@ -632,23 +638,23 @@ serve(async (req) => {
         // ==========================================
         // PART 4: General Reminders (Vaccination, Deworming)
         // ==========================================
-        
+
         log.push('Starting PART 4: General Reminders')
 
         // Fetch all clinics to process their manual reminders
         const { data: allClinics, error: allClinicsError } = await supabaseClient
             .from('clinic_settings')
-            .select('id, clinic_name, timezone, ycloud_api_key, reminders_enabled')
+            .select('id, clinic_name, timezone, ycloud_api_key, ycloud_phone_number, reminders_enabled')
             .eq('reminders_enabled', true)
 
         if (allClinicsError) {
             console.error('Error fetching clinics for general reminders', allClinicsError)
         } else {
             for (const clinic of (allClinics || [])) {
-                if (!clinic.ycloud_api_key) continue
+                if (!clinic.ycloud_api_key || !clinic.ycloud_phone_number) continue
 
                 const timeZone = clinic.timezone || 'America/Santiago'
-                
+
                 // Calculate "Tomorrow" in clinic timezone
                 const clinicNow = new Date(new Date().toLocaleString('en-US', { timeZone }))
                 const tomorrowDate = new Date(clinicNow)
@@ -687,7 +693,7 @@ serve(async (req) => {
                     const phoneNumber = rem.tutor?.phone_number
                     const patientName = rem.patient?.name
                     const templateName = rem.whatsapp_template
-                    
+
                     if (!phoneNumber || !templateName) {
                         console.error('Reminder missing phone or template', rem.id)
                         continue
@@ -701,14 +707,15 @@ serve(async (req) => {
                         // {{4}} = Time (Full day for vaccines)
                         // {{5}} = Clinic Name
 
-                        const formattedDate = new Date(rem.scheduled_date + 'T12:00:00Z').toLocaleDateString('es-MX', { 
-                            weekday: 'long', day: 'numeric', month: 'long' 
+                        const formattedDate = new Date(rem.scheduled_date + 'T12:00:00Z').toLocaleDateString('es-MX', {
+                            weekday: 'long', day: 'numeric', month: 'long'
                         })
 
                         const vcGen = await getVarCount(clinic.ycloud_api_key, clinic.id, templateName)
                         const paramsGen = mkParams(vcGen, patientName || 'Paciente', rem.title || 'servicio', formattedDate, 'Durante el día', clinic.clinic_name)
 
                         const messagePayload = {
+                            from: clinic.ycloud_phone_number,
                             to: phoneNumber,
                             type: 'template',
                             template: {
@@ -753,9 +760,9 @@ serve(async (req) => {
                             })
 
                             // Increment usage
-                            await supabaseClient.rpc('increment_subscription_usage', { 
-                                column_name: 'monthly_reminders_used', 
-                                clinic_uuid: clinic.id 
+                            await supabaseClient.rpc('increment_subscription_usage', {
+                                column_name: 'monthly_reminders_used',
+                                clinic_uuid: clinic.id
                             })
                         } else {
                             await supabaseClient.from('reminders').update({
