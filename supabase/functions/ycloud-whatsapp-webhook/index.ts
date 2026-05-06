@@ -3187,7 +3187,7 @@ ${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
 Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
-Horarios: ${hoursSummary}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone} (Entrégalo si el cliente pide llamar o hablar con un humano)` : ""}
+Horarios: ${hoursSummary}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone} (Entrégalo si el cliente pide llamar o hablar con un humano)` : ""}${clinic.transfer_details ? `\nDatos de Pago/Transferencia: ${clinic.transfer_details}` : ""}
 
 CONTEXTO DE FECHAS:
 - HOY: ${todayDay}, ${localDateISO}

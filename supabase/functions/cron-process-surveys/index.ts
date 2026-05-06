@@ -41,14 +41,13 @@ serve(async (req) => {
                 phone_number, 
                 appointment_date, 
                 clinic_id,
-                clinic_settings!inner(*)
+                clinic_settings!inner(ycloud_api_key, clinic_name),
+                reminder_settings!inner(surveys_enabled, template_survey)
             `)
             .eq('status', 'completed')
+            .eq('reminder_settings.surveys_enabled', true)
             .lt('appointment_date', twentyFourHoursAgo) // Older than 24h
             .gt('appointment_date', fortyEightHoursAgo) // Newer than 48h (to avoid processing ancient history)
-        // Ideally we'd filter by NOT in satisfaction_surveys here, but Supabase/PostgREST doesn't support NOT IN easily in one query without a join filter
-        // So we'll filtering code or use a left join logic if possible.
-        // Simplest way: Fetch IDs, then check surveys table.
 
         if (apptError) throw apptError
 
@@ -62,7 +61,7 @@ serve(async (req) => {
                 .from('satisfaction_surveys')
                 .select('id')
                 .eq('appointment_id', appointment.id)
-                .single()
+                .maybeSingle()
 
             if (existingSurvey) {
                 console.log(`Skipping appointment ${appointment.id}: Survey already exists.`)
@@ -77,10 +76,10 @@ serve(async (req) => {
                 continue
             }
 
-            // Send Survey (Reusable logic from send-whatsapp-survey)
+            // Send Survey
             try {
-                // Template: Use dynamic template from clinic_settings, fallback to 'satisfaction_survey'
-                const surveyTemplateName = appointment.clinic_settings?.template_survey || 'satisfaction_survey'
+                // Template: Use dynamic template from reminder_settings, fallback to 'satisfaction_survey'
+                const surveyTemplateName = appointment.reminder_settings?.template_survey || 'satisfaction_survey'
 
                 // {{1}} = Patient Name
                 const messagePayload = {

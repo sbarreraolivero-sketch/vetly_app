@@ -123,9 +123,11 @@ serve(async (req) => {
             log.push(`Processing clinic ${clinic.clinic_name} (${clinic.id}) at clinic hour ${currentHour}`)
 
             // 4. Calculate "Tomorrow" in clinic's timezone
-            const tomorrowDate = new Date(clinicNow)
-            tomorrowDate.setDate(tomorrowDate.getDate() + 1)
-            const tomorrowStr = tomorrowDate.toISOString().split('T')[0] // YYYY-MM-DD
+            // IMPORTANT: Do NOT use toISOString() here — it always returns UTC.
+            // We must compute tomorrow's date in the clinic's local timezone.
+            const nowForTomorrow = new Date()
+            const tomorrowUTC = new Date(nowForTomorrow.getTime() + 24 * 60 * 60 * 1000)
+            const tomorrowStr = tomorrowUTC.toLocaleDateString('en-CA', { timeZone }) // YYYY-MM-DD in clinic TZ
 
             // 5. Fetch Appointments
             // We fetch a bit loosely and filter in JS to be safe with timestamptz comparisons if needed, 

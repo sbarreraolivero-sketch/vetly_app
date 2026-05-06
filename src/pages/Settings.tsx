@@ -234,6 +234,8 @@ export default function Settings() {
         template_followup: '',
         followup_enabled: false,
         followup_days_after: 7,
+        surveys_enabled: false,
+        template_survey: '',
     })
     const [savingReminders, setSavingReminders] = useState(false)
     const [remindersSaved, setRemindersSaved] = useState(false)
@@ -374,6 +376,8 @@ export default function Settings() {
                         template_followup: reminderData.template_followup || '',
                         followup_enabled: reminderData.followup_enabled,
                         followup_days_after: reminderData.followup_days_after,
+                        surveys_enabled: reminderData.surveys_enabled || false,
+                        template_survey: reminderData.template_survey || '',
                     })
                 }
 
@@ -3121,6 +3125,41 @@ export default function Settings() {
                                                     description="Se utiliza cuando requieres que el paciente confirme expresamente. Incluye mensaje y botones."
                                                     value={reminderSettings.template_confirmation}
                                                     onChange={(val) => setReminderSettings({ ...reminderSettings, template_confirmation: val })}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            {/* Surveys Section */}
+                            <div className="mt-6">
+                                <h3 className="text-sm font-semibold text-charcoal mb-4">⭐ Encuestas de Satisfacción</h3>
+                                <div className="space-y-3">
+                                    <div className="bg-white rounded-soft overflow-hidden shadow-soft-md border border-silk-beige">
+                                        <div className="flex items-center justify-between p-5 bg-ivory/50">
+                                            <div>
+                                                <p className="font-semibold text-charcoal">Enviar encuestas automáticas</p>
+                                                <p className="text-sm text-charcoal/60">Enviar link de satisfacción 24h después de la cita</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={reminderSettings.surveys_enabled}
+                                                    onChange={(e) => setReminderSettings({ ...reminderSettings, surveys_enabled: e.target.checked })}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-silk-beige rounded-full peer peer-checked:bg-primary-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                                            </label>
+                                        </div>
+                                        {reminderSettings.surveys_enabled && (
+                                            <div className="px-4 pb-4 border-t border-charcoal/5 pt-3">
+                                                <TemplateSelector
+                                                    label="Plantilla: Encuesta de Satisfacción"
+                                                    description="Se envía automáticamente 24 horas después de que la cita se marque como completada."
+                                                    value={reminderSettings.template_survey}
+                                                    onChange={(val) => setReminderSettings({ ...reminderSettings, template_survey: val })}
                                                 />
                                             </div>
                                         )}
