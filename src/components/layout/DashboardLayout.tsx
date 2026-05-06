@@ -109,6 +109,24 @@ export default function DashboardLayout() {
                 if (data?.activation_status === 'pending_activation') {
                     console.warn('DashboardLayout: Redirecting to pending-activation due to clinic status:', data.activation_status);
                     navigate('/pending-activation', { replace: true })
+                    return
+                }
+
+                // Check if trial has expired without conversion
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: subData } = await (supabase as any)
+                    .from('subscriptions')
+                    .select('status, trial_ends_at')
+                    .eq('clinic_id', profile.clinic_id)
+                    .single()
+
+                if (subData) {
+                    const trialExpired = subData.trial_ends_at && new Date(subData.trial_ends_at) < new Date()
+                    const notActive = subData.status !== 'active'
+                    if (trialExpired && notActive && location.pathname !== '/app/settings') {
+                        console.warn('DashboardLayout: Trial expired, redirecting to settings/plan')
+                        navigate('/app/settings?tab=subscription&expired=1', { replace: true })
+                    }
                 }
             }
         }

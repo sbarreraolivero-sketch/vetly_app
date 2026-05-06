@@ -257,7 +257,17 @@ Deno.serve(async (req: Request) => {
             console.warn("Welcome email trigger failed (skipping):", e);
         }
 
-        // Note: Subscription is auto-created by trigger on clinic_settings insert
+        // Note: Subscription is auto-created by trigger on clinic_settings insert.
+        // The trigger may use a default plan, so we must explicitly update it to the selected plan.
+        const { error: subPlanError } = await supabaseAdmin
+            .from('subscriptions')
+            .update({ plan: selected_plan })
+            .eq('clinic_id', clinicData.id)
+
+        if (subPlanError) {
+            // Non-fatal: log but don't fail the signup
+            console.warn('Could not sync subscription plan from trigger:', subPlanError)
+        }
 
         // Return success
         return new Response(

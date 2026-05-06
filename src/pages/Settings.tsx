@@ -39,6 +39,7 @@ import {
     Calendar,
     Cpu,
     Phone,
+    ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
@@ -272,6 +273,7 @@ export default function Settings() {
         monthlyLimit: number
         monthlyUsed: number
     } | null>(null)
+    const [cancellingSubscription, setCancellingSubscription] = useState(false)
 
     // AI usage state - consolidated at top of component
 
@@ -424,8 +426,18 @@ export default function Settings() {
                     .single()
 
                 if (subData) {
+                    // Fallback: if subscriptions.plan is blank, read from clinic_settings
+                    let planName = subData.plan
+                    if (!planName || planName === '') {
+                        const { data: csData } = await (supabase as any)
+                            .from('clinic_settings')
+                            .select('subscription_plan')
+                            .eq('id', profile.clinic_id)
+                            .single()
+                        planName = csData?.subscription_plan || 'essence'
+                    }
                     setSubscription({
-                        plan: subData.plan,
+                        plan: planName,
                         status: subData.status,
                         trialEndsAt: subData.trial_ends_at,
                         monthlyLimit: subData.monthly_appointments_limit,
@@ -1984,6 +1996,19 @@ export default function Settings() {
                                 </div>
                             )}
 
+                            {/* Expired Trial Banner */}
+                            {searchParams.get('expired') === '1' && (
+                                <div className="p-5 rounded-soft bg-red-50 border-2 border-red-300 flex items-start gap-4">
+                                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <ShieldAlert className="w-5 h-5 text-red-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-red-800 text-base">Tu período de prueba ha vencido</p>
+                                        <p className="text-sm text-red-700 mt-1">Tu acceso está temporalmente restringido. Para continuar usando Vetly, activa un plan de pago a continuación. Todos tus datos siguen guardados.</p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-4">
@@ -2064,6 +2089,32 @@ export default function Settings() {
                                     >
                                         Gestionar en Mercado Pago
                                     </a>
+                                    {subscription?.status === 'active' && (
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('\u00bfEst\u00e1s seguro de que deseas cancelar tu suscripci\u00f3n? Perder\u00e1s acceso a todas las funcionalidades al final del per\u00edodo actual.')) return
+                                                setCancellingSubscription(true)
+                                                try {
+                                                    const { error: cancelError } = await (supabase as any)
+                                                        .from('subscriptions')
+                                                        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+                                                        .eq('clinic_id', profile?.clinic_id)
+                                                    if (cancelError) throw cancelError
+                                                    setSubscription(prev => prev ? { ...prev, status: 'cancelled' } : null)
+                                                    toast.success('Suscripci\u00f3n cancelada. Tendr\u00e1s acceso hasta el fin del per\u00edodo actual.')
+                                                } catch (err: any) {
+                                                    toast.error('Error al cancelar: ' + (err.message || 'Error desconocido'))
+                                                } finally {
+                                                    setCancellingSubscription(false)
+                                                }
+                                            }}
+                                            disabled={cancellingSubscription}
+                                            className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-soft border border-red-200 transition-all flex items-center gap-2"
+                                        >
+                                            {cancellingSubscription ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                                            Cancelar suscripci\u00f3n
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
