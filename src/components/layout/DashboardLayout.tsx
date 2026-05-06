@@ -585,7 +585,7 @@ export default function DashboardLayout() {
                 </header>
 
                 {/* Page Content */}
-                <main className="flex-1 overflow-auto p-6 scrollbar-soft">
+                <main className="flex-1 overflow-auto p-3 sm:p-6 scrollbar-soft">
                     <Outlet />
                 </main>
             </div>

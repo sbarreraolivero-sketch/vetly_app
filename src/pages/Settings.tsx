@@ -1308,7 +1308,7 @@ export default function Settings() {
     }
 
     return (
-        <div className="animate-fade-in relative min-h-[calc(100vh-7rem)] bg-gradient-to-br from-accent-200 to-accent-100 p-4 md:p-8 rounded-[2rem] shadow-soft-xl border border-white/60">
+        <div className="animate-fade-in relative min-h-[calc(100vh-7rem)] bg-gradient-to-br from-accent-200 to-accent-100 p-2 sm:p-4 md:p-8 rounded-xl sm:rounded-[2rem] shadow-soft-xl border border-white/60">
             <div className="flex flex-col md:flex-row gap-6 md:gap-8">
 
                 {/* Mobile Content Header (Back Button) */}
@@ -1361,7 +1361,7 @@ export default function Settings() {
 
                 {/* Content */}
                 <div className={cn(
-                    "flex-1",
+                    "flex-1 min-w-0 w-full overflow-hidden",
                     showMobileList && "hidden md:block" // hide content on mobile if showing list
                 )}>
                     {/* Profile Settings */}
@@ -1369,7 +1369,7 @@ export default function Settings() {
                         <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
                             <MyProfile />
 
-                            <div className="card-soft p-6 space-y-4 max-w-3xl w-full">
+                            <div className="card-soft p-4 sm:p-6 space-y-4 max-w-3xl w-full">
                                 <h3 className="font-medium text-charcoal">Seguridad</h3>
                                 <div className="space-y-4 w-full">
                                     <div className="w-full">
@@ -1427,26 +1427,28 @@ export default function Settings() {
                     {/* Clinic Settings */}
                     {activeTab === 'clinic' && (
                         <div className="space-y-6">
-                            <div className="card-soft p-6">
-                                <div className="flex items-center justify-between mb-6">
+                            <div className="card-soft p-4 sm:p-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                                     <h2 className="text-lg font-semibold text-charcoal">Información de la Clínica</h2>
-                                    <button
-                                        onClick={handleSaveClinic}
-                                        disabled={savingClinic}
-                                        className="btn-primary flex items-center gap-2 shadow-sm"
-                                    >
-                                        {savingClinic ? (
-                                            <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                        ) : (
-                                            <><Save className="w-4 h-4" /> Guardar Cambios</>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={handleSaveClinic}
+                                            disabled={savingClinic}
+                                            className="btn-primary flex items-center gap-2 shadow-sm w-full sm:w-auto justify-center"
+                                        >
+                                            {savingClinic ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                            ) : (
+                                                <><Save className="w-4 h-4" /> Guardar Cambios</>
+                                            )}
+                                        </button>
+                                        {clinicSaved && (
+                                            <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft border border-emerald-100">
+                                                <CheckCircle2 className="w-4 h-4" />
+                                                ¡Guardado!
+                                            </div>
                                         )}
-                                    </button>
-                                    {clinicSaved && (
-                                        <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft border border-emerald-100">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            ¡Guardado!
-                                        </div>
-                                    )}
+                                    </div>
                                 </div>
 
                                 <div className="bg-silk-beige/20 p-4 rounded-soft border border-silk-beige/30 mb-8">
@@ -1748,7 +1750,7 @@ export default function Settings() {
                             </div>
 
                             {/* Services */}
-                            <div className="card-soft p-6">
+                            <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-lg font-semibold text-charcoal">Servicios</h2>
                                     {serviceSaved && (
@@ -1982,7 +1984,7 @@ export default function Settings() {
                                 </div>
                             )}
 
-                            <div className="card-soft p-6">
+                            <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-primary-100 rounded-soft flex items-center justify-center">
@@ -2189,7 +2191,7 @@ export default function Settings() {
                     {/* Schedule Settings */}
                     {activeTab === 'schedule' && (
                         <>
-                            <div className="card-soft p-6">
+                            <div className="card-soft p-4 sm:p-6">
                                 <h2 className="text-lg font-semibold text-charcoal mb-6">Horarios de Atención</h2>
 
                                 <div className="space-y-3">
@@ -2345,7 +2347,7 @@ export default function Settings() {
                             </div>
 
                             {/* Blocked Dates Section */}
-                            <div className="card-soft p-6 mt-6">
+                            <div className="card-soft p-4 sm:p-6 mt-6">
                                 <div className="flex items-center gap-3 mb-6">
                                     <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
                                         <Calendar className="w-5 h-5 text-amber-500" />
@@ -2449,7 +2451,7 @@ export default function Settings() {
                     {activeTab === 'integrations' && (
                         <div className="space-y-6">
                             {/* YCloud */}
-                            <div className="card-soft p-6">
+                            <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center gap-4 mb-6">
                                     <div className="w-12 h-12 bg-emerald-100 rounded-soft flex items-center justify-center">
                                         <MessageSquare className="w-6 h-6 text-emerald-600" />
@@ -2512,7 +2514,7 @@ export default function Settings() {
                             </div>
 
                             {/* Webhooks / n8n */}
-                            <div className="card-soft p-6">
+                            <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-orange-100 rounded-soft flex items-center justify-center">
@@ -2757,7 +2759,7 @@ export default function Settings() {
 
                     {/* Notifications Settings */}
                     {activeTab === 'notifications' && (
-                        <div className="card-soft p-6">
+                        <div className="card-soft p-4 sm:p-6">
                             <h2 className="text-lg font-semibold text-charcoal mb-2">Configuración de Notificaciones</h2>
                             <p className="text-sm text-charcoal/50 mb-6">Elige qué notificaciones recibir en tu panel</p>
 
@@ -2903,7 +2905,7 @@ export default function Settings() {
 
                     {/* Reminders Settings */}
                     {activeTab === 'reminders' && (
-                        <div className="card-soft p-6">
+                        <div className="card-soft p-4 sm:p-6">
                             <div className="flex items-center gap-4 mb-2">
                                 <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-soft flex items-center justify-center">
                                     <AlarmClock className="w-6 h-6 text-white" />
@@ -3234,7 +3236,7 @@ export default function Settings() {
                                                                 {log.error_message && (
                                                                     <div className="group relative inline-block">
                                                                         <AlertCircle className="w-4 h-4 text-red-400 cursor-help" />
-                                                                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-charcoal text-white text-xs font-bold font-bold rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                                                        <div className="absolute bottom-full right-0 mb-2 w-64 p-2 bg-charcoal text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 break-words whitespace-normal">
                                                                             {log.error_message}
                                                                         </div>
                                                                     </div>
