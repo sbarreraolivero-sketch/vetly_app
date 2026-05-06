@@ -261,7 +261,7 @@ Deno.serve(async (req: Request) => {
         // The trigger may use a default plan, so we must explicitly update it to the selected plan.
         const { error: subPlanError } = await supabaseAdmin
             .from('subscriptions')
-            .update({ plan: selected_plan })
+            .update({ plan_id: selected_plan })
             .eq('clinic_id', clinicData.id)
 
         if (subPlanError) {

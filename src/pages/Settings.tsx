@@ -426,8 +426,8 @@ export default function Settings() {
                     .single()
 
                 if (subData) {
-                    // Fallback: if subscriptions.plan is blank, read from clinic_settings
-                    let planName = subData.plan
+                    // Fallback: if subscriptions.plan_id is blank, read from clinic_settings
+                    let planName = subData.plan_id
                     if (!planName || planName === '') {
                         const { data: csData } = await (supabase as any)
                             .from('clinic_settings')
