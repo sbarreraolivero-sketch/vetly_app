@@ -140,6 +140,7 @@ Deno.serve(async (req: Request) => {
         const plan = payment.metadata?.plan || 'essence';
         const updateData: Record<string, unknown> = {
             status: subscriptionStatus,
+            plan: plan,
             mercadopago_subscription_id: payload.data.id,
         };
 

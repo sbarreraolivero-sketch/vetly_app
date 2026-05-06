@@ -3078,58 +3078,6 @@ export default function Settings() {
                             </div>
 
 
-                            {/* Follow-up Section */}
-                            <div className="mt-6">
-                                <h3 className="text-sm font-semibold text-charcoal mb-4">📅 Seguimiento post-cita</h3>
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between p-5 bg-white rounded-soft shadow-soft-md border border-silk-beige">
-                                        <div>
-                                            <p className="font-semibold text-charcoal">Recordatorio de seguimiento</p>
-                                            <p className="text-sm text-charcoal/60">Enviar mensaje después de la cita para reagendar</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={reminderSettings.followup_enabled}
-                                                onChange={(e) => setReminderSettings({ ...reminderSettings, followup_enabled: e.target.checked })}
-                                                className="sr-only peer"
-                                            />
-                                            <div className="w-11 h-6 bg-silk-beige rounded-full peer peer-checked:bg-primary-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
-                                        </label>
-                                    </div>
-
-                                    {reminderSettings.followup_enabled && (
-                                        <>
-                                            <div className="flex items-center justify-between p-5 bg-white rounded-soft shadow-soft-md border border-silk-beige">
-                                                <div>
-                                                    <p className="font-semibold text-charcoal">Días después de la cita</p>
-                                                    <p className="text-sm text-charcoal/60">Cuántos días esperar antes de enviar</p>
-                                                </div>
-                                                <select
-                                                    value={reminderSettings.followup_days_after}
-                                                    onChange={(e) => setReminderSettings({ ...reminderSettings, followup_days_after: parseInt(e.target.value) })}
-                                                    className="px-3 py-2 bg-ivory text-charcoal border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                                                >
-                                                    <option value={3}>3 días</option>
-                                                    <option value={7}>7 días</option>
-                                                    <option value={14}>14 días</option>
-                                                    <option value={30}>30 días</option>
-                                                </select>
-                                            </div>
-
-                                            <div className="mt-4">
-                                                <TemplateSelector
-                                                    label="Plantilla de Seguimiento"
-                                                    value={reminderSettings.template_followup}
-                                                    onChange={(val) => setReminderSettings({ ...reminderSettings, template_followup: val })}
-                                                />
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-
                             {/* Visual Record / History Section */}
                             <div className="mt-12">
                                 <div className="flex items-center justify-between mb-6">
