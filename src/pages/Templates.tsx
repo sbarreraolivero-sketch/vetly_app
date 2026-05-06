@@ -323,7 +323,7 @@ export default function Templates() {
                                         name: 'satisfaction_survey',
                                         category: 'UTILITY',
                                         body: '¡Hola! 👋 En la clínica nos importa mucho la salud de {{1}}. ¿Cómo calificarías tu experiencia en la atención de ayer? Tu opinión nos ayuda a mejorar. 🐾',
-                                        buttons: ['⭐️⭐️⭐️⭐️⭐️ Excelente', '⭐️⭐️⭐️ Bueno', '⭐️ Regular / Mal']
+                                        buttons: ['Excelente', 'Bueno', 'Regular / Mal']
                                     })
                                     setVariableExamples({
                                         1: 'Roco'
