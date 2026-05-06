@@ -237,7 +237,7 @@ export default function Templates() {
                             <Sparkles className="w-4 h-4 text-primary-500" />
                             Plantillas Recomendadas (Rápidas)
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                             <button
                                 onClick={() => {
                                     setNewTemplate({
@@ -295,6 +295,27 @@ export default function Templates() {
                             >
                                 <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Oferta Especial</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola {'{{1}}'}! Promoción en {'{{2}}'}...</div>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setNewTemplate({
+                                        name: 'seguimiento_medico',
+                                        category: 'UTILITY',
+                                        body: '¡Hola! 👋 Te escribimos de {{5}} para recordarte que es momento del {{2}} de {{1}}. \n\nSegún lo conversado en la última visita, la fecha sugerida es el {{3}} ({{4}}). \n\n¿Cómo ha seguido su evolución? ¿Te gustaría que coordinemos la visita a domicilio? 🐾',
+                                        buttons: ['Agendar ahora']
+                                    })
+                                    setVariableExamples({
+                                        1: 'Luna',
+                                        2: 'Control Médico — 15 días',
+                                        3: 'lunes, 20 de mayo',
+                                        4: 'Durante el día',
+                                        5: 'AnimalGrace'
+                                    })
+                                }}
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                            >
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Seguimiento Médico</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 Te escribimos de {'{{5}}'} para recordarte...</div>
                             </button>
                         </div>
                     </div>
