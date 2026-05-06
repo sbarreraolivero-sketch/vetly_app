@@ -317,6 +317,23 @@ export default function Templates() {
                                 <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Seguimiento Médico</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 Te escribimos de {'{{5}}'} para recordarte...</div>
                             </button>
+                            <button
+                                onClick={() => {
+                                    setNewTemplate({
+                                        name: 'satisfaction_survey',
+                                        category: 'UTILITY',
+                                        body: '¡Hola! 👋 En la clínica nos importa mucho la salud de {{1}}. ¿Cómo calificarías tu experiencia en la atención de ayer? Tu opinión nos ayuda a mejorar. 🐾',
+                                        buttons: ['⭐️⭐️⭐️⭐️⭐️ Excelente', '⭐️⭐️⭐️ Bueno', '⭐️ Regular / Mal']
+                                    })
+                                    setVariableExamples({
+                                        1: 'Roco'
+                                    })
+                                }}
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                            >
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Satisfacción</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 En la clínica nos importa mucho la salud de {'{{1}}'}...</div>
+                            </button>
                         </div>
                     </div>
 
