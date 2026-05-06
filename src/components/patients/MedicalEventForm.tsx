@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Loader2, Save, Activity, HeartPulse, Stethoscope, FileText, Scale } from 'lucide-react'
+import { X, Loader2, Save, Activity, HeartPulse, Stethoscope, FileText, Scale, CalendarCheck } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -63,6 +63,10 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
         procedure_notes: ''
     })
 
+    // Recordatorio de control médico
+    const [checkupReminderEnabled, setCheckupReminderEnabled] = useState(false)
+    const [checkupDays, setCheckupDays] = useState('30')
+
     useEffect(() => {
         if (event) {
             setFormData({
@@ -123,6 +127,43 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     .from('patients')
                     .update({ weight: parseFloat(formData.weight) })
                     .eq('id', patientId)
+            }
+
+            // Save checkup reminder if enabled
+            if (checkupReminderEnabled && parseInt(checkupDays) > 0) {
+                const scheduledDate = new Date()
+                scheduledDate.setDate(scheduledDate.getDate() + parseInt(checkupDays))
+
+                // Fetch clinic_id and patient phone from patient record
+                const { data: patientData } = await (supabase as any)
+                    .from('patients')
+                    .select('clinic_id, tutors(phone)')
+                    .eq('id', patientId)
+                    .single()
+
+                const clinicId = patientData?.clinic_id
+
+                // Get checkup template from clinic settings
+                let checkupTemplate = ''
+                if (clinicId) {
+                    const { data: settingsData } = await (supabase as any)
+                        .from('clinic_settings')
+                        .select('checkup_reminder_template')
+                        .eq('id', clinicId)
+                        .single()
+                    checkupTemplate = settingsData?.checkup_reminder_template || ''
+                }
+
+                await (supabase as any).from('reminders').insert({
+                    patient_id: patientId,
+                    clinic_id: clinicId || null,
+                    title: `Control Médico — ${parseInt(checkupDays)} días`,
+                    type: 'checkup',
+                    scheduled_date: scheduledDate.toISOString().split('T')[0],
+                    status: 'pending',
+                    template_name: checkupTemplate || null,
+                    notes: `Recordatorio de control generado desde historial clínico. Días configurados: ${checkupDays}`,
+                })
             }
 
             onSave()
@@ -250,8 +291,59 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                     placeholder="Detalles sobre dieta, estilo de vida, enfermedades previas, medicación actual..."
                                 />
                             </div>
+
+                            {/* Recordatorio de Control Médico */}
+                            <div className="mt-4 p-4 rounded-xl border-2 border-dashed border-primary-200 bg-primary-50/40 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                            <CalendarCheck className="w-4 h-4 text-primary-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal uppercase tracking-widest">Recordatorio de Control Médico</p>
+                                            <p className="text-[10px] text-charcoal/50 font-medium mt-0.5">Programa un WhatsApp automático para el seguimiento</p>
+                                        </div>
+                                    </div>
+                                    {/* Toggle Switch */}
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={checkupReminderEnabled}
+                                            onChange={(e) => setCheckupReminderEnabled(e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                                    </label>
+                                </div>
+
+                                {checkupReminderEnabled && (
+                                    <div className="animate-fade-in flex items-center gap-4 pt-3 border-t border-primary-200/60">
+                                        <div className="flex items-center gap-2 flex-1">
+                                            <label className="text-xs font-bold text-charcoal/70 uppercase tracking-widest whitespace-nowrap">Enviar en</label>
+                                            <select
+                                                value={checkupDays}
+                                                onChange={(e) => setCheckupDays(e.target.value)}
+                                                className="input-soft py-2 font-bold text-primary-700 flex-1 max-w-[160px]"
+                                            >
+                                                <option value="7">7 días</option>
+                                                <option value="10">10 días</option>
+                                                <option value="14">14 días</option>
+                                                <option value="21">21 días</option>
+                                                <option value="30">30 días</option>
+                                                <option value="45">45 días</option>
+                                                <option value="60">60 días</option>
+                                                <option value="90">90 días</option>
+                                            </select>
+                                        </div>
+                                        <p className="text-[11px] text-primary-700 font-bold bg-primary-100 px-3 py-1.5 rounded-lg">
+                                            Se enviará el {new Date(Date.now() + parseInt(checkupDays) * 86400000).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
+
 
                     {/* TAB: EXAMEN FÍSICO */}
                     {activeTab === 'exam' && (

@@ -18,6 +18,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
     
     const [vaccineTemplate, setVaccineTemplate] = useState('')
     const [dewormingTemplate, setDewormingTemplate] = useState('')
+    const [checkupTemplate, setCheckupTemplate] = useState('')
     const [activeClinicId, setActiveClinicId] = useState<string | null>(null)
 
     useEffect(() => {
@@ -66,6 +67,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                 const settings = settingsArray[0]
                 setVaccineTemplate(settings.vaccine_reminder_template || '')
                 setDewormingTemplate(settings.deworming_reminder_template || '')
+                setCheckupTemplate(settings.checkup_reminder_template || '')
             }
             
         } catch (error) {
@@ -96,6 +98,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                     clinic_name: currentClinic?.clinic_name || 'Mi Clínica',
                     vaccine_reminder_template: vaccineTemplate,
                     deworming_reminder_template: dewormingTemplate,
+                    checkup_reminder_template: checkupTemplate,
                     updated_at: new Date().toISOString()
                 })
             
@@ -222,7 +225,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
 
                 <div className="space-y-6">
                     <p className="text-xs text-white leading-relaxed font-bold">
-                        Configura las plantillas de WhatsApp predeterminadas. Al registrar una nueva vacuna o desparasitación para <span className="text-primary-300 font-black underline decoration-primary-300 decoration-2 underline-offset-2">cualquier paciente</span>, el sistema usará estas plantillas enviándolas automáticamente 1 día antes de la próxima dosis.
+                        Configura las plantillas de WhatsApp predeterminadas para <span className="text-primary-300 font-black underline decoration-primary-300 decoration-2 underline-offset-2">cualquier paciente</span>. Se usan automáticamente al registrar vacunas, desparasitaciones o al programar un control médico desde el historial clínico.
                     </p>
 
                     <div className="space-y-5">
@@ -241,6 +244,16 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                                 label="Plantilla: Parasitología"
                                 value={dewormingTemplate}
                                 onChange={setDewormingTemplate}
+                                placeholder="Elegir plantilla..."
+                                labelClassName="text-white"
+                           />
+                        </div>
+
+                        <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-md">
+                           <TemplateSelector 
+                                label="Plantilla: Control Médico"
+                                value={checkupTemplate}
+                                onChange={setCheckupTemplate}
                                 placeholder="Elegir plantilla..."
                                 labelClassName="text-white"
                            />

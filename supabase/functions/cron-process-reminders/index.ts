@@ -704,7 +704,7 @@ serve(async (req) => {
                 for (const rem of (reminders || [])) {
                     const phoneNumber = rem.tutor?.phone_number
                     const patientName = rem.patient?.name
-                    const templateName = rem.whatsapp_template
+                    const templateName = rem.whatsapp_template || rem.template_name
 
                     if (!phoneNumber || !templateName) {
                         console.error('Reminder missing phone or template', rem.id)
