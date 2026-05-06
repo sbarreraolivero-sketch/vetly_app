@@ -158,6 +158,7 @@ export const PLANS = {
             'IA personalizada (especialidades)',
             'Recordatorios confirmación ilimitados',
             'Benchmark entre sedes. Super Administrador',
+            'Sistema de Logística PRO',
         ],
     },
 } as const;

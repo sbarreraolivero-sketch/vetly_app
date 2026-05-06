@@ -64,6 +64,7 @@ export const LS_PLANS = {
             'Personalización de marca (White-label)',
             'Soporte Prioritario 24/7',
             'Capacitación inicial Concierge',
+            'Sistema de Logística PRO',
         ],
     },
 } as const;
