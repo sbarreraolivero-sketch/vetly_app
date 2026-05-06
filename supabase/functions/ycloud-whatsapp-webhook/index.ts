@@ -2747,7 +2747,102 @@ Deno.serve(async (req) => {
     // --- WHATSAPP QUICK REPLY BUTTON INTERCEPTION ---
     if ((msgObj?.type === "interactive" && msgObj.interactive?.type === "button_reply") || msgObj?.type === "button") {
       const lowerTitle = (body || "").toLowerCase();
-      // Detect confirmation
+
+      // ---- SATISFACTION SURVEY BUTTONS ----
+      // Map button titles to numeric ratings
+      const surveyRatingMap: Record<string, number> = {
+        "excelente": 5,
+        "bueno": 3,
+        "regular": 1,
+        "mal": 1,
+        "regular / mal": 1,
+      };
+      const matchedRatingKey = Object.keys(surveyRatingMap).find(k => lowerTitle.includes(k));
+
+      if (matchedRatingKey) {
+        const score = surveyRatingMap[matchedRatingKey];
+        const normalizedPhone = normalizePhone(from);
+
+        // Find the most recent open survey for this phone
+        const { data: openSurvey } = await sb
+          .from("satisfaction_surveys")
+          .select("id, clinic_id")
+          .or(`phone_number.eq.${from},phone_number.eq.${normalizedPhone},phone_number.eq.+${normalizedPhone}`)
+          .eq("status", "sent")
+          .order("sent_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (openSurvey) {
+          // Update rating and mark as responded
+          await sb.from("satisfaction_surveys").update({
+            rating: score,
+            status: "responded",
+            responded_at: new Date().toISOString(),
+          }).eq("id", openSurvey.id);
+        }
+
+        // Save inbound button message
+        await sb.from("messages").insert({
+          clinic_id: clinic.id,
+          phone_number: from,
+          direction: "inbound",
+          content: body,
+          message_type: "button",
+        });
+
+        let replyMsg = "";
+
+        if (score === 5) {
+          // Excellent — thank them warmly and close
+          replyMsg = `¡Qué alegría escuchar eso! 😊🐾 Nos esforzamos cada día para darle la mejor atención a ${tutor?.name ? tutor.name.split(" ")[0] + " y su" : "tu"} mascota. ¡Hasta la próxima!`;
+          await sendWA(clinic.ycloud_api_key, from, clinic.ycloud_phone_number || to, replyMsg);
+          await sb.from("messages").insert({
+            clinic_id: clinic.id,
+            phone_number: from,
+            direction: "outbound",
+            content: replyMsg,
+            ai_generated: true,
+            status: "sent",
+          });
+          return new Response(JSON.stringify({ status: "survey_excellent" }), { headers: corsHeaders });
+
+        } else if (score === 3) {
+          // Good — acknowledge and ask if there's anything to improve
+          replyMsg = `¡Gracias por tu respuesta! 😊 Nos alegra que haya sido una buena experiencia. Si hay algo en lo que podamos mejorar, con gusto te escuchamos. 🐾`;
+          await sendWA(clinic.ycloud_api_key, from, clinic.ycloud_phone_number || to, replyMsg);
+          await sb.from("messages").insert({
+            clinic_id: clinic.id,
+            phone_number: from,
+            direction: "outbound",
+            content: replyMsg,
+            ai_generated: true,
+            status: "sent",
+          });
+          return new Response(JSON.stringify({ status: "survey_good" }), { headers: corsHeaders });
+
+        } else {
+          // Bad rating — ask for details and flag for human review
+          replyMsg = `Lamentamos que tu experiencia no haya sido la mejor 😔. Para nosotros es muy importante mejorar. ¿Nos podrías contar qué fue lo que no estuvo bien? Tu comentario nos ayuda mucho.`;
+          await sendWA(clinic.ycloud_api_key, from, clinic.ycloud_phone_number || to, replyMsg);
+          await sb.from("messages").insert({
+            clinic_id: clinic.id,
+            phone_number: from,
+            direction: "outbound",
+            content: replyMsg,
+            ai_generated: true,
+            status: "sent",
+          });
+          // Flag conversation for human review
+          await sb.from("conversations").update({ requires_human: true })
+            .eq("clinic_id", clinic.id)
+            .eq("phone_number", from);
+          return new Response(JSON.stringify({ status: "survey_bad_pending_feedback" }), { headers: corsHeaders });
+        }
+      }
+      // ---- END SATISFACTION SURVEY BUTTONS ----
+
+      // Detect appointment confirmation
       if (lowerTitle.includes("confirmo") || lowerTitle.includes("confirmar") || lowerTitle === "sí" || lowerTitle === "si") {
         const confirmRes = await confirmAppt(sb, clinic.id, from, "yes");
         await sendWA(clinic.ycloud_api_key, from, clinic.ycloud_phone_number || to, confirmRes.message);
@@ -3182,6 +3277,43 @@ Deno.serve(async (req) => {
             }`;
           }).join(", ");
 
+        // --- SURVEY FEEDBACK CONTEXT ---
+        // Check if this client has a recent survey pending feedback (score=1, status=responded, no feedback_context yet)
+        const normalizedFromPhone = normalizePhone(from);
+        const { data: pendingFeedbackSurvey } = await sb
+          .from("satisfaction_surveys")
+          .select("id, rating")
+          .or(`phone_number.eq.${from},phone_number.eq.${normalizedFromPhone},phone_number.eq.+${normalizedFromPhone}`)
+          .eq("status", "responded")
+          .lte("rating", 2)
+          .is("feedback_context", null)
+          .order("responded_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // If the client replied after a bad-rating survey, save their text as feedback_context
+        if (pendingFeedbackSurvey && burstInbound.length > 0) {
+          const feedbackText = burstInbound.map(m => m.content || "").join(" ").trim();
+          if (feedbackText) {
+            await sb.from("satisfaction_surveys")
+              .update({ feedback_context: feedbackText })
+              .eq("id", pendingFeedbackSurvey.id);
+          }
+        }
+
+        const surveyFeedbackContextBlock = pendingFeedbackSurvey
+          ? `
+⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCIÓN NEGATIVA ⚠️
+Este cliente acaba de calificar su última atención con una puntuación baja (${pendingFeedbackSurvey.rating} estrella/s).
+Ya recibió el mensaje de disculpa automático. Tu rol ahora es:
+1. Escuchar activamente. Si el cliente comparte una queja o comentario, AGRADÉCELE por la retroalimentación.
+2. Muestra empatía genuina y brevedad. No prometas cosas que no puedes cumplir.
+3. Si el problema es clínico (medicación, evolución, procedimiento), usa escalate_to_human para que el equipo lo atienda directamente.
+4. Si el cliente simplemente quiere desahogarse, escúchalo y despídete cordialmente.
+5. NO inicies un nuevo flujo de agendamiento ni intentes vender nada en este contexto.
+`
+          : "";
+
         const sysPrompt = `
 ${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
@@ -3194,7 +3326,7 @@ CONTEXTO DE FECHAS:
 - MAÑANA: ${tomorrowDay}, ${tomorrowISO}
 - PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
 - HORA ACTUAL: ${localTime}
-
+${surveyFeedbackContextBlock}
 ⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 --------------------------------------------------------

@@ -125,11 +125,12 @@ serve(async (req) => {
                     ycloud_status: 'sent'
                 })
 
-                // Create Survey Record
+                // Create Survey Record (include phone_number for button-reply matching)
                 await supabaseClient.from('satisfaction_surveys').insert({
                     clinic_id: appointment.clinic_id,
                     appointment_id: appointment.id,
                     patient_id: appointment.patient_id,
+                    phone_number: appointment.phone_number,
                     status: 'sent',
                     whatsapp_message_id: ycloudResult.id,
                     sent_at: new Date().toISOString()
