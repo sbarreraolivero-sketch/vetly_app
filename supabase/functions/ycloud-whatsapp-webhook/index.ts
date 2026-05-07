@@ -2120,7 +2120,10 @@ const processFunc = async (
 
         if (dayApps && dayApps.length > 0) {
           const zones = [...new Set(dayApps.map(a => a.address).filter(Boolean))].join(", ");
-          routeContext = `\n[INFO LOGÍSTICA: Ese día el médico ya tiene citas agendadas en hacia estas zonas: ${zones}. Evalúa si el tutor queda "de camino" para optimizar la logística.]`;
+          routeContext = `\n[RESTRICCIÓN LOGÍSTICA CRÍTICA: El médico ya tiene citas agendadas en: ${zones}.
+1. PROHIBIDO hacer "Ping-Pong" entre ciudades (ej: Linares -> Talca -> Linares).
+2. Si el cliente está en una zona distinta a la predominante (${zones}), DEBES agrupar su cita al inicio o al final de la jornada.
+3. NO ofrezcas horarios intermedios que obliguen a cruzar de ciudad dos veces. Evalúa la factibilidad física antes de proponer.]`;
         }
       } catch (err) {
         console.error("[ROUTE_CONTEXT] Error:", err);
