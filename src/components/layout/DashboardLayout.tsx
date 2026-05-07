@@ -86,6 +86,9 @@ export default function DashboardLayout() {
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
+    const [notificationsLimit, setNotificationsLimit] = useState(10)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(true)
 
     // Check activation status and redirect
     useEffect(() => {
@@ -140,15 +143,19 @@ export default function DashboardLayout() {
 
             try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data, error } = await (supabase as any)
+                const { data, error, count } = await (supabase as any)
                     .from('notifications')
-                    .select('*')
+                    .select('*', { count: 'exact' })
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
-                    .limit(10)
+                    .limit(notificationsLimit)
 
                 if (error) throw error
                 setNotifications(data || [])
+                
+                if (count !== null) {
+                    setHasMore((data?.length || 0) < count)
+                }
             } catch (error) {
                 console.error('Error fetching notifications:', error)
             }
@@ -159,7 +166,16 @@ export default function DashboardLayout() {
         // Refresh notifications every 30 seconds
         const interval = setInterval(fetchNotifications, 30000)
         return () => clearInterval(interval)
-    }, [profile?.clinic_id])
+    }, [profile?.clinic_id, notificationsLimit])
+
+    const handleLoadMore = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        setLoadingMore(true)
+        // Artificial delay for smooth feel
+        await new Promise(resolve => setTimeout(resolve, 500))
+        setNotificationsLimit(prev => prev + 10)
+        setLoadingMore(false)
+    }
 
     const unreadCount = notifications.filter(n => !n.is_read).length
 
@@ -516,6 +532,23 @@ export default function DashboardLayout() {
                                                         </div>
                                                     </div>
                                                 ))}
+
+                                                {hasMore && (
+                                                    <button
+                                                        onClick={handleLoadMore}
+                                                        disabled={loadingMore}
+                                                        className="w-full py-3 px-4 text-xs font-bold text-primary-600 hover:bg-ivory/50 transition-colors border-t border-silk-beige flex items-center justify-center gap-2"
+                                                    >
+                                                        {loadingMore ? (
+                                                            <>
+                                                                <div className="w-3 h-3 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                                                                Cargando más...
+                                                            </>
+                                                        ) : (
+                                                            'Ver más notificaciones pasadas'
+                                                        )}
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
