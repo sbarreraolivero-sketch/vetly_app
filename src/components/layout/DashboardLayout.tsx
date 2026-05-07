@@ -531,7 +531,7 @@ export default function DashboardLayout() {
                                                                 <p className="text-xs text-charcoal/50 mt-0.5 truncate">
                                                                     {notification.message}
                                                                 </p>
-                                                                <p className="text-[10px] text-charcoal/40 mt-1 font-bold uppercase tracking-wider">
+                                                                <p className="text-xs text-charcoal/40 mt-1">
                                                                     {formatFullDate(notification.created_at)} • Hace {formatTimeAgo(notification.created_at)}
                                                                 </p>
                                                             </div>
