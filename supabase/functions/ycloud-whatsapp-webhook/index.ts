@@ -2128,7 +2128,7 @@ const processFunc = async (
 * REGLAS CRÍTICAS PARA ESTA FECHA (Citas actuales en: ${zones}):
   1. REGLA DE LAS 2 HORAS: Margen obligatorio de 120 min entre citas de sectores opuestos.
   2. CONTINUIDAD: Si el médico ya está en un sector, quédate allí. PROHIBIDO el orden Linares -> Talca -> Linares.
-  3. CIERRE: El equipo puede cerrar el día (18:30) en Talca si ya estaba allí.
+  3. CIERRE: Se puede volver a agendar en Linares (18:00-18:30) SOLO si la última cita en el Sector Talca terminó antes de las 16:30. De lo contrario, el equipo cierra la jornada en Talca.
   4. Si la solicitud rompe la ruta, explica: "Nuestra agenda se organiza por rutas geográficas; ese día el equipo estará en el Sector [X], ¿le acomoda otro horario?" e intenta agrupar.`;
         }
       } catch (err) {
