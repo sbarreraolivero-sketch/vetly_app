@@ -168,6 +168,16 @@ serve(async (req) => {
             let sentCount = 0
 
             for (const appt of (appointments || [])) {
+                // 5.1 Skip "Bloqueo de Agenda" or invalid numbers
+                const isBlock = appt.patient_name?.toLowerCase().includes('bloqueo') || 
+                                appt.phone_number === '000000000' || 
+                                !appt.phone_number || 
+                                appt.phone_number.length < 7;
+                
+                if (isBlock) {
+                    continue;
+                }
+
                 // Verify date in clinic timezone
                 const apptDate = new Date(appt.appointment_date)
                 const apptDateStr = apptDate.toLocaleDateString('en-CA', { timeZone }) // YYYY-MM-DD matches tomorrowStr?
@@ -372,6 +382,16 @@ serve(async (req) => {
                 let sentCount = 0
 
                 for (const appt of (appointments || [])) {
+                    // 2h Skip "Bloqueo de Agenda" or invalid numbers
+                    const isBlock = appt.patient_name?.toLowerCase().includes('bloqueo') || 
+                                    appt.phone_number === '000000000' || 
+                                    !appt.phone_number || 
+                                    appt.phone_number.length < 7;
+                    
+                    if (isBlock) {
+                        continue;
+                    }
+
                     // Check if reminder was already sent RECENTLY (e.g., in last 6 hours)
                     // If so, skip (avoid duplicates)
                     if (appt.reminder_sent && appt.reminder_sent_at) {
@@ -547,6 +567,16 @@ serve(async (req) => {
                 let sentCount = 0
 
                 for (const appt of (appointments || [])) {
+                    // 1h Skip "Bloqueo de Agenda" or invalid numbers
+                    const isBlock = appt.patient_name?.toLowerCase().includes('bloqueo') || 
+                                    appt.phone_number === '000000000' || 
+                                    !appt.phone_number || 
+                                    appt.phone_number.length < 7;
+                    
+                    if (isBlock) {
+                        continue;
+                    }
+
                     // Check if reminder was sent VERY RECENTLY (e.g., in last 40 mins)
                     if (appt.reminder_sent && appt.reminder_sent_at) {
                         const lastSent = new Date(appt.reminder_sent_at).getTime()
