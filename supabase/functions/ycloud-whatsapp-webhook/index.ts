@@ -2120,10 +2120,16 @@ const processFunc = async (
 
         if (dayApps && dayApps.length > 0) {
           const zones = [...new Set(dayApps.map(a => a.address).filter(Boolean))].join(", ");
-          routeContext = `\n[RESTRICCIÓN LOGÍSTICA CRÍTICA: El médico ya tiene citas agendadas en: ${zones}.
-1. PROHIBIDO hacer "Ping-Pong" entre ciudades (ej: Linares -> Talca -> Linares).
-2. Si el cliente está en una zona distinta a la predominante (${zones}), DEBES agrupar su cita al inicio o al final de la jornada.
-3. NO ofrezcas horarios intermedios que obliguen a cruzar de ciudad dos veces. Evalúa la factibilidad física antes de proponer.]`;
+          routeContext = `\n[SISTEMA: INTELIGENCIA DE RUTA - LÓGICA TERRITORIAL]
+* SECTORES:
+  - LINARES (Base): Linares, Yerbas Buenas, Colbún, Longaví, Villa Alegre, San Javier.
+  - TALCA (Exterior): Talca, Maule, San Clemente, Pelarco, Pencahue.
+
+* REGLAS CRÍTICAS PARA ESTA FECHA (Citas actuales en: ${zones}):
+  1. REGLA DE LAS 2 HORAS: Margen obligatorio de 120 min entre citas de sectores opuestos.
+  2. CONTINUIDAD: Si el médico ya está en un sector, quédate allí. PROHIBIDO el orden Linares -> Talca -> Linares.
+  3. CIERRE: El equipo puede cerrar el día (18:30) en Talca si ya estaba allí.
+  4. Si la solicitud rompe la ruta, explica: "Nuestra agenda se organiza por rutas geográficas; ese día el equipo estará en el Sector [X], ¿le acomoda otro horario?" e intenta agrupar.`;
         }
       } catch (err) {
         console.error("[ROUTE_CONTEXT] Error:", err);
