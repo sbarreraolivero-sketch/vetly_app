@@ -169,18 +169,18 @@ export type PlanId = keyof typeof PLANS
  * CLP Credit Packs — GPT-4o-mini (económico)
  */
 export const CREDIT_PACKS = {
-    'pack_500':  { id: 'pack_500',  name: 'Pack Inicial',    credits: 500,  price: 5000,  description: '500 Créditos de IA' },
-    'pack_1500': { id: 'pack_1500', name: 'Pack Pro',        credits: 1500, price: 12000, description: '1500 Créditos de IA' },
-    'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise',  credits: 4000, price: 25000, description: '4000 Créditos de IA' },
+    'pack_500': { id: 'pack_500', name: 'Pack Inicial', credits: 500, price: 5000, description: '500 Créditos de IA' },
+    'pack_1500': { id: 'pack_1500', name: 'Pack Pro', credits: 1500, price: 12000, description: '1500 Créditos de IA' },
+    'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 4000, price: 25000, description: '4000 Créditos de IA' },
 } as const
 
 /**
  * CLP Credit Packs — GPT-4o (premium)
  */
 export const CREDIT_PACKS_4O = {
-    'pack_500_4o':  { id: 'pack_500_4o',  name: 'Pack Inicial',    credits: 500,  price: 10000, description: '500 Créditos de IA (GPT-4o)' },
-    'pack_1500_4o': { id: 'pack_1500_4o', name: 'Pack Pro',        credits: 1500, price: 30000, description: '1500 Créditos de IA (GPT-4o)' },
-    'pack_4000_4o': { id: 'pack_4000_4o', name: 'Pack Enterprise',  credits: 4000, price: 80000, description: '4000 Créditos de IA (GPT-4o)' },
+    'pack_500_4o': { id: 'pack_500_4o', name: 'Pack Inicial', credits: 500, price: 10000, description: '500 Créditos de IA (GPT-4o)' },
+    'pack_1500_4o': { id: 'pack_1500_4o', name: 'Pack Pro', credits: 1500, price: 30000, description: '1500 Créditos de IA (GPT-4o)' },
+    'pack_4000_4o': { id: 'pack_4000_4o', name: 'Pack Enterprise', credits: 4000, price: 80000, description: '4000 Créditos de IA (GPT-4o)' },
 } as const
 
 export type CreditPackId = keyof typeof CREDIT_PACKS

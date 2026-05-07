@@ -161,7 +161,9 @@ export default function Settings() {
     const [aiCreditsExtraBalance, setAiCreditsExtraBalance] = useState(0)
     const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
     const [aiMessagesUsed, setAiMessagesUsed] = useState(0)
-    const [aiMessagesUsed4o, setAiMessagesUsed4o] = useState(0)
+    const [aiMessagesUsedStandard, setAiMessagesUsedStandard] = useState(0)
+    const [aiMessagesUsedPro, setAiMessagesUsedPro] = useState(0)
+    const [aiMessagesUsedLegacy4o, setAiMessagesUsedLegacy4o] = useState(0)
     const [aiAutoRespond, setAiAutoRespond] = useState(true)
     const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For purchase, keep legacy values for payment backend
@@ -468,17 +470,37 @@ export default function Settings() {
                     // Fetch split counts
                     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
-                    // GPT-4o Messages
-                    const { count: count4o } = await (supabase as any)
+                    // 1. GPT-4o Standard
+                    const { count: countStandard } = await (supabase as any)
+                        .from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('clinic_id', profile.clinic_id)
+                        .eq('ai_generated', true)
+                        .eq('ai_model', '4o_standard')
+                        .gte('created_at', startOfMonth)
+                    setAiMessagesUsedStandard(countStandard || 0)
+
+                    // 2. GPT-4o Pro
+                    const { count: countPro } = await (supabase as any)
+                        .from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('clinic_id', profile.clinic_id)
+                        .eq('ai_generated', true)
+                        .eq('ai_model', '4o_pro')
+                        .gte('created_at', startOfMonth)
+                    setAiMessagesUsedPro(countPro || 0)
+
+                    // 3. Legacy GPT-4o (untyped)
+                    const { count: countLegacy } = await (supabase as any)
                         .from('messages')
                         .select('*', { count: 'exact', head: true })
                         .eq('clinic_id', profile.clinic_id)
                         .eq('ai_generated', true)
                         .eq('ai_model', '4o')
                         .gte('created_at', startOfMonth)
-                    setAiMessagesUsed4o(count4o || 0)
+                    setAiMessagesUsedLegacy4o(countLegacy || 0)
 
-                    // GPT-4o-mini Messages (including legacy null model)
+                    // 4. GPT-4o-mini (including legacy null model)
                     const { count: countMini } = await (supabase as any)
                         .from('messages')
                         .select('*', { count: 'exact', head: true })
@@ -3353,7 +3375,7 @@ export default function Settings() {
                                             <Zap className="w-6 h-6" />
                                         </div>
                                         <h3 className="text-lg font-black text-charcoal mb-1">Ahorro Máximo</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Eficiencia N1 — GPT-5.4</p>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Eficiencia N1 — GPT-4o Mini</p>
                                         <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Ideal para saludos y agendamientos rápidos usando Flash Mini.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
@@ -3412,8 +3434,8 @@ export default function Settings() {
                                             <Cpu className="w-6 h-6" />
                                         </div>
                                         <h3 className="text-lg font-black text-charcoal mb-1">Máximo Poder</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3) — GPT-5.5</p>
-                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-5.5 para casos clínicos complejos.</p>
+                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3) — GPT-4o</p>
+                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-4o para casos clínicos complejos.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
                                             aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
@@ -3491,9 +3513,16 @@ export default function Settings() {
                                             <p className="text-xs font-black text-red-600/60 uppercase tracking-widest">Consumo Mes</p>
                                             <div className="p-2 bg-white rounded-xl shadow-sm"><Zap className="w-4 h-4 text-red-500" /></div>
                                         </div>
-                                        <p className="text-3xl font-black text-red-600">{(aiMessagesUsed + (aiMessagesUsed4o * 60)).toLocaleString()}</p>
+                                        <p className="text-3xl font-black text-red-600">
+                                            {(
+                                                aiMessagesUsed + 
+                                                (aiMessagesUsedStandard * 8) + 
+                                                (aiMessagesUsedPro * 60) + 
+                                                (aiMessagesUsedLegacy4o * 60)
+                                            ).toLocaleString()}
+                                        </p>
                                         <p className="text-xs font-bold text-red-400 mt-1 uppercase">Créditos Usados</p>
-                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, ((aiMessagesUsed + (aiMessagesUsed4o * 60)) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
+                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 8) + (aiMessagesUsedPro * 60) + (aiMessagesUsedLegacy4o * 60))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
                                     </div>
                                 </div>
 
@@ -3507,21 +3536,21 @@ export default function Settings() {
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-black shadow-inner">1x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N1: Flash Mini — GPT-5.4</p>
+                                                <p className="text-sm font-black text-charcoal">N1: Flash Mini — GPT-4o Mini</p>
                                                 <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia Lite optimizada para velocidad y costo mínimo.</p>
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-700 font-black shadow-inner">8x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N2: Standard — GPT-5.4</p>
+                                                <p className="text-sm font-black text-charcoal">N2: Standard — GPT-4o</p>
                                                 <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento intermedio para ventas y logística avanzada.</p>
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">60x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro — GPT-5.5</p>
+                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro — GPT-4o</p>
                                                 <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia clínica y quirúrgica extrema de última generación.</p>
                                             </div>
                                         </div>

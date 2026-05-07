@@ -469,10 +469,10 @@ const saveMsg = async (
   // Prevent crash if campaign_id is not a valid UUID (e.g. numeric Meta Ad ID)
   const extraCopy = { ...extra } as any;
 
-  // Convert gpt-4o-mini to 'mini' and gpt-4o to '4o' for our simplified model tracking
-  const simplifiedModel = aiModel === "gpt-4o-mini"
+  // Convert models to tracking labels: 'mini', '4o_standard', '4o_pro'
+  const simplifiedModel = aiModel === "gpt-4o-mini" || aiModel === "mini"
     ? "mini"
-    : (aiModel === "gpt-4o" ? "4o" : null);
+    : (aiModel === "gpt-4o" || aiModel === "4o" ? "4o" : (["4o_standard", "4o_pro"].includes(aiModel!) ? aiModel : null));
   if (extraCopy.campaign_id && !isValidUUID(extraCopy.campaign_id)) {
     console.warn(
       `[saveMsg] Invalid UUID for campaign_id: ${extraCopy.campaign_id}. Setting to null.`,
@@ -615,6 +615,10 @@ const getServiceDetails = async (
       matchedNames.push(name);
     }
   }
+
+  // Pass 2: Handle Vaccination + Consultation price bundle ($0 consultation)
+  // This should be handled by the AI based on its prompt rules.
+  // We keep the totalPrice as calculated from the database services.
 
   // Ensure we don't return 0 duration
   if (totalDuration === 0) totalDuration = 60;
@@ -933,10 +937,17 @@ const checkAvail = async (
   if (date === localDate) {
     // Determine buffer based on address/zone
     const addressLower = (address || "").toLowerCase();
-    const isRemote = ["talca", "maule", "san javier", "villa alegre"].some(
-      (z) => addressLower.includes(z),
-    );
-    const bufferMinutes = isRemote ? 120 : 60;
+    
+    // FEATURE: Specific logistics for AnimalGrace (fd11b7e4-7d96-461c-a292-2caa5e2592ce)
+    const isAnimalGrace = clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce";
+    
+    let bufferMinutes = 60; // Default
+
+    // Default buffer logic
+    if (date === localDate) {
+      bufferMinutes = 120; // 2 hour buffer for same-day
+    }
+
     const cutoffMinutes = nowLocalMinutes + bufferMinutes;
 
     filteredSlots = filteredSlots.filter((s: any) => {
@@ -3427,9 +3438,14 @@ ${knowledgeSummary}
           const lastUserText = userContentBlocks.map(b => b.text || "").join(" ");
           const hasImageInBurst = userContentBlocks.some(b => b.type === "image_url");
           const route = selectModelTier(lastUserText, hasImageInBurst);
-          targetModel = route.model === "gpt-5.5" ? "gpt-4o" : "gpt-4o-mini";
+          // Mapping based on User's Hybrid Cost Table:
+          // N3: Sovereign Pro (gpt-5.5) -> gpt-4o
+          // N2: Standard (gpt-5.4) -> gpt-4o
+          // N1: Flash Mini (gpt-5.4-mini) -> gpt-4o-mini
+          targetModel = (route.model === "gpt-5.5" || route.model === "gpt-5.4") 
+            ? "gpt-4o" 
+            : "gpt-4o-mini";
           tierUsed = route.tier;
-          console.log(`[Router] Selecting Tier ${tierUsed} (${targetModel}) based on content complexity.`);
         } else if (clinic.ai_active_model === "pro") {
           targetModel = "gpt-4o";
           tierUsed = 3;
@@ -3437,6 +3453,13 @@ ${knowledgeSummary}
           targetModel = "gpt-4o-mini";
           tierUsed = 1;
         }
+        
+        // Granular tracking for hybrid cost table
+        const modelForTracking = targetModel === "gpt-4o" 
+          ? (tierUsed === 3 ? "4o_pro" : "4o_standard")
+          : "mini";
+            
+        console.log(`[Router] Strategy: ${clinic.ai_active_model} | Selected Tier ${tierUsed} (${targetModel}) -> Tracking as: ${modelForTracking}`);
 
         const blockedTools: string[] = [];
 
@@ -3531,7 +3554,7 @@ ${knowledgeSummary}
               .join(", ")
             : null,
           ai_function_result: allFuncResults.length > 0 ? allFuncResults : null,
-        }, targetModel);
+        }, modelForTracking);
 
         await sendWA(
           clinic.ycloud_api_key,
