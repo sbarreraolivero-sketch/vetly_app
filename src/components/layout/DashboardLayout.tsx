@@ -143,9 +143,9 @@ export default function DashboardLayout() {
 
             try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data, error, count } = await (supabase as any)
+                const { data, error } = await (supabase as any)
                     .from('notifications')
-                    .select('*', { count: 'exact' })
+                    .select('*')
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
                     .limit(notificationsLimit)
@@ -153,9 +153,8 @@ export default function DashboardLayout() {
                 if (error) throw error
                 setNotifications(data || [])
                 
-                if (count !== null) {
-                    setHasMore((data?.length || 0) < count)
-                }
+                // If we got exactly the limit, there's likely more to load
+                setHasMore((data?.length || 0) === notificationsLimit)
             } catch (error) {
                 console.error('Error fetching notifications:', error)
             }
@@ -246,6 +245,16 @@ export default function DashboardLayout() {
         }
     }
 
+    const formatFullDate = (dateString: string) => {
+        const date = new Date(dateString)
+        return date.toLocaleString('es-CL', {
+            weekday: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        })
+    }
+
     const formatTimeAgo = (dateString: string) => {
         const date = new Date(dateString)
         const now = new Date()
@@ -255,9 +264,9 @@ export default function DashboardLayout() {
         const diffDays = Math.floor(diffMs / 86400000)
 
         if (diffMins < 1) return 'Ahora'
-        if (diffMins < 60) return `Hace ${diffMins}m`
-        if (diffHours < 24) return `Hace ${diffHours}h`
-        return `Hace ${diffDays}d`
+        if (diffMins < 60) return `${diffMins}m`
+        if (diffHours < 24) return `${diffHours}h`
+        return `${diffDays}d`
     }
 
     const handleSignOut = async () => {
@@ -522,8 +531,8 @@ export default function DashboardLayout() {
                                                                 <p className="text-xs text-charcoal/50 mt-0.5 truncate">
                                                                     {notification.message}
                                                                 </p>
-                                                                <p className="text-xs text-charcoal/40 mt-1">
-                                                                    {formatTimeAgo(notification.created_at)}
+                                                                <p className="text-[10px] text-charcoal/40 mt-1 font-bold uppercase tracking-wider">
+                                                                    {formatFullDate(notification.created_at)} • Hace {formatTimeAgo(notification.created_at)}
                                                                 </p>
                                                             </div>
                                                             {!notification.is_read && (
