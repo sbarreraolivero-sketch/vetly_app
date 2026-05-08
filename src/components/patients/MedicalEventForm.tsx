@@ -436,6 +436,8 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                                 onChange={(e) => setCheckupDays(e.target.value)}
                                                 className="input-soft py-2 font-bold text-primary-700 flex-1 max-w-[160px]"
                                             >
+                                                <option value="3">3 días</option>
+                                                <option value="5">5 días</option>
                                                 <option value="7">7 días</option>
                                                 <option value="10">10 días</option>
                                                 <option value="14">14 días</option>
