@@ -241,7 +241,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                         <div className="space-y-6 animate-fade-in">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-silk-beige/50">
                                 <div>
-                                    <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
+                                    <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-2 ml-1">
                                         Fecha <span className="text-red-500">*</span>
                                     </label>
                                     <input
@@ -253,7 +253,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
+                                    <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-2 ml-1">
                                         Tipo de Atención
                                     </label>
                                     <select
@@ -268,7 +268,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
+                                <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-2 ml-1">
                                     Motivo de Consulta <span className="text-red-500">*</span>
                                 </label>
                                 <input
@@ -281,7 +281,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
+                                <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-2 ml-1">
                                     Anamnesis (Historia Clínica Previa)
                                 </label>
                                 <textarea
@@ -304,7 +304,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                     <Scale className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-1 ml-1">
+                                    <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-1 ml-1">
                                         Peso Actual (kg)
                                     </label>
                                     <input
@@ -378,7 +378,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     {activeTab === 'diagnosis' && (
                         <div className="space-y-6 animate-fade-in">
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
+                                <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-2 ml-1">
                                     Diagnóstico Presuntivo / Definitivo <span className="text-red-500">*</span>
                                 </label>
                                 <input
@@ -392,7 +392,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 flex items-center justify-between ml-1">
+                                <label className="block text-xs font-bold text-charcoal uppercase tracking-widest mb-2 flex items-center justify-between ml-1">
                                     <span>Tratamiento y Evolución (Plan a seguir)</span>
                                 </label>
                                 <textarea
@@ -412,7 +412,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                         </div>
                                         <div>
                                             <p className="text-xs font-black text-charcoal uppercase tracking-widest">Recordatorio de Control Médico</p>
-                                            <p className="text-[10px] text-charcoal/50 font-medium mt-0.5">Programa un WhatsApp automático para el seguimiento</p>
+                                            <p className="text-[10px] text-charcoal/70 font-medium mt-0.5">Programa un WhatsApp automático para el seguimiento</p>
                                         </div>
                                     </div>
                                     {/* Toggle Switch */}
@@ -430,7 +430,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                 {checkupReminderEnabled && (
                                     <div className="animate-fade-in flex items-center gap-4 pt-3 border-t border-primary-200/60">
                                         <div className="flex items-center gap-2 flex-1">
-                                            <label className="text-xs font-bold text-charcoal/70 uppercase tracking-widest whitespace-nowrap">Enviar en</label>
+                                            <label className="text-xs font-bold text-charcoal uppercase tracking-widest whitespace-nowrap">Enviar en</label>
                                             <select
                                                 value={checkupDays}
                                                 onChange={(e) => setCheckupDays(e.target.value)}
@@ -457,7 +457,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                 </form>
 
                 <div className="p-6 border-t border-silk-beige flex justify-between gap-3 bg-gray-50/50 rounded-b-soft">
-                    <div className="text-xs font-bold text-charcoal/40 uppercase tracking-widest flex items-center">
+                    <div className="text-xs font-bold text-charcoal/70 uppercase tracking-widest flex items-center">
                         {activeTab === 'anamnesis' && 'Paso 1 de 3'}
                         {activeTab === 'exam' && 'Paso 2 de 3'}
                         {activeTab === 'diagnosis' && 'Paso 3 de 3'}
