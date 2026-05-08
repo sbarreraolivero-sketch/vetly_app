@@ -241,7 +241,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                         <div className="space-y-6 animate-fade-in">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-silk-beige/50">
                                 <div>
-                                    <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
+                                    <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
                                         Fecha <span className="text-red-500">*</span>
                                     </label>
                                     <input
@@ -253,7 +253,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
+                                    <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
                                         Tipo de Atención
                                     </label>
                                     <select
@@ -268,7 +268,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
+                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
                                     Motivo de Consulta <span className="text-red-500">*</span>
                                 </label>
                                 <input
@@ -281,7 +281,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
+                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
                                     Anamnesis (Historia Clínica Previa)
                                 </label>
                                 <textarea
@@ -292,55 +292,6 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                 />
                             </div>
 
-                            {/* Recordatorio de Control Médico */}
-                            <div className="mt-4 p-4 rounded-xl border-2 border-dashed border-primary-200 bg-primary-50/40 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                                            <CalendarCheck className="w-4 h-4 text-primary-600" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal uppercase tracking-widest">Recordatorio de Control Médico</p>
-                                            <p className="text-[10px] text-charcoal/50 font-medium mt-0.5">Programa un WhatsApp automático para el seguimiento</p>
-                                        </div>
-                                    </div>
-                                    {/* Toggle Switch */}
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={checkupReminderEnabled}
-                                            onChange={(e) => setCheckupReminderEnabled(e.target.checked)}
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
-                                    </label>
-                                </div>
-
-                                {checkupReminderEnabled && (
-                                    <div className="animate-fade-in flex items-center gap-4 pt-3 border-t border-primary-200/60">
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <label className="text-xs font-bold text-charcoal/70 uppercase tracking-widest whitespace-nowrap">Enviar en</label>
-                                            <select
-                                                value={checkupDays}
-                                                onChange={(e) => setCheckupDays(e.target.value)}
-                                                className="input-soft py-2 font-bold text-primary-700 flex-1 max-w-[160px]"
-                                            >
-                                                <option value="7">7 días</option>
-                                                <option value="10">10 días</option>
-                                                <option value="14">14 días</option>
-                                                <option value="21">21 días</option>
-                                                <option value="30">30 días</option>
-                                                <option value="45">45 días</option>
-                                                <option value="60">60 días</option>
-                                                <option value="90">90 días</option>
-                                            </select>
-                                        </div>
-                                        <p className="text-[11px] text-primary-700 font-bold bg-primary-100 px-3 py-1.5 rounded-lg">
-                                            Se enviará el {new Date(Date.now() + parseInt(checkupDays) * 86400000).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
                         </div>
                     )}
 
@@ -353,7 +304,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                     <Scale className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1 ml-1">
+                                    <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-1 ml-1">
                                         Peso Actual (kg)
                                     </label>
                                     <input
@@ -427,7 +378,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     {activeTab === 'diagnosis' && (
                         <div className="space-y-6 animate-fade-in">
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
+                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 ml-1">
                                     Diagnóstico Presuntivo / Definitivo <span className="text-red-500">*</span>
                                 </label>
                                 <input
@@ -441,7 +392,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 flex items-center justify-between ml-1">
+                                <label className="block text-xs font-bold text-charcoal/80 uppercase tracking-widest mb-2 flex items-center justify-between ml-1">
                                     <span>Tratamiento y Evolución (Plan a seguir)</span>
                                 </label>
                                 <textarea
@@ -450,6 +401,56 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                     className="input-soft min-h-[220px] resize-none leading-relaxed text-sm font-medium"
                                     placeholder="Describe detalladamente el tratamiento aplicado, medicamentos RECETADOS y recomendaciones para el tutor..."
                                 />
+                            </div>
+
+                            {/* Recordatorio de Control Médico */}
+                            <div className="mt-4 p-4 rounded-xl border-2 border-dashed border-primary-200 bg-primary-50/40 space-y-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                            <CalendarCheck className="w-4 h-4 text-primary-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal uppercase tracking-widest">Recordatorio de Control Médico</p>
+                                            <p className="text-[10px] text-charcoal/50 font-medium mt-0.5">Programa un WhatsApp automático para el seguimiento</p>
+                                        </div>
+                                    </div>
+                                    {/* Toggle Switch */}
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={checkupReminderEnabled}
+                                            onChange={(e) => setCheckupReminderEnabled(e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                                    </label>
+                                </div>
+
+                                {checkupReminderEnabled && (
+                                    <div className="animate-fade-in flex items-center gap-4 pt-3 border-t border-primary-200/60">
+                                        <div className="flex items-center gap-2 flex-1">
+                                            <label className="text-xs font-bold text-charcoal/70 uppercase tracking-widest whitespace-nowrap">Enviar en</label>
+                                            <select
+                                                value={checkupDays}
+                                                onChange={(e) => setCheckupDays(e.target.value)}
+                                                className="input-soft py-2 font-bold text-primary-700 flex-1 max-w-[160px]"
+                                            >
+                                                <option value="7">7 días</option>
+                                                <option value="10">10 días</option>
+                                                <option value="14">14 días</option>
+                                                <option value="21">21 días</option>
+                                                <option value="30">30 días</option>
+                                                <option value="45">45 días</option>
+                                                <option value="60">60 días</option>
+                                                <option value="90">90 días</option>
+                                            </select>
+                                        </div>
+                                        <p className="text-[11px] text-primary-700 font-bold bg-primary-100 px-3 py-1.5 rounded-lg">
+                                            Se enviará el {new Date(Date.now() + parseInt(checkupDays) * 86400000).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

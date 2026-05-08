@@ -1054,17 +1054,56 @@ const checkAvail = async (
 
   // 6. IF MOBILE CLINIC: Filter slots based on Travel Time (Travel Block)
   if (isMobile && tutorCoords && filteredSlots.length > 0) {
-    // Fetch appointments for that day with coordinates and duration
-    const { data: dayAppts } = await sb.from("appointments")
-      .select("id, latitude, longitude, appointment_date, duration")
+    // Fetch ALL appointments for the day (including those without coords for capacity count)
+    const { data: allDayAppts } = await sb.from("appointments")
+      .select("id, latitude, longitude, appointment_date, duration, address")
       .eq("clinic_id", clinicId)
       .gte("appointment_date", `${date}T00:00:00`)
       .lte("appointment_date", `${date}T23:59:59`)
       .neq("status", "cancelled")
-      .not("latitude", "is", null)
       .order("appointment_date", { ascending: true });
 
-    const TRAVEL_BUFFER_MINUTES = 10; // Extra buffer for parking, etc.
+    // --- ANIMALGRACE LOGISTICS ENHANCEMENTS ---
+    if (clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce") {
+      const getSector = (addr: string, lat: number | null) => {
+        const norm = (addr || "").toLowerCase();
+        
+        // Exact mapping based on user's table
+        const linaresCommunes = ["linares", "colbun", "colbún", "longavi", "longaví", "parral", "retiro", "san javier", "villa alegre", "yerbas buenas"];
+        const talcaCommunes = ["talca", "constitucion", "constitución", "curepto", "empedrado", "maule", "pelarco", "pencahue", "rio claro", "río claro", "san clemente", "san rafael"];
+        
+        if (linaresCommunes.some(k => norm.includes(k))) return "Linares";
+        if (talcaCommunes.some(k => norm.includes(k))) return "Talca";
+
+        // Fallback to adjusted threshold: San Javier (-35.59) vs Maule (-35.51)
+        if (lat !== null) return lat <= -35.55 ? "Linares" : "Talca";
+        if (!addr || addr.trim() === "") return "Linares"; // Default Base
+        return null;
+      };
+
+      const linaresCount = allDayAppts?.filter(a => getSector(a.address, a.latitude) === "Linares").length || 0;
+      const targetSector = getSector(address, tutorCoords.lat);
+
+      if (linaresCount >= 5 && targetSector === "Talca") {
+        console.log(`[AnimalGrace] Capacity reached for LINARES (${linaresCount}/5). Blocking TALCA.`);
+        return {
+          available: false,
+          reason: "daily_capacity_reached",
+          message: `SISTEMA: Para el día ${date}, la agenda de Linares ya tiene ${linaresCount} cupos (límite 5). Por logística, con 5 citas en Linares NO se realizan traslados a Talca para proteger la ruta. Linares sigue disponible si hay huecos.`
+        };
+      }
+    }
+
+    // Enrich appointments with virtual coordinates if GPS is missing for routing
+    const dayAppts = (allDayAppts || []).map(a => {
+      if (a.latitude !== null) return a;
+      const norm = (a.address || "").toLowerCase();
+      // Virtual coords for routing fallback (using exact values from user's table)
+      if (norm.includes("talca") || norm.includes("maule") || norm.includes("san clemente") || norm.includes("pencahue")) {
+        return { ...a, latitude: -35.4264, longitude: -71.6554 }; // Talca Center
+      }
+      return { ...a, latitude: -35.8467, longitude: -71.5936 }; // Linares Center/Base
+    }).filter(a => a.latitude !== null);
 
     // For each available slot, verify if there's enough time to travel to/from it
     const finalValidSlots = [];
@@ -1106,6 +1145,17 @@ const checkAvail = async (
           );
         }
         const travelTime = travelTimeMinutes * 60;
+        
+        // --- ANIMALGRACE SECTOR RULE: 120 MINS BETWEEN LINARES AND TALCA ---
+        let finalRequiredTravelSecs = travelTime + (TRAVEL_BUFFER_MINUTES * 60);
+        if (clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce") {
+          const originSector = originLocation.lat > -35.6 ? "TALCA" : "LINARES";
+          const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
+          if (originSector !== targetSector) {
+            finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 120 * 60);
+            console.log(`[AnimalGrace] Sector change detected (${originSector} -> ${targetSector}). Enforcing 120min buffer.`);
+          }
+        }
 
         // CRITICAL FIX: If date is TODAY, we must also ensure we have enough time FROM NOW to reach the slot
         const isToday = date ===
@@ -1133,7 +1183,7 @@ const checkAvail = async (
             1000; // Assume 8 AM start if no prev on future days
         }
 
-        if (availableGapSecs < (travelTime + (TRAVEL_BUFFER_MINUTES * 60))) {
+        if (availableGapSecs < finalRequiredTravelSecs) {
           isPossible = false;
         }
       }
@@ -1155,12 +1205,23 @@ const checkAvail = async (
         }
         const travelTime = travelTimeMinutes * 60;
 
+        // --- ANIMALGRACE SECTOR RULE: 120 MINS BETWEEN LINARES AND TALCA ---
+        let finalRequiredTravelSecs = travelTime + (TRAVEL_BUFFER_MINUTES * 60);
+        if (clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce") {
+          const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
+          const destSector = destinationLocation.lat > -35.6 ? "TALCA" : "LINARES";
+          if (targetSector !== destSector) {
+            finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 120 * 60);
+            console.log(`[AnimalGrace] Sector change detected (${targetSector} -> ${destSector}). Enforcing 120min buffer.`);
+          }
+        }
+
         const availableGapSecs = nextAppt
           ? (new Date(nextAppt.appointment_date).getTime() -
             slotEnd.getTime()) / 1000
           : (new Date(`${date}T20:00:00`).getTime() - slotEnd.getTime()) / 1000; // Assume 8 PM end if no next
 
-        if (availableGapSecs < (travelTime + (TRAVEL_BUFFER_MINUTES * 60))) {
+        if (availableGapSecs < finalRequiredTravelSecs) {
           isPossible = false;
         }
       }
@@ -2122,14 +2183,15 @@ const processFunc = async (
           const zones = [...new Set(dayApps.map(a => a.address).filter(Boolean))].join(", ");
           routeContext = `\n[SISTEMA: INTELIGENCIA DE RUTA - LÓGICA TERRITORIAL]
 * SECTORES:
-  - LINARES (Base): Linares, Yerbas Buenas, Colbún, Longaví, Villa Alegre, San Javier.
-  - TALCA (Exterior): Talca, Maule, San Clemente, Pelarco, Pencahue.
+  - LINARES (Base): Linares, Colbún, Longaví, Parral, Retiro, San Javier, Villa Alegre, Yerbas Buenas.
+  - TALCA (Exterior): Talca, Constitución, Curepto, Empedrado, Maule, Pelarco, Pencahue, Río Claro, San Clemente, San Rafael.
 
-* REGLAS CRÍTICAS PARA ESTA FECHA (Citas actuales en: ${zones}):
-  1. REGLA DE LAS 2 HORAS: Margen obligatorio de 120 min entre citas de sectores opuestos.
-  2. CONTINUIDAD: Si el médico ya está en un sector, quédate allí. PROHIBIDO el orden Linares -> Talca -> Linares.
-  3. CIERRE: Se puede volver a agendar en Linares (18:00-18:30) SOLO si la última cita en el Sector Talca terminó antes de las 16:30. De lo contrario, el equipo cierra la jornada en Talca.
-  4. Si la solicitud rompe la ruta, explica: "Nuestra agenda se organiza por rutas geográficas; ese día el equipo estará en el Sector [X], ¿le acomoda otro horario?" e intenta agrupar.`;
+* REGLAS CRÍTICAS (YA APLICADAS EN LOS RESULTADOS):
+  1. REGLA DE LAS 2 HORAS: Margen obligatorio de 120 min entre Linares y Talca.
+  2. CONTINUIDAD: PROHIBIDO el orden Linares -> Talca -> Linares.
+  3. Si ves pocos horarios disponibles, es porque el sistema ya filtró los que romperían la ruta de traslados.
+  4. Citas actuales en este día: ${zones}.
+  5. Si el cliente pide una hora que no aparece, explica: "Ese día el equipo estará en el Sector [X] y por logística de traslados solo podemos agendar en los horarios mostrados. ¿Le acomoda alguno o prefiere otro día?"`;
         }
       } catch (err) {
         console.error("[ROUTE_CONTEXT] Error:", err);
@@ -2401,11 +2463,15 @@ const sendWA = async (key: string, to: string, from: string, msg: string) => {
   });
   if (!r.ok) {
     const errText = await r.text();
+    let friendlyError = errText;
+    if (r.status === 401) {
+      friendlyError = "CRITICAL: YCloud Unauthorized (401). Check API Key and Account Balance/Status.";
+    }
     console.error(
       `[sendWA] Error sending to ${cleanTo} from ${cleanFrom}:`,
-      errText,
+      friendlyError,
     );
-    throw new Error(errText);
+    throw new Error(friendlyError);
   }
   return r.json();
 };
@@ -2462,6 +2528,14 @@ Deno.serve(async (req) => {
       if (m.type === "location") {
         latitude = m.location?.latitude;
         longitude = m.location?.longitude;
+      }
+      
+      // Handle revoke (message deleted by user)
+      if (m.type === "revoke") {
+        await debugLog(sb, `Message Revoked (Deleted by user)`, { msgId: m.id, from });
+        return new Response(JSON.stringify({ status: "ignored_revoke" }), {
+          headers: corsHeaders,
+        });
       }
     } else if (p.from && p.text) {
       // Simulator fallback
@@ -2733,8 +2807,13 @@ Deno.serve(async (req) => {
     if (
       msgLow.includes("maps.app.goo.gl") || msgLow.includes("google.com/maps")
     ) {
-      console.log(`[LINK-DETECTOR] Maps link found in message: ${body}`);
-      let resolvedCoords = await resolveGoogleMapsUrl(body);
+      await debugLog(sb, `Link Detector Found`, { body });
+      
+      // Extract the actual URL to avoid fetch errors if there's text around it
+      const urlMatch = (body || "").match(/https?:\/\/(?:maps\.app\.goo\.gl|www\.google\.com\/maps)[^\s]+/);
+      const urlToResolve = urlMatch ? urlMatch[0] : body;
+
+      let resolvedCoords = await resolveGoogleMapsUrl(urlToResolve);
 
       if (resolvedCoords && resolvedCoords.lat !== 0) {
         const { lat, lng } = resolvedCoords;

@@ -28,8 +28,8 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 32 20% 88%;
-    --input: 32 20% 88%;
+    --border: 32 20% 80%;
+    --input: 32 20% 80%;
     --ring: 161 56% 28%;
     --radius: 12px;
   }
@@ -101,7 +101,7 @@
 
   /* Input Styles */
   .input-soft {
-    @apply w-full px-4 py-3 bg-white border border-silk-beige rounded-soft text-charcoal placeholder:text-charcoal/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500;
+    @apply w-full px-4 py-3 bg-white border border-silk-beige/80 rounded-soft text-charcoal placeholder:text-charcoal/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 shadow-sm;
   }
 
   /* Sidebar Navigation */
