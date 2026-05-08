@@ -157,6 +157,8 @@ serve(async (req) => {
                 .eq('clinic_id', clinic.id)
                 .in('status', ['pending', 'confirmed'])
                 .eq('reminder_sent', false)
+                .not('patient_name', 'ilike', '%bloqueo%')
+                .not('phone_number', 'eq', '000000000')
                 .gte('appointment_date', nowUTC.toISOString())
                 .lt('appointment_date', next48h.toISOString())
 
@@ -169,10 +171,10 @@ serve(async (req) => {
 
             for (const appt of (appointments || [])) {
                 // 5.1 Skip "Bloqueo de Agenda" or invalid numbers
-                const isBlock = appt.patient_name?.toLowerCase().includes('bloqueo') || 
-                                appt.phone_number === '000000000' || 
+                const isBlock = (appt.patient_name || '').toLowerCase().includes('bloqueo') || 
+                                (appt.phone_number || '').includes('000000000') || 
                                 !appt.phone_number || 
-                                appt.phone_number.length < 7;
+                                appt.phone_number.replace(/\D/g, '').length < 7;
                 
                 if (isBlock) {
                     continue;
@@ -372,8 +374,8 @@ serve(async (req) => {
                     .select('*')
                     .eq('clinic_id', clinic.id)
                     .in('status', ['pending', 'confirmed'])
-                    // Removed .eq('reminder_sent', false) here because the 24h reminder sets it to true.
-                    // Instead, we rely on the timestamp check inside the loop to avoid duplicates.
+                    .not('patient_name', 'ilike', '%bloqueo%')
+                    .not('phone_number', 'eq', '000000000')
                     .gte('appointment_date', startSearch.toISOString())
                     .lt('appointment_date', endSearch.toISOString())
 
@@ -382,11 +384,10 @@ serve(async (req) => {
                 let sentCount = 0
 
                 for (const appt of (appointments || [])) {
-                    // 2h Skip "Bloqueo de Agenda" or invalid numbers
-                    const isBlock = appt.patient_name?.toLowerCase().includes('bloqueo') || 
-                                    appt.phone_number === '000000000' || 
+                    const isBlock = (appt.patient_name || '').toLowerCase().includes('bloqueo') || 
+                                    (appt.phone_number || '').includes('000000000') || 
                                     !appt.phone_number || 
-                                    appt.phone_number.length < 7;
+                                    appt.phone_number.replace(/\D/g, '').length < 7;
                     
                     if (isBlock) {
                         continue;
@@ -556,9 +557,8 @@ serve(async (req) => {
                     .select('*')
                     .eq('clinic_id', clinic.id)
                     .in('status', ['pending', 'confirmed'])
-                    // Note: We don't filter by reminder_sent=false here because 
-                    // a 24h reminder might have been sent yesterday.
-                    // We check timestamps below.
+                    .not('patient_name', 'ilike', '%bloqueo%')
+                    .not('phone_number', 'eq', '000000000')
                     .gte('appointment_date', startSearch.toISOString())
                     .lt('appointment_date', endSearch.toISOString())
 
@@ -567,11 +567,10 @@ serve(async (req) => {
                 let sentCount = 0
 
                 for (const appt of (appointments || [])) {
-                    // 1h Skip "Bloqueo de Agenda" or invalid numbers
-                    const isBlock = appt.patient_name?.toLowerCase().includes('bloqueo') || 
-                                    appt.phone_number === '000000000' || 
+                    const isBlock = (appt.patient_name || '').toLowerCase().includes('bloqueo') || 
+                                    (appt.phone_number || '').includes('000000000') || 
                                     !appt.phone_number || 
-                                    appt.phone_number.length < 7;
+                                    appt.phone_number.replace(/\D/g, '').length < 7;
                     
                     if (isBlock) {
                         continue;
