@@ -3527,22 +3527,36 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <div className="mt-8 flex flex-col md:flex-row items-center justify-between gap-4 p-6 bg-ivory/30 rounded-[2rem] border border-dashed border-silk-beige">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-silk-beige">
-                                            <History className="w-6 h-6 text-charcoal/30" />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-black text-charcoal">Historial de Transacciones</p>
-                                            <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Consulta recargas, compras y consumos</p>
+                                <div className="mt-10 mb-6 group cursor-pointer" onClick={() => navigate('/app/ai-credits')}>
+                                    <div className="relative overflow-hidden rounded-[2.5rem] bg-charcoal p-1 shadow-2xl transition-all duration-500 hover:scale-[1.02] active:scale-95 group-hover:shadow-primary-500/20">
+                                        {/* Animated Background Gradients */}
+                                        <div className="absolute inset-0 bg-gradient-to-r from-primary-600/20 via-transparent to-primary-600/20 opacity-50" />
+                                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary-500/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
+                                        
+                                        <div className="relative bg-white rounded-[2.3rem] p-8 flex flex-col md:flex-row items-center justify-between gap-6 border border-silk-beige/50">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-20 h-20 bg-charcoal rounded-3xl flex items-center justify-center shadow-2xl transform -rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                                                    <History className="w-10 h-10 text-primary-400" />
+                                                </div>
+                                                <div className="text-left">
+                                                    <h3 className="text-xl font-black text-charcoal mb-1">Historial de Transacciones IA</h3>
+                                                    <p className="text-sm font-bold text-charcoal/40 uppercase tracking-widest leading-relaxed">
+                                                        Consulta detallada de recargas, consumos por mensaje y bonos extra
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-4">
+                                                <div className="hidden lg:block text-right mr-4">
+                                                    <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-[0.2em] mb-1 text-right">Acceso Directo</p>
+                                                    <p className="text-sm font-black text-primary-500 uppercase">Ver Registro Completo</p>
+                                                </div>
+                                                <div className="w-14 h-14 bg-ivory rounded-2xl flex items-center justify-center border border-silk-beige group-hover:bg-primary-500 group-hover:border-primary-400 transition-all duration-500 shadow-sm">
+                                                    <ChevronRight className="w-6 h-6 text-charcoal/40 group-hover:text-white transition-colors" />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => navigate('/app/ai-credits')}
-                                        className="btn-secondary px-8 py-3 flex items-center gap-3 active:scale-95 transition-all shadow-sm"
-                                    >
-                                        Ver Historial Detallado <ChevronRight className="w-4 h-4" />
-                                    </button>
                                 </div>
 
                                 {/* Custom Cost Table */}

@@ -82,107 +82,85 @@ export default function AICredits() {
     }
 
     return (
-        <div className="min-h-screen bg-ivory/30 pb-20">
-            {/* Header */}
-            <div className="bg-white border-b border-silk-beige sticky top-0 z-30">
-                <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-6">
-                        <button 
-                            onClick={handleBack}
-                            className="p-3 hover:bg-ivory rounded-2xl transition-all group"
-                        >
-                            <ArrowLeft className="w-5 h-5 text-charcoal/40 group-hover:text-primary-500 group-hover:-translate-x-1 transition-all" />
-                        </button>
+        <div className="min-h-screen bg-ivory/20 pb-20 pt-10">
+            <div className="max-w-6xl mx-auto px-6">
+                {/* Back Link - Citenly Style */}
+                <button 
+                    onClick={handleBack}
+                    className="flex items-center gap-2 text-[11px] font-black text-charcoal/40 hover:text-primary-500 transition-colors uppercase tracking-[0.2em] mb-8 group"
+                >
+                    <ChevronRight className="w-3 h-3 rotate-180 group-hover:-translate-x-1 transition-transform" />
+                    Volver a Configuración
+                </button>
+
+                {/* Page Header - Citenly Style but Vetly Blue */}
+                <div className="flex items-start gap-6 mb-12">
+                    <div className="w-20 h-20 bg-primary-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-primary-500/30 shrink-0">
+                        <History className="w-10 h-10 text-white" />
+                    </div>
+                    <div className="pt-2">
+                        <h1 className="text-3xl font-black text-charcoal tracking-tight">Historial de Créditos IA</h1>
+                        <p className="text-sm font-bold text-charcoal/40 uppercase tracking-widest mt-1">
+                            Control detallado de recargas mensuales y consumos por mensaje.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Main Card Wrapper */}
+                <div className="card-soft bg-white border border-silk-beige shadow-premium-lg overflow-hidden">
+                    {/* Inner Header */}
+                    <div className="px-8 py-6 border-b border-silk-beige bg-ivory/10 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-primary-500 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/20">
-                                <Sparkles className="w-6 h-6 text-white" />
+                            <div className="w-10 h-10 bg-primary-50 rounded-2xl flex items-center justify-center border border-primary-100">
+                                <History className="w-5 h-5 text-primary-500" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-black text-charcoal tracking-tight">Historial de Créditos IA</h1>
-                                <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest">Control y transparencia de consumo</p>
+                                <h2 className="text-xs font-black text-charcoal uppercase tracking-widest">Historial de Transacciones</h2>
+                                <p className="text-[10px] font-bold text-charcoal/30 uppercase tracking-widest mt-0.5">Transparencia total en el consumo de tu IA</p>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="hidden md:flex items-center gap-4">
-                        <button className="btn-secondary px-6 py-2.5 flex items-center gap-2 opacity-50 cursor-not-allowed">
-                            <Download className="w-4 h-4" /> Exportar
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 mt-10">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                    <div className="card-soft p-6 bg-charcoal text-white border-0 shadow-xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700" />
-                        <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest mb-1 relative z-10">Saldo Disponible</p>
-                        <p className="text-4xl font-black tabular-nums relative z-10">{stats.totalCredits.toLocaleString()}</p>
-                        <div className="flex items-center gap-2 mt-4 text-[11px] font-bold text-white/40 uppercase tracking-widest relative z-10">
-                            <Zap className="w-3 h-3 text-primary-400" /> Créditos Vetly Global
+                        
+                        <div className="flex items-center gap-3">
+                             <div className="text-right mr-4 hidden md:block">
+                                <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest">Saldo Total</p>
+                                <p className="text-lg font-black text-primary-600 tabular-nums">{stats.totalCredits.toLocaleString()}</p>
+                            </div>
+                            <button className="p-2.5 bg-white border border-silk-beige rounded-xl hover:bg-ivory transition-all shadow-sm">
+                                <Filter className="w-4 h-4 text-charcoal/40" />
+                            </button>
                         </div>
                     </div>
 
-                    <div className="card-soft p-6 bg-white border-silk-beige shadow-sm hover:shadow-md transition-all">
-                        <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest mb-1">Próxima Recarga</p>
-                        <p className="text-2xl font-black text-charcoal">{stats.nextRecharge}</p>
-                        <div className="flex items-center gap-2 mt-4 text-[11px] font-bold text-emerald-500 uppercase tracking-widest">
-                            <History className="w-3 h-3" /> Renovación Automática
-                        </div>
+                    {/* Table Area */}
+                    <div className="p-0">
+                        <AITransactionHistory 
+                            transactions={transactions} 
+                            isLoading={isLoading} 
+                        />
                     </div>
 
-                    <div className="card-soft p-6 bg-white border-silk-beige shadow-sm hover:shadow-md transition-all">
-                        <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest mb-1">Consumo Actual</p>
-                        <p className="text-2xl font-black text-charcoal">{stats.monthlyUsed.toLocaleString()}</p>
-                        <div className="flex items-center gap-2 mt-4 text-[11px] font-bold text-amber-500 uppercase tracking-widest">
-                            <Zap className="w-3 h-3" /> Ciclo de Facturación
+                    {/* Inner Footer - Citenly Style */}
+                    <div className="px-8 py-5 border-t border-silk-beige bg-ivory/5 flex items-center justify-between">
+                        <p className="text-[10px] font-black text-charcoal/30 italic uppercase tracking-widest">
+                            * Los créditos remanentes se suman automáticamente al inicio de cada ciclo mensual.
+                        </p>
+                        <div className="flex items-center gap-2 text-charcoal/40">
+                            <Calendar className="w-4 h-4" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Siguiente Recarga: {stats.nextRecharge}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Filters & Actions */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="relative flex-1 md:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/30" />
-                            <input 
-                                type="text" 
-                                placeholder="Buscar transacciones..." 
-                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-silk-beige rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
-                            />
-                        </div>
-                        <button className="p-2.5 bg-white border border-silk-beige rounded-2xl hover:bg-ivory transition-all shadow-sm">
-                            <Filter className="w-4 h-4 text-charcoal/40" />
-                        </button>
-                    </div>
-                    
-                    <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest">
-                        Mostrando {transactions.length} transacciones
-                    </p>
-                </div>
-
-                {/* History Table */}
-                <AITransactionHistory 
-                    transactions={transactions} 
-                    isLoading={isLoading} 
-                />
-
-                <div className="mt-8 p-6 bg-white/50 rounded-[2rem] border border-dashed border-silk-beige flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-4 text-left">
-                        <div className="w-10 h-10 bg-silk-beige/20 rounded-xl flex items-center justify-center">
-                            <Zap className="w-5 h-5 text-charcoal/20" />
-                        </div>
-                        <div>
-                            <p className="text-sm font-black text-charcoal">¿Necesitas más créditos?</p>
-                            <p className="text-xs font-medium text-charcoal/40 leading-tight">Puedes adquirir packs adicionales desde el panel de configuración de IA.</p>
-                        </div>
-                    </div>
+                {/* Upsell section below main card */}
+                <div className="mt-10 flex items-center justify-center">
                     <button 
                         onClick={handleBack}
-                        className="btn-primary px-8 py-3 shadow-lg shadow-primary-500/10 active:scale-95 transition-all"
+                        className="group flex items-center gap-4 bg-white/50 hover:bg-white p-2 pr-8 rounded-full border border-silk-beige transition-all shadow-sm hover:shadow-md"
                     >
-                        Adquirir Créditos
+                        <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white">
+                            <Plus className="w-5 h-5" />
+                        </div>
+                        <span className="text-xs font-black text-charcoal uppercase tracking-widest">Adquirir más Créditos IA</span>
                     </button>
                 </div>
             </div>
