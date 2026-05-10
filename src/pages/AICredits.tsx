@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
-    ArrowLeft, 
-    Sparkles, 
-    Zap, 
     History, 
-    Download,
     Filter,
-    Search
+    ChevronRight,
+    Calendar,
+    Plus
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
