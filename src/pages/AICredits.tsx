@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
     ArrowLeft, 
@@ -32,7 +32,7 @@ export default function AICredits() {
             setIsLoading(true)
             try {
                 // Fetch transactions
-                const { data, error } = await supabase
+                const { data, error } = await (supabase as any)
                     .from('ai_credit_transactions')
                     .select('*')
                     .eq('clinic_id', profile.clinic_id)
@@ -42,13 +42,15 @@ export default function AICredits() {
                 setTransactions(data || [])
 
                 // Fetch current credits stats from clinic_settings
-                const { data: settings, error: settingsError } = await supabase
+                const { data: settingsData, error: settingsError } = await (supabase as any)
                     .from('clinic_settings')
                     .select('ai_credits_monthly_limit, ai_credits_extra_balance, ai_credits_extra_4o, ai_credits_monthly_mini_used, created_at')
                     .eq('id', profile.clinic_id)
                     .single()
 
                 if (settingsError) throw settingsError
+                
+                const settings = settingsData as any
 
                 // Calculate next recharge date
                 const createdAt = new Date(settings.created_at)
