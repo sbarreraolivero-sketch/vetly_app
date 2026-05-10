@@ -52,6 +52,7 @@ interface Msg {
   function_call?: { name: string; arguments: string };
   tool_calls?: any[];
   tool_call_id?: string;
+  geminiParts?: any[]; // For preserving Gemini's complex response parts
 }
 
 // ====== Helper: Download Media from YCloud ======
@@ -470,9 +471,9 @@ const saveMsg = async (
   const extraCopy = { ...extra } as any;
 
   // Convert models to tracking labels: 'mini', '4o_standard', '4o_pro'
-  const simplifiedModel = aiModel === "gpt-4o-mini" || aiModel === "mini"
+  const simplifiedModel = aiModel === "gpt-4o-mini" || aiModel === "mini" || aiModel?.includes("mini")
     ? "mini"
-    : (aiModel === "gpt-4o" || aiModel === "4o" ? "4o" : (["4o_standard", "4o_pro"].includes(aiModel!) ? aiModel : null));
+    : (aiModel === "gpt-4o" || aiModel === "4o" || (aiModel?.includes("gpt-4o") && !aiModel?.includes("mini")) ? "4o" : (["4o_standard", "4o_pro"].includes(aiModel!) ? aiModel : null));
   if (extraCopy.campaign_id && !isValidUUID(extraCopy.campaign_id)) {
     console.warn(
       `[saveMsg] Invalid UUID for campaign_id: ${extraCopy.campaign_id}. Setting to null.`,
@@ -2288,9 +2289,12 @@ const selectModelTier = (content: string, hasImage: boolean = false): { model: s
                     text.includes("castra") || 
                     text.includes("grave") || 
                     text.includes("sangre") || 
-                    text.includes("emergencia");
+                    text.includes("emergencia") ||
+                    text.includes("disponib") ||
+                    text.includes("hora") ||
+                    text.includes("agend");
   
-  if (isComplex) return { model: "gpt-5.5", tier: 3 };
+  if (isComplex) return { model: "openai/gpt-4o", tier: 3 };
 
   // Tier 1: Very simple interactions
   const isSimple = text.length < 30 && (
@@ -2302,10 +2306,10 @@ const selectModelTier = (content: string, hasImage: boolean = false): { model: s
     text.match(/^[\p{Emoji}\s]+$/u)
   );
 
-  if (isSimple) return { model: "gpt-5.4-mini", tier: 1 };
+  if (isSimple) return { model: "openai/gpt-4o-mini", tier: 1 };
 
   // Default Tier 2: Standard conversation
-  return { model: "gpt-5.4", tier: 2 };
+  return { model: "openai/gpt-4o", tier: 2 };
 };
 
 const callOpenAI = async (
@@ -2313,7 +2317,6 @@ const callOpenAI = async (
   model: string,
   msgs: Msg[],
   useFns = true,
-  blockedTools: string[] = [],
 ) => {
   // Use the models directly as available in the user's OpenAI account
   let realModel = model || "gpt-4o-mini";
@@ -2331,101 +2334,6 @@ const callOpenAI = async (
 
   const apiUrl = "https://api.openai.com/v1/chat/completions";
   const authHeader = `Bearer ${key}`;
-
-  let functions = [
-    {
-      name: "check_availability",
-      description:
-        "Consulta horarios disponibles para una fecha y servicio sugerido. MUY IMPORTANTE: Usa YYYY-MM-DD.",
-      parameters: {
-        type: "object",
-        properties: {
-          date: { type: "string", description: "Fecha (YYYY-MM-DD)" },
-          service_name: {
-            type: "string",
-            description: "Nombre del servicio (p.ej. Consulta)",
-          },
-          professional_name: {
-            type: "string",
-            description: "Nombre opcional del profesional",
-          },
-          address: {
-            type: "string",
-            description: "Dirección del cliente (Ej: Alto del Rayo 211, Linares)",
-          },
-          address_references: {
-            type: "string",
-            description: "Referencias de ubicación (Ej: Casa amarilla con portón verde)",
-          },
-        },
-        required: ["date", "address"],
-      },
-    },
-    {
-      name: "create_appointment",
-      description: "Crea una cita en el calendario. OBLIGATORIO: Debes recolectar todos los datos requeridos antes de llamar a esta función.",
-      parameters: {
-        type: "object",
-        properties: {
-          date: { type: "string", description: "Fecha (YYYY-MM-DD)" },
-          time: { type: "string", description: "Hora (HH:MM)" },
-          service_name: { type: "string" },
-          tutor_name: { type: "string", description: "Nombre completo del tutor" },
-          pet_name: { type: "string", description: "Nombre de la mascota" },
-          pet_details: { type: "string", description: "Especie, sexo y peso de la mascota" },
-          address: { type: "string", description: "Dirección exacta del cliente" },
-          address_references: { type: "string", description: "Referencias para llegar (ej: color de casa, entre calles)" },
-          visit_reason: { type: "string", description: "Motivo detallado de la visita o síntomas" },
-          professional_name: { type: "string" },
-        },
-        required: ["date", "time", "service_name", "tutor_name", "pet_name", "pet_details", "address", "visit_reason", "address_references"],
-      },
-    },
-    {
-      name: "get_services",
-      description:
-        "Obtiene la lista de servicios y precios base de la clínica.",
-      parameters: { type: "object", properties: {} },
-    },
-    {
-      name: "get_knowledge",
-      description:
-        "Busca información detallada sobre precios, vacunas y procedimientos en la base de conocimiento.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "Término de búsqueda (p.ej. 'precios cirugias')",
-          },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "confirm_appointment",
-      description:
-        "Confirma o Cancela una cita cuando el usuario responde a un recordatorio.",
-      parameters: {
-        type: "object",
-        properties: {
-          response: { type: "string", enum: ["yes", "no"] },
-        },
-        required: ["response"],
-      },
-    },
-    {
-      name: "escalate_to_human",
-      description:
-        "Marca la conversación para atención humana y pausa la IA. Úsalo cuando el cliente esté molesto o sea un caso complejo como cirugías.",
-      parameters: { type: "object", properties: {} },
-    },
-  ];
-
-  // Filter out blocked tools
-  if (blockedTools.length > 0) {
-    functions = functions.filter((f) => !blockedTools.includes(f.name));
-  }
 
   const r = await fetch(apiUrl, {
     method: "POST",
@@ -2446,6 +2354,168 @@ const callOpenAI = async (
   });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
+};
+
+const callGemini = async (key: string, model: string, msgs: Msg[], useTools = true) => {
+    const chatMsgs = msgs.filter(m => m.role !== "system");
+    const systemMsg = msgs.find(m => m.role === "system");
+
+    const contents = chatMsgs.map(m => {
+        if (m.geminiParts) {
+            return {
+                role: m.role === "assistant" ? "model" : "user",
+                parts: m.geminiParts
+            };
+        }
+        if (m.role === "tool" || m.role === "function") {
+            return {
+                role: "user",
+                parts: [{
+                    functionResponse: {
+                        name: m.name,
+                        response: { content: m.content }
+                    }
+                }]
+            };
+        }
+        if (m.role === "assistant" && m.tool_calls) {
+            return {
+                role: "model",
+                parts: m.tool_calls.map(tc => ({
+                    functionCall: {
+                        name: tc.function.name,
+                        args: JSON.parse(tc.function.arguments)
+                    }
+                }))
+            };
+        }
+        return {
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
+        };
+    });
+
+    const tools = useTools ? [{
+        function_declarations: functions.map(f => ({
+            name: f.name,
+            description: f.description,
+            parameters: f.parameters
+        }))
+    }] : undefined;
+
+    const body = {
+        contents,
+        system_instruction: systemMsg ? { parts: [{ text: systemMsg.content }] } : undefined,
+        tools,
+        generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 800,
+        }
+    };
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+
+    if (!res.ok) throw new Error(`Gemini Error: ${await res.text()}`);
+    const data = await res.json();
+    const candidate = data.candidates[0];
+    const parts = candidate.content.parts;
+    
+    // Convert Gemini format to OpenAI format for compatibility
+    const tool_calls = parts
+        .filter((p: any) => p.functionCall)
+        .map((p: any, i: number) => ({
+            id: `call_${Date.now()}_${i}`,
+            type: "function",
+            function: {
+                name: p.functionCall.name,
+                arguments: JSON.stringify(p.functionCall.args)
+            }
+        }));
+
+    const textPart = parts.find((p: any) => p.text);
+
+    return {
+        choices: [{
+            message: {
+                role: "assistant",
+                content: textPart ? textPart.text : null,
+                tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+                geminiParts: parts // Preserve original parts for next turn
+            }
+        }]
+    };
+};
+
+const callOpenRouter = async (key: string, model: string, msgs: Msg[], useTools = true) => {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`,
+            "HTTP-Referer": "https://vetly.ai",
+            "X-Title": "Vetly App"
+        },
+        body: JSON.stringify({
+            model: model,
+            messages: msgs.map(m => ({
+                role: m.role,
+                content: m.content,
+                tool_calls: m.tool_calls,
+                tool_call_id: m.tool_call_id,
+                name: m.name
+            })),
+            tools: useTools ? functions.map(f => ({ type: "function", function: f })) : undefined,
+            tool_choice: useTools ? "auto" : undefined,
+            temperature: 0,
+            max_tokens: 800
+        })
+    });
+
+    if (!res.ok) throw new Error(`OpenRouter Error: ${await res.text()}`);
+    return res.json();
+};
+
+const callAI = async (model: string, msgs: Msg[], useTools = true) => {
+    const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    const GEMINI_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
+
+    // Strategy 1: OpenRouter (Primary)
+    if (OPENROUTER_KEY) {
+        try {
+            console.log(`[callAI] Attempting OpenRouter with model: ${model}`);
+            return await callOpenRouter(OPENROUTER_KEY, model, msgs, useTools);
+        } catch (e) {
+            console.error(`[callAI] OpenRouter failed:`, e);
+        }
+    }
+
+    // Strategy 2: Gemini Direct (Failover)
+    if (GEMINI_KEY) {
+        try {
+            const geminiModel = "gemini-1.5-flash";
+            console.log(`[callAI] Attempting Gemini Direct with model: ${geminiModel}`);
+            return await callGemini(GEMINI_KEY, geminiModel, msgs, useTools);
+        } catch (e) {
+            console.error(`[callAI] Gemini Direct failed:`, e);
+        }
+    }
+
+    // Strategy 3: OpenAI Direct (Last Resort)
+    if (OPENAI_KEY) {
+        try {
+            console.log(`[callAI] Attempting OpenAI Direct with model: ${model}`);
+            return await callOpenAI(OPENAI_KEY, model, msgs, useTools);
+        } catch (e) {
+            console.error(`[callAI] OpenAI Direct failed:`, e);
+        }
+    }
+
+    throw new Error("All AI providers failed or are not configured.");
 };
 
 const sendWA = async (key: string, to: string, from: string, msg: string) => {
@@ -3530,15 +3600,15 @@ ${knowledgeSummary}
           // N3: Sovereign Pro (gpt-5.5) -> gpt-4o
           // N2: Standard (gpt-5.4) -> gpt-4o
           // N1: Flash Mini (gpt-5.4-mini) -> gpt-4o-mini
-          targetModel = (route.model === "gpt-5.5" || route.model === "gpt-5.4") 
-            ? "gpt-4o" 
-            : "gpt-4o-mini";
+          targetModel = (route.model.includes("gpt-4o") && !route.model.includes("mini"))
+            ? "openai/gpt-4o" 
+            : "openai/gpt-4o-mini";
           tierUsed = route.tier;
         } else if (clinic.ai_active_model === "pro") {
-          targetModel = "gpt-4o";
+          targetModel = "openai/gpt-4o";
           tierUsed = 3;
         } else {
-          targetModel = "gpt-4o-mini";
+          targetModel = "openai/gpt-4o-mini";
           tierUsed = 1;
         }
         
@@ -3551,12 +3621,10 @@ ${knowledgeSummary}
 
         const blockedTools: string[] = [];
 
-        let res = await callOpenAI(
-          openaiApiKey,
+        let res = await callAI(
           targetModel,
           msgs,
           true,
-          blockedTools,
         );
         let assistant = res.choices[0].message;
         let funcResult: Record<string, unknown> | null = null;
@@ -3619,12 +3687,10 @@ ${knowledgeSummary}
           }
 
           // Recursive call for next step
-          res = await callOpenAI(
-            openaiApiKey,
+          res = await callAI(
             targetModel,
             msgs,
             true,
-            blockedTools,
           );
           assistant = res.choices[0].message;
           maxCalls--;

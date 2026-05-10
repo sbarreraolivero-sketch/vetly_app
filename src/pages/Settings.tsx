@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
     Building2,
     Clock,
@@ -97,6 +97,7 @@ const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'satur
 export default function Settings() {
     const { user, profile, member, refreshClinics } = useAuth()
     const [searchParams] = useSearchParams()
+    const navigate = useNavigate()
 
     const availableTabs = tabs.filter(tab => {
         if (!member || member.role === 'owner' || member.role === 'admin') return true
@@ -3524,6 +3525,24 @@ export default function Settings() {
                                         <p className="text-xs font-bold text-red-400 mt-1 uppercase">Créditos Usados</p>
                                         <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 8) + (aiMessagesUsedPro * 60) + (aiMessagesUsedLegacy4o * 60))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
                                     </div>
+                                </div>
+
+                                <div className="mt-8 flex flex-col md:flex-row items-center justify-between gap-4 p-6 bg-ivory/30 rounded-[2rem] border border-dashed border-silk-beige">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-silk-beige">
+                                            <History className="w-6 h-6 text-charcoal/30" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-sm font-black text-charcoal">Historial de Transacciones</p>
+                                            <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Consulta recargas, compras y consumos</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => navigate('/app/ai-credits')}
+                                        className="btn-secondary px-8 py-3 flex items-center gap-3 active:scale-95 transition-all shadow-sm"
+                                    >
+                                        Ver Historial Detallado <ChevronRight className="w-4 h-4" />
+                                    </button>
                                 </div>
 
                                 {/* Custom Cost Table */}

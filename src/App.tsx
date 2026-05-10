@@ -23,6 +23,7 @@ const Finance = lazy(() => import('./pages/Finance'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Loyalty = lazy(() => import('./pages/Loyalty'))
 const Pricing = lazy(() => import('./pages/Pricing'))
+const AICredits = lazy(() => import('./pages/AICredits'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const Landing = lazy(() => import('./pages/Landing'))
@@ -202,6 +203,11 @@ function MainRoutes() {
                                 <RoleGuard allowedRoles={['owner', 'admin']}>
                                     <Loyalty />
                                 </RoleGuard>
+                            </SubscriptionGuard>
+                        } />
+                        <Route path="ai-credits" element={
+                            <SubscriptionGuard>
+                                <AICredits />
                             </SubscriptionGuard>
                         } />
                         <Route path="settings" element={<Settings />} />
