@@ -1,6 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// Travel buffer in minutes added to Google Maps travel time between appointments
+const TRAVEL_BUFFER_MINUTES = 15;
+
 const corsHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
@@ -553,6 +556,21 @@ const saveMsg = async (
       throw new Error(error.message);
     }
     console.log(`[saveMsg] Saved message (dir: ${direction}) id: ${data.id}`);
+
+    // --- INCREMENT CONSUMPTION COUNTERS IN CLINIC_SETTINGS ---
+    if (direction === "outbound" && insertPayload.ai_generated) {
+      try {
+        const model = insertPayload.ai_model;
+        if (model === "mini") {
+          await sb.rpc('increment_clinic_mini_usage', { p_clinic_id: clinicId });
+        } else if (["4o", "4o_standard", "4o_pro"].includes(model)) {
+          await sb.rpc('increment_clinic_4o_usage', { p_clinic_id: clinicId });
+        }
+      } catch (countErr) {
+        console.warn("[saveMsg] Failed to increment usage counters:", countErr);
+      }
+    }
+
     return data.id;
   } catch (e) {
     console.error(`[saveMsg] Severe failure:`, e);
@@ -2294,7 +2312,7 @@ const selectModelTier = (content: string, hasImage: boolean = false): { model: s
                     text.includes("hora") ||
                     text.includes("agend");
   
-  if (isComplex) return { model: "openai/gpt-4o", tier: 3 };
+  if (isComplex) return { model: "gpt-4o", tier: 3 };
 
   // Tier 1: Very simple interactions
   const isSimple = text.length < 30 && (
@@ -2306,10 +2324,10 @@ const selectModelTier = (content: string, hasImage: boolean = false): { model: s
     text.match(/^[\p{Emoji}\s]+$/u)
   );
 
-  if (isSimple) return { model: "openai/gpt-4o-mini", tier: 1 };
+  if (isSimple) return { model: "gpt-4o-mini", tier: 1 };
 
   // Default Tier 2: Standard conversation
-  return { model: "openai/gpt-4o", tier: 2 };
+  return { model: "gpt-4o", tier: 2 };
 };
 
 const callOpenAI = async (
@@ -3203,6 +3221,8 @@ Deno.serve(async (req) => {
         aiContext: string;
       },
     ) => {
+      let targetModel = "gpt-4o-mini";
+      let modelForTracking = "mini";
       try {
         const realClinicId = clinic.ref_id || clinic.id;
         const googleMapsApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
@@ -3219,9 +3239,10 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
-        if (latestMsg && latestMsg.id !== msgRowId) {
+        if (latestMsg && msgRowId && latestMsg.id !== msgRowId) {
           // WE ARE NOT THE LATEST MESSAGE! Abort silently and let the latest one handle everything.
-          await debugLog(sb, `Debounced message`, { msgRowId });
+          console.log(`[asyncProcess] Aborting: current msgRowId ${msgRowId} is not latest ${latestMsg.id}`);
+          await debugLog(sb, `Debounced message`, { current: msgRowId, latest: latestMsg.id });
           return;
         }
 
@@ -3600,7 +3621,7 @@ ${knowledgeSummary}
         }
 
         // --- INTELLIGENT MODEL ROUTING ---
-        let targetModel = "gpt-4o-mini";
+        targetModel = "gpt-4o-mini";
         let tierUsed = 2;
 
         if (clinic.ai_active_model === "hybrid") {
@@ -3608,23 +3629,21 @@ ${knowledgeSummary}
           const hasImageInBurst = userContentBlocks.some(b => b.type === "image_url");
           const route = selectModelTier(lastUserText, hasImageInBurst);
           // Mapping based on User's Hybrid Cost Table:
-          // N3: Sovereign Pro (gpt-5.5) -> gpt-4o
-          // N2: Standard (gpt-5.4) -> gpt-4o
-          // N1: Flash Mini (gpt-5.4-mini) -> gpt-4o-mini
-          targetModel = (route.model.includes("gpt-4o") && !route.model.includes("mini"))
-            ? "openai/gpt-4o" 
-            : "openai/gpt-4o-mini";
+          // N3: Sovereign Pro -> gpt-4o
+          // N2: Standard -> gpt-4o
+          // N1: Flash Mini -> gpt-4o-mini
+          targetModel = route.model;
           tierUsed = route.tier;
         } else if (clinic.ai_active_model === "pro") {
-          targetModel = "openai/gpt-4o";
+          targetModel = "gpt-4o";
           tierUsed = 3;
         } else {
-          targetModel = "openai/gpt-4o-mini";
+          targetModel = "gpt-4o-mini";
           tierUsed = 1;
         }
         
         // Granular tracking for hybrid cost table
-        const modelForTracking = targetModel === "gpt-4o" 
+        modelForTracking = (targetModel === "gpt-4o") 
           ? (tierUsed === 3 ? "4o_pro" : "4o_standard")
           : "mini";
             

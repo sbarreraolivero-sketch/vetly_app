@@ -416,6 +416,20 @@ export default function Settings() {
                     setAiCreditsMonthlyLimit(data.ai_credits_monthly_limit || 500)
                     setAiCreditsExtraBalance(data.ai_credits_extra_balance || 0)
                     setAiCreditsExtra4o(data.ai_credits_extra_4o || 0)
+
+                    // If this clinic is a child branch, load credit limits from parent
+                    if (data.parent_clinic_id) {
+                        const { data: parentData } = await (supabase as any)
+                            .from('clinic_settings')
+                            .select('ai_credits_monthly_limit, ai_credits_extra_balance, ai_credits_extra_4o')
+                            .eq('id', data.parent_clinic_id)
+                            .single()
+                        if (parentData) {
+                            setAiCreditsMonthlyLimit(parentData.ai_credits_monthly_limit || 500)
+                            setAiCreditsExtraBalance(parentData.ai_credits_extra_balance || 0)
+                            setAiCreditsExtra4o(parentData.ai_credits_extra_4o || 0)
+                        }
+                    }
                     setAiActiveModel(data.ai_active_model || '4o')
 
                     setAiAutoRespond(data.ai_auto_respond !== false) 
@@ -456,61 +470,65 @@ export default function Settings() {
             }
 
             try {
-                // Fetch AI messages count for current month
+                // Fetch AI messages count for current month across ALL branches in the credit pool
                 const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-                const { error: countError } = await (supabase as any)
+
+                // Get all clinic IDs that share this credit pool
+                let poolClinicIds = [profile.clinic_id]
+                try {
+                    const { data: poolData } = await (supabase as any).rpc('get_credit_pool_clinic_ids', {
+                        p_clinic_id: profile.clinic_id
+                    })
+                    if (poolData && poolData.length > 0) {
+                        poolClinicIds = poolData.map((r: any) => r)
+                    }
+                } catch (poolErr) {
+                    console.warn('Credit pool lookup failed, using single clinic:', poolErr)
+                }
+
+                // 1. GPT-4o Standard (ai_model = '4o_standard')
+                const { count: countStandard, error: errStd } = await (supabase as any)
                     .from('messages')
                     .select('*', { count: 'exact', head: true })
-                    .eq('clinic_id', profile.clinic_id)
+                    .in('clinic_id', poolClinicIds)
                     .eq('ai_generated', true)
+                    .eq('ai_model', '4o_standard')
                     .gte('created_at', startOfMonth)
+                if (errStd) console.error('Count Standard error:', errStd)
+                setAiMessagesUsedStandard(countStandard || 0)
 
-                if (countError) {
-                    console.error('Error fetching AI message count:', countError)
-                } else {
-                    // Fetch split counts
-                    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+                // 2. GPT-4o Pro (ai_model = '4o_pro')
+                const { count: countPro, error: errPro } = await (supabase as any)
+                    .from('messages')
+                    .select('*', { count: 'exact', head: true })
+                    .in('clinic_id', poolClinicIds)
+                    .eq('ai_generated', true)
+                    .eq('ai_model', '4o_pro')
+                    .gte('created_at', startOfMonth)
+                if (errPro) console.error('Count Pro error:', errPro)
+                setAiMessagesUsedPro(countPro || 0)
 
-                    // 1. GPT-4o Standard
-                    const { count: countStandard } = await (supabase as any)
-                        .from('messages')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('clinic_id', profile.clinic_id)
-                        .eq('ai_generated', true)
-                        .eq('ai_model', '4o_standard')
-                        .gte('created_at', startOfMonth)
-                    setAiMessagesUsedStandard(countStandard || 0)
+                // 3. Legacy GPT-4o (ai_model = '4o')
+                const { count: countLegacy, error: errLeg } = await (supabase as any)
+                    .from('messages')
+                    .select('*', { count: 'exact', head: true })
+                    .in('clinic_id', poolClinicIds)
+                    .eq('ai_generated', true)
+                    .eq('ai_model', '4o')
+                    .gte('created_at', startOfMonth)
+                if (errLeg) console.error('Count Legacy error:', errLeg)
+                setAiMessagesUsedLegacy4o(countLegacy || 0)
 
-                    // 2. GPT-4o Pro
-                    const { count: countPro } = await (supabase as any)
-                        .from('messages')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('clinic_id', profile.clinic_id)
-                        .eq('ai_generated', true)
-                        .eq('ai_model', '4o_pro')
-                        .gte('created_at', startOfMonth)
-                    setAiMessagesUsedPro(countPro || 0)
-
-                    // 3. Legacy GPT-4o (untyped)
-                    const { count: countLegacy } = await (supabase as any)
-                        .from('messages')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('clinic_id', profile.clinic_id)
-                        .eq('ai_generated', true)
-                        .eq('ai_model', '4o')
-                        .gte('created_at', startOfMonth)
-                    setAiMessagesUsedLegacy4o(countLegacy || 0)
-
-                    // 4. GPT-4o-mini (including legacy null model)
-                    const { count: countMini } = await (supabase as any)
-                        .from('messages')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('clinic_id', profile.clinic_id)
-                        .eq('ai_generated', true)
-                        .or('ai_model.eq.mini,ai_model.is.null')
-                        .gte('created_at', startOfMonth)
-                    setAiMessagesUsed(countMini || 0)
-                }
+                // 4. GPT-4o-mini (ai_model = 'mini' OR null)
+                const { count: countMini, error: errMini } = await (supabase as any)
+                    .from('messages')
+                    .select('*', { count: 'exact', head: true })
+                    .in('clinic_id', poolClinicIds)
+                    .eq('ai_generated', true)
+                    .or('ai_model.eq.mini,ai_model.is.null')
+                    .gte('created_at', startOfMonth)
+                if (errMini) console.error('Count Mini error:', errMini)
+                setAiMessagesUsed(countMini || 0)
             } catch (error) {
                 console.error('Error counting AI messages:', error)
             }
