@@ -93,8 +93,9 @@ export default function Dashboard() {
 
             try {
                 // Use clinic timezone for all date boundaries
-                const { start: dayStart, end: dayEnd } = getDateRange('day')
                 const { start: monthStart } = getDateRange('month')
+                const startOfMonth = monthStart.toISOString()
+
                 // Use the selected time range for stats
                 const { start: statsStart, end: statsEnd } = getDateRange(timeRange)
                 const startOfStats = statsStart.toISOString()
