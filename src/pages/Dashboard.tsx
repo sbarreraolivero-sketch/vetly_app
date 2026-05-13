@@ -58,6 +58,15 @@ export default function Dashboard() {
         activePatients: 0,
         confirmationRate: 0
     })
+    
+    // New metrics
+    const [extraStats, setExtraStats] = useState({
+        remindersSent: 0,
+        newProspects: 0,
+        cancelledAppointments: 0,
+    })
+
+    const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year'>('day')
     const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
     const [recentMessages, setRecentMessages] = useState<Message[]>([])
 
@@ -86,9 +95,10 @@ export default function Dashboard() {
                 // Use clinic timezone for all date boundaries
                 const { start: dayStart, end: dayEnd } = getDateRange('day')
                 const { start: monthStart } = getDateRange('month')
-                const startOfDay = dayStart.toISOString()
-                const endOfDay = dayEnd.toISOString()
-                const startOfMonth = monthStart.toISOString()
+                // Use the selected time range for stats
+                const { start: statsStart, end: statsEnd } = getDateRange(timeRange)
+                const startOfStats = statsStart.toISOString()
+                const endOfStats = statsEnd.toISOString()
 
                 // ⚡ PERFORMANCE: Run ALL queries in parallel instead of sequential
                 const [
@@ -98,21 +108,24 @@ export default function Dashboard() {
                     messagesRes,
                     monthAppointmentsRes,
                     inboundMessagesRes,
-                    surveysRes
+                    surveysRes,
+                    remindersCountRes,
+                    prospectsCountRes,
+                    cancelledCountRes
                 ] = await Promise.all([
-                    // 1. Today's appointments count
+                    // 1. Appointments count in period
                     supabase
                         .from('appointments')
                         .select('*', { count: 'exact', head: true })
-                        .gte('appointment_date', startOfDay)
-                        .lte('appointment_date', endOfDay)
+                        .gte('appointment_date', startOfStats)
+                        .lte('appointment_date', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
-                    // 2. Today's messages count
+                    // 2. Messages count in period
                     supabase
                         .from('messages')
                         .select('*', { count: 'exact', head: true })
-                        .gte('created_at', startOfDay)
-                        .lte('created_at', endOfDay)
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
                     // 3. Upcoming appointments
                     supabase
@@ -147,6 +160,30 @@ export default function Dashboard() {
                         .from('satisfaction_surveys')
                         .select('id, status, rating, created_at')
                         .gte('created_at', startOfMonth)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 8. Reminders sent
+                    supabase
+                        .from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('direction', 'outbound')
+                        .ilike('content', '%recordar%')
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 9. New Prospects
+                    (supabase as any)
+                        .from('crm_prospects')
+                        .select('*', { count: 'exact', head: true })
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 10. Cancelled Appointments
+                    supabase
+                        .from('appointments')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('status', 'cancelled')
+                        .gte('appointment_date', startOfStats)
+                        .lte('appointment_date', endOfStats)
                         .eq('clinic_id', profile.clinic_id)
                 ])
 
@@ -162,6 +199,12 @@ export default function Dashboard() {
                     messagesToday: messagesCountRes.count || 0,
                     activePatients: 0,
                     confirmationRate: 0
+                })
+
+                setExtraStats({
+                    remindersSent: remindersCountRes.count || 0,
+                    newProspects: prospectsCountRes.count || 0,
+                    cancelledAppointments: cancelledCountRes.count || 0,
                 })
 
                 if (appointments) setUpcomingAppointments(appointments)
@@ -226,7 +269,7 @@ export default function Dashboard() {
         }
 
         fetchDashboardData()
-    }, [user, profile?.clinic_id])
+    }, [user, profile?.clinic_id, timeRange])
 
     if (loading) {
         return (
@@ -236,53 +279,101 @@ export default function Dashboard() {
         )
     }
 
+    // Calculamos el tiempo ahorrado: 15 min por cita
+    const horasAhorradas = Math.floor((stats.appointmentsToday * 15) / 60);
+    const minutosAhorrados = (stats.appointmentsToday * 15) % 60;
+    const tiempoAhorradoStr = horasAhorradas > 0 ? `${horasAhorradas}h ${minutosAhorrados}m` : `${minutosAhorrados}m`;
+
     const statCards = [
         {
-            name: 'Citas Hoy',
+            name: 'Citas Agendadas por IA',
             value: stats.appointmentsToday.toString(),
-            change: '+0',
-            changeType: 'neutral',
             icon: Calendar,
+            color: 'text-primary-500',
+            bg: 'bg-primary-500/10'
         },
         {
-            name: 'Mensajes Hoy',
-            value: stats.messagesToday.toString(),
-            change: '+0',
-            changeType: 'neutral',
-            icon: MessageSquare,
+            name: 'Recordatorios enviados',
+            value: extraStats.remindersSent.toString(),
+            icon: CheckCircle2,
+            color: 'text-emerald-500',
+            bg: 'bg-emerald-500/10'
         },
-        // ... other stats could be calculated similarly
+        {
+            name: 'Nuevos Prospectos',
+            value: extraStats.newProspects.toString(),
+            icon: TrendingUp,
+            color: 'text-blue-500',
+            bg: 'bg-blue-500/10'
+        },
+        {
+            name: 'Citas Canceladas',
+            value: extraStats.cancelledAppointments.toString(),
+            icon: CheckCircle2, // Will visually use an X or similar maybe? Let's use a subtle neutral icon
+            color: 'text-red-500',
+            bg: 'bg-red-500/10'
+        },
+        {
+            name: 'Mensajes Procesados',
+            value: stats.messagesToday.toString(),
+            icon: MessageSquare,
+            color: 'text-amber-500',
+            bg: 'bg-amber-500/10'
+        },
+        {
+            name: 'Tiempo Ahorrado por IA',
+            value: tiempoAhorradoStr,
+            icon: Clock,
+            color: 'text-purple-500',
+            bg: 'bg-purple-500/10'
+        }
     ]
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Welcome Banner */}
-            <div className="bg-hero-gradient rounded-softer p-6 text-white">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-semibold mb-1 text-white">¡Hola, {profile?.full_name?.split(' ')[0]}! 👋</h1>
-                        <p className="text-white/80">
-                            Tu asistente IA está activo y listo para gestionar tus citas.
-                        </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                {/* Welcome Banner */}
+                <div className="bg-hero-gradient rounded-softer p-6 text-white flex-1">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h1 className="text-2xl font-semibold mb-1 text-white">¡Hola, {profile?.full_name?.split(' ')[0]}! 👋</h1>
+                            <p className="text-white/80">
+                                Tu asistente IA está activo y listo para gestionar tus citas.
+                            </p>
+                        </div>
+                        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                            <CheckCircle2 className="w-10 h-10 text-white" />
+                        </div>
                     </div>
-                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                        <CheckCircle2 className="w-10 h-10 text-white" />
-                    </div>
+                </div>
+
+                {/* Time Range Filter */}
+                <div className="flex-shrink-0">
+                    <select
+                        value={timeRange}
+                        onChange={(e) => setTimeRange(e.target.value as any)}
+                        className="w-full md:w-auto px-4 py-2 bg-white border border-silk-beige rounded-soft text-charcoal font-medium shadow-soft focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                        <option value="day">Hoy</option>
+                        <option value="week">Esta Semana</option>
+                        <option value="month">Este Mes</option>
+                        <option value="year">Este Año</option>
+                    </select>
                 </div>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 {statCards.map((stat) => (
                     <div key={stat.name} className="card-soft-hover p-5">
                         <div className="flex items-center justify-between">
-                            <div className="w-12 h-12 bg-primary-500/10 rounded-soft flex items-center justify-center">
-                                <stat.icon className="w-6 h-6 text-primary-500" />
+                            <div className={`w-10 h-10 ${stat.bg} rounded-soft flex items-center justify-center`}>
+                                <stat.icon className={`w-5 h-5 ${stat.color}`} />
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-3xl font-semibold text-charcoal">{stat.value}</p>
-                            <p className="text-sm text-charcoal/50 mt-1">{stat.name}</p>
+                            <p className="text-2xl font-bold text-charcoal">{stat.value}</p>
+                            <p className="text-xs text-charcoal/60 mt-1 font-medium">{stat.name}</p>
                         </div>
                     </div>
                 ))}
