@@ -128,22 +128,22 @@ export default function Dashboard() {
                     inboundMessagesRes,
                     surveysRes,
                     remindersCountRes,
-                    prospectsCountRes,
+                    prospectsRes, // Changed from count to data for unique counting
                     cancelledCountRes,
                     aiMessagesCountRes,
                     // Previous period counts
                     prevAppointmentsRes,
-                    prevProspectsRes,
+                    prevProspectsRes, // Changed from count to data for unique counting
                     prevAiMessagesRes,
                     prevRemindersRes,
                     prevCancelledRes
                 ] = await Promise.all([
-                    // 1. Appointments count in period
+                    // 1. Appointments created in period (Performance of IA)
                     supabase
                         .from('appointments')
                         .select('*', { count: 'exact', head: true })
-                        .gte('appointment_date', startOfStats)
-                        .lte('appointment_date', endOfStats)
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
                     // 2. Messages count in period
                     supabase
@@ -194,20 +194,21 @@ export default function Dashboard() {
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
-                    // 9. New Prospects
-                    (supabase as any)
-                        .from('crm_prospects')
-                        .select('*', { count: 'exact', head: true })
+                    // 9. New Prospects (Unique inbound contacts in period)
+                    supabase
+                        .from('messages')
+                        .select('phone_number')
+                        .eq('direction', 'inbound')
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
-                    // 10. Cancelled Appointments
+                    // 10. Cancelled Appointments (Tracked by update time)
                     supabase
                         .from('appointments')
                         .select('*', { count: 'exact', head: true })
                         .eq('status', 'cancelled')
-                        .gte('appointment_date', startOfStats)
-                        .lte('appointment_date', endOfStats)
+                        .gte('updated_at', startOfStats)
+                        .lte('updated_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
                     // 11. AI Messages (Outbound from clinic)
                     supabase
@@ -220,15 +221,15 @@ export default function Dashboard() {
                     
                     // PREVIOUS PERIOD QUERIES
                     supabase.from('appointments').select('*', { count: 'exact', head: true })
-                        .gte('appointment_date', startOfPrev).lte('appointment_date', endOfPrev).eq('clinic_id', profile.clinic_id),
-                    supabase.from('crm_prospects').select('*', { count: 'exact', head: true })
                         .gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                    supabase.from('messages').select('phone_number')
+                        .eq('direction', 'inbound').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('messages').select('*', { count: 'exact', head: true })
                         .eq('direction', 'outbound').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('reminder_logs').select('*', { count: 'exact', head: true })
                         .eq('status', 'sent').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('appointments').select('*', { count: 'exact', head: true })
-                        .eq('status', 'cancelled').gte('appointment_date', startOfPrev).lte('appointment_date', endOfPrev).eq('clinic_id', profile.clinic_id),
+                        .eq('status', 'cancelled').gte('updated_at', startOfPrev).lte('updated_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                 ])
 
                 // Process results
@@ -245,16 +246,19 @@ export default function Dashboard() {
                     confirmationRate: 0
                 })
 
+                const currentProspectsCount = new Set(prospectsRes.data?.map((m: any) => m.phone_number)).size
+                const prevProspectsCount = new Set(prevProspectsRes.data?.map((m: any) => m.phone_number)).size
+
                 setExtraStats({
                     remindersSent: remindersCountRes.count || 0,
-                    newProspects: prospectsCountRes.count || 0,
+                    newProspects: currentProspectsCount,
                     cancelledAppointments: cancelledCountRes.count || 0,
                     aiMessages: aiMessagesCountRes.count || 0,
                 })
 
                 setPrevStats({
                     appointments: prevAppointmentsRes.count || 0,
-                    prospects: prevProspectsRes.count || 0,
+                    prospects: prevProspectsCount,
                     aiMessages: prevAiMessagesRes.count || 0,
                     reminders: prevRemindersRes.count || 0,
                     cancelled: prevCancelledRes.count || 0
@@ -345,7 +349,7 @@ export default function Dashboard() {
 
     const statCards = [
         {
-            name: 'CITAS AGENDADAS',
+            name: 'CITAS AGENDADAS POR IA',
             value: stats.appointmentsToday.toString(),
             icon: Calendar,
             color: 'text-primary-500',
@@ -403,7 +407,7 @@ export default function Dashboard() {
                 isNeutral ? 'bg-gray-100 text-gray-500' :
                 isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
             }`}>
-                {isNeutral ? <Minus className="w-3 h-3" /> : 
+                {isNeutral ? null : 
                  isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {Math.abs(change)}%
             </div>
