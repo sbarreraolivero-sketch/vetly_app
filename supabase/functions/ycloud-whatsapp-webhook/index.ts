@@ -2117,13 +2117,13 @@ const getKnowledgeSummary = async (
       .eq("clinic_id", clinicId)
       .eq("status", "active")
       .order("updated_at", { ascending: false })
-      .limit(10);
+      .limit(5); // Reducido para no saturar el límite de tokens
 
     if (!docs || docs.length === 0) return "";
 
     const rawKnowledge = docs.map((
       d: { title: string; content: string; category: string },
-    ) => `- ${d.title} (${d.category}): ${d.content.substring(0, 4000)}`).join(
+    ) => `- [${d.category}] ${d.title}: ${d.content.substring(0, 500)}... (Usa la función get_knowledge si necesitas leer más detalle sobre este tema)`).join(
       "\n",
     );
 
@@ -2484,38 +2484,49 @@ const callAI = async (model: string, msgs: Msg[], useTools = true) => {
     const GEMINI_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
     const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
 
-    // Strategy 1: OpenRouter (Primary)
-    if (OPENROUTER_KEY) {
-        try {
-            console.log(`[callAI] Attempting OpenRouter with model: ${model}`);
-            return await callOpenRouter(OPENROUTER_KEY, model, msgs, useTools);
-        } catch (e) {
-            console.error(`[callAI] OpenRouter failed:`, e);
-        }
-    }
+    const hasOR = !!OPENROUTER_KEY;
+    const hasGemini = !!GEMINI_KEY;
+    const hasOpenAI = !!OPENAI_KEY;
 
-    // Strategy 2: Gemini Direct (Failover)
-    if (GEMINI_KEY) {
-        try {
-            const geminiModel = "gemini-1.5-flash";
-            console.log(`[callAI] Attempting Gemini Direct with model: ${geminiModel}`);
-            return await callGemini(GEMINI_KEY, geminiModel, msgs, useTools);
-        } catch (e) {
-            console.error(`[callAI] Gemini Direct failed:`, e);
-        }
-    }
-
-    // Strategy 3: OpenAI Direct (Last Resort)
+    console.log(`[callAI] Config: OR=${hasOR}, Gemini=${hasGemini}, OpenAI=${hasOpenAI}`);
+    
+    // Strategy 1: OpenAI Direct (Primary)
     if (OPENAI_KEY) {
         try {
             console.log(`[callAI] Attempting OpenAI Direct with model: ${model}`);
             return await callOpenAI(OPENAI_KEY, model, msgs, useTools);
         } catch (e) {
             console.error(`[callAI] OpenAI Direct failed:`, e);
+            await debugLog(getSupabase(), `OpenAI error`, { error: e.message, model });
         }
     }
 
-    throw new Error("All AI providers failed or are not configured.");
+    // Strategy 2: Gemini Direct (Failover)
+    if (GEMINI_KEY) {
+        try {
+            const geminiModel = "gemini-1.5-flash-latest";
+            console.log(`[callAI] Attempting Gemini Direct with model: ${geminiModel}`);
+            return await callGemini(GEMINI_KEY, geminiModel, msgs, useTools);
+        } catch (e) {
+            console.error(`[callAI] Gemini Direct failed:`, e);
+            await debugLog(getSupabase(), `Gemini error`, { error: e.message, model: "gemini-1.5-flash-latest" });
+        }
+    }
+
+    // Strategy 3: OpenRouter (Disabled per user request)
+    /*
+    if (OPENROUTER_KEY) {
+        try {
+            console.log(`[callAI] Attempting OpenRouter with model: ${model}`);
+            return await callOpenRouter(OPENROUTER_KEY, model, msgs, useTools);
+        } catch (e) {
+            console.error(`[callAI] OpenRouter failed:`, e);
+            await debugLog(getSupabase(), `OpenRouter error`, { error: e.message, model });
+        }
+    }
+    */
+
+    throw new Error(`All AI providers failed or are not configured. Config: OR=${hasOR}, Gemini=${hasGemini}, OpenAI=${hasOpenAI}`);
 };
 
 const sendWA = async (key: string, to: string, from: string, msg: string) => {

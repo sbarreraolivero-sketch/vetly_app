@@ -19,6 +19,10 @@ import {
     endOfMonth as _endOfMonth,
     startOfYear as _startOfYear,
     endOfYear as _endOfYear,
+    subDays,
+    subWeeks,
+    subMonths,
+    subYears,
     format as _format,
 } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -128,6 +132,57 @@ export function useClinicTimezone() {
         }
     }, [timezone])
 
+    /**
+     * Get UTC start/end boundaries for the PREVIOUS period.
+     * Useful for comparison metrics.
+     */
+    const getPreviousDateRange = useMemo(() => {
+        return (filterType: 'day' | 'week' | 'month' | 'year') => {
+            const clinicNow = toZonedTime(new Date(), timezone)
+            let prevClinicTime: Date
+
+            switch (filterType) {
+                case 'day':
+                    prevClinicTime = subDays(clinicNow, 1)
+                    break
+                case 'week':
+                    prevClinicTime = subWeeks(clinicNow, 1)
+                    break
+                case 'month':
+                    prevClinicTime = subMonths(clinicNow, 1)
+                    break
+                case 'year':
+                    prevClinicTime = subYears(clinicNow, 1)
+                    break
+            }
+
+            let start: Date, end: Date
+            switch (filterType) {
+                case 'day':
+                    start = _startOfDay(prevClinicTime)
+                    end = _endOfDay(prevClinicTime)
+                    break
+                case 'week':
+                    start = _startOfWeek(prevClinicTime, { locale: es })
+                    end = _endOfWeek(prevClinicTime, { locale: es })
+                    break
+                case 'month':
+                    start = _startOfMonth(prevClinicTime)
+                    end = _endOfMonth(prevClinicTime)
+                    break
+                case 'year':
+                    start = _startOfYear(prevClinicTime)
+                    end = _endOfYear(prevClinicTime)
+                    break
+            }
+
+            return {
+                start: fromZonedTime(start, timezone),
+                end: fromZonedTime(end, timezone),
+            }
+        }
+    }, [timezone])
+
     /** Human-readable label for the current date range */
     const getDateRangeLabel = useMemo(() => {
         return (filterType: 'day' | 'week' | 'month' | 'year') => {
@@ -171,6 +226,7 @@ export function useClinicTimezone() {
         toUTC,
         formatInTz,
         getDateRange,
+        getPreviousDateRange,
         getDateRangeLabel,
         parseLocalDate,
     }

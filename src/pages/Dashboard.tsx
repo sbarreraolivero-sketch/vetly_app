@@ -8,7 +8,10 @@ import {
     Loader2,
     Crown,
     Star,
-    Target
+    Target,
+    ArrowUpRight,
+    ArrowDownRight,
+    Minus
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -58,12 +61,21 @@ export default function Dashboard() {
         activePatients: 0,
         confirmationRate: 0
     })
+
+    const [prevStats, setPrevStats] = useState({
+        appointments: 0,
+        prospects: 0,
+        aiMessages: 0,
+        reminders: 0,
+        cancelled: 0
+    })
     
     // New metrics
     const [extraStats, setExtraStats] = useState({
         remindersSent: 0,
         newProspects: 0,
         cancelledAppointments: 0,
+        aiMessages: 0,
     })
 
     const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year'>('day')
@@ -85,7 +97,7 @@ export default function Dashboard() {
         average: 0
     })
 
-    const { getDateRange } = useClinicTimezone()
+    const { getDateRange, getPreviousDateRange } = useClinicTimezone()
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -101,6 +113,11 @@ export default function Dashboard() {
                 const startOfStats = statsStart.toISOString()
                 const endOfStats = statsEnd.toISOString()
 
+                // Previous period for comparison
+                const { start: prevStart, end: prevEnd } = getPreviousDateRange(timeRange)
+                const startOfPrev = prevStart.toISOString()
+                const endOfPrev = prevEnd.toISOString()
+
                 // ⚡ PERFORMANCE: Run ALL queries in parallel instead of sequential
                 const [
                     appointmentsCountRes,
@@ -112,7 +129,14 @@ export default function Dashboard() {
                     surveysRes,
                     remindersCountRes,
                     prospectsCountRes,
-                    cancelledCountRes
+                    cancelledCountRes,
+                    aiMessagesCountRes,
+                    // Previous period counts
+                    prevAppointmentsRes,
+                    prevProspectsRes,
+                    prevAiMessagesRes,
+                    prevRemindersRes,
+                    prevCancelledRes
                 ] = await Promise.all([
                     // 1. Appointments count in period
                     supabase
@@ -162,12 +186,11 @@ export default function Dashboard() {
                         .select('id, status, rating, created_at')
                         .gte('created_at', startOfMonth)
                         .eq('clinic_id', profile.clinic_id),
-                    // 8. Reminders sent
+                    // 8. Reminders sent (using reminder_logs for accuracy)
                     supabase
-                        .from('messages')
+                        .from('reminder_logs')
                         .select('*', { count: 'exact', head: true })
-                        .eq('direction', 'outbound')
-                        .ilike('content', '%recordar%')
+                        .eq('status', 'sent')
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
@@ -185,7 +208,27 @@ export default function Dashboard() {
                         .eq('status', 'cancelled')
                         .gte('appointment_date', startOfStats)
                         .lte('appointment_date', endOfStats)
-                        .eq('clinic_id', profile.clinic_id)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 11. AI Messages (Outbound from clinic)
+                    supabase
+                        .from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('direction', 'outbound')
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
+                        .eq('clinic_id', profile.clinic_id),
+                    
+                    // PREVIOUS PERIOD QUERIES
+                    supabase.from('appointments').select('*', { count: 'exact', head: true })
+                        .gte('appointment_date', startOfPrev).lte('appointment_date', endOfPrev).eq('clinic_id', profile.clinic_id),
+                    supabase.from('crm_prospects').select('*', { count: 'exact', head: true })
+                        .gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                    supabase.from('messages').select('*', { count: 'exact', head: true })
+                        .eq('direction', 'outbound').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                    supabase.from('reminder_logs').select('*', { count: 'exact', head: true })
+                        .eq('status', 'sent').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                    supabase.from('appointments').select('*', { count: 'exact', head: true })
+                        .eq('status', 'cancelled').gte('appointment_date', startOfPrev).lte('appointment_date', endOfPrev).eq('clinic_id', profile.clinic_id),
                 ])
 
                 // Process results
@@ -206,6 +249,15 @@ export default function Dashboard() {
                     remindersSent: remindersCountRes.count || 0,
                     newProspects: prospectsCountRes.count || 0,
                     cancelledAppointments: cancelledCountRes.count || 0,
+                    aiMessages: aiMessagesCountRes.count || 0,
+                })
+
+                setPrevStats({
+                    appointments: prevAppointmentsRes.count || 0,
+                    prospects: prevProspectsRes.count || 0,
+                    aiMessages: prevAiMessagesRes.count || 0,
+                    reminders: prevRemindersRes.count || 0,
+                    cancelled: prevCancelledRes.count || 0
                 })
 
                 if (appointments) setUpcomingAppointments(appointments)
@@ -285,97 +337,139 @@ export default function Dashboard() {
     const minutosAhorrados = (stats.appointmentsToday * 15) % 60;
     const tiempoAhorradoStr = horasAhorradas > 0 ? `${horasAhorradas}h ${minutosAhorrados}m` : `${minutosAhorrados}m`;
 
+    // Percentage calculation helper
+    const calculatePercentage = (current: number, previous: number) => {
+        if (previous === 0) return current > 0 ? 100 : 0
+        return Math.round(((current - previous) / previous) * 100)
+    }
+
     const statCards = [
         {
-            name: 'Citas Agendadas por IA',
+            name: 'CITAS AGENDADAS',
             value: stats.appointmentsToday.toString(),
             icon: Calendar,
             color: 'text-primary-500',
-            bg: 'bg-primary-500/10'
+            bg: 'bg-primary-500/10',
+            change: calculatePercentage(stats.appointmentsToday, prevStats.appointments)
         },
         {
-            name: 'Recordatorios enviados',
-            value: extraStats.remindersSent.toString(),
-            icon: CheckCircle2,
-            color: 'text-emerald-500',
-            bg: 'bg-emerald-500/10'
-        },
-        {
-            name: 'Nuevos Prospectos',
+            name: 'NUEVOS PROSPECTOS',
             value: extraStats.newProspects.toString(),
-            icon: TrendingUp,
-            color: 'text-blue-500',
-            bg: 'bg-blue-500/10'
+            icon: Target,
+            color: 'text-fuchsia-500',
+            bg: 'bg-fuchsia-500/10',
+            change: calculatePercentage(extraStats.newProspects, prevStats.prospects)
         },
         {
-            name: 'Citas Canceladas',
-            value: extraStats.cancelledAppointments.toString(),
-            icon: CheckCircle2, // Will visually use an X or similar maybe? Let's use a subtle neutral icon
-            color: 'text-red-500',
-            bg: 'bg-red-500/10'
-        },
-        {
-            name: 'Mensajes Procesados',
-            value: stats.messagesToday.toString(),
+            name: 'MENSAJES DE IA',
+            value: extraStats.aiMessages.toString(),
             icon: MessageSquare,
-            color: 'text-amber-500',
-            bg: 'bg-amber-500/10'
+            color: 'text-rose-500',
+            bg: 'bg-rose-500/10',
+            change: calculatePercentage(extraStats.aiMessages, prevStats.aiMessages)
         },
         {
-            name: 'Tiempo Ahorrado por IA',
-            value: tiempoAhorradoStr,
+            name: 'RECORDATORIOS',
+            value: extraStats.remindersSent.toString(),
             icon: Clock,
-            color: 'text-purple-500',
-            bg: 'bg-purple-500/10'
+            color: 'text-primary-500',
+            bg: 'bg-primary-500/10',
+            change: calculatePercentage(extraStats.remindersSent, prevStats.reminders)
+        },
+        {
+            name: 'CITAS CANCELADAS',
+            value: extraStats.cancelledAppointments.toString(),
+            icon: Minus,
+            color: 'text-amber-500',
+            bg: 'bg-amber-500/10',
+            change: calculatePercentage(extraStats.cancelledAppointments, prevStats.cancelled)
+        },
+        {
+            name: 'TIEMPO AHORRADO',
+            value: tiempoAhorradoStr,
+            icon: TrendingUp,
+            color: 'text-primary-500',
+            bg: 'bg-primary-500/10',
+            change: 0 // No comparison for time saved yet
         }
     ]
 
+    const ChangeBadge = ({ change }: { change: number }) => {
+        const isPositive = change > 0
+        const isNeutral = change === 0
+        
+        return (
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${
+                isNeutral ? 'bg-gray-100 text-gray-500' :
+                isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+            }`}>
+                {isNeutral ? <Minus className="w-3 h-3" /> : 
+                 isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {Math.abs(change)}%
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                {/* Welcome Banner */}
-                <div className="bg-hero-gradient rounded-softer p-6 text-white flex-1">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-semibold mb-1 text-white">¡Hola, {profile?.full_name?.split(' ')[0]}! 👋</h1>
-                            <p className="text-white/80">
-                                Tu asistente IA está activo y listo para gestionar tus citas.
-                            </p>
-                        </div>
-                        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                            <CheckCircle2 className="w-10 h-10 text-white" />
-                        </div>
+            <div className="bg-hero-gradient rounded-softer p-6 text-white">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-semibold mb-1 text-white">¡Hola, {profile?.full_name?.split(' ')[0]}! 👋</h1>
+                        <p className="text-white/80">
+                            Tu asistente IA está activo y listo para gestionar tus citas.
+                        </p>
+                    </div>
+                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                        <CheckCircle2 className="w-10 h-10 text-white" />
                     </div>
                 </div>
+            </div>
 
-                {/* Time Range Filter */}
-                <div className="flex-shrink-0">
-                    <select
-                        value={timeRange}
-                        onChange={(e) => setTimeRange(e.target.value as any)}
-                        className="w-full md:w-auto px-4 py-2 bg-white border border-silk-beige rounded-soft text-charcoal font-medium shadow-soft focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                        <option value="day">Hoy</option>
-                        <option value="week">Esta Semana</option>
-                        <option value="month">Este Mes</option>
-                        <option value="year">Este Año</option>
-                    </select>
+            {/* Sub-Header with Performance Label and Filters */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
+                <h2 className="text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em]">RESUMEN DE RENDIMIENTO</h2>
+                
+                {/* Segmented Control Style Filter */}
+                <div className="bg-white p-1 rounded-full shadow-sm border border-silk-beige flex gap-1">
+                    {[
+                        { id: 'day', label: 'HOY' },
+                        { id: 'week', label: 'ESTA SEMANA' },
+                        { id: 'month', label: 'ESTE MES' },
+                        { id: 'year', label: 'ESTE AÑO' }
+                    ].map((range) => (
+                        <button
+                            key={range.id}
+                            onClick={() => setTimeRange(range.id as any)}
+                            className={`px-4 py-1.5 rounded-full text-[10px] font-bold transition-all duration-200 ${
+                                timeRange === range.id 
+                                ? 'bg-primary-500 text-white shadow-md shadow-primary-500/30' 
+                                : 'text-charcoal/40 hover:text-charcoal/60 hover:bg-ivory'
+                            }`}
+                        >
+                            {range.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 {statCards.map((stat) => (
-                    <div key={stat.name} className="card-soft-hover p-5">
-                        <div className="flex items-center justify-between">
+                    <div key={stat.name} className="bg-white p-5 rounded-softer border border-silk-beige shadow-sm relative overflow-hidden group">
+                        <div className="flex items-center justify-between relative z-10">
                             <div className={`w-10 h-10 ${stat.bg} rounded-soft flex items-center justify-center`}>
                                 <stat.icon className={`w-5 h-5 ${stat.color}`} />
                             </div>
+                            <ChangeBadge change={stat.change} />
                         </div>
-                        <div className="mt-4">
-                            <p className="text-2xl font-bold text-charcoal">{stat.value}</p>
-                            <p className="text-xs text-charcoal/60 mt-1 font-medium">{stat.name}</p>
+                        <div className="mt-5 relative z-10">
+                            <p className="text-3xl font-black text-charcoal tracking-tight">{stat.value}</p>
+                            <p className="text-[9px] font-black text-charcoal/40 mt-1 uppercase tracking-wider">{stat.name}</p>
                         </div>
+                        
+                        {/* Pink Accent Line at Bottom */}
+                        <div className="absolute bottom-0 left-0 h-1 bg-primary-500 w-1/4 group-hover:w-full transition-all duration-500" />
                     </div>
                 ))}
             </div>
