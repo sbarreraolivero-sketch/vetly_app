@@ -1117,7 +1117,17 @@ const checkAvail = async (
     const dayAppts = (allDayAppts || []).map(a => {
       if (a.latitude !== null) return a;
       const norm = (a.address || "").toLowerCase();
-      // Virtual coords for routing fallback (using exact values from user's table)
+      
+      // SANTIAGO BRANCH: Commune detection from text address
+      if (clinicId === "13472ea4-4da6-461c-9a80-a5c970d9ec73") {
+        const rmCommunes = ["santiago", "ñuñoa", "providencia", "las condes", "vitacura", "maipu", "maipú", "puente alto", "la florida", "san miguel", "la cisterna", "la reina", "peñalolen", "peñalolén", "quilicura", "pudahuel", "macul", "san joaquin", "san joaquín", "estacion central", "estación central", "recoleta", "independencia", "conchali", "conchalí", "huechuraba", "lo prado", "cerro navia", "renca"];
+        if (rmCommunes.some(c => norm.includes(c))) {
+          return { ...a, latitude: -33.4975, longitude: -70.6558 }; // Fallback to San Miguel for routing
+        }
+        return a; 
+      }
+
+      // LINARES/TALCA BRANCH
       if (norm.includes("talca") || norm.includes("maule") || norm.includes("san clemente") || norm.includes("pencahue")) {
         return { ...a, latitude: -35.4264, longitude: -71.6554 }; // Talca Center
       }
