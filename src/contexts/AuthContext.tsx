@@ -202,7 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 fetchSubscription(clinicId)
             ])
 
-            if (memberRes.data) setMember(memberRes.data as any)
+            if ((memberRes as any).data) setMember((memberRes as any).data as any)
+
             setSubscription(sub)
 
             // 5. Persist choice to DB in background (non-blocking)
