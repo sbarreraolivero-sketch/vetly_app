@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const PROFILE_STORAGE_KEY = 'vetly_user_profile'
     const SUBSCRIPTION_STORAGE_KEY = 'vetly_user_subscription'
     const CLINICS_STORAGE_KEY = 'vetly_user_clinics'
+    const ACTIVE_CLINIC_KEY = 'vetly_active_clinic_id'
 
     const [user, setUser] = useState<User | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(() => {
@@ -186,37 +187,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 throw new Error('No tienes acceso a esta clínica')
             }
 
-            // 2. Update user_profiles in DB to persist choice
-            const { error: updateError } = await (supabase as any)
-                .from('user_profiles')
-                .update({ clinic_id: clinicId })
-                .eq('id', user.id)
+            // 2. Persist choice in localStorage FIRST (source of truth)
+            // This prevents onAuthStateChange from reverting to the old clinic
+            localStorage.setItem(ACTIVE_CLINIC_KEY, clinicId)
 
-            if (updateError) throw updateError
-
-            // 3. Update local state
+            // 3. Update local state immediately (no reload needed)
             const newProfile = { ...profile, clinic_id: clinicId } as UserProfile
             setProfile(newProfile)
             localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(newProfile))
 
-            // 4. Fetch details for new clinic
-            const { data: memberData } = await supabase
-                .from('clinic_members')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('clinic_id', clinicId)
-                .single()
+            // 4. Fetch details for new clinic in parallel (non-blocking)
+            const [memberRes, sub] = await Promise.all([
+                supabase.from('clinic_members').select('*').eq('user_id', user.id).eq('clinic_id', clinicId).single(),
+                fetchSubscription(clinicId)
+            ])
 
-            if (memberData) setMember(memberData)
-
-            const sub = await fetchSubscription(clinicId)
+            if (memberRes.data) setMember(memberRes.data as any)
             setSubscription(sub)
 
-            // Optionally reload page to ensure all components fetch fresh data
+            // 5. Persist choice to DB in background (non-blocking)
+            ;(supabase as any).from('user_profiles').update({ clinic_id: clinicId }).eq('id', user.id)
+                .then(({ error }: any) => {
+                    if (error) console.error('Error persisting clinic switch to DB:', error)
+                })
+
+            // 6. Reload to ensure all page components refetch with new clinic context
             window.location.reload()
 
         } catch (error) {
             console.error('Error switching clinic:', error)
+            // Rollback localStorage on failure
+            localStorage.removeItem(ACTIVE_CLINIC_KEY)
             alert('Error al cambiar de sucursal. Intenta nuevamente.')
         }
     }
@@ -321,9 +322,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     if (currentUser) {
                         const { data, status } = await fetchProfile(currentUser.id)
                         if (mounted && data) {
+                            // Respect the locally stored active clinic (prevents reverting after token refresh)
+                            const storedActiveClinic = localStorage.getItem(ACTIVE_CLINIC_KEY)
+                            const resolvedClinicId = storedActiveClinic || data.clinic_id
+                            const mergedData = { ...data, clinic_id: resolvedClinicId }
                             setProfile(prev => {
-                                if (prev?.id === data.id && prev?.clinic_id === data.clinic_id) return prev
-                                return data
+                                if (prev?.id === mergedData.id && prev?.clinic_id === mergedData.clinic_id) return prev
+                                return mergedData
                             })
                             
                             fetchUserClinics() 
