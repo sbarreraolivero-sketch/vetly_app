@@ -609,12 +609,19 @@ const getServiceDetails = async (
   }
 
   for (const name of names) {
-    // 1. Try partial match
+    // 1. Try partial match: does DB name include query?
     let found = allServices.find((s) =>
       s.name.toLowerCase().includes(name.toLowerCase())
     );
 
-    // 2. Try matching by the first/last word (fuzzy fallback)
+    // 2. Try reverse partial match: does query include DB name?
+    if (!found) {
+      found = allServices.find((s) =>
+        name.toLowerCase().includes(s.name.toLowerCase())
+      );
+    }
+
+    // 3. Try matching by significant words (fuzzy fallback)
     if (!found && name.includes(" ")) {
       const words = name.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
       for (const word of words) {
@@ -629,8 +636,17 @@ const getServiceDetails = async (
       matchedNames.push(found.name);
       serviceIds.push(found.id);
     } else {
-      // Logically fallback to a standard block if it sounds like a service
-      totalDuration += 30;
+      // Smart fallback duration based on service type keyword
+      const nameLower = name.toLowerCase();
+      let fallbackDuration = 30;
+      if (nameLower.includes("destartraje") || nameLower.includes("dental") || nameLower.includes("limpieza")) {
+        fallbackDuration = 120; // Dental procedures are always long
+      } else if (nameLower.includes("cirugía") || nameLower.includes("cirugia") || nameLower.includes("castración") || nameLower.includes("esterilización")) {
+        fallbackDuration = 60;
+      } else if (nameLower.includes("consulta") || nameLower.includes("control") || nameLower.includes("evaluación")) {
+        fallbackDuration = 60;
+      }
+      totalDuration += fallbackDuration;
       matchedNames.push(name);
     }
   }
@@ -1103,12 +1119,12 @@ const checkAvail = async (
       const linaresCount = allDayAppts?.filter(a => getSector(a.address, a.latitude) === "Linares").length || 0;
       const targetSector = getSector(address, tutorCoords.lat);
 
-      if (linaresCount >= 5 && targetSector === "Talca") {
-        console.log(`[AnimalGrace] Capacity reached for LINARES (${linaresCount}/5). Blocking TALCA.`);
+      if (linaresCount >= 4 && targetSector === "Talca") {
+        console.log(`[AnimalGrace] Capacity reached for LINARES (${linaresCount}/4). Blocking TALCA.`);
         return {
           available: false,
           reason: "daily_capacity_reached",
-          message: `SISTEMA: Para el día ${date}, la agenda de Linares ya tiene ${linaresCount} cupos (límite 5). Por logística, con 5 citas en Linares NO se realizan traslados a Talca para proteger la ruta. Linares sigue disponible si hay huecos.`
+          message: `SISTEMA: Para el día ${date}, la agenda de Linares ya tiene ${linaresCount} cupos (límite 4). Por logística, con 4 citas en Linares NO se realizan traslados a Talca para proteger la ruta. Linares sigue disponible si hay huecos.`
         };
       }
     }
@@ -1124,23 +1140,34 @@ const checkAvail = async (
         if (rmCommunes.some(c => norm.includes(c))) {
           return { ...a, latitude: -33.4975, longitude: -70.6558 }; // Fallback to San Miguel for routing
         }
-        return a; 
+        // No address or unrecognized commune → assign base coordinates (San Miguel)
+        return { ...a, latitude: -33.4975, longitude: -70.6558 };
       }
 
-      // LINARES/TALCA BRANCH
-      if (norm.includes("talca") || norm.includes("maule") || norm.includes("san clemente") || norm.includes("pencahue")) {
+      // LINARES/TALCA BRANCH: detect sector by address text
+      if (norm.includes("talca") || norm.includes("maule") || norm.includes("san clemente") || norm.includes("pencahue") || norm.includes("pelarco")) {
         return { ...a, latitude: -35.4264, longitude: -71.6554 }; // Talca Center
       }
+      // All other addresses (Linares, Yerbas Buenas, San Javier, Colbún, Longaví, Villa Alegre, empty/Bloqueos)
+      // → assign Linares base. This ensures Bloqueos and unrecognized addresses block time at the base.
       return { ...a, latitude: -35.8467, longitude: -71.5936 }; // Linares Center/Base
-    }).filter(a => a.latitude !== null);
+    }); // NOTE: No .filter() — we keep all appointments including Bloqueos so they block slots
 
     // For each available slot, verify if there's enough time to travel to/from it
+    // CRITICAL: slotStart MUST include the timezone offset so comparisons with
+    // appointment_date (stored as e.g. "2026-05-18T10:00:00-04:00") are in the same UTC basis.
+    // Without this, a 10 AM local appointment (= 14:00 UTC) appears AFTER an 11 AM slot
+    // (= 11:00 UTC naive), completely inverting prevAppt/nextAppt detection.
+    const tzOffset = getOffset(timezone, new Date(`${date}T12:00:00`));
     const finalValidSlots = [];
     for (const slot of filteredSlots) {
-      const slotStart = new Date(`${date}T${slot.slot_time}`);
+      // Normalize slot_time: DB returns "HH:MM:SS", ensure we have exactly that before adding offset
+      const slotTimeParts = (slot.slot_time as string).replace(/:/g, '').padStart(6, '0');
+      const slotTimeISO = `${slotTimeParts.substring(0,2)}:${slotTimeParts.substring(2,4)}:${slotTimeParts.substring(4,6)}`;
+      const slotStart = new Date(`${date}T${slotTimeISO}${tzOffset}`);
       const slotEnd = new Date(slotStart.getTime() + (duration * 60000));
 
-      // 1. Find Prev and Next appointment relative to this slot
+      // 1. Find Prev and Next appointment relative to this slot (all in UTC — correct now)
       const prevAppt = dayAppts?.filter((a) =>
         new Date(a.appointment_date) < slotStart
       ).slice(-1)[0];
@@ -1181,8 +1208,8 @@ const checkAvail = async (
           const originSector = originLocation.lat > -35.6 ? "TALCA" : "LINARES";
           const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
           if (originSector !== targetSector) {
-            finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 120 * 60);
-            console.log(`[AnimalGrace] Sector change detected (${originSector} -> ${targetSector}). Enforcing 120min buffer.`);
+            finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 60 * 60);
+            console.log(`[AnimalGrace] Sector change detected (${originSector} -> ${targetSector}). Enforcing 60min buffer.`);
           }
         }
 
@@ -1200,7 +1227,7 @@ const checkAvail = async (
               (prevAppt.duration * 60000))) / 1000;
         } else if (isToday) {
           // If no prev appt today, we start travel FROM NOW (or from clinic start, whichever is later)
-          const clinicStartToday = new Date(`${date}T08:00:00`);
+          const clinicStartToday = new Date(`${date}T08:00:00${tzOffset}`);
           const travelStartBase = now > clinicStartToday
             ? now
             : clinicStartToday;
@@ -1208,8 +1235,8 @@ const checkAvail = async (
             1000;
         } else {
           availableGapSecs =
-            (slotStart.getTime() - new Date(`${date}T08:00:00`).getTime()) /
-            1000; // Assume 8 AM start if no prev on future days
+            (slotStart.getTime() - new Date(`${date}T08:00:00${tzOffset}`).getTime()) /
+            1000; // Assume 8 AM local start if no prev on future days
         }
 
         if (availableGapSecs < finalRequiredTravelSecs) {
@@ -1240,15 +1267,15 @@ const checkAvail = async (
           const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
           const destSector = destinationLocation.lat > -35.6 ? "TALCA" : "LINARES";
           if (targetSector !== destSector) {
-            finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 120 * 60);
-            console.log(`[AnimalGrace] Sector change detected (${targetSector} -> ${destSector}). Enforcing 120min buffer.`);
+            finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 60 * 60);
+            console.log(`[AnimalGrace] Sector change detected (${targetSector} -> ${destSector}). Enforcing 60min buffer.`);
           }
         }
 
         const availableGapSecs = nextAppt
           ? (new Date(nextAppt.appointment_date).getTime() -
             slotEnd.getTime()) / 1000
-          : (new Date(`${date}T20:00:00`).getTime() - slotEnd.getTime()) / 1000; // Assume 8 PM end if no next
+          : (new Date(`${date}T20:00:00${tzOffset}`).getTime() - slotEnd.getTime()) / 1000; // 8 PM local end if no next
 
         if (availableGapSecs < finalRequiredTravelSecs) {
           isPossible = false;
@@ -1263,15 +1290,10 @@ const checkAvail = async (
       }
     }
 
-    // --- EMERGENCY FALLBACK ---
-    // If the mobile/travel filter is too restrictive or fails, show all slots
-    if (finalValidSlots.length === 0 && filteredSlots.length > 0) {
-      console.log(
-        `[checkAvail] Mobile filter returned 0 but agenda has ${filteredSlots.length} slots. Falling back to open agenda.`,
-      );
-      finalValidSlots.push(...filteredSlots);
-      recommendedSlot = `(Sujeto a confirmación de ruta logística)`;
-    }
+    // NOTE: Emergency fallback intentionally removed for AnimalGrace Linares.
+    // If the route filter returns 0 slots, it means the day is genuinely full or incompatible.
+    // Offering slots anyway caused sector violations (Talca → Linares → Talca).
+    // If finalValidSlots is empty, checkAvail will correctly return unavailable.
 
     filteredSlots = finalValidSlots;
   }
@@ -1583,13 +1605,35 @@ const createAppt = async (
   // Also update price if it came from checkAvail (more accurate)
   if (availResult.total_price) price = availResult.total_price;
 
-  // Get coordinates from tutor if they exist
+  // Get base tutor info (name, existing coords)
   const { data: tutorGeo } = await sb.from("tutors")
     .select("latitude, longitude, name, address")
     .eq("clinic_id", clinicId)
     .eq("phone_number", normalizedPhone)
     .limit(1)
     .maybeSingle();
+
+  // GEOCODING: Always try to geocode the appointment address fresh.
+  // This fixes the 98% null GPS bug — coordinates are critical for route/sector logic.
+  let resolvedLat: number | null = tutorGeo?.latitude || null;
+  let resolvedLng: number | null = tutorGeo?.longitude || null;
+
+  const addressToGeocode = args.address || tutorGeo?.address || null;
+  if (addressToGeocode) {
+    const freshCoords = await geocodeAddress(addressToGeocode);
+    if (freshCoords && freshCoords.lat !== 0 && freshCoords.lng !== 0) {
+      resolvedLat = freshCoords.lat;
+      resolvedLng = freshCoords.lng;
+      console.log(`[createAppt] Geocoded "${addressToGeocode}" → lat:${resolvedLat}, lng:${resolvedLng}`);
+      // Persist coordinates back to tutors table for future use
+      await sb.from("tutors").update({
+        latitude: resolvedLat,
+        longitude: resolvedLng,
+      }).eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
+    } else {
+      console.warn(`[createAppt] Geocoding failed for "${addressToGeocode}" — coordinates will be null`);
+    }
+  }
 
   const { data, error } = await sb.from("appointments").insert({
     clinic_id: clinicId,
@@ -1604,8 +1648,8 @@ const createAppt = async (
     duration: duration,
     price: price,
     professional_id: professionalId,
-    latitude: tutorGeo?.latitude || null,
-    longitude: tutorGeo?.longitude || null,
+    latitude: resolvedLat,
+    longitude: resolvedLng,
     notes: args.notes || null,
   }).select().single();
 

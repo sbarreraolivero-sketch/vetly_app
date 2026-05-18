@@ -687,8 +687,7 @@ serve(async (req) => {
         // Fetch all clinics to process their manual reminders
         const { data: allClinics, error: allClinicsError } = await supabaseClient
             .from('clinic_settings')
-            .select('id, clinic_name, timezone, ycloud_api_key, ycloud_phone_number, reminders_enabled')
-            .eq('reminders_enabled', true)
+            .select('id, clinic_name, timezone, ycloud_api_key, ycloud_phone_number, vaccine_reminder_template, deworming_reminder_template, checkup_reminder_template')
 
         if (allClinicsError) {
             console.error('Error fetching clinics for general reminders', allClinicsError)
@@ -735,7 +734,17 @@ serve(async (req) => {
                 for (const rem of (reminders || [])) {
                     const phoneNumber = rem.tutor?.phone_number
                     const patientName = rem.patient?.name
-                    const templateName = rem.whatsapp_template || rem.template_name
+                    
+                    let templateName = rem.whatsapp_template || rem.template_name
+                    if (!templateName) {
+                        if (rem.type === 'vaccine') {
+                            templateName = clinic.vaccine_reminder_template
+                        } else if (rem.type === 'deworming') {
+                            templateName = clinic.deworming_reminder_template
+                        } else {
+                            templateName = clinic.checkup_reminder_template
+                        }
+                    }
 
                     if (!phoneNumber || !templateName) {
                         console.error('Reminder missing phone or template', rem.id)
@@ -788,7 +797,7 @@ serve(async (req) => {
                             // Mark as sent
                             await supabaseClient.from('reminders').update({
                                 status: 'sent',
-                                sent_at: new Date().toISOString()
+                                updated_at: new Date().toISOString()
                             }).eq('id', rem.id)
 
                             const reminderText = `Hola 👋\nTe recordamos que es momento de agendar el próximo control/vacuna de *${patientName || 'tu mascota'}*.\n\n¿Deseas que coordinemos una visita?`;
@@ -812,7 +821,7 @@ serve(async (req) => {
                         } else {
                             await supabaseClient.from('reminders').update({
                                 status: 'failed',
-                                error_message: JSON.stringify(responseData)
+                                updated_at: new Date().toISOString()
                             }).eq('id', rem.id)
                         }
                     } catch (err) {
