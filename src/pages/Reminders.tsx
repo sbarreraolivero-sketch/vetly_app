@@ -24,7 +24,7 @@ export default function Reminders() {
     const [isLoading, setIsLoading] = useState(true)
     const [savingSettings, setSavingSettings] = useState(false)
     
-    // Clinic Settings
+    // Clinic & Reminder Settings
     const [settings, setSettings] = useState<any>(null)
     
     // Logs Data
@@ -42,16 +42,26 @@ export default function Reminders() {
         setIsLoading(true)
         
         try {
-            // 1. Fetch settings if not loaded
             if (!settings) {
+                // Fetch medical templates
                 const { data: clinicSettings } = await supabase
                     .from('clinic_settings')
                     .select('*')
                     .eq('id', profile.clinic_id)
                     .single()
                 
-                if (clinicSettings) {
-                    setSettings(clinicSettings)
+                // Fetch appointment reminders config
+                const { data: reminderData } = await supabase
+                    .from('reminder_settings')
+                    .select('*')
+                    .eq('clinic_id', profile.clinic_id)
+                    .single()
+                
+                if (clinicSettings || reminderData) {
+                    setSettings({
+                        ...(clinicSettings || {}),
+                        ...(reminderData || {})
+                    })
                 }
             }
 
@@ -124,24 +134,35 @@ export default function Reminders() {
         const toastId = toast.loading('Guardando configuración...')
         
         try {
-            const { error } = await (supabase as any)
+            // Save medical settings
+            const { error: clinicError } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
+                    vaccine_reminder_template: settings.vaccine_reminder_template,
+                    deworming_reminder_template: settings.deworming_reminder_template,
+                    checkup_reminder_template: settings.checkup_reminder_template,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', profile.clinic_id)
+            
+            if (clinicError) throw clinicError
+
+            // Save appointment settings
+            const { error: reminderError } = await (supabase as any)
+                .from('reminder_settings')
+                .upsert({
+                    clinic_id: profile.clinic_id,
                     reminder_24h_before: settings.reminder_24h_before,
                     template_24h: settings.template_24h,
                     reminder_2h_before: settings.reminder_2h_before,
                     template_2h: settings.template_2h,
                     request_confirmation: settings.request_confirmation,
                     template_confirmation: settings.template_confirmation,
-                    vaccine_reminder_template: settings.vaccine_reminder_template,
-                    deworming_reminder_template: settings.deworming_reminder_template,
-                    checkup_reminder_template: settings.checkup_reminder_template,
                     preferred_hour: settings.preferred_hour,
                     updated_at: new Date().toISOString()
-                })
-                .eq('id', profile.clinic_id)
-            
-            if (error) throw error
+                }, { onConflict: 'clinic_id' })
+
+            if (reminderError) throw reminderError
             toast.success('Configuración guardada correctamente', { id: toastId })
         } catch (error: any) {
             toast.error(`Error: ${error.message}`, { id: toastId })
