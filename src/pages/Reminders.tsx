@@ -194,14 +194,12 @@ export default function Reminders() {
         if (activeTab === 'appointments') {
             const confirmed = appointmentsStats.filter(a => a.status === 'confirmed').length
             const cancelled = appointmentsStats.filter(a => a.status === 'cancelled').length
-            const scheduled = appointmentsStats.filter(a => ['pending', 'scheduled'].includes(a.status)).length
             
             const groupedByDate = appointmentsStats.reduce((acc, appt) => {
                 const date = new Date(appt.appointment_date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
-                if (!acc[date]) acc[date] = { date, confirmadas: 0, canceladas: 0, reagendadas: 0 }
+                if (!acc[date]) acc[date] = { date, confirmadas: 0, canceladas: 0 }
                 if (appt.status === 'confirmed') acc[date].confirmadas += 1
                 else if (appt.status === 'cancelled') acc[date].canceladas += 1
-                else acc[date].reagendadas += 1
                 return acc
             }, {} as Record<string, any>)
             
@@ -209,7 +207,6 @@ export default function Reminders() {
                 pie: [
                     { name: 'Confirmadas', value: confirmed, color: '#10b981' },
                     { name: 'Canceladas', value: cancelled, color: '#ef4444' },
-                    { name: 'Agendadas/Reagendadas', value: scheduled, color: '#6366f1' }
                 ],
                 area: Object.values(groupedByDate).reverse()
             }
@@ -498,10 +495,6 @@ export default function Reminders() {
                                                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
                                                             <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                                                         </linearGradient>
-                                                        <linearGradient id="colorReagendadas" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
-                                                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                                        </linearGradient>
                                                     </defs>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
@@ -510,7 +503,6 @@ export default function Reminders() {
                                                     <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                                                     <Area type="monotone" dataKey="confirmadas" name="Confirmadas" stroke="#10b981" fillOpacity={1} fill="url(#colorConfirmadas)" />
                                                     <Area type="monotone" dataKey="canceladas" name="Canceladas" stroke="#ef4444" fillOpacity={1} fill="url(#colorCanceladas)" />
-                                                    <Area type="monotone" dataKey="reagendadas" name="Agendadas" stroke="#6366f1" fillOpacity={1} fill="url(#colorReagendadas)" />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         )
