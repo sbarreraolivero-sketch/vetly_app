@@ -13,6 +13,7 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
     BarChart, Bar, Legend, Cell, PieChart, Pie
 } from 'recharts'
+import { Link } from 'react-router-dom'
 
 type TabType = 'appointments' | 'medical'
 type DateRange = 'today' | 'week' | 'month' | 'all'
@@ -37,7 +38,7 @@ export default function Reminders() {
         if (profile?.clinic_id) {
             fetchData()
         }
-    }, [profile?.clinic_id, activeTab, dateRange])
+    }, [profile?.clinic_id, activeTab, dateRange, medicalTab])
 
     const fetchData = async () => {
         if (!profile?.clinic_id) return
@@ -83,7 +84,7 @@ export default function Reminders() {
                 // Fetch appointment reminder logs
                 let query = supabase
                     .from('reminder_logs')
-                    .select('*, appointments(patient_name, tutor_name)')
+                    .select('*, appointments(id, patient_name, tutor_name)')
                     .eq('clinic_id', profile.clinic_id)
                     .order('sent_at', { ascending: false })
                 
@@ -115,27 +116,23 @@ export default function Reminders() {
                 // Fetch reminders
                 let query = supabase
                     .from('reminders')
-                    .select('*, patients(name, tutors(name, phone_number))')
-                    // Patient relation might need adjustments based on exact schema
+                    .select('*, patients(id, name, tutor_id, tutors(id, name, phone_number))')
                     .order('scheduled_date', { ascending: false })
                 
-                // we don't have clinic_id on reminders? Wait, patient has clinic_id. 
-                // Since we can't easily join-filter in supabase js easily, we might need to filter client side or use a view.
-                // Assuming reminders are fetched by patient usually. If we want all clinic reminders, we can get them.
-                // For safety, let's just fetch recent ones.
+                // Apply date filter at DB level for history tab
+                if (medicalTab === 'history' && dateRange !== 'all') {
+                    query = query.gte('scheduled_date', startDate.toISOString())
+                }
+
                 const { data } = await query.limit(200)
                 
                 if (data) {
-                    // Filter manually for clinic_id if needed, but since patients are restricted by RLS to clinic, it should be fine.
                     let filtered = data as any[]
                     if (medicalTab === 'history') {
                         // Enviados y fallidos
-                        filtered = filtered.filter(d => d.status !== 'pending')
-                        if (dateRange !== 'all') {
-                            filtered = filtered.filter(d => new Date(d.scheduled_date) >= startDate)
-                        }
+                        filtered = filtered.filter(d => d.status === 'sent' || d.status === 'failed')
                     } else {
-                        // Pendientes (futuros)
+                        // Solo pendientes (fecha futura)
                         filtered = filtered.filter(d => d.status === 'pending')
                     }
                     setMedicalLogs(filtered)
@@ -423,38 +420,66 @@ export default function Reminders() {
                 <div className="lg:col-span-2 space-y-6">
                     {/* Analytics Dashboard */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Left panel: pie for appointments, stat counters for medical */}
                         <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm h-64 flex flex-col">
-                            <h4 className="text-xs font-bold text-charcoal/50 uppercase tracking-widest mb-4">Tasa de Éxito</h4>
+                            <h4 className="text-xs font-bold text-charcoal/50 uppercase tracking-widest mb-4">
+                                {activeTab === 'appointments' ? 'Estado de Citas' : 'Resumen de Envíos'}
+                            </h4>
                             <div className="flex-1 flex items-center justify-center relative">
                                 {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-primary-500" /> : (
-                                    chartData.pie.reduce((a,b)=>a+b.value,0) === 0 ? (
-                                        <p className="text-sm text-charcoal/40 font-medium">Sin datos en este periodo</p>
+                                    activeTab === 'appointments' ? (
+                                        chartData.pie.reduce((a: number, b: any) => a + b.value, 0) === 0 ? (
+                                            <p className="text-sm text-charcoal/40 font-medium">Sin datos en este periodo</p>
+                                        ) : (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={chartData.pie}
+                                                        cx="50%" cy="50%"
+                                                        innerRadius={55} outerRadius={75}
+                                                        paddingAngle={4}
+                                                        dataKey="value"
+                                                    >
+                                                        {chartData.pie.map((entry: any, index: number) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                                        ))}
+                                                    </Pie>
+                                                    <RechartsTooltip />
+                                                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        )
                                     ) : (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <PieChart>
-                                                <Pie
-                                                    data={chartData.pie}
-                                                    cx="50%" cy="50%"
-                                                    innerRadius={60} outerRadius={80}
-                                                    paddingAngle={5}
-                                                    dataKey="value"
-                                                >
-                                                    {chartData.pie.map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                                    ))}
-                                                </Pie>
-                                                <RechartsTooltip />
-                                                <Legend />
-                                            </PieChart>
-                                        </ResponsiveContainer>
+                                        // Medical: numeric counters for sent/failed in selected date range
+                                        (() => {
+                                            const logsToCount = medicalTab === 'history' ? medicalLogs : []
+                                            const sent = logsToCount.filter((l: any) => l.status === 'sent').length
+                                            const failed = logsToCount.filter((l: any) => l.status === 'failed').length
+                                            const pending = medicalTab === 'pending' ? medicalLogs.length : 0
+                                            return (
+                                                <div className="flex w-full items-center justify-around">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-4xl font-black text-emerald-500">{medicalTab === 'history' ? sent : pending}</span>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">{medicalTab === 'history' ? 'Enviados' : 'Pendientes'}</span>
+                                                    </div>
+                                                    {medicalTab === 'history' && (
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <span className="text-4xl font-black text-red-500">{failed}</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">Fallidos</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })()
                                     )
                                 )}
                             </div>
                         </div>
 
+                        {/* Right panel: area chart for appointments, bar chart for medical */}
                         <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm h-64 flex flex-col">
                             <h4 className="text-xs font-bold text-charcoal/50 uppercase tracking-widest mb-4">
-                                {activeTab === 'appointments' ? 'Envíos Diarios' : 'Por Categoría'}
+                                {activeTab === 'appointments' ? 'Citas por Día' : 'Por Categoría'}
                             </h4>
                             <div className="flex-1 flex items-center justify-center">
                                 {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-primary-500" /> : (
@@ -482,9 +507,10 @@ export default function Reminders() {
                                                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
                                                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
                                                     <RechartsTooltip />
-                                                    <Area type="monotone" dataKey="confirmadas" stroke="#10b981" fillOpacity={1} fill="url(#colorConfirmadas)" />
-                                                    <Area type="monotone" dataKey="canceladas" stroke="#ef4444" fillOpacity={1} fill="url(#colorCanceladas)" />
-                                                    <Area type="monotone" dataKey="reagendadas" stroke="#6366f1" fillOpacity={1} fill="url(#colorReagendadas)" />
+                                                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                                                    <Area type="monotone" dataKey="confirmadas" name="Confirmadas" stroke="#10b981" fillOpacity={1} fill="url(#colorConfirmadas)" />
+                                                    <Area type="monotone" dataKey="canceladas" name="Canceladas" stroke="#ef4444" fillOpacity={1} fill="url(#colorCanceladas)" />
+                                                    <Area type="monotone" dataKey="reagendadas" name="Agendadas" stroke="#6366f1" fillOpacity={1} fill="url(#colorReagendadas)" />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         )
@@ -570,16 +596,40 @@ export default function Reminders() {
                                             {(activeTab === 'appointments' ? appointmentLogs : medicalLogs).map((log, i) => (
                                                 <tr key={log.id || i} className="hover:bg-ivory/30 transition-colors">
                                                     <td className="px-6 py-4">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-bold text-charcoal text-sm">
-                                                                {activeTab === 'appointments' 
-                                                                    ? log.appointments?.patient_name || 'Paciente'
-                                                                    : log.patients?.name || log.title || 'Paciente'}
-                                                            </span>
-                                                            <span className="text-xs text-charcoal/50 flex items-center gap-1 mt-0.5">
-                                                                <Phone className="w-3 h-3" />
-                                                                {log.phone_number || (log.patients?.tutors?.[0]?.phone_number) || 'Sin número'}
-                                                            </span>
+                                                        <div className="flex flex-col gap-0.5">
+                                                            {activeTab === 'appointments' ? (
+                                                                <>
+                                                                    <span className="font-bold text-charcoal text-sm">{log.appointments?.patient_name || 'Paciente'}</span>
+                                                                    {log.appointments?.tutor_name && (
+                                                                        <span className="text-xs text-charcoal/40">Tutor: {log.appointments.tutor_name}</span>
+                                                                    )}
+                                                                    <span className="text-xs text-charcoal/50 flex items-center gap-1">
+                                                                        <Phone className="w-3 h-3" />
+                                                                        {log.phone_number || 'Sin número'}
+                                                                    </span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    {log.patients?.id ? (
+                                                                        <Link to={`/app/patients/${log.patients.id}`} className="font-bold text-charcoal text-sm hover:text-primary-600 transition-colors hover:underline underline-offset-2">
+                                                                            {log.patients.name || log.title || 'Paciente'}
+                                                                        </Link>
+                                                                    ) : (
+                                                                        <span className="font-bold text-charcoal text-sm">{log.patients?.name || log.title || 'Paciente'}</span>
+                                                                    )}
+                                                                    {log.patients?.tutor_id ? (
+                                                                        <Link to={`/app/tutors/${log.patients.tutor_id}`} className="text-xs text-charcoal/40 hover:text-primary-600 transition-colors">
+                                                                            Tutor: {log.patients?.tutors?.name || '-'}
+                                                                        </Link>
+                                                                    ) : (
+                                                                        <span className="text-xs text-charcoal/40">Tutor: {log.patients?.tutors?.name || '-'}</span>
+                                                                    )}
+                                                                    <span className="text-xs text-charcoal/50 flex items-center gap-1">
+                                                                        <Phone className="w-3 h-3" />
+                                                                        {log.phone_number || log.patients?.tutors?.phone_number || 'Sin número'}
+                                                                    </span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
