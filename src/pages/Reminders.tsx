@@ -84,7 +84,7 @@ export default function Reminders() {
                 // Fetch appointment reminder logs
                 let query = supabase
                     .from('reminder_logs')
-                    .select('*, appointments(id, patient_name, tutor_name)')
+                    .select('*, appointments(id, patient_name, tutor_name, status)')
                     .eq('clinic_id', profile.clinic_id)
                     .order('sent_at', { ascending: false })
                 
@@ -94,20 +94,14 @@ export default function Reminders() {
                     query = query.limit(100)
                 }
 
-                // Also fetch appointments for the charts
-                let statsQuery = supabase
-                    .from('appointments')
-                    .select('status, appointment_date')
-                    .eq('clinic_id', profile.clinic_id)
-                
-                if (dateRange !== 'all') {
-                    statsQuery = statsQuery.gte('appointment_date', startDate.toISOString())
-                }
-                
-                const [logsRes, statsRes] = await Promise.all([query, statsQuery])
-                
-                setAppointmentLogs(logsRes.data || [])
-                setAppointmentsStats(statsRes.data || [])
+                const logsRes = await query
+                const logs = logsRes.data || []
+                setAppointmentLogs(logs)
+                // Derive stats from the logs themselves (using appointment status from joined data)
+                setAppointmentsStats(logs.map((l: any) => ({
+                    status: l.appointments?.status || 'pending',
+                    appointment_date: l.sent_at || l.created_at
+                })))
             } else {
                 // Fetch medical reminder logs (from 'reminders' table)
                 // Note: reminders table does not have sent_at, it has scheduled_date and created_at.
@@ -208,7 +202,7 @@ export default function Reminders() {
                     { name: 'Confirmadas', value: confirmed, color: '#10b981' },
                     { name: 'Canceladas', value: cancelled, color: '#ef4444' },
                 ],
-                area: Object.values(groupedByDate).reverse()
+                area: Object.values(groupedByDate).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
             }
         } else {
             const sent = medicalLogs.filter(l => l.status === 'sent').length
