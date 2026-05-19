@@ -20,6 +20,7 @@ type DateRange = 'today' | 'week' | 'month' | 'all'
 export default function Reminders() {
     const { profile } = useAuth()
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
+    const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
     const [dateRange, setDateRange] = useState<DateRange>('month')
     const [isLoading, setIsLoading] = useState(true)
     const [savingSettings, setSavingSettings] = useState(false)
@@ -29,6 +30,7 @@ export default function Reminders() {
     
     // Logs Data
     const [appointmentLogs, setAppointmentLogs] = useState<any[]>([])
+    const [appointmentsStats, setAppointmentsStats] = useState<any[]>([])
     const [medicalLogs, setMedicalLogs] = useState<any[]>([])
 
     useEffect(() => {
@@ -88,11 +90,23 @@ export default function Reminders() {
                 if (dateRange !== 'all') {
                     query = query.gte('sent_at', startDate.toISOString())
                 } else {
-                    query = query.limit(100) // limit all so we don't crash
+                    query = query.limit(100)
                 }
 
-                const { data } = await query
-                setAppointmentLogs(data || [])
+                // Also fetch appointments for the charts
+                let statsQuery = supabase
+                    .from('appointments')
+                    .select('status, appointment_date')
+                    .eq('clinic_id', profile.clinic_id)
+                
+                if (dateRange !== 'all') {
+                    statsQuery = statsQuery.gte('appointment_date', startDate.toISOString())
+                }
+                
+                const [logsRes, statsRes] = await Promise.all([query, statsQuery])
+                
+                setAppointmentLogs(logsRes.data || [])
+                setAppointmentsStats(statsRes.data || [])
             } else {
                 // Fetch medical reminder logs (from 'reminders' table)
                 // Note: reminders table does not have sent_at, it has scheduled_date and created_at.
@@ -114,8 +128,15 @@ export default function Reminders() {
                 if (data) {
                     // Filter manually for clinic_id if needed, but since patients are restricted by RLS to clinic, it should be fine.
                     let filtered = data as any[]
-                    if (dateRange !== 'all') {
-                        filtered = filtered.filter(d => new Date(d.scheduled_date) >= startDate)
+                    if (medicalTab === 'history') {
+                        // Enviados y fallidos
+                        filtered = filtered.filter(d => d.status !== 'pending')
+                        if (dateRange !== 'all') {
+                            filtered = filtered.filter(d => new Date(d.scheduled_date) >= startDate)
+                        }
+                    } else {
+                        // Pendientes (futuros)
+                        filtered = filtered.filter(d => d.status === 'pending')
                     }
                     setMedicalLogs(filtered)
                 }
@@ -174,21 +195,24 @@ export default function Reminders() {
     // Chart Data Preparation
     const getChartData = () => {
         if (activeTab === 'appointments') {
-            const sent = appointmentLogs.filter(l => l.status === 'sent').length
-            const failed = appointmentLogs.filter(l => l.status === 'failed').length
+            const confirmed = appointmentsStats.filter(a => a.status === 'confirmed').length
+            const cancelled = appointmentsStats.filter(a => a.status === 'cancelled').length
+            const scheduled = appointmentsStats.filter(a => ['pending', 'scheduled'].includes(a.status)).length
             
-            const groupedByDate = appointmentLogs.reduce((acc, log) => {
-                const date = new Date(log.sent_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
-                if (!acc[date]) acc[date] = { date, enviados: 0, fallidos: 0 }
-                if (log.status === 'sent') acc[date].enviados += 1
-                else acc[date].fallidos += 1
+            const groupedByDate = appointmentsStats.reduce((acc, appt) => {
+                const date = new Date(appt.appointment_date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
+                if (!acc[date]) acc[date] = { date, confirmadas: 0, canceladas: 0, reagendadas: 0 }
+                if (appt.status === 'confirmed') acc[date].confirmadas += 1
+                else if (appt.status === 'cancelled') acc[date].canceladas += 1
+                else acc[date].reagendadas += 1
                 return acc
             }, {} as Record<string, any>)
             
             return {
                 pie: [
-                    { name: 'Enviados', value: sent, color: '#10b981' },
-                    { name: 'Fallidos', value: failed, color: '#ef4444' }
+                    { name: 'Confirmadas', value: confirmed, color: '#10b981' },
+                    { name: 'Canceladas', value: cancelled, color: '#ef4444' },
+                    { name: 'Agendadas/Reagendadas', value: scheduled, color: '#6366f1' }
                 ],
                 area: Object.values(groupedByDate).reverse()
             }
@@ -441,16 +465,26 @@ export default function Reminders() {
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <AreaChart data={chartData.area} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                                     <defs>
-                                                        <linearGradient id="colorEnviados" x1="0" y1="0" x2="0" y2="1">
+                                                        <linearGradient id="colorConfirmadas" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
                                                             <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                                        </linearGradient>
+                                                        <linearGradient id="colorCanceladas" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                                                        </linearGradient>
+                                                        <linearGradient id="colorReagendadas" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                                                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                                                         </linearGradient>
                                                     </defs>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
                                                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
                                                     <RechartsTooltip />
-                                                    <Area type="monotone" dataKey="enviados" stroke="#10b981" fillOpacity={1} fill="url(#colorEnviados)" />
+                                                    <Area type="monotone" dataKey="confirmadas" stroke="#10b981" fillOpacity={1} fill="url(#colorConfirmadas)" />
+                                                    <Area type="monotone" dataKey="canceladas" stroke="#ef4444" fillOpacity={1} fill="url(#colorCanceladas)" />
+                                                    <Area type="monotone" dataKey="reagendadas" stroke="#6366f1" fillOpacity={1} fill="url(#colorReagendadas)" />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         )
@@ -481,7 +515,31 @@ export default function Reminders() {
                                 <Activity className="w-4 h-4 text-primary-600" />
                                 Registro de Envíos
                             </h3>
-                            <button onClick={fetchData} className="p-2 text-charcoal/40 hover:text-primary-600 transition-colors rounded-lg hover:bg-white">
+                            
+                            {activeTab === 'medical' && (
+                                <div className="flex items-center gap-2 ml-4">
+                                    <button 
+                                        onClick={() => setMedicalTab('pending')}
+                                        className={cn(
+                                            "text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest",
+                                            medicalTab === 'pending' ? "bg-amber-100 text-amber-700" : "text-charcoal/40 hover:bg-white"
+                                        )}
+                                    >
+                                        Pendientes
+                                    </button>
+                                    <button 
+                                        onClick={() => setMedicalTab('history')}
+                                        className={cn(
+                                            "text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest",
+                                            medicalTab === 'history' ? "bg-emerald-100 text-emerald-700" : "text-charcoal/40 hover:bg-white"
+                                        )}
+                                    >
+                                        Enviados/Fallidos
+                                    </button>
+                                </div>
+                            )}
+
+                            <button onClick={fetchData} className="ml-auto p-2 text-charcoal/40 hover:text-primary-600 transition-colors rounded-lg hover:bg-white">
                                 <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
                             </button>
                         </div>
