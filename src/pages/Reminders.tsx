@@ -241,22 +241,22 @@ export default function Reminders() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-20 animate-fade-in">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-charcoal tracking-tighter uppercase flex items-center gap-3">
-                        <Bell className="w-8 h-8 text-primary-600" />
+                    <h1 className="text-2xl sm:text-3xl font-black text-charcoal tracking-tighter uppercase flex items-center gap-2 sm:gap-3">
+                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 text-primary-600" />
                         Centro de Recordatorios
                     </h1>
-                    <p className="text-charcoal/50 font-medium mt-1">
+                    <p className="text-charcoal/50 text-xs sm:text-sm font-medium mt-1">
                         Gestiona y monitorea los mensajes automáticos de citas y controles médicos.
                     </p>
                 </div>
                 
-                <div className="flex items-center gap-3">
+                <div className="w-full sm:w-auto">
                     <button
                         onClick={handleSaveSettings}
                         disabled={savingSettings || !settings}
-                        className="btn-primary shadow-premium py-2.5 px-6 flex items-center gap-2"
+                        className="w-full sm:w-auto btn-primary shadow-premium py-2.5 px-6 flex items-center justify-center gap-2"
                     >
                         {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Guardar Configuración
@@ -265,12 +265,12 @@ export default function Reminders() {
             </div>
 
             {/* Dashboard Controls */}
-            <div className="bg-white p-2 rounded-xl border border-silk-beige shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center p-1 bg-ivory rounded-lg">
+            <div className="bg-white p-2 rounded-xl border border-silk-beige shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div className="flex items-center p-1 bg-ivory rounded-lg w-full sm:w-auto">
                     <button
                         onClick={() => setActiveTab('appointments')}
                         className={cn(
-                            "px-6 py-2 rounded-md text-sm font-bold uppercase tracking-widest transition-all",
+                            "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
                             activeTab === 'appointments' ? "bg-white text-primary-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
                         )}
                     >
@@ -279,7 +279,7 @@ export default function Reminders() {
                     <button
                         onClick={() => setActiveTab('medical')}
                         className={cn(
-                            "px-6 py-2 rounded-md text-sm font-bold uppercase tracking-widest transition-all",
+                            "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
                             activeTab === 'medical' ? "bg-white text-primary-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
                         )}
                     >
@@ -287,12 +287,12 @@ export default function Reminders() {
                     </button>
                 </div>
                 
-                <div className="flex items-center gap-2 pr-2">
+                <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto">
                     <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
                     <select 
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value as DateRange)}
-                        className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500"
+                        className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
                     >
                         <option value="today">Hoy</option>
                         <option value="week">Últimos 7 días</option>
@@ -536,38 +536,40 @@ export default function Reminders() {
 
                     {/* Logs Table */}
                     <div className="bg-white rounded-soft border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="p-5 border-b border-silk-beige flex items-center justify-between bg-ivory/50">
+                        <div className="p-4 sm:p-5 border-b border-silk-beige flex flex-col sm:flex-row sm:items-center justify-between bg-ivory/50 gap-3">
                             <h3 className="font-bold text-charcoal flex items-center gap-2">
                                 <Activity className="w-4 h-4 text-primary-600" />
                                 Registro de Envíos
                             </h3>
                             
-                            {activeTab === 'medical' && (
-                                <div className="flex items-center gap-2 ml-4">
-                                    <button 
-                                        onClick={() => setMedicalTab('pending')}
-                                        className={cn(
-                                            "text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest",
-                                            medicalTab === 'pending' ? "bg-amber-100 text-amber-700" : "text-charcoal/40 hover:bg-white"
-                                        )}
-                                    >
-                                        Pendientes
-                                    </button>
-                                    <button 
-                                        onClick={() => setMedicalTab('history')}
-                                        className={cn(
-                                            "text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest",
-                                            medicalTab === 'history' ? "bg-emerald-100 text-emerald-700" : "text-charcoal/40 hover:bg-white"
-                                        )}
-                                    >
-                                        Enviados/Fallidos
-                                    </button>
-                                </div>
-                            )}
-
-                            <button onClick={fetchData} className="ml-auto p-2 text-charcoal/40 hover:text-primary-600 transition-colors rounded-lg hover:bg-white">
-                                <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-                            </button>
+                            <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                                {activeTab === 'medical' && (
+                                    <div className="flex items-center p-0.5 bg-white sm:bg-transparent rounded-lg sm:rounded-none w-full sm:w-auto border sm:border-0 border-silk-beige">
+                                        <button 
+                                            onClick={() => setMedicalTab('pending')}
+                                            className={cn(
+                                                "flex-1 sm:flex-initial text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest text-center",
+                                                medicalTab === 'pending' ? "bg-amber-100 text-amber-700" : "text-charcoal/40 hover:bg-white"
+                                            )}
+                                        >
+                                            Pendientes
+                                        </button>
+                                        <button 
+                                            onClick={() => setMedicalTab('history')}
+                                            className={cn(
+                                                "flex-1 sm:flex-initial text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest text-center",
+                                                medicalTab === 'history' ? "bg-emerald-100 text-emerald-700" : "text-charcoal/40 hover:bg-white"
+                                            )}
+                                        >
+                                            Enviados/Fallidos
+                                        </button>
+                                    </div>
+                                )}
+                                
+                                <button onClick={fetchData} className="p-2 text-charcoal/40 hover:text-primary-600 transition-colors rounded-lg hover:bg-white border border-transparent sm:border-0">
+                                    <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+                                </button>
+                            </div>
                         </div>
                         
                         <div className="overflow-x-auto min-h-[300px]">
@@ -586,16 +588,16 @@ export default function Reminders() {
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="border-b border-silk-beige text-[11px] uppercase tracking-wider text-charcoal/40 font-bold bg-white">
-                                                <th className="px-6 py-4">Paciente / Destino</th>
-                                                <th className="px-6 py-4">Tipo</th>
-                                                <th className="px-6 py-4">Estado</th>
-                                                <th className="px-6 py-4 text-right">Fecha</th>
+                                                <th className="px-4 sm:px-6 py-3 sm:py-4">Paciente / Destino</th>
+                                                <th className="px-4 sm:px-6 py-3 sm:py-4">Tipo</th>
+                                                <th className="px-4 sm:px-6 py-3 sm:py-4">Estado</th>
+                                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-right">Fecha</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-silk-beige/50 bg-white">
                                             {(activeTab === 'appointments' ? appointmentLogs : medicalLogs).map((log, i) => (
                                                 <tr key={log.id || i} className="hover:bg-ivory/30 transition-colors">
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 sm:px-6 py-3 sm:py-4">
                                                         <div className="flex flex-col gap-0.5">
                                                             {activeTab === 'appointments' ? (
                                                                 <>
@@ -632,7 +634,7 @@ export default function Reminders() {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 sm:px-6 py-3 sm:py-4">
                                                         <span className={cn(
                                                             "text-[10px] font-bold px-2.5 py-1 rounded-sm uppercase tracking-widest",
                                                             log.type === '24h' && "bg-amber-100 text-amber-700",
@@ -646,7 +648,7 @@ export default function Reminders() {
                                                             {log.type === 'vaccine' ? 'Vacuna' : log.type === 'deworming' ? 'Desparasitación' : log.type}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 sm:px-6 py-3 sm:py-4">
                                                         <div className="flex items-center gap-2">
                                                             {log.status === 'sent' ? (
                                                                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -663,7 +665,7 @@ export default function Reminders() {
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 text-right">
+                                                    <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                                                         <div className="flex flex-col items-end">
                                                             <span className="text-sm font-medium text-charcoal">
                                                                 {new Date(log.sent_at || log.scheduled_date || log.created_at).toLocaleDateString('es-ES')}
