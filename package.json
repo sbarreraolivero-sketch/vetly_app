@@ -39,6 +39,7 @@
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^6.21.0",
+    "recharts": "^3.8.1",
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {

@@ -1,25 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { Loader2, Save, Trash2, CalendarClock, Settings2, Bell } from 'lucide-react'
-import { TemplateSelector } from '@/components/settings/TemplateSelector'
+import { Loader2, Trash2, CalendarClock, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import toast from 'react-hot-toast'
 
 interface PatientRemindersProps {
     patientId: string
 }
 
 export function PatientReminders({ patientId }: PatientRemindersProps) {
-    const { profile, clinics } = useAuth()
+    const { profile } = useAuth()
     const [loading, setLoading] = useState(true)
-    const [saving, setSaving] = useState(false)
     const [reminders, setReminders] = useState<any[]>([])
-    
-    const [vaccineTemplate, setVaccineTemplate] = useState('')
-    const [dewormingTemplate, setDewormingTemplate] = useState('')
-    const [checkupTemplate, setCheckupTemplate] = useState('')
-    const [activeClinicId, setActiveClinicId] = useState<string | null>(null)
 
     useEffect(() => {
         if (profile?.clinic_id && patientId) {
@@ -31,15 +23,13 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         setLoading(true)
         try {
             // 1. Fetch Patient details to get the definitive clinic_id
-            const { data: patient, error: pError } = await (supabase as any)
+            const { error: pError } = await (supabase as any)
                 .from('patients')
                 .select('clinic_id')
                 .eq('id', patientId)
                 .single()
             
             if (pError) throw pError
-            const clinicId = patient?.clinic_id || profile?.clinic_id
-            setActiveClinicId(clinicId)
 
             // 2. Fetch Reminders for patient (Safe catch to avoid blocking global settings)
             try {
@@ -55,20 +45,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                 console.warn('Could not fetch specific reminders:', err)
             }
 
-            // 3. Fetch Clinic Settings using the patient-derived clinic_id
-            const { data: settingsArray, error: setError } = await (supabase as any)
-                .from('clinic_settings')
-                .select('*')
-                .eq('id', clinicId)
-            
-            if (setError) {
-                console.error("Error fetching clinic settings:", setError)
-            } else if (settingsArray && settingsArray.length > 0) {
-                const settings = settingsArray[0]
-                setVaccineTemplate(settings.vaccine_reminder_template || '')
-                setDewormingTemplate(settings.deworming_reminder_template || '')
-                setCheckupTemplate(settings.checkup_reminder_template || '')
-            }
             
         } catch (error) {
             console.error('Error fetching data:', error)
@@ -77,41 +53,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
         }
     }
 
-    const handleSaveSettings = async () => {
-        const clinicIdToUse = activeClinicId || profile?.clinic_id
-        if (!clinicIdToUse) {
-            toast.error('Sesión no válida. Intenta cerrar sesión e ingresar de nuevo.')
-            return
-        }
-        
-        setSaving(true)
-        const toastId = toast.loading('Guardando preferencias...')
-        
-        try {
-            const currentClinic = clinics.find(c => c.clinic_id === clinicIdToUse)
-            
-            // Using upsert to handle case where record might not exist yet
-            const { error } = await (supabase as any)
-                .from('clinic_settings')
-                .upsert({
-                    id: clinicIdToUse,
-                    clinic_name: currentClinic?.clinic_name || 'Mi Clínica',
-                    vaccine_reminder_template: vaccineTemplate,
-                    deworming_reminder_template: dewormingTemplate,
-                    checkup_reminder_template: checkupTemplate,
-                    updated_at: new Date().toISOString()
-                })
-            
-            if (error) throw error
-            
-            toast.success('Preferencias guardadas correctamente', { id: toastId })
-        } catch (error: any) {
-            console.error('Error saving template settings:', error)
-            toast.error(`Error al guardar: ${error.message || 'Error desconocido'}`, { id: toastId })
-        } finally {
-            setSaving(false)
-        }
-    }
 
     const handleDeleteReminder = async (id: string) => {
         if (!confirm('¿Seguro que deseas eliminar este recordatorio programado?')) return
@@ -209,66 +150,6 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* Global Settings Sidebar */}
-            <div className="bg-gradient-to-br from-primary-900 to-charcoal rounded-soft p-6 shadow-xl text-white h-fit sticky top-6">
-                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
-                    <div className="p-2 bg-white/10 rounded-lg">
-                        <Settings2 className="w-5 h-5 text-primary-200" />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-black uppercase tracking-tighter text-white">Ajustes Globales</h3>
-                        <p className="text-[10px] text-primary-200 uppercase tracking-widest font-bold">Automatización de Clínica</p>
-                    </div>
-                </div>
-
-                <div className="space-y-6">
-                    <p className="text-xs text-white leading-relaxed font-bold">
-                        Configura las plantillas de WhatsApp predeterminadas para <span className="text-primary-300 font-black underline decoration-primary-300 decoration-2 underline-offset-2">cualquier paciente</span>. Se usan automáticamente al registrar vacunas, desparasitaciones o al programar un control médico desde el historial clínico.
-                    </p>
-
-                    <div className="space-y-5">
-                        <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-md">
-                           <TemplateSelector 
-                                label="Plantilla: Vacunas"
-                                value={vaccineTemplate}
-                                onChange={setVaccineTemplate}
-                                placeholder="Elegir plantilla..."
-                                labelClassName="text-white"
-                           />
-                        </div>
-
-                        <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-md">
-                           <TemplateSelector 
-                                label="Plantilla: Parasitología"
-                                value={dewormingTemplate}
-                                onChange={setDewormingTemplate}
-                                placeholder="Elegir plantilla..."
-                                labelClassName="text-white"
-                           />
-                        </div>
-
-                        <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-md">
-                           <TemplateSelector 
-                                label="Plantilla: Control Médico"
-                                value={checkupTemplate}
-                                onChange={setCheckupTemplate}
-                                placeholder="Elegir plantilla..."
-                                labelClassName="text-white"
-                           />
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={handleSaveSettings}
-                        disabled={saving}
-                        className="w-full btn-primary bg-primary-600 hover:bg-primary-500 text-white border-none font-bold py-4 shadow-xl flex items-center justify-center gap-3 mt-4 transition-all hover:scale-[1.02]"
-                    >
-                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                        <span className="uppercase tracking-widest text-sm">Guardar Preferencias</span>
-                    </button>
-                </div>
             </div>
         </div>
     )

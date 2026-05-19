@@ -11,6 +11,7 @@ const AdminLayout = lazy(() => import('./components/layout/AdminLayout'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Messages = lazy(() => import('./pages/Messages'))
 const Appointments = lazy(() => import('./pages/Appointments'))
+const Reminders = lazy(() => import('./pages/Reminders'))
 const Tutors = lazy(() => import('./pages/Tutors'))
 const Patients = lazy(() => import('./pages/Patients'))
 const PatientProfile = lazy(() => import('./pages/PatientProfile'))
@@ -146,6 +147,11 @@ function MainRoutes() {
                         <Route path="appointments" element={
                             <SubscriptionGuard>
                                 <Appointments />
+                            </SubscriptionGuard>
+                        } />
+                        <Route path="reminders" element={
+                            <SubscriptionGuard>
+                                <Reminders />
                             </SubscriptionGuard>
                         } />
                         {/* Domain Tutors & Patients */}

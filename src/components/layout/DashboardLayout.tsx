@@ -50,6 +50,7 @@ const navigation = [
     { name: 'Pacientes', href: '/app/patients', icon: Heart },
     { name: 'CRM', href: '/app/crm', icon: Target },
     { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
+    { name: 'Recordatorios', href: '/app/reminders', icon: Clock },
     { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
     { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
     { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
@@ -334,8 +335,8 @@ export default function DashboardLayout() {
 
                         // Role-based restrictions
                         if (isVetAssistant) {
-                            // Asistente Veterinario only sees: Dashboard, Tutores, Pacientes, Citas, Finanzas
-                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
+                            // Asistente Veterinario only sees: Dashboard, Tutores, Pacientes, Citas, Recordatorios, Finanzas
+                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
                         }
 
                         // Hide Finance, CRM, and Campaigns for non-owners/admins (everyone else)
@@ -416,7 +417,7 @@ export default function DashboardLayout() {
                         const isVetAssistant = userRole === 'vet_assistant'
 
                         if (isVetAssistant) {
-                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Finanzas'].includes(item.name)
+                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
                         }
 
                         if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
