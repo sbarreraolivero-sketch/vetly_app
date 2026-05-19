@@ -81,27 +81,36 @@ export default function Reminders() {
             }
 
             if (activeTab === 'appointments') {
-                // Fetch appointment reminder logs
+                // TABLE: reminder logs filtered by when they were sent
                 let query = supabase
                     .from('reminder_logs')
                     .select('*, appointments(id, patient_name, tutor_name, status)')
                     .eq('clinic_id', profile.clinic_id)
                     .order('sent_at', { ascending: false })
-                
+
                 if (dateRange !== 'all') {
                     query = query.gte('sent_at', startDate.toISOString())
                 } else {
                     query = query.limit(100)
                 }
 
-                const logsRes = await query
-                const logs = logsRes.data || []
-                setAppointmentLogs(logs)
-                // Derive stats from the logs themselves (using appointment status from joined data)
-                setAppointmentsStats(logs.map((l: any) => ({
-                    status: l.appointments?.status || 'pending',
-                    appointment_date: l.sent_at || l.created_at
-                })))
+                // CHART: past appointments by appointment_date → real confirmed/cancelled outcomes
+                const todayISO = new Date().toISOString()
+                let statsQuery = supabase
+                    .from('appointments')
+                    .select('status, appointment_date')
+                    .eq('clinic_id', profile.clinic_id)
+                    .lte('appointment_date', todayISO)
+
+                if (dateRange !== 'all') {
+                    statsQuery = statsQuery.gte('appointment_date', startDate.toISOString())
+                } else {
+                    statsQuery = statsQuery.limit(300)
+                }
+
+                const [logsRes, statsRes] = await Promise.all([query, statsQuery])
+                setAppointmentLogs(logsRes.data || [])
+                setAppointmentsStats(statsRes.data || [])
             } else {
                 // Fetch medical reminder logs (from 'reminders' table)
                 // Note: reminders table does not have sent_at, it has scheduled_date and created_at.
