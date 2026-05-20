@@ -1,5 +1,4 @@
-import "https://deno.land/x/xhr@0.3.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -22,7 +21,7 @@ Si te piden ayuda técnica compleja, recomienda contactar a 'soporte técnico hu
 };
 
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     // Manejo de CORS (Preflight)
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
@@ -51,7 +50,6 @@ serve(async (req) => {
             })),
         ];
 
-        // Llamada a OpenAI
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -59,11 +57,10 @@ serve(async (req) => {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini", // O cambiar a gpt-4o si tienes acceso y quieres máxima calidad
+                model: "gpt-4o-mini",
                 messages: promptMessages,
                 temperature: 0.7,
-                max_tokens: 500,
-                stream: false, // Por ahora usaremos la respuesta completa para simplificar el frontend, pero puede ser true
+                max_completion_tokens: 500,
             }),
         });
 

@@ -3324,15 +3324,16 @@ Deno.serve(async (req) => {
             const urbanBases = logisticsConfig.locations?.filter((l: any) => l.type === 'operational') || logisticsConfig.urban_bases || [];
             const surgeryHubs = logisticsConfig.locations?.filter((l: any) => l.type === 'surgical_hub') || logisticsConfig.surgery_hubs || [];
 
-            const urbanResults = await Promise.all(urbanBases.map(async (base: any) => {
-              const details = await getTravelDetails(`${base.lat},${base.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
-              return { ...base, ...details };
-            }));
-
-            const surgeryResults = await Promise.all(surgeryHubs.map(async (hub: any) => {
-              const details = await getTravelDetails(`${hub.lat},${hub.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
-              return { ...hub, ...details };
-            }));
+            const [urbanResults, surgeryResults] = await Promise.all([
+              Promise.all(urbanBases.map(async (base: any) => {
+                const details = await getTravelDetails(`${base.lat},${base.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
+                return { ...base, ...details };
+              })),
+              Promise.all(surgeryHubs.map(async (hub: any) => {
+                const details = await getTravelDetails(`${hub.lat},${hub.lng}`, `${globalGPS.lat},${globalGPS.lng}`);
+                return { ...hub, ...details };
+              })),
+            ]);
 
             const closestUrban = urbanResults.sort((a, b) => (a.duration || 999) - (b.duration || 999))[0];
             const closestSurgery = surgeryResults.sort((a, b) => (a.duration || 999) - (b.duration || 999))[0];
