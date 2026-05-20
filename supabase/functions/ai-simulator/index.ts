@@ -8,71 +8,13 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info"
 };
 
-interface Msg { role: "system" | "user" | "assistant" | "function"; content: string; name?: string; function_call?: { name: string; arguments: string }; }
+interface Msg { role: "system" | "user" | "assistant" | "function" | "tool"; content: string | null; name?: string; tool_calls?: any[]; tool_call_id?: string; }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 const getSupabase = () => createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-// =============================================
-// OpenAI Function Definitions (Same as webhook)
-// =============================================
-const functions = [
-    {
-        name: "check_availability",
-        description: "Verifica disponibilidad de horarios. Infiere el servicio de la conversación. Es MANDATORIO pasar la 'address' para validar tiempos de viaje.",
-        parameters: { 
-            type: "object", 
-            properties: { 
-                date: { type: "string", description: "Fecha YYYY-MM-DD" }, 
-                service_name: { type: "string", description: "Nombre del servicio" }, 
-                address: { type: "string", description: "Ciudad o zona de atención (Talca, Linares, etc.)" },
-                professional_name: { type: "string", description: "Nombre del profesional (opcional)" } 
-            }, 
-            required: ["date", "address"] 
-        }
-    },
-    {
-        name: "create_appointment",
-        description: "Crea nueva cita cuando paciente confirma fecha, hora y servicio",
-        parameters: { 
-            type: "object", 
-            properties: { 
-                tutor_name: { type: "string", description: "Nombre completo del tutor/dueño" },
-                patient_name: { type: "string", description: "Nombre de la mascota" }, 
-                date: { type: "string" }, 
-                time: { type: "string" }, 
-                service_name: { type: "string" }, 
-                address: { type: "string", description: "Dirección completa de atención (Calle, Número, Referencias)" },
-                professional_name: { type: "string", description: "Profesional solicitado (opcional)" } 
-            }, 
-            required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"] 
-        }
-    },
-    {
-        name: "get_services",
-        description: "Lista servicios disponibles con precios y duración",
-        parameters: { type: "object", properties: {}, required: [] }
-    },
-    {
-        name: "get_knowledge",
-        description: "Busca información detallada en la base de conocimiento (precios, tratamientos, cuidados, valores, promociones). ÚSALO SIEMPRE ante preguntas sobre costos o temas específicos que no estén en tu configuración básica.",
-        parameters: { type: "object", properties: { query: { type: "string", description: "Palabras clave simplificadas para la búsqueda (ej: 'precios', 'labios', 'cuidados', 'promocion')" } }, required: ["query"] }
-    },
-    {
-        name: "tag_patient",
-        description: "Asigna una etiqueta al paciente para segmentación y marketing. ÚSALA PROACTIVAMENTE cuando: (1) El paciente muestra interés en un servicio específico → etiqueta 'Interés [Servicio]' (ej: 'Interés Microblading'). (2) El paciente agenda una cita → etiqueta 'Cliente [Servicio]'. (3) Detectas una condición relevante → etiqueta descriptiva (ej: 'Piel Sensible', 'Primera Vez'). (4) El paciente es recurrente → 'Cliente Frecuente'. (5) El paciente refiere a alguien → 'Referidor'. Puedes llamar esta función múltiples veces para asignar varias etiquetas. La etiqueta se crea automáticamente si no existe.",
-        parameters: {
-            type: "object",
-            properties: {
-                tag_name: { type: "string", description: "Nombre de la etiqueta. Usa formato capitalizado y descriptivo. Ej: 'Interés Microblading', 'Cliente Frecuente', 'VIP', 'Piel Sensible', 'Primera Vez'" },
-                tag_color: { type: "string", description: "Color hex de la etiqueta. Usa: #10B981 (verde) para clientes activos, #3B82F6 (azul) para intereses, #F59E0B (amarillo) para alertas, #EF4444 (rojo) para condiciones médicas, #8B5CF6 (morado) para VIP/especiales, #EC4899 (rosado) para servicios estéticos. Opcional, default azul." }
-            },
-            required: ["tag_name"]
-        }
-    }
-];
 
 const getOffset = (timeZone: string = "America/Santiago", date: Date) => {
     try {
@@ -498,54 +440,64 @@ const resolveGoogleMapsUrl = async (url: string): Promise<{ lat: number; lng: nu
     }
 };
 
-const callOpenAI = async (key: string, model: string, msgs: Msg[], useFns = true, blockedTools: string[] = []) => {
-    let functionsList = [
-        {
-            name: "check_availability",
-            description: "Verifica disponibilidad de horarios. Infiere el servicio de la conversación. Es MANDATORIO pasar la 'address' para validar tiempos de viaje.",
-            parameters: { 
-                type: "object", 
-                properties: { 
-                    date: { type: "string", description: "Fecha YYYY-MM-DD" }, 
-                    service_name: { type: "string", description: "Nombre del servicio" }, 
-                    address: { type: "string", description: "Ciudad o zona de atención (Talca, Linares, etc.)" },
-                    professional_name: { type: "string", description: "Nombre del profesional (opcional)" } 
-                }, 
-                required: ["date", "address"] 
-            }
-        },
-        {
-            name: "create_appointment",
-            description: "Crea nueva cita cuando paciente confirma fecha, hora y servicio",
-            parameters: { 
-                type: "object", 
-                properties: { 
-                    tutor_name: { type: "string", description: "Nombre completo del tutor/dueño" },
-                    patient_name: { type: "string", description: "Nombre de la mascota" }, 
-                    date: { type: "string" }, 
-                    time: { type: "string" }, 
-                    service_name: { type: "string" }, 
-                    address: { type: "string", description: "Dirección completa de atención (Calle, Número, Referencias)" },
-                    professional_name: { type: "string", description: "Profesional solicitado (opcional)" } 
-                }, 
-                required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"] 
-            }
-        },
-        {
-            name: "get_services",
-            description: "Lista servicios disponibles.",
-            parameters: { type: "object", properties: {} }
-        },
-        {
-            name: "get_knowledge",
-            description: "Busca información detallada en la base de conocimiento.",
-            parameters: { type: "object", properties: { query: { type: "string", description: "Palabras clave" } }, required: ["query"] }
+const SIMULATOR_TOOLS = [
+    {
+        name: "check_availability",
+        description: "Verifica disponibilidad de horarios. Infiere el servicio de la conversación. Es MANDATORIO pasar la 'address' para validar tiempos de viaje.",
+        parameters: {
+            type: "object",
+            properties: {
+                date: { type: "string", description: "Fecha YYYY-MM-DD" },
+                service_name: { type: "string", description: "Nombre del servicio" },
+                address: { type: "string", description: "Ciudad o zona de atención (Talca, Linares, etc.)" },
+                professional_name: { type: "string", description: "Nombre del profesional (opcional)" }
+            },
+            required: ["date", "address"]
         }
-    ];
-
-    if (blockedTools.length > 0) {
-        functionsList = functionsList.filter(f => !blockedTools.includes(f.name));
+    },
+    {
+        name: "create_appointment",
+        description: "Crea nueva cita cuando paciente confirma fecha, hora y servicio",
+        parameters: {
+            type: "object",
+            properties: {
+                tutor_name: { type: "string", description: "Nombre completo del tutor/dueño" },
+                patient_name: { type: "string", description: "Nombre de la mascota" },
+                date: { type: "string" },
+                time: { type: "string" },
+                service_name: { type: "string" },
+                address: { type: "string", description: "Dirección completa de atención (Calle, Número, Referencias)" },
+                professional_name: { type: "string", description: "Profesional solicitado (opcional)" }
+            },
+            required: ["tutor_name", "patient_name", "date", "time", "service_name", "address"]
+        }
+    },
+    {
+        name: "get_services",
+        description: "Lista servicios disponibles.",
+        parameters: { type: "object", properties: {} }
+    },
+    {
+        name: "get_knowledge",
+        description: "Busca información detallada en la base de conocimiento.",
+        parameters: { type: "object", properties: { query: { type: "string", description: "Palabras clave" } }, required: ["query"] }
+    },
+    {
+        name: "tag_patient",
+        description: "Asigna una etiqueta al paciente para segmentación.",
+        parameters: {
+            type: "object",
+            properties: {
+                tag_name: { type: "string" },
+                tag_color: { type: "string" }
+            },
+            required: ["tag_name"]
+        }
     }
+];
+
+const callOpenAI = async (key: string, model: string, msgs: Msg[], useFns = true, blockedTools: string[] = []) => {
+    let toolsList = SIMULATOR_TOOLS.filter(t => !blockedTools.includes(t.name));
 
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -553,9 +505,12 @@ const callOpenAI = async (key: string, model: string, msgs: Msg[], useFns = true
         body: JSON.stringify({
             model,
             messages: msgs,
-            ...(useFns && functionsList.length > 0 ? { functions: functionsList, function_call: "auto" } : {}),
+            ...(useFns && toolsList.length > 0 ? {
+                tools: toolsList.map(t => ({ type: "function", function: t })),
+                tool_choice: "auto"
+            } : {}),
             temperature: 0.5,
-            max_tokens: 800
+            max_completion_tokens: 800
         })
     });
     return r.json();
@@ -611,19 +566,14 @@ Deno.serve(async (req) => {
         // --- LOCATION DETECTION (Real Resolution for Simulator) ---
         let locationInjection = "";
         let dmStatus = "NONE";
-        const isAG = clinic_id === "ehmncwawzdciajvuallg" || clinic_id === "4213322a-69a0-4e0b-9215-bc4033c15ef4" || (clinic?.clinic_name || "").includes("AnimalGrace"); 
+        const isAG = (clinic?.clinic_name || "").includes("AnimalGrace");
         
         const msgLow = (message || "").toLowerCase();
         if (isAG && (msgLow.includes("maps.app.goo.gl") || msgLow.includes("google.com/maps"))) {
             const url = message;
             let resolvedCoords: any = null;
             
-            // EMERGENCY HACK: Direct hash match
-            if (url.includes("qTP2bHT44Mc3NyEy7")) {
-                resolvedCoords = { lat: -35.747963, lng: -71.588827, finalUrl: "CACHED_YB" };
-            } else {
-                resolvedCoords = await resolveGoogleMapsUrl(url);
-            }
+            resolvedCoords = await resolveGoogleMapsUrl(url);
             
             if (resolvedCoords && (resolvedCoords.lat !== 0)) {
                 const { lat, lng } = resolvedCoords;
@@ -703,25 +653,26 @@ Si una función devuelve un mensaje que empieza por "[ERROR_TECNICO]", DEBES mos
         let loopCount = 0;
         dmStatus = "INICIO";
 
-        while (assistant?.function_call && loopCount < 10) {
-            const fnName = assistant.function_call.name;
-            const fnArgsStr = assistant.function_call.arguments || "{}";
+        while (assistant?.tool_calls && assistant.tool_calls.length > 0 && loopCount < 10) {
+            const toolCall = assistant.tool_calls[0];
+            const fnName = toolCall.function.name;
+            const fnArgsStr = toolCall.function.arguments || "{}";
             dmStatus += `->${fnName}`;
-            
+
             let fnArgs = {};
             try { fnArgs = JSON.parse(fnArgsStr); } catch (e) { console.error("Args parse error", e); }
 
             const result = await processFunc(sb, clinic_id, "+56900000000", fnName, fnArgs, clinicTz, clinic);
-            msgs.push({ role: "assistant", content: "", function_call: assistant.function_call });
-            msgs.push({ role: "function", name: fnName, content: JSON.stringify(result) });
-            
+            msgs.push({ role: "assistant", content: null, tool_calls: assistant.tool_calls });
+            msgs.push({ role: "tool", tool_call_id: toolCall.id, name: fnName, content: JSON.stringify(result) });
+
             res = await callOpenAI(openaiKey, targetModel, msgs, true, blockedTools);
             assistant = res.choices[0].message;
             loopCount++;
         }
 
         // --- FINAL RECOVERY ---
-        if (assistant?.function_call || !assistant?.content) {
+        if ((assistant?.tool_calls?.length > 0) || !assistant?.content) {
             res = await callOpenAI(openaiKey, targetModel, msgs, false);
             assistant = res.choices[0].message;
         }
