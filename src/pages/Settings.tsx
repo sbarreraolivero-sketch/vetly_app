@@ -369,7 +369,7 @@ export default function Settings() {
                             setAiCreditsExtra4o(parentData.ai_credits_extra_4o || 0)
                         }
                     }
-                    setAiActiveModel(data.ai_active_model || '4o')
+                    setAiActiveModel(data.ai_active_model || 'hybrid')
 
                     setAiAutoRespond(data.ai_auto_respond !== false) 
                     setBusinessModel(data.business_model || 'physical')

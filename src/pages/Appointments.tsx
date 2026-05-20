@@ -412,8 +412,6 @@ export default function Appointments() {
 
             console.log('Status updated successfully:', data)
 
-            if (error) throw error
-
             // Handle "Completed" status - CRM Integration
             if (newStatus === 'completed') {
                 alert('¡Cita completada con éxito!')
@@ -742,7 +740,7 @@ export default function Appointments() {
                     service: 'Bloqueo',
                     status: 'confirmed',
                     appointment_date: selectedSlot.start.toISOString(),
-                    duration: 60, // Default 60 minutes
+                    duration_minutes: 60,
                     notes: 'Horario bloqueado manualmente desde el calendario.'
                 })
                 .select()
@@ -1404,7 +1402,7 @@ export default function Appointments() {
                                                                         phone_number: appointment.phone_number,
                                                                         service: appointment.service,
                                                                         appointment_date: appointment.appointment_date.split('T')[0],
-                                                                        appointment_time: appointment.appointment_date.split('T')[1].slice(0, 5),
+                                                                        appointment_time: (appointment.appointment_date.split('T')[1] ?? '00:00').slice(0, 5),
                                                                         notes: appointment.notes || '',
                                                                         professional_id: appointment.professional_id || '',
                                                                         address: appointment.address || '',
@@ -1573,7 +1571,7 @@ export default function Appointments() {
                                                     phone_number: appointment.phone_number,
                                                     service: appointment.service,
                                                     appointment_date: appointment.appointment_date.split('T')[0],
-                                                    appointment_time: appointment.appointment_date.split('T')[1].slice(0, 5),
+                                                    appointment_time: (appointment.appointment_date.split('T')[1] ?? '00:00').slice(0, 5),
                                                     notes: appointment.notes || '',
                                                     professional_id: appointment.professional_id || '',
                                                     address: appointment.address || '',
