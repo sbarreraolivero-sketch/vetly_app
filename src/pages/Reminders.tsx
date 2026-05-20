@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { 
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-    BarChart, Bar, Legend, Cell, PieChart, Pie
+    BarChart, Bar, Legend
 } from 'recharts'
 import { Link } from 'react-router-dom'
 
@@ -31,7 +31,6 @@ export default function Reminders() {
     
     // Logs Data
     const [appointmentLogs, setAppointmentLogs] = useState<any[]>([])
-    const [appointmentsStats, setAppointmentsStats] = useState<any[]>([])
     const [medicalLogs, setMedicalLogs] = useState<any[]>([])
 
     useEffect(() => {
@@ -81,7 +80,7 @@ export default function Reminders() {
             }
 
             if (activeTab === 'appointments') {
-                // TABLE: reminder logs filtered by when they were sent
+                // TABLE & CHART: reminder logs filtered by when they were sent
                 let query = supabase
                     .from('reminder_logs')
                     .select('*, appointments(id, patient_name, tutor_name, status)')
@@ -91,51 +90,42 @@ export default function Reminders() {
                 if (dateRange !== 'all') {
                     query = query.gte('sent_at', startDate.toISOString())
                 } else {
-                    query = query.limit(100)
+                    query = query.limit(300)
                 }
 
-                // CHART: past appointments by appointment_date → real confirmed/cancelled outcomes
-                const todayISO = new Date().toISOString()
-                let statsQuery = supabase
-                    .from('appointments')
-                    .select('status, appointment_date')
-                    .eq('clinic_id', profile.clinic_id)
-                    .lte('appointment_date', todayISO)
-
-                if (dateRange !== 'all') {
-                    statsQuery = statsQuery.gte('appointment_date', startDate.toISOString())
-                } else {
-                    statsQuery = statsQuery.limit(300)
-                }
-
-                const [logsRes, statsRes] = await Promise.all([query, statsQuery])
-                setAppointmentLogs(logsRes.data || [])
-                setAppointmentsStats(statsRes.data || [])
+                const { data } = await query
+                setAppointmentLogs(data || [])
             } else {
                 // Fetch medical reminder logs (from 'reminders' table)
-                // Note: reminders table does not have sent_at, it has scheduled_date and created_at.
-                // We will use scheduled_date for filtering if sent, or maybe created_at. Let's use scheduled_date
-                
-                // Fetch reminders
                 let query = supabase
                     .from('reminders')
                     .select('*, patients(id, name, tutor_id, tutors(id, name, phone_number))')
+                    .eq('clinic_id', profile.clinic_id)
                     .order('scheduled_date', { ascending: false })
                 
-                // Apply date filter at DB level for history tab
-                if (medicalTab === 'history' && dateRange !== 'all') {
-                    query = query.gte('scheduled_date', startDate.toISOString())
+                const todayStr = new Date().toISOString().split('T')[0]
+                const startDateStr = startDate.toISOString().split('T')[0]
+
+                if (dateRange !== 'all') {
+                    if (medicalTab === 'history') {
+                        query = query.gte('scheduled_date', startDateStr).lte('scheduled_date', todayStr)
+                    } else {
+                        // For pending, filter scheduled_date from today up to the upcoming equivalent window
+                        const daysDiff = Math.max(1, Math.round((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+                        const futureDate = new Date()
+                        futureDate.setDate(futureDate.getDate() + daysDiff)
+                        const futureDateStr = futureDate.toISOString().split('T')[0]
+                        query = query.gte('scheduled_date', todayStr).lte('scheduled_date', futureDateStr)
+                    }
                 }
 
-                const { data } = await query.limit(200)
+                const { data } = await query.limit(300)
                 
                 if (data) {
                     let filtered = data as any[]
                     if (medicalTab === 'history') {
-                        // Enviados y fallidos
                         filtered = filtered.filter(d => d.status === 'sent' || d.status === 'failed')
                     } else {
-                        // Solo pendientes (fecha futura)
                         filtered = filtered.filter(d => d.status === 'pending')
                     }
                     setMedicalLogs(filtered)
@@ -195,23 +185,27 @@ export default function Reminders() {
     // Chart Data Preparation
     const getChartData = () => {
         if (activeTab === 'appointments') {
-            const confirmed = appointmentsStats.filter(a => a.status === 'confirmed').length
-            const cancelled = appointmentsStats.filter(a => a.status === 'cancelled').length
-            
-            const groupedByDate = appointmentsStats.reduce((acc, appt) => {
-                const date = new Date(appt.appointment_date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
-                if (!acc[date]) acc[date] = { date, confirmadas: 0, canceladas: 0 }
-                if (appt.status === 'confirmed') acc[date].confirmadas += 1
-                else if (appt.status === 'cancelled') acc[date].canceladas += 1
+            const groupedByDate = appointmentLogs.reduce((acc, log) => {
+                const dateKey = new Date(log.sent_at || log.created_at).toISOString().split('T')[0]
+                if (!acc[dateKey]) acc[dateKey] = { dateKey, enviados: 0, fallidos: 0 }
+                if (log.status === 'sent') acc[dateKey].enviados += 1
+                else if (log.status === 'failed') acc[dateKey].fallidos += 1
                 return acc
             }, {} as Record<string, any>)
             
+            const area = Object.values(groupedByDate)
+                .sort((a: any, b: any) => a.dateKey.localeCompare(b.dateKey))
+                .map((item: any) => {
+                    const d = new Date(item.dateKey + 'T12:00:00')
+                    return {
+                        date: d.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+                        enviados: item.enviados,
+                        fallidos: item.fallidos
+                    }
+                })
+            
             return {
-                pie: [
-                    { name: 'Confirmadas', value: confirmed, color: '#10b981' },
-                    { name: 'Canceladas', value: cancelled, color: '#ef4444' },
-                ],
-                area: Object.values(groupedByDate).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                area
             }
         } else {
             const sent = medicalLogs.filter(l => l.status === 'sent').length
@@ -420,35 +414,30 @@ export default function Reminders() {
                 <div className="lg:col-span-2 space-y-6">
                     {/* Analytics Dashboard */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Left panel: pie for appointments, stat counters for medical */}
+                        {/* Left panel: stat counters for both appointments and medical */}
                         <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm h-64 flex flex-col">
                             <h4 className="text-xs font-bold text-charcoal/50 uppercase tracking-widest mb-4">
-                                {activeTab === 'appointments' ? 'Estado de Citas' : 'Resumen de Envíos'}
+                                Resumen de Envíos
                             </h4>
                             <div className="flex-1 flex items-center justify-center relative">
                                 {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-primary-500" /> : (
                                     activeTab === 'appointments' ? (
-                                        chartData.pie.reduce((a: number, b: any) => a + b.value, 0) === 0 ? (
-                                            <p className="text-sm text-charcoal/40 font-medium">Sin datos en este periodo</p>
-                                        ) : (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <PieChart>
-                                                    <Pie
-                                                        data={chartData.pie}
-                                                        cx="50%" cy="50%"
-                                                        innerRadius={55} outerRadius={75}
-                                                        paddingAngle={4}
-                                                        dataKey="value"
-                                                    >
-                                                        {chartData.pie.map((entry: any, index: number) => (
-                                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                                        ))}
-                                                    </Pie>
-                                                    <RechartsTooltip />
-                                                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                                                </PieChart>
-                                            </ResponsiveContainer>
-                                        )
+                                        (() => {
+                                            const sent = appointmentLogs.filter((l: any) => l.status === 'sent').length
+                                            const failed = appointmentLogs.filter((l: any) => l.status === 'failed').length
+                                            return (
+                                                <div className="flex w-full items-center justify-around">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-4xl font-black text-emerald-500">{sent}</span>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">Enviados</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-4xl font-black text-red-500">{failed}</span>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">Fallidos</span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()
                                     ) : (
                                         // Medical: numeric counters for sent/failed in selected date range
                                         (() => {
@@ -475,11 +464,11 @@ export default function Reminders() {
                                 )}
                             </div>
                         </div>
-
+ 
                         {/* Right panel: area chart for appointments, bar chart for medical */}
                         <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm h-64 flex flex-col">
                             <h4 className="text-xs font-bold text-charcoal/50 uppercase tracking-widest mb-4">
-                                {activeTab === 'appointments' ? 'Citas por Día' : 'Por Categoría'}
+                                {activeTab === 'appointments' ? 'Envíos por Día' : 'Por Categoría'}
                             </h4>
                             <div className="flex-1 flex items-center justify-center">
                                 {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-primary-500" /> : (
@@ -490,11 +479,11 @@ export default function Reminders() {
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <AreaChart data={chartData.area} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                                     <defs>
-                                                        <linearGradient id="colorConfirmadas" x1="0" y1="0" x2="0" y2="1">
+                                                        <linearGradient id="colorEnviados" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
                                                             <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                                         </linearGradient>
-                                                        <linearGradient id="colorCanceladas" x1="0" y1="0" x2="0" y2="1">
+                                                        <linearGradient id="colorFallidos" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
                                                             <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                                                         </linearGradient>
@@ -504,8 +493,8 @@ export default function Reminders() {
                                                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
                                                     <RechartsTooltip />
                                                     <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                                                    <Area type="monotone" dataKey="confirmadas" name="Confirmadas" stroke="#10b981" fillOpacity={1} fill="url(#colorConfirmadas)" />
-                                                    <Area type="monotone" dataKey="canceladas" name="Canceladas" stroke="#ef4444" fillOpacity={1} fill="url(#colorCanceladas)" />
+                                                    <Area type="monotone" dataKey="enviados" name="Enviados" stroke="#10b981" fillOpacity={1} fill="url(#colorEnviados)" />
+                                                    <Area type="monotone" dataKey="fallidos" name="Fallidos" stroke="#ef4444" fillOpacity={1} fill="url(#colorFallidos)" />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         )

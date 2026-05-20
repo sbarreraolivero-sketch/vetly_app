@@ -1,13 +1,12 @@
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
@@ -188,7 +187,11 @@ serve(async (req) => {
                     continue
                 }
 
-                // SEND WHATSAPP
+                const { data: existingLog24h } = await supabaseClient
+                    .from('reminder_logs').select('id')
+                    .eq('appointment_id', appt.id).eq('type', '24h').maybeSingle()
+                if (existingLog24h) continue
+
                 try {
                     const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
                     const formattedTime = apptDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone })
@@ -393,13 +396,10 @@ serve(async (req) => {
                         continue;
                     }
 
-                    // Check if reminder was already sent RECENTLY (e.g., in last 6 hours)
-                    // If so, skip (avoid duplicates)
-                    if (appt.reminder_sent && appt.reminder_sent_at) {
-                        const lastSent = new Date(appt.reminder_sent_at).getTime()
-                        const diffHours = (nowUTC.getTime() - lastSent) / (1000 * 60 * 60)
-                        if (diffHours < 6) continue
-                    }
+                    const { data: existingLog2h } = await supabaseClient
+                        .from('reminder_logs').select('id')
+                        .eq('appointment_id', appt.id).eq('type', '2h').maybeSingle()
+                    if (existingLog2h) continue
 
                     // Strict Hour Check in Clinic Timezone
                     const apptDate = new Date(appt.appointment_date)
@@ -494,189 +494,10 @@ serve(async (req) => {
                         console.error(e)
                     }
                 }
-                // Append to results if needed, or just log
-                // Append to results if needed, or just log
+                results.push({ clinicId: clinic.id, sent2h: sentCount })
             }
         }
 
-        // ==========================================
-        // PART 3: 1-Hour Reminders
-        // ==========================================
-
-        const { data: oneHourSettingsList, error: oneHourError } = await supabaseClient
-            .from('reminder_settings')
-            .select(`
-                *,
-                clinic_settings!inner (
-                    id,
-                    clinic_name,
-                    timezone,
-                    ycloud_api_key,
-                    ycloud_phone_number,
-                    subscriptions (
-                        monthly_reminders_limit,
-                        monthly_reminders_used
-                    )
-                )
-            `)
-            .eq('reminder_1h_before', true)
-
-        if (!oneHourError && oneHourSettingsList?.length > 0) {
-            log.push(`Found ${oneHourSettingsList.length} clinics with 1h reminders enabled`)
-
-            for (const settings of oneHourSettingsList) {
-                const clinic = settings.clinic_settings
-                if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) continue
-
-                // Check Limits
-                const subArray = clinic?.subscriptions || []
-                const sub = Array.isArray(subArray) ? subArray[0] : subArray
-                const limit = sub?.monthly_reminders_limit
-                const used = sub?.monthly_reminders_used || 0
-
-                if (limit !== null && limit !== undefined && used >= limit) {
-                    continue
-                }
-
-                const timeZone = clinic.timezone || 'America/Santiago'
-                const now = new Date()
-
-                // Target: Now + 1 hour
-                const clinicDate = new Date(new Date().toLocaleString('en-US', { timeZone }))
-                clinicDate.setHours(clinicDate.getHours() + 1) // Target Hour
-
-                const targetHour = clinicDate.getHours()
-                const nowUTC = new Date()
-
-                // Buffer window: +30m to +90m from now
-                const startSearch = new Date(nowUTC.getTime() + 30 * 60 * 1000)
-                const endSearch = new Date(nowUTC.getTime() + 90 * 60 * 1000)
-
-                const { data: appointments, error: apptError } = await supabaseClient
-                    .from('appointments')
-                    .select('*')
-                    .eq('clinic_id', clinic.id)
-                    .in('status', ['pending', 'confirmed'])
-                    .not('patient_name', 'ilike', '%bloqueo%')
-                    .not('phone_number', 'eq', '000000000')
-                    .gte('appointment_date', startSearch.toISOString())
-                    .lt('appointment_date', endSearch.toISOString())
-
-                if (apptError) continue
-
-                let sentCount = 0
-
-                for (const appt of (appointments || [])) {
-                    const isBlock = (appt.patient_name || '').toLowerCase().includes('bloqueo') || 
-                                    (appt.phone_number || '').includes('000000000') || 
-                                    !appt.phone_number || 
-                                    appt.phone_number.replace(/\D/g, '').length < 7;
-                    
-                    if (isBlock) {
-                        continue;
-                    }
-
-                    // Check if reminder was sent VERY RECENTLY (e.g., in last 40 mins)
-                    if (appt.reminder_sent && appt.reminder_sent_at) {
-                        const lastSent = new Date(appt.reminder_sent_at).getTime()
-                        const diffMinutes = (nowUTC.getTime() - lastSent) / (1000 * 60)
-                        if (diffMinutes < 45) continue // Skip if sent < 45 mins ago
-                    }
-
-                    // Strict Hour Check
-                    const apptDate = new Date(appt.appointment_date)
-                    const apptHour = parseInt(apptDate.toLocaleTimeString('en-US', { hour: 'numeric', hour12: false, timeZone }))
-
-                    if (apptHour !== targetHour) continue
-
-                    // SEND WHATSAPP
-                    try {
-                        const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
-                        const formattedTime = apptDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone })
-
-                        let tplName1h = settings.template_1h || '24hrs_recordatorio_cita'
-                        if (settings.request_confirmation && settings.template_confirmation && appt.status === 'pending') {
-                            tplName1h = settings.template_confirmation
-                        }
-
-                        const vc1h = await getVarCount(clinic.ycloud_api_key, clinic.id, tplName1h)
-                        const params1h = mkParams(vc1h, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
-
-                        const messagePayload = {
-                            from: clinic.ycloud_phone_number,
-                            to: appt.phone_number,
-                            type: 'template',
-                            template: {
-                                name: tplName1h,
-                                language: { code: 'es' },
-                                components: params1h.length > 0 ? [
-                                    {
-                                        type: 'body',
-                                        parameters: params1h
-                                    }
-                                ] : []
-                            }
-                        }
-                        const response = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-API-Key': clinic.ycloud_api_key
-                            },
-                            body: JSON.stringify(messagePayload)
-                        })
-
-                        const responseData = await response.json().catch(() => ({}));
-
-                        if (response.ok) {
-                            const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formattedTime}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
-
-                            await supabaseClient.from('messages').insert({
-                                clinic_id: clinic.id,
-                                phone_number: appt.phone_number,
-                                direction: 'outbound',
-                                content: reminderText,
-                                ycloud_message_id: responseData.id,
-                                ycloud_status: 'sent',
-                                ai_generated: false,
-                                metadata: { type: 'system_reminder_1h' }
-                            })
-                            await supabaseClient.from('reminder_logs').insert({
-                                clinic_id: clinic.id,
-                                appointment_id: appt.id,
-                                type: '1h',
-                                phone_number: appt.phone_number,
-                                status: 'sent',
-                                sent_at: new Date().toISOString()
-                            });
-                            await supabaseClient.from('appointments').update({
-                                reminder_sent: true,
-                                reminder_sent_at: new Date().toISOString()
-                            }).eq('id', appt.id)
-
-                            // Increment usage
-                            await supabaseClient.rpc('increment_subscription_usage', {
-                                column_name: 'monthly_reminders_used',
-                                clinic_uuid: clinic.id
-                            })
-
-                            sentCount++
-                        } else {
-                            await supabaseClient.from('reminder_logs').insert({
-                                clinic_id: clinic.id,
-                                appointment_id: appt.id,
-                                type: '1h',
-                                phone_number: appt.phone_number,
-                                status: 'failed',
-                                error_message: JSON.stringify(responseData)
-                            });
-                        }
-                    } catch (e) {
-                        console.error(e)
-                    }
-                }
-            }
-        }
 
         // ==========================================
         // PART 4: General Reminders (Vaccination, Deworming)
@@ -747,18 +568,14 @@ serve(async (req) => {
                     }
 
                     if (!phoneNumber || !templateName) {
-                        console.error('Reminder missing phone or template', rem.id)
+                        await supabaseClient.from('reminders').update({
+                            status: 'failed',
+                            updated_at: new Date().toISOString()
+                        }).eq('id', rem.id)
                         continue
                     }
 
                     try {
-                        // Variable Mapping Aligned:
-                        // {{1}} = Patient Name
-                        // {{2}} = Service / Vaccine (Reminder Title)
-                        // {{3}} = Date
-                        // {{4}} = Time (Full day for vaccines)
-                        // {{5}} = Clinic Name
-
                         const formattedDate = new Date(rem.scheduled_date + 'T12:00:00Z').toLocaleDateString('es-MX', {
                             weekday: 'long', day: 'numeric', month: 'long'
                         })
