@@ -6,7 +6,7 @@ const TRAVEL_BUFFER_MINUTES = 15;
 
 const corsHeaders = {
   "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://ycloud.com",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization, X-API-Key, YCloud-Signature",
@@ -55,7 +55,6 @@ interface Msg {
   function_call?: { name: string; arguments: string };
   tool_calls?: any[];
   tool_call_id?: string;
-  geminiParts?: any[]; // For preserving Gemini's complex response parts
 }
 
 // ====== Helper: Download Media from YCloud ======
@@ -160,6 +159,60 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   "";
 const GOOGLE_MAPS_API_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
+
+// YCloud webhook signature secret — set via:
+//   supabase secrets set YCLOUD_WEBHOOK_SECRET=your-secret-from-ycloud-dashboard
+const YCLOUD_WEBHOOK_SECRET = Deno.env.get("YCLOUD_WEBHOOK_SECRET") || "";
+
+/**
+ * Verify the HMAC-SHA256 signature that YCloud sends on every webhook.
+ * YCloud signs the raw request body with the secret configured in their dashboard
+ * and passes the result as the "YCloud-Signature" header.
+ *
+ * If YCLOUD_WEBHOOK_SECRET is not set (e.g. local dev), verification is skipped
+ * so existing setups don't break. In production the secret MUST be set.
+ */
+const verifyYCloudSignature = async (
+  rawBody: string,
+  signatureHeader: string | null,
+): Promise<boolean> => {
+  if (!YCLOUD_WEBHOOK_SECRET) {
+    // Secret not configured — allow through but warn loudly.
+    console.warn(
+      "[SECURITY] YCLOUD_WEBHOOK_SECRET not set — skipping signature verification. " +
+      "Set it via: supabase secrets set YCLOUD_WEBHOOK_SECRET=<secret>",
+    );
+    return true;
+  }
+  if (!signatureHeader) {
+    console.error("[SECURITY] YCloud-Signature header missing — rejecting request.");
+    return false;
+  }
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(YCLOUD_WEBHOOK_SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+    const digest = Array.from(new Uint8Array(mac))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const valid = digest === signatureHeader;
+    if (!valid) {
+      console.error(
+        `[SECURITY] Signature mismatch. Expected ${digest}, got ${signatureHeader}`,
+      );
+    }
+    return valid;
+  } catch (e) {
+    console.error("[SECURITY] Signature verification threw:", e);
+    return false;
+  }
+};
 
 // ====== Helper: Geocode Address using Google Maps ======
 const geocodeAddress = async (
@@ -379,6 +432,10 @@ const getSupabase = () =>
   });
 
 const HQ_ID = "00000000-0000-0000-0000-000000000000";
+// Clinics with bespoke routing logic hard-coded here.
+// TODO: move these checks to clinic_settings.logistics_config.routing_mode
+const CLINIC_ANIMALGRACE_ID = "fd11b7e4-7d96-461c-a292-2caa5e2592ce";
+const CLINIC_SANTIAGO_ID = "13472ea4-4da6-461c-9a80-a5c970d9ec73";
 
 const surgeryPrompt = `
 [NORMATIVA NUCLEAR - BLACKOUT QUIRÚRGICO]:
@@ -973,8 +1030,7 @@ const checkAvail = async (
     // Determine buffer based on address/zone
     const addressLower = (address || "").toLowerCase();
     
-    // FEATURE: Specific logistics for AnimalGrace (fd11b7e4-7d96-461c-a292-2caa5e2592ce)
-    const isAnimalGrace = clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce";
+    const isAnimalGrace = clinicId === CLINIC_ANIMALGRACE_ID;
     
     let bufferMinutes = 60; // Default
 
@@ -1099,7 +1155,7 @@ const checkAvail = async (
       .order("appointment_date", { ascending: true });
 
     // --- ANIMALGRACE LOGISTICS ENHANCEMENTS ---
-    if (clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce") {
+    if (isAnimalGrace) {
       const getSector = (addr: string, lat: number | null) => {
         const norm = (addr || "").toLowerCase();
         
@@ -1135,7 +1191,7 @@ const checkAvail = async (
       const norm = (a.address || "").toLowerCase();
       
       // SANTIAGO BRANCH: Commune detection from text address
-      if (clinicId === "13472ea4-4da6-461c-9a80-a5c970d9ec73") {
+      if (clinicId === CLINIC_SANTIAGO_ID) {
         const rmCommunes = ["santiago", "ñuñoa", "providencia", "las condes", "vitacura", "maipu", "maipú", "puente alto", "la florida", "san miguel", "la cisterna", "la reina", "peñalolen", "peñalolén", "quilicura", "pudahuel", "macul", "san joaquin", "san joaquín", "estacion central", "estación central", "recoleta", "independencia", "conchali", "conchalí", "huechuraba", "lo prado", "cerro navia", "renca"];
         if (rmCommunes.some(c => norm.includes(c))) {
           return { ...a, latitude: -33.4975, longitude: -70.6558 }; // Fallback to San Miguel for routing
@@ -1160,51 +1216,65 @@ const checkAvail = async (
     // (= 11:00 UTC naive), completely inverting prevAppt/nextAppt detection.
     const tzOffset = getOffset(timezone, new Date(`${date}T12:00:00`));
     const finalValidSlots = [];
-    for (const slot of filteredSlots) {
-      // Normalize slot_time: DB returns "HH:MM:SS", ensure we have exactly that before adding offset
+
+    // -- PARALLEL TRAVEL TIME PREFETCH --
+    // First pass (sync): compute slot boundaries and origin/destination for every slot.
+    // Then deduplicate and fetch all unique (origin→dest) pairs in parallel.
+    // Second pass (sync): evaluate slots using the cache — zero awaits in the loop.
+    const travelKey = (a: any, b: any): string => {
+      const as = typeof a === 'string' ? a : `${a.lat},${a.lng}`;
+      const bs = typeof b === 'string' ? b : `${b.lat},${b.lng}`;
+      return `${as}|${bs}`;
+    };
+
+    const slotMeta = filteredSlots.map((slot: any) => {
       const slotTimeParts = (slot.slot_time as string).replace(/:/g, '').padStart(6, '0');
       const slotTimeISO = `${slotTimeParts.substring(0,2)}:${slotTimeParts.substring(2,4)}:${slotTimeParts.substring(4,6)}`;
       const slotStart = new Date(`${date}T${slotTimeISO}${tzOffset}`);
       const slotEnd = new Date(slotStart.getTime() + (duration * 60000));
-
-      // 1. Find Prev and Next appointment relative to this slot (all in UTC — correct now)
-      const prevAppt = dayAppts?.filter((a) =>
-        new Date(a.appointment_date) < slotStart
-      ).slice(-1)[0];
-      const nextAppt = dayAppts?.filter((a) =>
-        new Date(a.appointment_date) >= slotEnd
-      )[0];
-
-      // 2. Determine Origins and Destinations
+      const prevAppt = dayAppts?.filter((a: any) => new Date(a.appointment_date) < slotStart).slice(-1)[0];
+      const nextAppt = dayAppts?.filter((a: any) => new Date(a.appointment_date) >= slotEnd)[0];
       const originLocation = prevAppt
         ? { lat: Number(prevAppt.latitude), lng: Number(prevAppt.longitude) }
         : clinicBase;
       const destinationLocation = nextAppt
         ? { lat: Number(nextAppt.latitude), lng: Number(nextAppt.longitude) }
         : clinicBase;
+      return { slot, slotStart, slotEnd, prevAppt, nextAppt, originLocation, destinationLocation };
+    });
 
+    const travelCache = new Map<string, { duration: number; distance: number }>();
+    const seen = new Set<string>();
+    const prefetchPairs: Array<[string, any, any]> = [];
+    for (const { originLocation, destinationLocation } of slotMeta) {
+      const k1 = travelKey(originLocation, tutorCoords);
+      if (!seen.has(k1)) { seen.add(k1); prefetchPairs.push([k1, originLocation, tutorCoords]); }
+      const k2 = travelKey(tutorCoords, destinationLocation);
+      if (!seen.has(k2)) { seen.add(k2); prefetchPairs.push([k2, tutorCoords, destinationLocation]); }
+    }
+    await Promise.all(prefetchPairs.map(async ([key, origin, destination]) => {
+      try {
+        travelCache.set(key, await getTravelDetails(origin, destination));
+      } catch (err) {
+        console.error(`[checkAvail] Travel prefetch failed for ${key}:`, err);
+        travelCache.set(key, { duration: 30, distance: 0 });
+      }
+    }));
+    console.log(`[checkAvail] Prefetched ${prefetchPairs.length} unique travel pairs in parallel for ${filteredSlots.length} slots`);
+
+    for (const { slot, slotStart, slotEnd, prevAppt, nextAppt, originLocation, destinationLocation } of slotMeta) {
       let isPossible = true;
 
       // 3. Check Travel from Origin (Prev Appt or Clinic Base)
       if (originLocation) {
         let travelTimeMinutes = 30; // Default fallback
-        try {
-          const travelDetails = await getTravelDetails(
-            originLocation,
-            tutorCoords,
-          );
-          travelTimeMinutes = Math.ceil(travelDetails.duration / 60);
-        } catch (err) {
-          console.error(
-            "[checkAvail] Google Maps API failed (Origin), using fallback:",
-            err,
-          );
-        }
+        const cached = travelCache.get(travelKey(originLocation, tutorCoords));
+        if (cached) travelTimeMinutes = Math.ceil(cached.duration / 60);
         const travelTime = travelTimeMinutes * 60;
-        
+
         // --- ANIMALGRACE SECTOR RULE: 120 MINS BETWEEN LINARES AND TALCA ---
         let finalRequiredTravelSecs = travelTime + (TRAVEL_BUFFER_MINUTES * 60);
-        if (clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce") {
+        if (isAnimalGrace) {
           const originSector = originLocation.lat > -35.6 ? "TALCA" : "LINARES";
           const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
           if (originSector !== targetSector) {
@@ -1215,9 +1285,7 @@ const checkAvail = async (
 
         // CRITICAL FIX: If date is TODAY, we must also ensure we have enough time FROM NOW to reach the slot
         const isToday = date ===
-          new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(
-            new Date(),
-          );
+          new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
         const now = new Date();
 
         let availableGapSecs = 0;
@@ -1226,17 +1294,12 @@ const checkAvail = async (
             (new Date(prevAppt.appointment_date).getTime() +
               (prevAppt.duration * 60000))) / 1000;
         } else if (isToday) {
-          // If no prev appt today, we start travel FROM NOW (or from clinic start, whichever is later)
           const clinicStartToday = new Date(`${date}T08:00:00${tzOffset}`);
-          const travelStartBase = now > clinicStartToday
-            ? now
-            : clinicStartToday;
-          availableGapSecs = (slotStart.getTime() - travelStartBase.getTime()) /
-            1000;
+          const travelStartBase = now > clinicStartToday ? now : clinicStartToday;
+          availableGapSecs = (slotStart.getTime() - travelStartBase.getTime()) / 1000;
         } else {
           availableGapSecs =
-            (slotStart.getTime() - new Date(`${date}T08:00:00${tzOffset}`).getTime()) /
-            1000; // Assume 8 AM local start if no prev on future days
+            (slotStart.getTime() - new Date(`${date}T08:00:00${tzOffset}`).getTime()) / 1000;
         }
 
         if (availableGapSecs < finalRequiredTravelSecs) {
@@ -1247,23 +1310,13 @@ const checkAvail = async (
       // 4. Check Travel to Next (Next Appt or Clinic Base)
       if (isPossible && destinationLocation) {
         let travelTimeMinutes = 30; // Default fallback
-        try {
-          const travelDetails = await getTravelDetails(
-            tutorCoords,
-            destinationLocation,
-          );
-          travelTimeMinutes = Math.ceil(travelDetails.duration / 60);
-        } catch (err) {
-          console.error(
-            "[checkAvail] Google Maps API failed (Destination), using fallback:",
-            err,
-          );
-        }
+        const cached = travelCache.get(travelKey(tutorCoords, destinationLocation));
+        if (cached) travelTimeMinutes = Math.ceil(cached.duration / 60);
         const travelTime = travelTimeMinutes * 60;
 
         // --- ANIMALGRACE SECTOR RULE: 120 MINS BETWEEN LINARES AND TALCA ---
         let finalRequiredTravelSecs = travelTime + (TRAVEL_BUFFER_MINUTES * 60);
-        if (clinicId === "fd11b7e4-7d96-461c-a292-2caa5e2592ce") {
+        if (isAnimalGrace) {
           const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
           const destSector = destinationLocation.lat > -35.6 ? "TALCA" : "LINARES";
           if (targetSector !== destSector) {
@@ -1273,9 +1326,8 @@ const checkAvail = async (
         }
 
         const availableGapSecs = nextAppt
-          ? (new Date(nextAppt.appointment_date).getTime() -
-            slotEnd.getTime()) / 1000
-          : (new Date(`${date}T20:00:00${tzOffset}`).getTime() - slotEnd.getTime()) / 1000; // 8 PM local end if no next
+          ? (new Date(nextAppt.appointment_date).getTime() - slotEnd.getTime()) / 1000
+          : (new Date(`${date}T20:00:00${tzOffset}`).getTime() - slotEnd.getTime()) / 1000;
 
         if (availableGapSecs < finalRequiredTravelSecs) {
           isPossible = false;
@@ -1775,16 +1827,39 @@ const confirmAppt = async (
 
 // CRM logic removed to simplify clinical flow
 
+// Module-level cache for knowledge_base docs keyed by clinicId.
+// Edge function instances stay warm across a burst of messages from the same clinic,
+// so this avoids a DB round-trip on every single inbound message.
+const KB_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const kbCache = new Map<string, { docs: any[]; fetchedAt: number }>();
+
+const getKnowledgeDocs = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+): Promise<any[]> => {
+  const cached = kbCache.get(clinicId);
+  if (cached && Date.now() - cached.fetchedAt < KB_CACHE_TTL_MS) {
+    console.log(`[KB cache] hit for clinic ${clinicId}`);
+    return cached.docs;
+  }
+  const { data: docs } = await sb.from("knowledge_base")
+    .select("title, content, category")
+    .eq("clinic_id", clinicId)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(20);
+  const result = docs || [];
+  kbCache.set(clinicId, { docs: result, fetchedAt: Date.now() });
+  console.log(`[KB cache] miss — fetched ${result.length} docs for clinic ${clinicId}`);
+  return result;
+};
+
 const getKnowledge = async (
   sb: ReturnType<typeof createClient>,
   clinicId: string,
   query: string,
 ) => {
   try {
-    const { data: clinic } = await sb.from("clinics").select("ref_id").eq(
-      "id",
-      clinicId,
-    ).single();
     const genericWords = [
       "valor",
       "precio",
@@ -1817,15 +1892,8 @@ const getKnowledge = async (
       ? specificKeywords
       : allKeywords;
 
-    // Fetch all active knowledge base documents for this clinic
-    const { data: docs } = await sb.from("knowledge_base")
-      .select("title, content, category")
-      .eq("clinic_id", clinicId)
-      .eq("status", "active")
-      .order("updated_at", { ascending: false })
-      .limit(20);
-
-    if (!docs || docs.length === 0) return "";
+    const docs = await getKnowledgeDocs(sb, clinicId);
+    if (docs.length === 0) return "";
 
     // Calculate relevancy scores if we have keywords
     const scoredDocs = docs.map((d) => {
@@ -2184,21 +2252,11 @@ const getKnowledgeSummary = async (
   clinicId: string,
 ) => {
   try {
-    const { data: docs } = await sb.from("knowledge_base")
-      .select("title, content, category")
-      .eq("clinic_id", clinicId)
-      .eq("status", "active")
-      .order("updated_at", { ascending: false })
-      .limit(5); // Reducido para no saturar el límite de tokens
-
-    if (!docs || docs.length === 0) return "";
-
-    const rawKnowledge = docs.map((
-      d: { title: string; content: string; category: string },
-    ) => `- [${d.category}] ${d.title}: ${d.content.substring(0, 500)}... (Usa la función get_knowledge si necesitas leer más detalle sobre este tema)`).join(
-      "\n",
-    );
-
+    const docs = await getKnowledgeDocs(sb, clinicId);
+    if (docs.length === 0) return "";
+    const rawKnowledge = docs.slice(0, 5).map((d: any) =>
+      `- [${d.category}] ${d.title}: ${d.content.substring(0, 500)}... (Usa la función get_knowledge si necesitas leer más detalle sobre este tema)`
+    ).join("\n");
     return "\n\nBase de Conocimiento de la Clínica:\n" + rawKnowledge;
   } catch {
     return "";
@@ -2351,37 +2409,74 @@ const processFunc = async (
 };
 
 // ====== Helper: Route message to the optimal model tier ======
-const selectModelTier = (content: string, hasImage: boolean = false): { model: string, tier: number } => {
+//
+// ROUTING LOGIC (updated):
+// - gpt-4o  → scheduling, geo/routing, surgery, medical urgency, images
+// - mini    → everything else (info, prices, greetings, thanks, surveys, FAQs)
+//
+// Rationale: mini had errors specifically on geographic routing logic (mobile
+// clinics, sector rules, travel-time calculations). Those cases are explicitly
+// detected and sent to 4o. Pure informational exchanges stay on mini to reduce cost.
+//
+// "activeSchedulingFlow" flag is passed in from the call site when recent history
+// shows an ongoing booking conversation, keeping the full flow on 4o for coherence.
+const selectModelTier = (
+  content: string,
+  hasImage: boolean = false,
+  activeSchedulingFlow: boolean = false,
+): { model: string; tier: number } => {
   const text = content.toLowerCase();
-  
-  // Tier 3: Critical cases, surgeries, or complex medical inquiries + Images
-  const isComplex = hasImage || 
-                    text.includes("cirug") || 
-                    text.includes("esterili") || 
-                    text.includes("castra") || 
-                    text.includes("grave") || 
-                    text.includes("sangre") || 
-                    text.includes("emergencia") ||
-                    text.includes("disponib") ||
-                    text.includes("hora") ||
-                    text.includes("agend");
-  
-  if (isComplex) return { model: "gpt-4o", tier: 3 };
 
-  // Tier 1: Very simple interactions
-  const isSimple = text.length < 30 && (
-    text.includes("hola") || 
-    text.includes("gracias") || 
-    text.includes("chau") || 
-    text.includes("ok") || 
-    text.includes("bueno") ||
-    text.match(/^[\p{Emoji}\s]+$/u)
-  );
+  // --- 4o required: geo/routing/scheduling triggers ---
+  // These are the exact cases where mini made errors: availability checks,
+  // time slot selection, address parsing, sector routing (Linares/Talca), surgery flows.
+  const needsSchedulingReason =
+    text.includes("disponib") ||        // "¿tienen disponibilidad?"
+    text.includes("agend") ||           // "quiero agendar", "agéndame"
+    text.includes("reserv") ||          // "quiero reservar"
+    text.includes("cit") ||             // "cita", "citarme"
+    text.includes("horario") ||         // "¿cuál es el horario?"
+    text.includes("qué hora") ||        // "¿a qué hora?"
+    text.includes("que hora") ||
+    text.includes("cuándo pueden") ||
+    text.includes("cuando pueden") ||
+    text.includes("para el ") ||        // "para el lunes", "para el 15"
+    text.includes("para mañana") ||
+    text.includes("para hoy") ||
+    text.includes("mañana tienen") ||
+    text.includes("ubicaci") ||         // "mi ubicación", "ubicación de la clínica"
+    text.includes("direcci") ||         // "mi dirección"
+    text.includes("zona") ||            // "¿cubren mi zona?"
+    text.includes("sector") ||          // "¿atienden en mi sector?"
+    text.includes("domicilio") ||       // "¿atienden a domicilio?"
+    text.includes("maps.app") ||        // Google Maps link
+    text.includes("google.com/map") ||
+    text.match(/\d{1,2}[:h]\d{2}/u) !== null || // time patterns: "10:30", "10h30"
+    text.match(/\d{1,2}\s*(?:am|pm)/iu) !== null; // "10 am", "3pm"
 
-  if (isSimple) return { model: "gpt-4o-mini", tier: 1 };
+  // --- 4o required: surgery / urgent medical ---
+  const needsMedicalReason =
+    hasImage ||
+    text.includes("cirug") ||
+    text.includes("esterili") ||
+    text.includes("castra") ||
+    text.includes("pabell") ||
+    text.includes("emergencia") ||
+    text.includes("urgente") ||
+    text.includes("grave") ||
+    text.includes("sangre") ||
+    text.includes("convulsi") ||
+    text.includes("envenena") ||
+    text.includes("accidente");
 
-  // Default Tier 2: Standard conversation
-  return { model: "gpt-4o", tier: 2 };
+  if (needsSchedulingReason || needsMedicalReason || activeSchedulingFlow) {
+    return { model: "gpt-4o", tier: 3 };
+  }
+
+  // --- mini: everything informational ---
+  // Prices, services, FAQs, payment methods, greetings, thanks, surveys, general questions.
+  // mini handles these correctly and at a fraction of the cost.
+  return { model: "gpt-4o-mini", tier: 1 };
 };
 
 const callOpenAI = async (
@@ -2428,177 +2523,12 @@ const callOpenAI = async (
   return r.json();
 };
 
-const callGemini = async (key: string, model: string, msgs: Msg[], useTools = true) => {
-    const chatMsgs = msgs.filter(m => m.role !== "system");
-    const systemMsg = msgs.find(m => m.role === "system");
-
-    const contents = chatMsgs.map(m => {
-        if (m.geminiParts) {
-            return {
-                role: m.role === "assistant" ? "model" : "user",
-                parts: m.geminiParts
-            };
-        }
-        if (m.role === "tool" || m.role === "function") {
-            return {
-                role: "user",
-                parts: [{
-                    functionResponse: {
-                        name: m.name,
-                        response: { content: m.content }
-                    }
-                }]
-            };
-        }
-        if (m.role === "assistant" && m.tool_calls) {
-            return {
-                role: "model",
-                parts: m.tool_calls.map(tc => ({
-                    functionCall: {
-                        name: tc.function.name,
-                        args: JSON.parse(tc.function.arguments)
-                    }
-                }))
-            };
-        }
-        return {
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
-        };
-    });
-
-    const tools = useTools ? [{
-        function_declarations: functions.map(f => ({
-            name: f.name,
-            description: f.description,
-            parameters: f.parameters
-        }))
-    }] : undefined;
-
-    const body = {
-        contents,
-        system_instruction: systemMsg ? { parts: [{ text: systemMsg.content }] } : undefined,
-        tools,
-        generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 800,
-        }
-    };
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-    });
-
-    if (!res.ok) throw new Error(`Gemini Error: ${await res.text()}`);
-    const data = await res.json();
-    const candidate = data.candidates[0];
-    const parts = candidate.content.parts;
-    
-    // Convert Gemini format to OpenAI format for compatibility
-    const tool_calls = parts
-        .filter((p: any) => p.functionCall)
-        .map((p: any, i: number) => ({
-            id: `call_${Date.now()}_${i}`,
-            type: "function",
-            function: {
-                name: p.functionCall.name,
-                arguments: JSON.stringify(p.functionCall.args)
-            }
-        }));
-
-    const textPart = parts.find((p: any) => p.text);
-
-    return {
-        choices: [{
-            message: {
-                role: "assistant",
-                content: textPart ? textPart.text : null,
-                tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
-                geminiParts: parts // Preserve original parts for next turn
-            }
-        }]
-    };
-};
-
-const callOpenRouter = async (key: string, model: string, msgs: Msg[], useTools = true) => {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${key}`,
-            "HTTP-Referer": "https://vetly.ai",
-            "X-Title": "Vetly App"
-        },
-        body: JSON.stringify({
-            model: model,
-            messages: msgs.map(m => ({
-                role: m.role,
-                content: m.content,
-                tool_calls: m.tool_calls,
-                tool_call_id: m.tool_call_id,
-                name: m.name
-            })),
-            tools: useTools ? functions.map(f => ({ type: "function", function: f })) : undefined,
-            tool_choice: useTools ? "auto" : undefined,
-            temperature: 0,
-            max_tokens: 800
-        })
-    });
-
-    if (!res.ok) throw new Error(`OpenRouter Error: ${await res.text()}`);
-    return res.json();
-};
-
 const callAI = async (model: string, msgs: Msg[], useTools = true) => {
-    const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY");
-    const GEMINI_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
     const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
-
-    const hasOR = !!OPENROUTER_KEY;
-    const hasGemini = !!GEMINI_KEY;
-    const hasOpenAI = !!OPENAI_KEY;
-
-    console.log(`[callAI] Config: OR=${hasOR}, Gemini=${hasGemini}, OpenAI=${hasOpenAI}`);
-    
-    // Strategy 1: OpenAI Direct (Primary)
-    if (OPENAI_KEY) {
-        try {
-            console.log(`[callAI] Attempting OpenAI Direct with model: ${model}`);
-            return await callOpenAI(OPENAI_KEY, model, msgs, useTools);
-        } catch (e) {
-            console.error(`[callAI] OpenAI Direct failed:`, e);
-            await debugLog(getSupabase(), `OpenAI error`, { error: e.message, model });
-        }
+    if (!OPENAI_KEY) {
+        throw new Error("OPENAI_API_KEY not configured.");
     }
-
-    // Strategy 2: Gemini Direct (Failover)
-    if (GEMINI_KEY) {
-        try {
-            const geminiModel = "gemini-1.5-flash-latest";
-            console.log(`[callAI] Attempting Gemini Direct with model: ${geminiModel}`);
-            return await callGemini(GEMINI_KEY, geminiModel, msgs, useTools);
-        } catch (e) {
-            console.error(`[callAI] Gemini Direct failed:`, e);
-            await debugLog(getSupabase(), `Gemini error`, { error: e.message, model: "gemini-1.5-flash-latest" });
-        }
-    }
-
-    // Strategy 3: OpenRouter (Disabled per user request)
-    /*
-    if (OPENROUTER_KEY) {
-        try {
-            console.log(`[callAI] Attempting OpenRouter with model: ${model}`);
-            return await callOpenRouter(OPENROUTER_KEY, model, msgs, useTools);
-        } catch (e) {
-            console.error(`[callAI] OpenRouter failed:`, e);
-            await debugLog(getSupabase(), `OpenRouter error`, { error: e.message, model });
-        }
-    }
-    */
-
-    throw new Error(`All AI providers failed or are not configured. Config: OR=${hasOR}, Gemini=${hasGemini}, OpenAI=${hasOpenAI}`);
+    return await callOpenAI(OPENAI_KEY, model, msgs, useTools);
 };
 
 const sendWA = async (key: string, to: string, from: string, msg: string) => {
@@ -2637,26 +2567,50 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const sb = getSupabase();
-
-  if (req.method === "GET") {
-    const { data } = await sb.from("debug_logs").select("*").order(
-      "created_at",
-      { ascending: false },
-    ).limit(100);
-    return new Response(JSON.stringify(data), { headers: corsHeaders });
+  // Fix: GET endpoint removed — it exposed debug_logs publicly with no auth.
+  // To inspect logs use the Supabase dashboard or a service-role authenticated query.
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ status: "method_not_allowed" }), {
+      status: 405,
+      headers: corsHeaders,
+    });
   }
 
+  const sb = getSupabase();
+
   try {
+    // --- SECURITY: Read raw body once, then verify YCloud HMAC signature ---
+    // We must read as text first so we can verify the signature over the exact
+    // bytes YCloud signed, then parse JSON from the same string.
+    let rawBody = "";
     let p: any;
     try {
-      p = await req.json();
+      rawBody = await req.text();
+      if (!rawBody || rawBody.trim() === "") {
+        console.warn("Received empty body, ignoring.");
+        return new Response(
+          JSON.stringify({ status: "ok", message: "Empty body ignored" }),
+          { headers: corsHeaders },
+        );
+      }
+      p = JSON.parse(rawBody);
     } catch (e) {
-      console.warn("Received empty or non-JSON body, ignoring.");
+      console.warn("Received non-JSON body, ignoring.");
       return new Response(
-        JSON.stringify({ status: "ok", message: "Empty body ignored" }),
+        JSON.stringify({ status: "ok", message: "Invalid JSON ignored" }),
         { headers: corsHeaders },
       );
+    }
+
+    // Verify YCloud webhook signature (HMAC-SHA256)
+    const signatureHeader = req.headers.get("YCloud-Signature");
+    const signatureValid = await verifyYCloudSignature(rawBody, signatureHeader);
+    if (!signatureValid) {
+      console.error("[SECURITY] Rejected request with invalid YCloud signature.");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: corsHeaders,
+      });
     }
 
     // Log incoming payload for debugging
@@ -3676,31 +3630,49 @@ ${knowledgeSummary}
 
         // --- INTELLIGENT MODEL ROUTING ---
         targetModel = "gpt-4o-mini";
-        let tierUsed = 2;
+        let tierUsed = 1;
 
         if (clinic.ai_active_model === "hybrid") {
           const lastUserText = userContentBlocks.map(b => b.text || "").join(" ");
           const hasImageInBurst = userContentBlocks.some(b => b.type === "image_url");
-          const route = selectModelTier(lastUserText, hasImageInBurst);
-          // Mapping based on User's Hybrid Cost Table:
-          // N3: Sovereign Pro -> gpt-4o
-          // N2: Standard -> gpt-4o
-          // N1: Flash Mini -> gpt-4o-mini
+
+          // Detect if we're mid-booking: if any of the last 6 messages (outbound)
+          // contain scheduling signals, keep the whole flow on 4o for coherence.
+          // This prevents the case where a user says "perfecto" mid-agenda and mini
+          // loses the routing context built up in the previous 4o turn.
+          const recentOutbound = orderedMsgs
+            .filter(m => m.direction === "outbound")
+            .slice(-3)
+            .map(m => (m.content || "").toLowerCase());
+          const schedulingSignals = [
+            "cita", "agend", "disponib", "horario", "slot", "hora disponible",
+            "reserv", "sector", "direcci", "ubicaci", "traslado", "zona",
+          ];
+          const activeSchedulingFlow = recentOutbound.some(msg =>
+            schedulingSignals.some(s => msg.includes(s))
+          );
+
+          const route = selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
           targetModel = route.model;
           tierUsed = route.tier;
+
+          console.log(
+            `[Router] hybrid | activeFlow=${activeSchedulingFlow} | text="${lastUserText.substring(0, 60)}" | → ${targetModel} (tier ${tierUsed})`
+          );
         } else if (clinic.ai_active_model === "pro") {
           targetModel = "gpt-4o";
           tierUsed = 3;
         } else {
+          // "mini" mode: always mini
           targetModel = "gpt-4o-mini";
           tierUsed = 1;
         }
-        
+
         // Granular tracking for hybrid cost table
-        modelForTracking = (targetModel === "gpt-4o") 
+        modelForTracking = (targetModel === "gpt-4o")
           ? (tierUsed === 3 ? "4o_pro" : "4o_standard")
           : "mini";
-            
+
         console.log(`[Router] Strategy: ${clinic.ai_active_model} | Selected Tier ${tierUsed} (${targetModel}) -> Tracking as: ${modelForTracking}`);
 
         const blockedTools: string[] = [];
