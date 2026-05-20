@@ -25,7 +25,7 @@ SaaS veterinario para clínicas móviles a domicilio. Permite agendar citas vía
 **`ycloud-whatsapp-webhook`** — 3800+ líneas, es el core del producto.
 
 Flujo por mensaje entrante:
-1. Verificación HMAC-SHA256 de firma YCloud
+1. Verificación HMAC-SHA256 de firma YCloud (per-clínica, ver sección Seguridad)
 2. Debounce de 20 segundos (agrupa mensajes rápidos del mismo usuario)
 3. Deduplicación: si llegó un mensaje más nuevo mientras esperaba, aborta
 4. Selección de modelo según `clinic.ai_active_model`:
@@ -49,8 +49,8 @@ const KB_CACHE_TTL_MS = 5 * 60 * 1000;                        // TTL cache knowl
 |---|---|
 | `ai-simulator` | Simulador del AI agent para el dashboard (usa mismo DB real) |
 | `chat-agent` | Chat de ventas/soporte del sitio vetly.pro |
-| `cron-process-reminders` | Envía recordatorios de citas por WhatsApp |
-| `cron-process-surveys` | Encuestas post-cita |
+| `cron-process-reminders` | Envía recordatorios de **citas** (24h y 2h antes) Y recordatorios **médicos** (vacunas, desparasitaciones) — ver PART 1/2/4 |
+| `cron-process-surveys` | Encuestas post-cita (retorna 400 en cada ejecución — pendiente de investigar) |
 | `cron-process-upsell` | Campañas de upsell automático |
 | `cron-retention-compute` / `cron-retention-execute` | Motor de retención preventivo |
 | `ycloud-whatsapp-webhook` | AI agent WhatsApp (principal) |
@@ -79,15 +79,43 @@ const KB_CACHE_TTL_MS = 5 * 60 * 1000;                        // TTL cache knowl
 ### Seguridad del webhook
 - CORS restringido a `https://ycloud.com`
 - Solo acepta `POST` — GET devuelve 405
-- Firma HMAC-SHA256 verificada vía `verifyYCloudSignature()` antes de procesar cualquier payload
-- Secret configurado via: `supabase secrets set YCLOUD_WEBHOOK_SECRET=<secret>`
+- Firma HMAC-SHA256 verificada vía `verifyYCloudSignature(rawBody, signatureHeader, secret)` antes de procesar cualquier payload
+- **El secret es POR CLÍNICA**, no global. Se busca en `clinic_settings.ycloud_webhook_secret` usando `ycloud_phone_number = payload.whatsappInboundMessage.to`
+- Si la clínica no tiene secret configurado → acepta el mensaje con `console.warn` (comportamiento permisivo intencional para onboarding)
+- El flujo del simulador (`!p.whatsappInboundMessage`) **no tiene verificación** — pasa directo
+- El secret se configura desde Settings → campo "Webhook Secret" (tipo password)
+- Estado actual: Animalgrace Linares ✅ configurado | Animalgrace Santiago ✅ configurado
+
+**Formato del header YCloud-Signature (crítico):**
+- Header: `t={timestamp},s={signature}` — hay que parsear `t` y `s` por separado
+- Payload firmado: `{timestamp}.{rawBody}` — no solo `{rawBody}`
+- Encoding del digest: hexadecimal
+- **Formato del secret (Svix)**: los secrets de YCloud tienen prefijo `whsec_` seguido de base64. La clave HMAC real es `base64_decode(secret.slice("whsec_".length))`, no el string completo. El código maneja esto automáticamente.
+
+### Tablas de recordatorios — distinción importante
+Hay **dos tablas distintas** para recordatorios:
+- `reminder_logs` — log de envíos de recordatorios de **citas** (24h, 2h antes). Escrito por PART 1/2 del cron. Tiene `clinic_id`, `appointment_id`, `type`, `status`, `error_message`.
+- `reminders` — recordatorios **médicos** programados (vacunas, desparasitaciones, checkups). Escrito por el sistema cuando se registra un evento médico. Tiene `scheduled_date`, `type` (vaccine/deworming/checkup), `whatsapp_template`, `status` (pending/sent/failed/skipped).
+
+### RLS de reminder_logs
+Usa `clinic_members` (no `user_profiles.clinic_id`) para soportar usuarios multi-sucursal:
+```sql
+clinic_id IN (SELECT clinic_id FROM clinic_members WHERE user_id = auth.uid() AND status = 'active')
+```
+Si la RLS se rompe y un usuario no ve datos, verificar que tenga filas activas en `clinic_members`.
+
+### cron-process-reminders — estructura interna
+- **PART 1**: Recordatorios 24h antes de cita. Pre-check en `reminder_logs` para idempotencia.
+- **PART 2**: Recordatorios 2h antes de cita. Pre-check en `reminder_logs` para idempotencia.
+- **PART 3**: ~~Recordatorios 1h~~ — **ELIMINADO** en mayo 2026.
+- **PART 4**: Recordatorios médicos (vacunas/desparasitaciones). Consulta `reminders WHERE status = 'pending' AND scheduled_date <= tomorrowStr`. Usa `lte` para hacer catch-up de registros atrasados. Fallback de template: `rem.whatsapp_template` → `clinic.vaccine/deworming/checkup_reminder_template`. Si no hay teléfono o template → marca como `failed`.
 
 ### Formato de tools OpenAI
 Todo el código usa el formato moderno (`tools`/`tool_choice`/`tool_call_id`), no el deprecado (`functions`/`function_call`). El `ai-simulator` fue migrado en mayo 2026.
 
 ---
 
-## Cambios realizados — mayo 2026
+## Cambios realizados — mayo 2026 (sesión 1)
 
 ### Seguridad y routing (commit `6016157`)
 - CORS del webhook restringido de `*` a `https://ycloud.com`
@@ -115,17 +143,291 @@ Todo el código usa el formato moderno (`tools`/`tool_choice`/`tool_call_id`), n
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 2, 2026-05-20)
+
+### Sistema de recordatorios — `cron-process-reminders` (v14)
+- **Imports modernizados**: `deno.land/std@0.168.0` → `jsr:`, `esm.sh` → `npm:`. `serve()` → `Deno.serve()`
+- **PART 1 (24h)**: idempotencia via `reminder_logs` — pre-check antes de enviar, evita duplicados aunque el cron corra varias veces
+- **PART 2 (2h)**: reemplazó la ventana frágil de 6h por el mismo pre-check en `reminder_logs`
+- **PART 3 (1h)**: eliminado completamente (~178 líneas). La feature de 1h no existe más en cron ni en frontend
+- **PART 4**: `console.error` silencioso → ahora marca `reminders.status = 'failed'` cuando falta teléfono o template
+
+### Sistema de recordatorios — `cron-process-reminders` (v15, 2026-05-20)
+- **PART 4**: `eq('scheduled_date', tomorrowStr)` → `lte('scheduled_date', tomorrowStr)` — fix crítico: con `eq`, cualquier registro cuya ventana se perdía quedaba atrapado en `pending` para siempre. Con `lte` el cron hace catch-up en la siguiente ejecución
+- **9 registros vencidos** (scheduled_date mayo 1-19) marcados manualmente como `skipped` en la DB
+
+### Dashboard de Recordatorios — `src/pages/Reminders.tsx` (reescritura)
+- Dos `useEffect` separados: uno para settings (solo al cambiar clínica), otro para logs (tab/filtro/clínica)
+- `getStartDate()` helper inmutable (evitaba mutación de Date)
+- Query usa `created_at` en lugar de `sent_at` para ordenar y filtrar
+- Coerción booleana corregida: `checked={!!settings.reminder_24h_before}`
+- Time picker `preferred_hour` con `[color-scheme:dark]` para estilo nativo oscuro
+- `dateRange` default cambiado de `'today'` a `'week'`
+- Badge y lógica de tipo `1h` eliminados
+- Botón de refresh llama directamente a `fetchLogs()`
+
+### Seguridad HMAC per-clínica — `ycloud-whatsapp-webhook`
+- **Problema**: el secret HMAC era global (`YCLOUD_WEBHOOK_SECRET` env var), pero cada clínica tiene su propia cuenta YCloud con su propio secret
+- **Migración DB**: `ALTER TABLE clinic_settings ADD COLUMN ycloud_webhook_secret TEXT`
+- **`verifyYCloudSignature`**: ahora recibe `secret: string` como tercer parámetro en lugar de leer variable global
+- **Orden del handler corregido**: parsea `to` del payload → busca `clinic_settings.ycloud_webhook_secret` → verifica firma
+- **Simulador**: detectado por ausencia de `p.whatsappInboundMessage` → bypassa verificación
+- **Constante global eliminada**: `const YCLOUD_WEBHOOK_SECRET = Deno.env.get(...)` removida
+- **Settings.tsx**: campo "Webhook Secret" (tipo password) entre "Número de WhatsApp" y "Webhook URL"
+- Animalgrace Linares: secret guardado ✅ (verificación activa desde v205)
+- Animalgrace Santiago: sin secret ⚠️ en esta sesión → configurado en sesión 5 ✅
+- Deployed: webhook v203
+
+### RLS `reminder_logs` — migración `fix_reminder_logs_rls_use_clinic_members`
+- **Problema raíz**: la política SELECT usaba `user_profiles.clinic_id` (un solo valor). Para usuarios multi-sucursal que cambian de clínica via localStorage, la RLS siempre filtraba por la clínica guardada en DB, no la activa en el frontend
+- **Fix**: política reemplazada para usar `clinic_members`:
+  ```sql
+  clinic_id IN (SELECT clinic_id FROM clinic_members WHERE user_id = auth.uid() AND status = 'active')
+  ```
+- Ahora un owner con acceso a Linares y Santiago puede ver datos de ambas según la clínica activa en el frontend
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 3, 2026-05-20)
+
+### Animalgrace Linares — ajustes de prompt y KB
+
+**`ai_behavior_rules`:**
+- Capacidad de citas por sector: 4 → 5 (alineado con vademécum de la app)
+- Buffer en REGLA DE ORO: clarificado "desde el FIN de la última cita del sector actual"
+- Sección 3 (INTELIGENCIA DE RUTA) simplificada: solo filosofía + referencia al KB. El detalle operativo vive en el doc de logística
+
+**KB `PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES`:**
+- Restricción Talca antes de las 11am: añadida explícitamente
+- Sección 4 reescrita con sectores correctos:
+  - SECTOR LINARES: Linares, Yerbas Buenas, Colbún, Longaví, Villa Alegre, San Javier
+  - SECTOR TALCA: Talca, Maule, San Clemente, Pelarco, Pencahue
+- Buffer inter-sector: 1h desde FIN de última cita (no desde inicio)
+- Talca: gestionada por demanda, no días fijos
+- Regla 5: Linares siempre disponible al inicio y cierre del día
+
+**KB `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS`:** pack prequirúrgico `$66.000` → `$55.000`
+
+**KB `PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE`:** precios de eutanasia formato coma → punto (`$90,000` → `$90.000`, `$100,000` → `$100.000`)
+
+---
+
+### Animalgrace Santiago — actualización logística y agendamiento
+
+**KB `#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES`:** sección 4 completamente reemplazada:
+- Tabla de zonas geográficas (solo uso interno del agente):
+  - Centro: Santiago Centro, San Miguel, San Joaquín, Pedro Aguirre Cerda, Independencia, Recoleta
+  - Norte: Conchalí, Huechuraba, Renca, Quilicura
+  - Poniente: Maipú, Cerro Navia, Pudahuel, Quinta Normal, Lo Prado, Estación Central, Cerrillos
+  - Sur: La Granja, La Pintana, El Bosque, San Ramón, Lo Espejo, San Bernardo, Puente Alto, La Florida, Macul, Buin, Pirque, Padre Hurtado, Valle Grande
+  - Oriente: Providencia, Ñuñoa, La Reina, Peñalolén, Las Condes, Vitacura, Ciudad Satélite, Ciudad de los Valles
+- Principio nuevo: "aprovechar desplazamientos largos" — incorporar pacientes intermedios cuando hay cita en zona lejana
+- Protocolo §4.3 Tutores Fuera de Ruta: antes de `escalate_to_human`, ofrecer otro horario del mismo día o próximo día hábil
+- Margen de flexibilidad horaria: `1 hora` → `1 a 2 horas`
+
+**KB `POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO`:** margen sección 2: `1 hora` → `1 a 2 horas`
+
+**KB `PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE`:** eutanasia `$90,000`/`$100,000` → `$90.000`/`$100.000`
+
+**`ai_behavior_rules` Santiago:**
+- Regla `ZONA DEL TUTOR (REGLA INTERNA)`: nunca preguntar al tutor a qué zona pertenece — inferir desde la comuna mencionada
+- Sección 3: margen actualizado a `1 a 2 horas`
+- Sección 10 agendamiento: +teléfono del tutor, +facilidad de estacionamiento, +si atención dentro o fuera del domicilio
+- Referencia al título de sección 4 del KB actualizada al nuevo nombre
+
+---
+
+### Patrón de separación de reglas (decisión de diseño permanente)
+
+**Regla establecida por el usuario:** las reglas de **negocio** van en documentos `knowledge_base`. `ai_behavior_rules` solo debe contener reglas **técnicas a nivel app** (cómo usar tools, formato de respuesta, restricciones del sistema). No duplicar lógica de negocio entre ambos. Si un cambio es de negocio (precios, horarios, sectores, márgenes), editar el KB.
+
+---
+
+## Estado actual de clínicas (2026-05-20)
+
+### Animalgrace Linares y Talca (`fd11b7e4-...`)
+- Recordatorios de citas: ✅ funcionando — 59 enviados, 25 fallidos en `reminder_logs`
+- Recordatorios médicos: ✅ 4 pendientes para hoy (mayo 20), se envían esta noche
+- Webhook HMAC: ✅ secret configurado
+- Templates médicos: ✅ `recordatorio_vacunas`, `recordatorio_desparasitacion`, `seguimiento_medico`
+
+### Animalgrace Santiago (`13472ea4-...`)
+- Recordatorios de citas: ⏸️ **desactivados manualmente** — estaban fallando con 403 (`confirmacion_visita` no existe en WABA de Santiago) porque el AI agent aún no está activo y Claudia carga citas manualmente, por lo que los recordatorios se disparaban antes de tener templates configurados. Desactivar fue la solución correcta hasta tener templates listos.
+- Recordatorios médicos: templates no configurados (`vaccine/deworming/checkup_reminder_template = null`)
+- Webhook HMAC: ✅ secret configurado (`whsec_84...`) — verificación activa desde v205
+- AI agent: ⏸️ no activo — Claudia ingresa citas manualmente al sistema
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 4, 2026-05-20)
+
+### Bug idempotencia `cron-process-reminders` — v16
+
+**Problema raíz:** el check de idempotencia usaba `.maybeSingle()` para verificar si ya existía un log en `reminder_logs` antes de reintentar un envío. `.maybeSingle()` devuelve `null` cuando hay **más de una fila** (en vez de la esperada), lo que hacía que el check fallara silenciosamente. Resultado: una vez que una cita acumulaba 2+ registros `failed`, el cron la reintentaba en cada ejecución indefinidamente (cada hora).
+
+**Evidencia:** Santiago tenía 5 citas de hoy con 5–8 intentos fallidos cada una, todos con error 403 `WHATSAPP_TEMPLATE_UNAVAILABLE`.
+
+**Fix aplicado** (`cron-process-reminders` v16, deployado):
+```typescript
+// Antes (roto con >1 fila):
+.maybeSingle()
+if (existingLog) continue
+
+// Después (correcto):
+.limit(1)
+if (existingLog && existingLog.length > 0) continue
+```
+Aplicado en PART 1 (check `type='24h'`) y PART 2 (check `type='2h'`).
+
+### Defaults de `reminder_settings` — migración `reminder_settings_defaults_off`
+
+**Problema raíz:** la tabla `reminder_settings` tenía `DEFAULT true` para `reminder_24h_before`, `reminder_2h_before` y `request_confirmation`. Clínicas nuevas como Santiago quedaban con recordatorios activados al guardar por primera vez la página de Recordatorios, antes de tener templates de WhatsApp configurados.
+
+**Fix aplicado** (migración `20260520180000_reminder_settings_defaults_off.sql`):
+```sql
+ALTER TABLE reminder_settings
+    ALTER COLUMN reminder_24h_before SET DEFAULT false,
+    ALTER COLUMN reminder_2h_before  SET DEFAULT false,
+    ALTER COLUMN request_confirmation SET DEFAULT false;
+```
+Nuevas clínicas ahora nacen con recordatorios desactivados y deben habilitarlos explícitamente.
+
+### Contexto: recordatorios de Santiago
+
+El cron actúa sobre **todas las citas** en la BD sin importar si el AI agent está activo. Claudia cargaba citas manualmente para Santiago → el cron las tomaba → intentaba usar el template `confirmacion_visita` (que no existe en el WABA de Santiago) → 403. Solución correcta: desactivar recordatorios hasta tener templates listos, lo que ya hizo el usuario desde Settings.
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 5, 2026-05-20)
+
+### Fix crítico: verificación HMAC — `ycloud-whatsapp-webhook` (v205)
+
+**Síntoma:** Animalgrace Linares sin respuesta — 100% de los mensajes de WhatsApp rechazados con 401.
+
+**Diagnóstico:** La implementación de `verifyYCloudSignature` tenía tres bugs que hacían fallar toda verificación real de YCloud:
+
+1. **Payload incorrecto**: se firmaba solo `rawBody`, pero YCloud firma `{timestamp}.{rawBody}`
+2. **Header mal parseado**: se comparaba el digest contra el header completo `t=...,s=...` en lugar de extraer solo el valor de `s`
+3. **Decodificación del secret omitida**: los secrets de YCloud tienen formato Svix (`whsec_<base64>`). La clave HMAC real son los bytes obtenidos de `base64_decode(secret.slice(6))`, no el string UTF-8 completo
+
+**Fix en `verifyYCloudSignature`:**
+- Parsea el header `t={timestamp},s={signature}` extrayendo `t` y `s` por separado
+- Firma `{timestamp}.{rawBody}` como payload
+- Decodifica el secret: `atob(secret.slice("whsec_".length))` si empieza con `whsec_`
+
+**Impacto:** Fix aplica para todas las clínicas con secret configurado. Ambas clínicas activas (Linares `whsec_b1...` y Santiago `whsec_84...`) ahora verifican correctamente. Santiago también tenía secret configurado (no reflejado en CLAUDE.md anterior).
+
+**Deployed:** webhook v205
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 6, 2026-05-20)
+
+### Auditoría general del sistema — bugs corregidos
+
+#### `KnowledgeBase.tsx` — bug multi-tenant en logistics_config
+`logisticsConfig` useState inicializado con 5 ubicaciones hardcodeadas de Animalgrace. Clínicas nuevas heredaban coordenadas de Animalgrace. Fix: estado inicial con `locations: [], is_active: false`.
+
+#### `PatientProfile.tsx` — sex no formateado en header
+`{patient.sex}` mostraba el código crudo ('M', 'H', 'MN', 'FN'). Añadida función `formatSex()` usando el mismo mapeo que `Patients.tsx` (`H`/`F`/`FN` → "Hembra", `M`/`MN` → "Macho").
+
+#### `cron-process-surveys` — error 400 perpetuo (root cause)
+La función usaba `reminder_settings!inner` en un join con `appointments`, pero no hay FK directa entre ellas (ambas se relacionan con `clinic_settings`). PostgREST falla en joins indirectos. Fix: dos queries separadas — `reminder_settings WHERE surveys_enabled = true` → clinic_ids → `appointments IN (clinic_ids)`. Imports modernizados a `npm:` + `Deno.serve()`. Deployado como v6.
+
+#### `tagPatient` en `ycloud-whatsapp-webhook` — siempre fallaba silenciosamente
+**Bug 1**: buscaba `patients.phone_number` — columna inexistente (los pacientes son mascotas; los teléfonos están en `tutors`).
+**Bug 2**: insertaba en `patient_tags` — tabla que no existía.
+Fix: lookup por `tutors.phone_number` → `patients WHERE tutor_id = tutor.id AND death_date IS NULL` → insertar en `patient_tags` por cada mascota activa. Tabla `patient_tags` creada via migración con RLS. Webhook redeployado.
+
+#### Sistema de Campañas — reescritura completa
+**Tabla `campaigns` no existía en producción** (migraciones locales no aplicadas).
+**5 bugs corregidos:**
+1. `campaigns` table y `get_estimated_audience` RPC creados via migración `20260520200000_create_campaigns_system.sql`
+2. RLS migrada a `clinic_members` (multi-clínica)
+3. `get_estimated_audience` ahora cuenta tutores únicos con teléfono (no pacientes), ya que los mensajes van al dueño
+4. `send-whatsapp-campaign` reescrito: lee `inclusion_tags`/`exclusion_tags` (UUID arrays) en vez del campo legacy `segment_tag`; consulta `tutors` via `patients.tutor_id` para obtener el teléfono; deduplica por tutor (un mensaje por dueño aunque tenga N mascotas)
+5. `Campaigns.tsx` `fetchTags`: `id: t.tag_name` → `id: t.tag_id` para que los arrays pasen UUIDs al RPC
+
+#### `AICredits.tsx` — overflow de fecha en next_recharge
+`new Date(year, month+1, 31)` desbordaba al mes siguiente si el mes destino tenía <31 días (ej: 31 enero → 31 marzo si febrero es el destino). Fix: helper `clampToMonth` que clampea el día al último día válido del mes antes de construir la fecha.
+
+#### RLS habilitada en 6 tablas sin protección — migración `enable_rls_on_unprotected_tables`
+Tablas afectadas: `vaccines` (57 filas activas), `deworming` (29 filas activas), `patient_files`, `notifications`, `user_profiles`, `platform_admins`. Todas expuestas a cualquier usuario autenticado.
+- `vaccines` y `deworming`: policies `clinic_members` estándar (SELECT/INSERT/UPDATE/DELETE + service_role)
+- `patient_files` y `notifications`: policies `clinic_members` estándar
+- `user_profiles`: solo acceso a fila propia (`id = auth.uid()`) + service_role
+- `platform_admins`: solo SELECT propio + service_role
+- Nota: `vaccinations` y `dewormings` (con RLS) son tablas vacías nunca usadas. El frontend usa `vaccines`/`deworming` directamente.
+
+#### Dead code upsell eliminado de `Settings.tsx`
+El sistema de upsell automático fue desactivado pero dejó rastro: 3 variables de estado (`newUpsellEnabled/Days/Message`), columnas extra en SELECT, campos en `serviceData`, badge condicional en el listado de servicios, y resets en handlers de modal. Todo eliminado. La edge function `cron-process-upsell` sigue existiendo en el servidor pero no hay UI que la configure.
+
+#### `ai-simulator` — sincronizado con tools del webhook
+Tools añadidos al simulador: `confirm_appointment`, `escalate_to_human`, `reschedule_appointment`. Los handlers de simulación devuelven respuestas descriptivas indicando que es entorno de prueba. Deployado.
+
+#### Etiquetas retroactivas — migración `retroactive_tags_animalgrace`
+9 etiquetas creadas para ambas clínicas y asignadas automáticamente a pacientes existentes con reglas basadas en datos estructurados:
+
+| Etiqueta | Regla | Linares | Santiago |
+|---|---|---|---|
+| Canino | `species IN ('Canino','Perro',...)` | 49 | 3 |
+| Felino | `species IN ('Felino','Gato',...)` | 32 | 0 |
+| No Esterilizado | `is_sterilized = false OR NULL` | 52 | 3 |
+| Cachorro | `dob > now - 1 año` | 31 | 1 |
+| Senior | perro > 7 años / gato > 10 años | 16 | 1 |
+| Vacuna Pendiente | `vaccines.next_dose_date ≤ hoy + 60d` | 19 | 0 |
+| Desparasitación Pendiente | `deworming.next_dose_date ≤ hoy + 60d` | 16 | 0 |
+| Vacunado | cita con servicio LIKE '%vacun%' | 2 | 0 |
+| Cirugía | cita con servicio LIKE '%cirug%' | 0 | 0 |
+
+**Nota:** `Cirugía` y `Vacunado` tienen cobertura baja porque `appointments.patient_id`/`pet_id` no está consistentemente vinculado a `patients.id` en datos históricos. Las nuevas citas creadas vía AI agent sí quedan vinculadas. La migración es idempotente (`ON CONFLICT DO NOTHING`).
+
+---
+
+## Patrones adicionales a respetar
+
+### Modelo de datos: patients vs tutors
+- `patients` = mascotas. **No tienen `phone_number` ni `full_name`**. Campos: `name`, `tutor_id`, `species`, `breed`, `sex`, `dob`, `death_date`, etc.
+- `tutors` = dueños humanos. Tienen `phone_number`, `name`.
+- Cualquier operación que requiera contactar a alguien (WhatsApp, recordatorios, campañas) debe ir vía `tutors`.
+
+### Campañas — flujo de segmentación
+- Tags se guardan en `patient_tags` (junction table, `patient_id` + `tag_id`)
+- El RPC `get_tag_counts(p_clinic_id)` devuelve `tag_id` (UUID) + `tag_name` + `contact_count`
+- El frontend usa `tag_id` como el `id` de cada Tag (UUID real, no el nombre)
+- `get_estimated_audience(clinic_id, inclusion_tags UUID[], exclusion_tags UUID[])` cuenta tutores únicos con teléfono
+- `send-whatsapp-campaign` lee `campaign.inclusion_tags` / `campaign.exclusion_tags` (JSONB con UUIDs)
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
+- [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
 - [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()` para leer `logisticsConfig.routing_mode` en vez de comparar por ID.
-- [ ] **`YCLOUD_WEBHOOK_SECRET` en producción** — verificar que el secret esté seteado en el proyecto de Supabase de producción (`supabase secrets list`).
 
 ### Media prioridad
 - [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase (servicios, profesionales, slots, citas del día). Candidato a `Promise.all` donde no haya dependencia.
 - [ ] **`getKnowledge` en el simulador** — usa filtrado por `ilike` directo en DB en vez del scoring en memoria del webhook. Considerar unificar el approach.
-- [ ] **Sincronizar definición de tools** — `SIMULATOR_TOOLS` en `ai-simulator` y `functions` en el webhook están desincronizados (el simulador no tiene `escalate_to_human`, `reschedule_appointment`, `confirm_appointment`). Evaluar si es intencional o un bug.
+- [ ] **Templates médicos de Santiago**: configurar `vaccine_reminder_template`, `deworming_reminder_template`, `checkup_reminder_template` en `clinic_settings` de Santiago para que PART 4 del cron pueda enviar recordatorios médicos.
+- [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja. Las nuevas citas creadas vía AI agent sí quedan vinculadas.
 
 ### Baja prioridad
 - [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa este archivo (`*`). Documentar explícitamente por qué es `*` (browser widget, no webhook) para que nadie lo "corrija" innecesariamente.
-- [ ] **Cleanup de archivos `check_*.js`** en la raíz — scripts de debugging acumulados, no forman parte del proyecto, pueden eliminarse.
+- [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados, no forman parte del proyecto, pueden eliminarse.
+- [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — `claubarreraolivero@gmail.com` y otros tienen `clinic_id = NULL`. No bloquea el flujo actual (la RLS de `reminder_logs` usa `clinic_members`), pero es inconsistente.
+
+---
+
+## Roadmap próximas sesiones
+
+### Agente de Soporte Técnico Autónomo
+- Monitor de salud (cron cada 5 min revisando sistemas críticos)
+- Agente diagnóstico con Claude Sonnet + acceso a logs y DB de Supabase
+- Sistema de fixes automáticos para casos comunes:
+  - Recordatorios no enviados → reintento automático
+  - Errores de WhatsApp → diagnóstico YCloud/OpenAI
+  - Citas mal agendadas → corrección en DB
+  - Errores de pago → diagnóstico MercadoPago
+- Notificaciones al dueño vía WhatsApp cuando algo falla
+- Fixes de código → crea PR en GitHub para aprobación manual

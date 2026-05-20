@@ -368,6 +368,9 @@ const processFunc = async (sb: ReturnType<typeof createClient>, clinicId: string
         case "get_services": return getServices(sb, clinicId);
         case "get_knowledge": return getKnowledge(sb, clinicId, args.query);
         case "tag_patient": return tagPatient(sb, clinicId, simulatedPhone, args);
+        case "confirm_appointment": return { success: true, message: `Respuesta registrada: ${args.response === "yes" ? "confirmada" : "cancelada"} (simulación).` };
+        case "escalate_to_human": return { success: true, message: "Escalado a humano registrado (simulación). En producción desactivaría el AI para este chat." };
+        case "reschedule_appointment": return { success: true, message: `Solicitud de reagendamiento a ${args.new_date} ${args.new_time} registrada (simulación). En producción actualizaría la cita.` };
         default: return { message: `Función ${funcName} no disponible.` };
     }
 };
@@ -492,6 +495,32 @@ const SIMULATOR_TOOLS = [
                 tag_color: { type: "string" }
             },
             required: ["tag_name"]
+        }
+    },
+    {
+        name: "confirm_appointment",
+        description: "Confirma o cancela cita pendiente",
+        parameters: {
+            type: "object",
+            properties: { response: { type: "string", enum: ["yes", "no"] } },
+            required: ["response"]
+        }
+    },
+    {
+        name: "escalate_to_human",
+        description: "ÚSALA si el paciente pide hablar con una persona, si te hace una pregunta que no puedes responder con seguridad, si tiene una urgencia médica o si detectas frustración.",
+        parameters: { type: "object", properties: {}, required: [] }
+    },
+    {
+        name: "reschedule_appointment",
+        description: "Reagenda una cita existente a una nueva fecha y hora. Primero verifica disponibilidad con check_availability, luego usa esta función.",
+        parameters: {
+            type: "object",
+            properties: {
+                new_date: { type: "string", description: "Nueva fecha YYYY-MM-DD" },
+                new_time: { type: "string", description: "Nueva hora HH:MM (24h)" }
+            },
+            required: ["new_date", "new_time"]
         }
     }
 ];

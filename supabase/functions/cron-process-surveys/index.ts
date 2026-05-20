@@ -1,13 +1,12 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { createClient } from "npm:@supabase/supabase-js@2"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
@@ -18,70 +17,82 @@ serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        // 1. Calculate time range: appointments completed between 24h and 48h ago
-        // This ensures we pick them up once they cross the 24h mark, but stop retry after 48h
         const now = new Date()
         const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
         const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString()
 
-        console.log(`Checking appointments between ${fortyEightHoursAgo} and ${twentyFourHoursAgo}`)
+        console.log(`[surveys] Checking appointments between ${fortyEightHoursAgo} and ${twentyFourHoursAgo}`)
 
-        // 2. Find eligible appointments:
-        // - Status 'completed'
-        // - Updated_at (or appointment_date + duration) is within range. 
-        // - For simplicity, let's use appointment_date as the reference (end of appointment) assuming 1h duration if not present
-        // - MUST NOT have a survey in 'satisfaction_surveys' already.
+        // Step 1: Find clinics with surveys enabled.
+        // reminder_settings has no direct FK from appointments, so we query it separately.
+        const { data: remSettings, error: remError } = await supabaseClient
+            .from('reminder_settings')
+            .select('clinic_id, template_survey')
+            .eq('surveys_enabled', true)
 
+        if (remError) throw remError
+
+        if (!remSettings || remSettings.length === 0) {
+            console.log('[surveys] No clinics have surveys enabled.')
+            return new Response(
+                JSON.stringify({ success: true, processed: 0, message: 'No clinics with surveys enabled' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+        }
+
+        const clinicIds = remSettings.map((r: any) => r.clinic_id)
+        const remSettingsMap: Record<string, string> = Object.fromEntries(
+            remSettings.map((r: any) => [r.clinic_id, r.template_survey || 'satisfaction_survey'])
+        )
+
+        console.log(`[surveys] ${clinicIds.length} clinic(s) have surveys enabled.`)
+
+        // Step 2: Find eligible appointments for those clinics.
         const { data: appointments, error: apptError } = await supabaseClient
             .from('appointments')
             .select(`
-                id, 
+                id,
                 patient_id,
-                patient_name, 
-                phone_number, 
-                appointment_date, 
+                patient_name,
+                phone_number,
+                appointment_date,
                 clinic_id,
-                clinic_settings!inner(ycloud_api_key, clinic_name),
-                reminder_settings!inner(surveys_enabled, template_survey)
+                clinic_settings!inner(ycloud_api_key)
             `)
             .eq('status', 'completed')
-            .eq('reminder_settings.surveys_enabled', true)
-            .lt('appointment_date', twentyFourHoursAgo) // Older than 24h
-            .gt('appointment_date', fortyEightHoursAgo) // Newer than 48h (to avoid processing ancient history)
+            .in('clinic_id', clinicIds)
+            .lt('appointment_date', twentyFourHoursAgo)
+            .gt('appointment_date', fortyEightHoursAgo)
 
         if (apptError) throw apptError
 
-        console.log(`Found ${appointments.length} potential appointments to survey.`)
+        console.log(`[surveys] Found ${appointments?.length ?? 0} potential appointments to survey.`)
 
         const results = []
 
-        for (const appointment of appointments) {
+        for (const appointment of (appointments || [])) {
             // Check if survey already exists
             const { data: existingSurvey } = await supabaseClient
                 .from('satisfaction_surveys')
                 .select('id')
                 .eq('appointment_id', appointment.id)
-                .maybeSingle()
+                .limit(1)
 
-            if (existingSurvey) {
-                console.log(`Skipping appointment ${appointment.id}: Survey already exists.`)
+            if (existingSurvey && existingSurvey.length > 0) {
+                console.log(`[surveys] Skipping ${appointment.id}: survey already sent.`)
                 continue
             }
 
-            // Verify if Clinic has API Key
-            const ycloudKey = appointment.clinic_settings?.ycloud_api_key
+            const ycloudKey = (appointment.clinic_settings as any)?.ycloud_api_key
             if (!ycloudKey) {
-                console.log(`Skipping appointment ${appointment.id}: No YCloud API Key.`)
+                console.log(`[surveys] Skipping ${appointment.id}: no YCloud API key.`)
                 results.push({ id: appointment.id, status: 'skipped', reason: 'no_api_key' })
                 continue
             }
 
-            // Send Survey
-            try {
-                // Template: Use dynamic template from reminder_settings, fallback to 'satisfaction_survey'
-                const surveyTemplateName = appointment.reminder_settings?.template_survey || 'satisfaction_survey'
+            const surveyTemplateName = remSettingsMap[appointment.clinic_id] || 'satisfaction_survey'
 
-                // {{1}} = Patient Name
+            try {
                 const messagePayload = {
                     to: appointment.phone_number,
                     type: 'template',
@@ -92,14 +103,13 @@ serve(async (req) => {
                             {
                                 type: 'body',
                                 parameters: [
-                                    { type: 'text', text: appointment.patient_name } // {{1}}
+                                    { type: 'text', text: appointment.patient_name }
                                 ]
                             }
                         ]
                     }
                 }
 
-                // Send to YCloud
                 const response = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
                     method: 'POST',
                     headers: {
@@ -112,10 +122,9 @@ serve(async (req) => {
                 const ycloudResult = await response.json()
 
                 if (!response.ok) {
-                    throw new Error(ycloudResult.message || 'YCloud API Error')
+                    throw new Error(ycloudResult.message || `YCloud API Error ${response.status}`)
                 }
 
-                // Log to messages
                 await supabaseClient.from('messages').insert({
                     clinic_id: appointment.clinic_id,
                     phone_number: appointment.phone_number,
@@ -125,7 +134,6 @@ serve(async (req) => {
                     ycloud_status: 'sent'
                 })
 
-                // Create Survey Record (include phone_number for button-reply matching)
                 await supabaseClient.from('satisfaction_surveys').insert({
                     clinic_id: appointment.clinic_id,
                     appointment_id: appointment.id,
@@ -136,13 +144,10 @@ serve(async (req) => {
                     sent_at: new Date().toISOString()
                 })
 
-                // We need to fetch patient_id to be robust
-                // Actually let's assume appointments has patient_id, I'll update the select above.
-
                 results.push({ id: appointment.id, status: 'sent', message_id: ycloudResult.id })
 
-            } catch (err) {
-                console.error(`Error sending survey for ${appointment.id}:`, err)
+            } catch (err: any) {
+                console.error(`[surveys] Error sending survey for ${appointment.id}:`, err)
                 results.push({ id: appointment.id, status: 'error', error: err.message })
             }
         }
@@ -152,10 +157,11 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
 
-    } catch (error) {
+    } catch (error: any) {
+        console.error('[surveys] Fatal error:', error)
         return new Response(
             JSON.stringify({ error: error.message }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
         )
     }
 })

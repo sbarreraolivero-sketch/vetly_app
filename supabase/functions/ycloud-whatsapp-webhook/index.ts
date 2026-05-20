@@ -184,22 +184,41 @@ const verifyYCloudSignature = async (
     return false;
   }
   try {
+    // Header format: "t={timestamp},s={signature}"
+    // Signed payload: "{timestamp}.{rawBody}"
+    const parts: Record<string, string> = {};
+    for (const part of signatureHeader.split(",")) {
+      const idx = part.indexOf("=");
+      if (idx > 0) parts[part.substring(0, idx).trim()] = part.substring(idx + 1).trim();
+    }
+    const timestamp = parts["t"];
+    const receivedSig = parts["s"];
+    if (!timestamp || !receivedSig) {
+      console.error("[SECURITY] Invalid YCloud-Signature format:", signatureHeader);
+      return false;
+    }
+
+    const signedPayload = `${timestamp}.${rawBody}`;
     const encoder = new TextEncoder();
+    // Svix-format secrets: "whsec_<base64>" — decode the raw key bytes
+    const secretBytes = secret.startsWith("whsec_")
+      ? Uint8Array.from(atob(secret.slice(6).replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))
+      : encoder.encode(secret);
     const key = await crypto.subtle.importKey(
       "raw",
-      encoder.encode(secret),
+      secretBytes,
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign"],
     );
-    const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+    const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(signedPayload));
     const digest = Array.from(new Uint8Array(mac))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    const valid = digest === signatureHeader;
+    const valid = digest === receivedSig;
     if (!valid) {
       console.error(
-        `[SECURITY] Signature mismatch. Expected ${digest}, got ${signatureHeader}`,
+        `[SECURITY] Signature mismatch. Expected ${digest}, got ${receivedSig}`,
       );
     }
     return valid;
@@ -2090,49 +2109,62 @@ const tagPatient = async (
       return { success: false, message: "No se pudo crear la etiqueta." };
     }
 
-    // 2. Find the patient by phone number and clinic
-    let patientId: string | null = null;
-
-    const { data: existingPatient } = await sb.from("patients")
+    // 2. Find patients via tutor's phone number (patients are pets, phone belongs to tutor)
+    const { data: tutor } = await sb.from("tutors")
       .select("id")
       .eq("clinic_id", clinicId)
       .eq("phone_number", phone)
       .limit(1)
       .maybeSingle();
 
-    if (existingPatient) {
-      patientId = existingPatient.id;
-    } else {
-      // CRM tagging removed. We prioritize clinical tagging for existing patients.
-      console.log(
-        `[tagPatient] Patient not found for ${phone}, skipping tagging as CRM is secondary`,
-      );
+    if (!tutor) {
+      console.log(`[tagPatient] Tutor not found for ${phone}, cannot tag`);
       return {
         success: false,
         message: "Paciente no encontrado para etiquetar.",
       };
     }
 
-    // 3. Assign tag to patient (skip if already assigned)
-    const { data: existingLink } = await sb.from("patient_tags")
-      .select("patient_id")
-      .eq("patient_id", patientId)
-      .eq("tag_id", tagId)
-      .limit(1)
-      .maybeSingle();
+    const { data: patientsToTag } = await sb.from("patients")
+      .select("id, name")
+      .eq("clinic_id", clinicId)
+      .eq("tutor_id", tutor.id)
+      .is("death_date", null);
 
-    if (!existingLink) {
-      const { error: linkError } = await sb.from("patient_tags")
-        .insert({ patient_id: patientId, tag_id: tagId });
+    if (!patientsToTag || patientsToTag.length === 0) {
+      console.log(`[tagPatient] No active patients for tutor ${tutor.id}`);
+      return {
+        success: false,
+        message: "No se encontraron pacientes activos para etiquetar.",
+      };
+    }
 
-      if (linkError) {
-        console.error("[tagPatient] Error linking tag:", linkError);
-        return { success: false, message: "Error al asignar etiqueta." };
+    // 3. Assign tag to each patient (skip if already assigned)
+    const taggedNames: string[] = [];
+    for (const patient of patientsToTag) {
+      const { data: existingLink } = await sb.from("patient_tags")
+        .select("patient_id")
+        .eq("patient_id", patient.id)
+        .eq("tag_id", tagId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingLink) {
+        const { error: linkError } = await sb.from("patient_tags")
+          .insert({ patient_id: patient.id, tag_id: tagId });
+
+        if (linkError) {
+          console.error("[tagPatient] Error linking tag:", linkError);
+        } else {
+          taggedNames.push(patient.name);
+        }
+      } else {
+        taggedNames.push(patient.name);
       }
     }
 
     console.log(
-      `[tagPatient] Tagged ${phone} with "${tagName}" (tag: ${tagId}, patient: ${patientId})`,
+      `[tagPatient] Tagged patients [${taggedNames.join(", ")}] of ${phone} with "${tagName}" (tag: ${tagId})`,
     );
     return {
       success: true,

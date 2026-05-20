@@ -50,12 +50,16 @@ export default function AICredits() {
                 
                 const settings = settingsData as any
 
-                // Calculate next recharge date
-                const createdAt = new Date(settings.created_at)
+                // Calculate next recharge date — clamp to last day of month to avoid overflow (e.g. Jan-31 → Feb-28)
+                const createdDay = new Date(settings.created_at).getDate()
                 const today = new Date()
-                let nextRecharge = new Date(today.getFullYear(), today.getMonth(), createdAt.getDate())
+                const clampToMonth = (y: number, m: number, d: number) => {
+                    const lastDay = new Date(y, m + 1, 0).getDate()
+                    return new Date(y, m, Math.min(d, lastDay))
+                }
+                let nextRecharge = clampToMonth(today.getFullYear(), today.getMonth(), createdDay)
                 if (nextRecharge <= today) {
-                    nextRecharge = new Date(today.getFullYear(), today.getMonth() + 1, createdAt.getDate())
+                    nextRecharge = clampToMonth(today.getFullYear(), today.getMonth() + 1, createdDay)
                 }
 
                 setStats({

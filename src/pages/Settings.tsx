@@ -125,11 +125,6 @@ export default function Settings() {
     const [newServiceDuration, setNewServiceDuration] = useState<string>('30')
     const [newServicePrice, setNewServicePrice] = useState<string>('')
 
-    // Upselling state for new service
-    const [newUpsellEnabled, setNewUpsellEnabled] = useState(false)
-    const [newUpsellDays, setNewUpsellDays] = useState<string>('7')
-    const [newUpsellMessage, setNewUpsellMessage] = useState('')
-
     // Professional assignment state for service modal
     const [clinicProfessionals, setClinicProfessionals] = useState<any[]>([])
     const [assignedProfessionals, setAssignedProfessionals] = useState<Record<string, boolean>>({})
@@ -481,7 +476,7 @@ export default function Settings() {
                 // Fetch services directly from the table to ensure we get the latest schema (bypassing RPC cache)
                 const { data: servicesData, error: servicesError } = await (supabase as any)
                     .from("clinic_services")
-                    .select("id, name, duration, price, upselling_enabled, upselling_days_after, upselling_message, ai_description")
+                    .select("id, name, duration, price, ai_description")
                     .eq("clinic_id", profile.clinic_id);
 
                 if (servicesError) {
@@ -494,9 +489,6 @@ export default function Settings() {
                         name: s.name,
                         duration: s.duration,
                         price: s.price,
-                        upsellingEnabled: s.upselling_enabled,
-                        upsellingDays: s.upselling_days_after,
-                        upsellingMessage: s.upselling_message,
                         aiDescription: s.ai_description
                     })))
                 }
@@ -1071,9 +1063,6 @@ export default function Settings() {
         setNewServiceName(service.name)
         setNewServiceDuration(service.duration.toString())
         setNewServicePrice(service.price.toString())
-        setNewUpsellEnabled(service.upselling?.enabled || false)
-        setNewUpsellDays(service.upselling?.daysAfter?.toString() || '7')
-        setNewUpsellMessage(service.upselling?.message || '')
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
@@ -1109,10 +1098,7 @@ export default function Settings() {
                 clinic_id: profile.clinic_id,
                 name: newServiceName.trim(),
                 duration: parseInt(newServiceDuration) || 0,
-                price: parseFloat(newServicePrice) || 0,
-                upselling_enabled: newUpsellEnabled,
-                upselling_days_after: parseInt(newUpsellDays) || 0,
-                upselling_message: newUpsellMessage
+                price: parseFloat(newServicePrice) || 0
             }
 
             let savedServiceId = editingServiceId
@@ -1131,12 +1117,7 @@ export default function Settings() {
                     id: editingServiceId,
                     name: serviceData.name,
                     duration: serviceData.duration,
-                    price: serviceData.price,
-                    upselling: {
-                        enabled: serviceData.upselling_enabled,
-                        daysAfter: serviceData.upselling_days_after,
-                        message: serviceData.upselling_message
-                    }
+                    price: serviceData.price
                 } : s))
             } else {
                 // Insert new service
@@ -1156,11 +1137,6 @@ export default function Settings() {
                     name: data.name,
                     duration: data.duration,
                     price: data.price,
-                    upselling: {
-                        enabled: data.upselling_enabled,
-                        daysAfter: data.upselling_days_after || 0,
-                        message: data.upselling_message || ''
-                    },
                     ai_description: data.ai_description
                 }])
             }
@@ -1204,9 +1180,6 @@ export default function Settings() {
             setNewServiceDuration('30')
             setNewServicePrice('')
 
-            setNewUpsellEnabled(false)
-            setNewUpsellDays('7')
-            setNewUpsellMessage('')
             setAssignedProfessionals({})
             setPrimaryProfessional('')
             setEditingServiceId(null)
@@ -1719,12 +1692,6 @@ export default function Settings() {
                                                 <p className="text-sm text-charcoal/50">
                                                     {service.duration} minutos · {currencySymbols[currency]}{service.price.toLocaleString()} {currency}
                                                 </p>
-                                                {service.upselling?.enabled && (
-                                                    <p className="text-xs text-primary-500 mt-1 flex items-center gap-1">
-                                                        <Zap className="w-3 h-3" />
-                                                        Upselling: {service.upselling.daysAfter} días después
-                                                    </p>
-                                                )}
                                             </div>
                                             <div className="flex gap-2">
                                                 <button
@@ -1763,9 +1730,6 @@ export default function Settings() {
                                                     setNewServiceName('');
                                                     setNewServiceDuration('30');
                                                     setNewServicePrice('');
-                                                    setNewUpsellEnabled(false);
-                                                    setNewUpsellDays('7');
-                                                    setNewUpsellMessage('');
                                                 }}
                                                 className="p-2 hover:bg-silk-beige rounded-soft transition-colors"
                                             >

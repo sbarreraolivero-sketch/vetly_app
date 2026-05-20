@@ -217,6 +217,13 @@ export default function PatientProfile() {
         return species?.toUpperCase() || '-'
     }
 
+    const formatSex = (sex: string | null) => {
+        const s = sex?.toUpperCase()
+        if (s === 'M' || s === 'MN') return 'Macho'
+        if (s === 'F' || s === 'FN' || s === 'H') return 'Hembra'
+        return sex || '-'
+    }
+
     if (!patient) return null
 
     return (
@@ -247,7 +254,7 @@ export default function PatientProfile() {
                                 </span>
                             </div>
                             <p className="text-charcoal/50 font-bold text-xs uppercase tracking-widest mt-0.5">
-                                {formatSpecies(patient.species)} • {patient.breed || 'Sin raza'} • {patient.sex}
+                                {formatSpecies(patient.species)} • {patient.breed || 'Sin raza'} • {formatSex(patient.sex)}
                             </p>
                         </div>
                     </div>

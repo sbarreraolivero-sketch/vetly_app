@@ -189,8 +189,8 @@ Deno.serve(async (req) => {
 
                 const { data: existingLog24h } = await supabaseClient
                     .from('reminder_logs').select('id')
-                    .eq('appointment_id', appt.id).eq('type', '24h').maybeSingle()
-                if (existingLog24h) continue
+                    .eq('appointment_id', appt.id).eq('type', '24h').limit(1)
+                if (existingLog24h && existingLog24h.length > 0) continue
 
                 try {
                     const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
@@ -398,8 +398,8 @@ Deno.serve(async (req) => {
 
                     const { data: existingLog2h } = await supabaseClient
                         .from('reminder_logs').select('id')
-                        .eq('appointment_id', appt.id).eq('type', '2h').maybeSingle()
-                    if (existingLog2h) continue
+                        .eq('appointment_id', appt.id).eq('type', '2h').limit(1)
+                    if (existingLog2h && existingLog2h.length > 0) continue
 
                     // Strict Hour Check in Clinic Timezone
                     const apptDate = new Date(appt.appointment_date)
@@ -543,7 +543,7 @@ Deno.serve(async (req) => {
                     `)
                     .eq('clinic_id', clinic.id)
                     .eq('status', 'pending')
-                    .eq('scheduled_date', tomorrowStr)
+                    .lte('scheduled_date', tomorrowStr)
 
                 if (remError) {
                     console.error('Error fetching general reminders', remError)
