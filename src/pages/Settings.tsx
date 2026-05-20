@@ -155,6 +155,7 @@ export default function Settings() {
     // Integration settings
     const [yCloudApiKey, setYCloudApiKey] = useState('')
     const [yCloudPhoneNumber, setYCloudPhoneNumber] = useState('')
+    const [yCloudWebhookSecret, setYCloudWebhookSecret] = useState('')
     const [aiCreditsMonthlyLimit, setAiCreditsMonthlyLimit] = useState(500)
     const [aiCreditsExtraBalance, setAiCreditsExtraBalance] = useState(0)
     const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
@@ -354,6 +355,7 @@ export default function Settings() {
 
                     setYCloudApiKey(data.ycloud_api_key || '')
                     setYCloudPhoneNumber(data.ycloud_phone_number || '')
+                    setYCloudWebhookSecret(data.ycloud_webhook_secret || '')
 
                     setAiCreditsMonthlyLimit(data.ai_credits_monthly_limit || 500)
                     setAiCreditsExtraBalance(data.ai_credits_extra_balance || 0)
@@ -580,6 +582,7 @@ export default function Settings() {
             // Only include fields that have values to avoid overwriting with null
             if (yCloudApiKey !== undefined) updatePayload.ycloud_api_key = yCloudApiKey || null
             if (yCloudPhoneNumber !== undefined) updatePayload.ycloud_phone_number = yCloudPhoneNumber || null
+            if (yCloudWebhookSecret !== undefined) updatePayload.ycloud_webhook_secret = yCloudWebhookSecret || null
             if (aiActiveModel) updatePayload.ai_active_model = aiActiveModel
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2459,6 +2462,19 @@ export default function Settings() {
                                         />
                                         <p className="text-xs text-charcoal/40 mt-1">
                                             El número de WhatsApp Business registrado en YCloud (con código de país)
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-charcoal mb-2">Webhook Secret</label>
+                                        <input
+                                            type="password"
+                                            placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                            value={yCloudWebhookSecret}
+                                            onChange={(e) => setYCloudWebhookSecret(e.target.value)}
+                                            className="input-soft"
+                                        />
+                                        <p className="text-xs text-charcoal/40 mt-1">
+                                            Secret de firma HMAC-SHA256. Encuéntralo en YCloud → Developer → Webhooks → tu webhook → Signing Secret.
                                         </p>
                                     </div>
                                     <div>

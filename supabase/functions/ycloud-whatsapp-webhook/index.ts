@@ -160,27 +160,22 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   "";
 const GOOGLE_MAPS_API_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
 
-// YCloud webhook signature secret — set via:
-//   supabase secrets set YCLOUD_WEBHOOK_SECRET=your-secret-from-ycloud-dashboard
-const YCLOUD_WEBHOOK_SECRET = Deno.env.get("YCLOUD_WEBHOOK_SECRET") || "";
-
 /**
  * Verify the HMAC-SHA256 signature that YCloud sends on every webhook.
- * YCloud signs the raw request body with the secret configured in their dashboard
- * and passes the result as the "YCloud-Signature" header.
+ * The secret is fetched per-clinic from clinic_settings.ycloud_webhook_secret
+ * (looked up by the `to` phone number before this is called).
  *
- * If YCLOUD_WEBHOOK_SECRET is not set (e.g. local dev), verification is skipped
- * so existing setups don't break. In production the secret MUST be set.
+ * If the clinic has no secret configured, verification is skipped with a warning
+ * so existing setups keep working while secrets are being rolled out.
  */
 const verifyYCloudSignature = async (
   rawBody: string,
   signatureHeader: string | null,
+  secret: string,
 ): Promise<boolean> => {
-  if (!YCLOUD_WEBHOOK_SECRET) {
-    // Secret not configured — allow through but warn loudly.
+  if (!secret) {
     console.warn(
-      "[SECURITY] YCLOUD_WEBHOOK_SECRET not set — skipping signature verification. " +
-      "Set it via: supabase secrets set YCLOUD_WEBHOOK_SECRET=<secret>",
+      "[SECURITY] No ycloud_webhook_secret configured for this clinic — skipping verification.",
     );
     return true;
   }
@@ -192,7 +187,7 @@ const verifyYCloudSignature = async (
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw",
-      encoder.encode(YCLOUD_WEBHOOK_SECRET),
+      encoder.encode(secret),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign"],
@@ -2602,15 +2597,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify YCloud webhook signature (HMAC-SHA256)
-    const signatureHeader = req.headers.get("YCloud-Signature");
-    const signatureValid = await verifyYCloudSignature(rawBody, signatureHeader);
-    if (!signatureValid) {
-      console.error("[SECURITY] Rejected request with invalid YCloud signature.");
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: corsHeaders,
-      });
+    // Verify YCloud webhook signature (HMAC-SHA256) per clinic.
+    // Only real YCloud inbound messages carry a signature — the simulator does not.
+    // Detection: real YCloud payloads always have `whatsappInboundMessage`.
+    if (p.type === "whatsapp.inbound_message.received" && p.whatsappInboundMessage) {
+      const toNumber = p.whatsappInboundMessage.to || "";
+      const { data: clinicForVerify } = await sb
+        .from("clinic_settings")
+        .select("ycloud_webhook_secret")
+        .eq("ycloud_phone_number", toNumber)
+        .maybeSingle();
+      const clinicSecret = clinicForVerify?.ycloud_webhook_secret || "";
+      const signatureHeader = req.headers.get("YCloud-Signature");
+      const signatureValid = await verifyYCloudSignature(rawBody, signatureHeader, clinicSecret);
+      if (!signatureValid) {
+        console.error("[SECURITY] Rejected webhook — invalid signature for number:", toNumber);
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: corsHeaders,
+        });
+      }
     }
 
     // Log incoming payload for debugging
