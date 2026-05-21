@@ -200,10 +200,8 @@ const verifyYCloudSignature = async (
 
     const signedPayload = `${timestamp}.${rawBody}`;
     const encoder = new TextEncoder();
-    // Svix-format secrets: "whsec_<base64>" — decode the raw key bytes
-    const secretBytes = secret.startsWith("whsec_")
-      ? Uint8Array.from(atob(secret.slice(6).replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))
-      : encoder.encode(secret);
+    // YCloud uses the full secret string as UTF-8 key (not base64-decoded)
+    const secretBytes = encoder.encode(secret);
     const key = await crypto.subtle.importKey(
       "raw",
       secretBytes,

@@ -90,7 +90,7 @@ const KB_CACHE_TTL_MS = 5 * 60 * 1000;                        // TTL cache knowl
 - Header: `t={timestamp},s={signature}` — hay que parsear `t` y `s` por separado
 - Payload firmado: `{timestamp}.{rawBody}` — no solo `{rawBody}`
 - Encoding del digest: hexadecimal
-- **Formato del secret (Svix)**: los secrets de YCloud tienen prefijo `whsec_` seguido de base64. La clave HMAC real es `base64_decode(secret.slice("whsec_".length))`, no el string completo. El código maneja esto automáticamente.
+- **Formato del secret**: YCloud usa el secret **completo** como clave HMAC en UTF-8 (incluyendo el prefijo `whsec_`). NO se decodifica base64. El código usa `encoder.encode(secret)` directamente. ⚠️ La asunción anterior de formato Svix (base64-decode) era incorrecta — verificado empíricamente con diagnóstico en mayo 2026 (v209).
 
 ### Tablas de recordatorios — distinción importante
 Hay **dos tablas distintas** para recordatorios:
@@ -308,16 +308,16 @@ El cron actúa sobre **todas las citas** en la BD sin importar si el AI agent es
 
 1. **Payload incorrecto**: se firmaba solo `rawBody`, pero YCloud firma `{timestamp}.{rawBody}`
 2. **Header mal parseado**: se comparaba el digest contra el header completo `t=...,s=...` en lugar de extraer solo el valor de `s`
-3. **Decodificación del secret omitida**: los secrets de YCloud tienen formato Svix (`whsec_<base64>`). La clave HMAC real son los bytes obtenidos de `base64_decode(secret.slice(6))`, no el string UTF-8 completo
+3. **Decodificación del secret incorrecta** *(parcialmente arreglado en v205, corregido definitivamente en v209)*: se asumía formato Svix (base64-decode). YCloud en realidad usa el secret completo como clave UTF-8 directamente.
 
 **Fix en `verifyYCloudSignature`:**
 - Parsea el header `t={timestamp},s={signature}` extrayendo `t` y `s` por separado
 - Firma `{timestamp}.{rawBody}` como payload
-- Decodifica el secret: `atob(secret.slice("whsec_".length))` si empieza con `whsec_`
+- Clave HMAC: `encoder.encode(secret)` — el string completo `whsec_...` como UTF-8 (NO decodificar base64)
 
-**Impacto:** Fix aplica para todas las clínicas con secret configurado. Ambas clínicas activas (Linares `whsec_b1...` y Santiago `whsec_84...`) ahora verifican correctamente. Santiago también tenía secret configurado (no reflejado en CLAUDE.md anterior).
+**Nota:** Los bugs 1 y 2 se fijaron en v205/v206. El bug 3 (decodificación incorrecta) persistió hasta v209 (2026-05-21) cuando un diagnóstico empírico de 6 variantes HMAC confirmó que d3 (full key UTF-8) era el correcto.
 
-**Deployed:** webhook v205
+**Deployed:** webhook v205 (bugs 1 y 2), v209 (bug 3 — fix definitivo)
 
 ---
 
