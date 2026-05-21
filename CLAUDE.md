@@ -391,6 +391,42 @@ Tools añadidos al simulador: `confirm_appointment`, `escalate_to_human`, `resch
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 7, 2026-05-21)
+
+### Fix crítico: derivación de clave HMAC — `ycloud-whatsapp-webhook` (v209)
+
+**Síntoma:** Animalgrace Linares sin respuesta — 100% de los mensajes reales (`whatsapp.inbound_message.received`) rechazados con 401. Los eventos de tipo `whatsapp.message.updated` y `whatsapp.smb.message.echoes` pasaban con 200 porque **no activan el chequeo HMAC** (son status updates, no mensajes entrantes).
+
+**Diagnóstico:** Proceso de 3 pasos:
+1. Log de headers capturó que el header `ycloud-signature: t={ts},s={hex}` llegaba correctamente — no era un problema de nombre de header ni de formato de valor.
+2. Log de 6 variantes HMAC probó simultáneamente distintas combinaciones de derivación de clave × payload:
+   - d1: `HMAC(base64decode(secret[6:]), ts.body)` — **enfoque anterior (Svix)**
+   - d2: `HMAC(UTF-8(secret[6:]), ts.body)`
+   - **d3: `HMAC(UTF-8(secret_completo), ts.body)` → `d3_match: true` en los 4 mensajes capturados ✅**
+   - d4–d6: variantes sin timestamp → todas falsas
+3. Fix aplicado y verificado: los siguientes 2 mensajes de Linares respondieron 200 inmediatamente.
+
+**Root cause:** La implementación asumía formato Svix (decodificar la parte base64 de `whsec_<base64>`). YCloud usa el string completo del secreto como clave HMAC en UTF-8, sin ninguna decodificación. El `whsec_` es solo un prefijo visual en el dashboard, no indica base64.
+
+**Fix en `verifyYCloudSignature` (1 línea efectiva):**
+```typescript
+// ANTES — incorrecto:
+const secretBytes = secret.startsWith("whsec_")
+  ? Uint8Array.from(atob(secret.slice(6).replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0))
+  : encoder.encode(secret);
+
+// DESPUÉS — correcto:
+const secretBytes = encoder.encode(secret);
+```
+
+**Impacto:** Fix aplica a ambas clínicas (Linares y Santiago). Ambas fallaban por el mismo bug. Verificado con 200s inmediatos en v209.
+
+**Estado post-fix:**
+- Animalgrace Linares: ✅ webhook HMAC verificando correctamente — IA respondiendo
+- Animalgrace Santiago: ✅ webhook HMAC verificando correctamente (IA aún inactiva, citas manuales)
+
+---
+
 ## Patrones adicionales a respetar
 
 ### Modelo de datos: patients vs tutors
