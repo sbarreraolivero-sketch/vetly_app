@@ -453,23 +453,53 @@ export default function CRM() {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">CRM de Prospectos</h1>
-                    <p className="text-sm text-charcoal/50 mt-1">Pipeline de ventas y seguimiento de leads.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setShowTagManager(true)} className="btn-ghost flex items-center gap-2">
-                        <Tag className="w-4 h-4" /> Etiquetas
-                    </button>
-                    <button onClick={() => setShowStageConfig(true)} className="btn-ghost flex items-center gap-2">
-                        <Settings2 className="w-4 h-4" /> Etapas
-                    </button>
-                    <button onClick={() => openProspectModal()} className="btn-primary flex items-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        Nuevo Prospecto
-                    </button>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-2">Clínica</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">CRM de Prospectos</h1>
+                            <p className="text-sm text-primary-100/80 font-light mt-1">Pipeline de ventas y seguimiento de leads.</p>
+                        </div>
+                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <Target className="w-6 h-6 text-white" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
+                        <div className="flex items-center gap-6 flex-wrap">
+                            <div>
+                                <p className="text-2xl font-black text-white">{totalConversations}</p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Prospectos</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div>
+                                <p className="text-2xl font-black text-white">{qualifiedLeads}</p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Calificados</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div>
+                                <p className="text-2xl font-black text-white">{scheduledAppointments}</p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Citas</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div>
+                                <p className="text-2xl font-black text-white">{closedLeads}</p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Atribuidos</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setShowTagManager(true)} className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors">
+                                <Tag className="w-4 h-4" /> Etiquetas
+                            </button>
+                            <button onClick={() => setShowStageConfig(true)} className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors">
+                                <Settings2 className="w-4 h-4" /> Etapas
+                            </button>
+                            <button onClick={() => openProspectModal()} className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm">
+                                <Plus className="w-4 h-4" /> Nuevo Prospecto
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -483,26 +513,6 @@ export default function CRM() {
                     </ul>
                 </div>
             </GuideBox>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 flex flex-col">
-                    <span className="text-2xl font-black text-violet-700">{totalConversations}</span>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-violet-600/70 mt-0.5">Conversaciones</span>
-                </div>
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex flex-col">
-                    <span className="text-2xl font-black text-emerald-700">{qualifiedLeads}</span>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600/70 mt-0.5">Leads Calificados</span>
-                </div>
-                <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 flex flex-col">
-                    <span className="text-2xl font-black text-amber-700">{scheduledAppointments}</span>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-600/70 mt-0.5">Citas Agendadas</span>
-                </div>
-                <div className="rounded-xl border border-silk-beige bg-ivory px-4 py-3 flex flex-col">
-                    <span className="text-2xl font-black text-charcoal">{closedLeads}</span>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-charcoal/50 mt-0.5">Leads Atribuidos</span>
-                </div>
-            </div>
 
             {/* Filters */}
             <div className="card-soft p-4">

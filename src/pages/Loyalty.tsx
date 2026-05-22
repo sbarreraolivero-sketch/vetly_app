@@ -186,27 +186,37 @@ export default function Loyalty() {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Fidelización &amp; Referidos</h1>
-                    <p className="text-sm text-charcoal/50 mt-1">Programa de lealtad y crecimiento orgánico de tu clínica.</p>
-                </div>
-            </div>
-
-            {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-5">
-                    <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-1">{settings?.loyalty_points_name || 'Saldo'} Total</p>
-                    <p className="text-2xl font-bold text-charcoal">{stats.totalPointsDist.toLocaleString()}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-5">
-                    <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-1">Referidores</p>
-                    <p className="text-2xl font-bold text-charcoal">{stats.totalReferrals}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-5">
-                    <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-1">Recompensas</p>
-                    <p className="text-2xl font-bold text-charcoal">{stats.activeAlerts}</p>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-accent-500 to-accent-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-accent-200 mb-2">Configuración</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Fidelización & Referidos</h1>
+                            <p className="text-sm text-accent-100/80 font-light mt-1">Programa de lealtad y crecimiento orgánico de tu clínica.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                                <Trophy className="w-6 h-6 text-white" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-6 mt-6 pt-5 border-t border-white/10">
+                        <div>
+                            <p className="text-2xl font-black text-white">{stats.totalPointsDist.toLocaleString()}</p>
+                            <p className="text-xs font-black text-accent-200 uppercase tracking-widest mt-0.5">{settings?.loyalty_points_name || 'Puntos'}</p>
+                        </div>
+                        <div className="w-px h-8 bg-white/15" />
+                        <div>
+                            <p className="text-2xl font-black text-white">{stats.totalReferrals}</p>
+                            <p className="text-xs font-black text-accent-200 uppercase tracking-widest mt-0.5">Referidores</p>
+                        </div>
+                        <div className="w-px h-8 bg-white/15" />
+                        <div>
+                            <p className="text-2xl font-black text-white">{stats.activeAlerts}</p>
+                            <p className="text-xs font-black text-accent-200 uppercase tracking-widest mt-0.5">Recompensas</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 

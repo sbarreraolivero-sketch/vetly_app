@@ -38,6 +38,7 @@ import {
     Cpu,
     Phone,
     ShieldAlert,
+    Settings2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
@@ -1217,7 +1218,23 @@ export default function Settings() {
     }
 
     return (
-        <div className="animate-fade-in relative min-h-[calc(100vh-7rem)] p-0">
+        <div className="animate-fade-in relative min-h-[calc(100vh-7rem)] p-0 space-y-6">
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-amber-200 mb-2">Configuración</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Ajustes de la Clínica</h1>
+                            <p className="text-sm text-amber-100/80 font-light mt-1">Configura tu clínica, horarios, integraciones y suscripción.</p>
+                        </div>
+                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <Settings2 className="w-6 h-6 text-white" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="flex flex-col md:flex-row gap-6 md:gap-8">
 
                 {/* Mobile Content Header (Back Button) */}
@@ -3208,6 +3225,6 @@ export default function Settings() {
                     )}
                 </div>
             </div>
-        </div >
+        </div>
     )
 }

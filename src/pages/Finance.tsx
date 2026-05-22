@@ -402,66 +402,70 @@ const Finance = () => {
     // ── Render ──
     return (
         <div className="space-y-6">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Finanzas</h1>
-                    <p className="text-sm text-charcoal/50 mt-1">Ingresos, gastos y rentabilidad de tu clínica.</p>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                    {/* Export dropdown */}
-                    <div className="relative" ref={exportMenuRef}>
-                        <button
-                            onClick={() => setShowExportMenu(!showExportMenu)}
-                            className="btn-ghost flex items-center gap-2"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span className="hidden sm:inline">Exportar</span>
-                            <ChevronDown className={cn("w-3 h-3 transition-transform", showExportMenu && "rotate-180")} />
-                        </button>
-
-                        {showExportMenu && (
-                            <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-silk-beige py-1 z-50 animate-in fade-in slide-in-from-top-2">
-                                <p className="px-4 py-2 text-xs font-medium text-charcoal/40 uppercase tracking-wide">Formato de archivo</p>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-emerald-200 mb-2">Clínica</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Finanzas</h1>
+                            <p className="text-sm text-emerald-100/80 font-light mt-1">Ingresos, gastos y rentabilidad de tu clínica.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="relative" ref={exportMenuRef}>
                                 <button
-                                    onClick={() => handleExport('csv')}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
+                                    onClick={() => setShowExportMenu(!showExportMenu)}
+                                    className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
                                 >
-                                    <FileText className="w-4 h-4 text-emerald-600" />
-                                    <div>
-                                        <p className="font-medium">CSV</p>
-                                        <p className="text-xs text-charcoal/50">Compatible con Excel</p>
-                                    </div>
+                                    <Download className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Exportar</span>
+                                    <ChevronDown className={cn("w-3 h-3 transition-transform", showExportMenu && "rotate-180")} />
                                 </button>
-                                <button
-                                    onClick={() => handleExport('json')}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
-                                >
-                                    <FileText className="w-4 h-4 text-amber-600" />
-                                    <div>
-                                        <p className="font-medium">JSON</p>
-                                        <p className="text-xs text-charcoal/50">Datos para analítica</p>
+                                {showExportMenu && (
+                                    <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-silk-beige py-1 z-50 animate-in fade-in slide-in-from-top-2">
+                                        <p className="px-4 py-2 text-xs font-medium text-charcoal/40 uppercase tracking-wide">Formato de archivo</p>
+                                        <button
+                                            onClick={() => handleExport('csv')}
+                                            className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
+                                        >
+                                            <FileText className="w-4 h-4 text-emerald-600" />
+                                            <div>
+                                                <p className="font-medium">CSV</p>
+                                                <p className="text-xs text-charcoal/50">Compatible con Excel</p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={() => handleExport('json')}
+                                            className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
+                                        >
+                                            <FileText className="w-4 h-4 text-amber-600" />
+                                            <div>
+                                                <p className="font-medium">JSON</p>
+                                                <p className="text-xs text-charcoal/50">Datos para analítica</p>
+                                            </div>
+                                        </button>
                                     </div>
-                                </button>
+                                )}
                             </div>
-                        )}
+                            <button
+                                onClick={() => setShowExpenseModal(true)}
+                                className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>Gasto</span>
+                            </button>
+                            <button
+                                onClick={() => setShowIncomeModal(true)}
+                                className="flex items-center gap-2 bg-white text-emerald-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-emerald-50 transition-colors shadow-sm"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Ingreso
+                            </button>
+                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                                <DollarSign className="w-6 h-6 text-white" />
+                            </div>
+                        </div>
                     </div>
-
-                    <button
-                        onClick={() => setShowExpenseModal(true)}
-                        className="btn-ghost flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>Gasto</span>
-                    </button>
-
-                    <button
-                        onClick={() => setShowIncomeModal(true)}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Ingreso
-                    </button>
                 </div>
             </div>
 

@@ -155,21 +155,31 @@ export default function Templates() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Plantillas de WhatsApp</h1>
-                    <p className="text-sm text-charcoal/50 mt-1">Mensajes pre-aprobados por Meta para recordatorios y campañas.</p>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-sky-500 to-sky-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-2">Principal</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Plantillas de WhatsApp</h1>
+                            <p className="text-sm text-sky-100/80 font-light mt-1">Mensajes pre-aprobados por Meta para recordatorios y campañas.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {!isCreating && (
+                                <button
+                                    onClick={() => setIsCreating(true)}
+                                    className="flex items-center gap-2 bg-white text-sky-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Nueva Plantilla
+                                </button>
+                            )}
+                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                                <MessageSquare className="w-6 h-6 text-white" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                {!isCreating && (
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Nueva Plantilla
-                    </button>
-                )}
             </div>
 
             {/* Creation Form */}

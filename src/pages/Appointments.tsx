@@ -805,100 +805,106 @@ export default function Appointments() {
 
     return (
         <div className="space-y-6 animate-fade-in pb-20">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">
-                        {isProfessional
-                            ? `Mis Citas — ${profile?.full_name || 'Personal'}`
-                            : professionalFilter === 'all'
-                                ? 'Agenda de la Clínica'
-                                : `Agenda — ${professionals.find(p => p.member_id === professionalFilter)?.first_name || ''}`}
-                    </h1>
-                    <p className="text-sm text-charcoal/50 mt-1">
-                        {isProfessional ? 'Tu agenda personal de consultas y seguimientos.' : 'Consultas, cirugías y seguimientos de toda la clínica.'}
-                    </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-2">
-
-                    <button
-                        onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-                        className="btn-ghost flex items-center gap-2"
-                    >
-                        {viewMode === 'list' ? <CalendarIcon className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
-                        <span>{viewMode === 'list' ? 'Ver Calendario' : 'Ver Lista'}</span>
-                    </button>
-                    {!isProfessional && (
-                        <>
-                            <button
-                                onClick={() => {
-                                    const now = new Date()
-                                    setNewAppointment({
-                                        ...INITIAL_FORM_STATE,
-                                        patient_name: 'Bloqueo de Agenda',
-                                        tutor_name: 'Sistema',
-                                        service: 'Bloqueo',
-                                        phone_number: '000000000',
-                                        appointment_date: format(now, 'yyyy-MM-dd'),
-                                        appointment_time: format(now, 'HH:00'),
-                                    })
-                                    setShowModal(true)
-                                }}
-                                className="btn-ghost flex items-center gap-2 text-red-500 hover:text-red-600"
-                            >
-                                <XCircle className="w-4 h-4" />
-                                Bloquear
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const now = new Date()
-                                    setNewAppointment({
-                                        ...INITIAL_FORM_STATE,
-                                        appointment_date: format(now, 'yyyy-MM-dd'),
-                                        appointment_time: format(now, 'HH:00'),
-                                    })
-                                    setShowModal(true)
-                                }}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Nueva Cita
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Quick Stats Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                    {
-                        label: 'Hoy',
-                        value: appointments.filter(a => new Date(a.appointment_date).toDateString() === new Date().toDateString()).length,
-                        cls: 'bg-primary-50 border-primary-100 text-primary-700'
-                    },
-                    {
-                        label: 'Pendientes',
-                        value: appointments.filter(a => a.status === 'pending').length,
-                        cls: 'bg-amber-50 border-amber-100 text-amber-700'
-                    },
-                    {
-                        label: 'Confirmadas',
-                        value: appointments.filter(a => a.status === 'confirmed').length,
-                        cls: 'bg-emerald-50 border-emerald-100 text-emerald-700'
-                    },
-                    {
-                        label: 'Completadas',
-                        value: appointments.filter(a => a.status === 'completed').length,
-                        cls: 'bg-silk-beige border-silk-beige text-charcoal/60'
-                    },
-                ].map(stat => (
-                    <div key={stat.label} className={cn('rounded-xl border px-4 py-3 flex flex-col', stat.cls)}>
-                        <span className="text-2xl font-black">{stat.value}</span>
-                        <span className="text-xs font-semibold uppercase tracking-wider opacity-70 mt-0.5">{stat.label}</span>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-2">Clínica</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                                {isProfessional
+                                    ? `Mis Citas — ${profile?.full_name || 'Personal'}`
+                                    : professionalFilter === 'all'
+                                        ? 'Agenda de la Clínica'
+                                        : `Agenda — ${professionals.find(p => p.member_id === professionalFilter)?.first_name || ''}`}
+                            </h1>
+                            <p className="text-sm text-primary-100/80 font-light mt-1">
+                                {isProfessional ? 'Tu agenda personal de consultas y seguimientos.' : 'Consultas, cirugías y seguimientos de toda la clínica.'}
+                            </p>
+                        </div>
+                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <CalendarIcon className="w-6 h-6 text-white" />
+                        </div>
                     </div>
-                ))}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
+                        <div className="flex items-center gap-6 flex-wrap">
+                            <div>
+                                <p className="text-2xl font-black text-white">
+                                    {appointments.filter(a => new Date(a.appointment_date).toDateString() === new Date().toDateString()).length}
+                                </p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Hoy</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div>
+                                <p className="text-2xl font-black text-white">
+                                    {appointments.filter(a => a.status === 'pending').length}
+                                </p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Pendientes</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div>
+                                <p className="text-2xl font-black text-white">
+                                    {appointments.filter(a => a.status === 'confirmed').length}
+                                </p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Confirmadas</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div>
+                                <p className="text-2xl font-black text-white">
+                                    {appointments.filter(a => a.status === 'completed').length}
+                                </p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Completadas</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
+                                className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+                            >
+                                {viewMode === 'list' ? <CalendarIcon className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
+                                <span>{viewMode === 'list' ? 'Calendario' : 'Lista'}</span>
+                            </button>
+                            {!isProfessional && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            const now = new Date()
+                                            setNewAppointment({
+                                                ...INITIAL_FORM_STATE,
+                                                patient_name: 'Bloqueo de Agenda',
+                                                tutor_name: 'Sistema',
+                                                service: 'Bloqueo',
+                                                phone_number: '000000000',
+                                                appointment_date: format(now, 'yyyy-MM-dd'),
+                                                appointment_time: format(now, 'HH:00'),
+                                            })
+                                            setShowModal(true)
+                                        }}
+                                        className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+                                    >
+                                        <XCircle className="w-4 h-4" />
+                                        Bloquear
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const now = new Date()
+                                            setNewAppointment({
+                                                ...INITIAL_FORM_STATE,
+                                                appointment_date: format(now, 'yyyy-MM-dd'),
+                                                appointment_time: format(now, 'HH:00'),
+                                            })
+                                            setShowModal(true)
+                                        }}
+                                        className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Nueva Cita
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <GuideBox title="Control de Agenda" summary="Cómo confirmar, reagendar y cancelar citas.">

@@ -297,19 +297,29 @@ export default function Campaigns() {
 
     return (
         <div className="space-y-6">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Campañas de Marketing</h1>
-                    <p className="text-sm text-charcoal/50 mt-1">Mensajes masivos por WhatsApp segmentados por etiquetas.</p>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-violet-500 to-violet-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-violet-200 mb-2">Marketing</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Campañas de Marketing</h1>
+                            <p className="text-sm text-violet-100/80 font-light mt-1">Mensajes masivos por WhatsApp segmentados por etiquetas.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setShowNewCampaignModal(true)}
+                                className="flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-violet-50 transition-colors shadow-sm"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Nueva Campaña
+                            </button>
+                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                                <Megaphone className="w-6 h-6 text-white" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <button
-                    onClick={() => setShowNewCampaignModal(true)}
-                    className="btn-primary flex items-center gap-2"
-                >
-                    <Plus className="w-4 h-4" />
-                    Nueva Campaña
-                </button>
             </div>
 
             <GuideBox title="Campañas de WhatsApp Masivas" summary="Automatiza el re-contacto usando etiquetas segmentadas.">
