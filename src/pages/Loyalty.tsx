@@ -432,10 +432,10 @@ export default function Loyalty() {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-softer p-6 text-white shadow-soft-md">
-                                <Target className="w-8 h-8 mb-4 text-indigo-200" />
-                                <h3 className="text-lg font-bold mb-2 text-amber-200">Manual de Embajadores</h3>
-                                <p className="text-sm text-indigo-50/80 mb-4">
+                            <div className="bg-gradient-to-br from-primary-500 to-sky-600 rounded-softer p-6 text-white shadow-soft-md">
+                                <Target className="w-8 h-8 mb-4 text-primary-200" />
+                                <h3 className="text-lg font-bold mb-2 text-white">Manual de Embajadores</h3>
+                                <p className="text-sm text-white/80 mb-4">
                                     Cada tutor tiene un código único. Cuando un amigo lo mencione o use su link en el Chat IA, ambos reciben beneficios.
                                 </p>
                                 <Link
@@ -656,10 +656,10 @@ export default function Loyalty() {
                     </div>
 
                     <div className="space-y-6">
-                        <div className="bg-amber-500 rounded-softer p-6 text-white shadow-soft-md">
-                            <Trophy className="w-8 h-8 mb-4 text-amber-200" />
+                        <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-softer p-6 text-white shadow-soft-md">
+                            <Trophy className="w-8 h-8 mb-4 text-primary-200" />
                             <h3 className="text-lg font-bold mb-2">Reglas de Bienvenida</h3>
-                            <p className="text-sm text-amber-100 mb-6">
+                            <p className="text-sm text-primary-100 mb-6">
                                 Define cuántos {settings?.loyalty_points_name} recibe un tutor la primera vez que agenda.
                             </p>
                             <div className="bg-white/10 rounded-soft p-4 border border-white/20">
@@ -671,17 +671,17 @@ export default function Loyalty() {
                             </div>
                         </div>
 
-                        <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-softer p-6 shadow-soft-md text-white border border-indigo-400">
+                        <div className="bg-gradient-to-br from-sky-500 to-primary-600 rounded-softer p-6 shadow-soft-md text-white border border-sky-400/30">
                             <h4 className="font-bold mb-4 tracking-tight flex items-center gap-2">
-                                <Coins className="w-5 h-5 text-amber-200" />
-                                <span className="bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent">
+                                <Coins className="w-5 h-5 text-sky-200" />
+                                <span className="text-white">
                                     Reglas de Ganancia
                                 </span>
                             </h4>
                             <div className="space-y-6">
                                 <div>
-                                    <label className="text-xs font-black text-indigo-200 uppercase block mb-1 tracking-widest opacity-80">Bono por Referir (Al Referente)</label>
-                                    <p className="text-xs text-indigo-100/60 mb-2 leading-tight">Lo que gana la persona que comparte su código.</p>
+                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">Bono por Referir (Al Referente)</label>
+                                    <p className="text-xs text-white/60 mb-2 leading-tight">Lo que gana la persona que comparte su código.</p>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -689,12 +689,12 @@ export default function Loyalty() {
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_referral_bonus: parseInt(e.target.value) } : null)}
                                             className="w-full h-10 pl-4 pr-12 bg-white/10 border border-white/20 rounded-soft text-sm font-bold text-white focus:bg-white/20 transition-all outline-none"
                                         />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-indigo-200 uppercase block mb-1 tracking-widest opacity-80">Bono de Bienvenida (Al Referido)</label>
-                                    <p className="text-xs text-indigo-100/60 mb-2 leading-tight">Lo que gana el nuevo cliente al llegar por invitación.</p>
+                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">Bono de Bienvenida (Al Referido)</label>
+                                    <p className="text-xs text-white/60 mb-2 leading-tight">Lo que gana el nuevo cliente al llegar por invitación.</p>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -702,12 +702,12 @@ export default function Loyalty() {
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_welcome_bonus: parseInt(e.target.value) } : null)}
                                             className="w-full h-10 pl-4 pr-12 bg-white/10 border border-white/20 rounded-soft text-sm font-bold text-white focus:bg-white/20 transition-all outline-none"
                                         />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
                                     </div>
                                 </div>
                                 <div className="pt-2 border-t border-white/10">
-                                    <label className="text-xs font-black text-indigo-200 uppercase block mb-1 tracking-widest opacity-80">Cashback / Acumulación (%)</label>
-                                    <p className="text-xs text-indigo-100/60 mb-2 leading-tight">Lo que el cliente acumula por sí mismo en cada cita.</p>
+                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">Cashback / Acumulación (%)</label>
+                                    <p className="text-xs text-white/60 mb-2 leading-tight">Lo que el cliente acumula por sí mismo en cada cita.</p>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -715,7 +715,7 @@ export default function Loyalty() {
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_points_percentage: parseFloat(e.target.value) } : null)}
                                             className="w-full h-10 pl-4 pr-12 bg-white/10 border border-white/20 rounded-soft text-sm font-bold text-white focus:bg-white/20 transition-all outline-none"
                                         />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-200 opacity-60">%</span>
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">%</span>
                                     </div>
                                 </div>
                             </div>
