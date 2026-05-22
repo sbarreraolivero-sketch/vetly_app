@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda tu Demo — Vetly</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { font-family:'Outfit',sans-serif; box-sizing:border-box; margin:0; padding:0; }
+        html { height:100%; }
+        body { min-height:100%; background:#fff; color:#18181b; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+
+        /* ── HEADER ── */
+        .site-header {
+            position:sticky; top:0; z-index:100;
+            background:rgba(250,250,250,0.97); backdrop-filter:blur(8px);
+            border-bottom:1px solid #e4e4e7;
+            height:64px;
+            display:flex; align-items:center;
+            padding:0 2.5rem; gap:0;
+        }
+        .header-logo-zone {
+            display:flex; align-items:center;
+            flex-shrink:0;
+        }
+        .header-right-zone {
+            display:flex; align-items:center;
+            flex:1; gap:1rem;
+        }
+        .header-nav {
+            display:flex; align-items:center; gap:0.125rem;
+            flex:1; justify-content:center;
+        }
+        .header-nav a {
+            font-size:0.875rem; font-weight:500; color:#71717a;
+            text-decoration:none; padding:0.375rem 0.875rem; border-radius:0.5rem;
+            transition:color 0.15s; white-space:nowrap;
+        }
+        .header-nav a:hover { color:#18181b; }
+        .header-actions { display:flex; align-items:center; gap:0.75rem; flex-shrink:0; }
+        .back-link {
+            font-size:0.875rem; color:#71717a; text-decoration:none;
+            font-weight:500; white-space:nowrap; transition:color 0.15s;
+        }
+        .back-link:hover { color:#18181b; }
+        .header-badge {
+            display:inline-flex; align-items:center; gap:0.375rem;
+            background:#f0fdfa; border:1px solid #99f6e4;
+            border-radius:100px; padding:0.3rem 0.875rem;
+            font-size:0.75rem; font-weight:700; color:#0d9488; white-space:nowrap;
+        }
+        .header-badge-dot { width:6px; height:6px; background:#0d9488; border-radius:50%; animation:pulse 2s infinite; }
+        /* Hamburger (mobile) */
+        #hamburger {
+            display:none; flex-direction:column; gap:5px;
+            align-items:center; justify-content:center;
+            width:2.25rem; height:2.25rem; cursor:pointer;
+            background:none; border:none; padding:0;
+            -webkit-tap-highlight-color:transparent;
+        }
+        #hamburger span { display:block; width:20px; height:2px; background:#18181b; border-radius:2px; transition:all 0.2s; }
+        #hamburger.active span:nth-child(1) { transform:translateY(7px) rotate(45deg); }
+        #hamburger.active span:nth-child(2) { opacity:0; }
+        #hamburger.active span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
+        #mobile-nav { display:none; position:absolute; top:100%; left:0; right:0; background:rgba(250,250,250,0.98); backdrop-filter:blur(8px); border-bottom:1px solid #e4e4e7; z-index:49; }
+        #mobile-nav.open { display:block; }
+        #mobile-nav-inner { padding:0.5rem 1.5rem 1.25rem; display:flex; flex-direction:column; }
+        #mobile-nav-inner a { font-size:0.9rem; font-weight:500; color:#71717a; padding:0.75rem 0; display:block; border-bottom:1px solid #f4f4f5; text-decoration:none; }
+        #mobile-nav-inner a:hover { color:#18181b; }
+
+        /* ── MAIN LAYOUT ── */
+        .page { display:flex; min-height:calc(100vh - 56px); }
+
+        /* ── LEFT: Photo panel ── */
+        .panel-photo {
+            width:46%; flex-shrink:0;
+            position:sticky; top:64px; height:calc(100vh - 64px);
+            overflow-y:auto;
+            background:#f4f9f8;
+            display:flex; align-items:center; justify-content:center;
+            padding:2rem 2.5rem;
+        }
+        .photo-panel-inner {
+            display:flex; flex-direction:column; gap:0.75rem;
+            width:100%; max-width:440px;
+        }
+        /* Floating card */
+        .photo-card {
+            position:relative; width:100%;
+            border-radius:1.5rem; overflow:hidden;
+            box-shadow:0 28px 64px rgba(0,0,0,0.16), 0 4px 16px rgba(0,0,0,0.08);
+            flex-shrink:0;
+        }
+        .photo-card img {
+            width:100%; display:block;
+            object-fit:cover; object-position:center top;
+            max-height:580px;
+        }
+        .photo-overlay {
+            position:absolute; inset:0; z-index:2;
+            background:linear-gradient(
+                to bottom,
+                rgba(0,0,0,0) 0%,
+                rgba(0,0,0,0.05) 35%,
+                rgba(0,0,0,0.6) 68%,
+                rgba(0,0,0,0.88) 100%
+            );
+        }
+        .photo-top {
+            position:absolute; top:1.25rem; left:1.25rem; right:1.25rem;
+            display:flex; align-items:flex-start; justify-content:space-between;
+            z-index:3;
+        }
+        .photo-badge-pill {
+            display:inline-flex; align-items:center; gap:0.5rem;
+            background:#f0fdfa; border:1px solid #99f6e4;
+            border-radius:100px; padding:0.4rem 1rem;
+            font-size:0.75rem; font-weight:700; color:#0d9488;
+            letter-spacing:0.03em; width:fit-content;
+        }
+        .badge-dot { width:6px; height:6px; background:#0d9488; border-radius:50%; animation:pulse 2s infinite; flex-shrink:0; }
+        .photo-bottom {
+            position:absolute; bottom:0; left:0; right:0;
+            padding:1.5rem 1.5rem 1.75rem;
+            z-index:3;
+        }
+        .photo-stats {
+            display:flex; gap:1rem; margin-bottom:1.5rem;
+        }
+        .stat-pill {
+            background:rgba(13,148,136,0.82); backdrop-filter:blur(8px);
+            border:1px solid rgba(45,212,191,0.3);
+            border-radius:0.875rem; padding:0.75rem 1.25rem;
+        }
+        .stat-num { font-size:1.375rem; font-weight:800; color:#fff; display:block; line-height:1.1; }
+        .stat-label { font-size:0.6875rem; color:rgba(255,255,255,0.72); line-height:1.35; margin-top:0.15rem; }
+        .testimonial-quote {
+            font-size:1rem; color:rgba(255,255,255,0.92);
+            font-style:italic; line-height:1.65; margin-bottom:1.25rem; font-weight:400;
+        }
+        .testimonial-author { display:flex; align-items:center; gap:0.875rem; }
+        .author-avatar {
+            width:2.75rem; height:2.75rem;
+            background:rgba(255,255,255,0.2);
+            border:2px solid rgba(255,255,255,0.35);
+            border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:800; font-size:1rem; color:#fff; flex-shrink:0;
+            overflow:hidden;
+        }
+        .author-avatar img { width:100%; height:100%; object-fit:cover; }
+        .author-name { font-size:0.9375rem; font-weight:700; color:#fff; }
+        .author-clinic { font-size:0.75rem; color:rgba(255,255,255,0.52); margin-top:0.15rem; }
+
+        /* ── RIGHT: Form panel ── */
+        .panel-form {
+            flex:1; overflow-y:auto;
+            display:flex; flex-direction:column;
+            padding:2.5rem 3.5rem 3rem;
+        }
+
+        /* Progress bar */
+        .progress { display:flex; gap:0.375rem; margin-bottom:2rem; flex-shrink:0; }
+        .progress-line {
+            flex:1; height:3px; background:#f4f4f5; border-radius:2px;
+            transition:background 0.35s;
+        }
+        .progress-line.done { background:#0d9488; }
+
+        /* Back button */
+        .step-back {
+            display:none; align-items:center; gap:0.375rem;
+            font-size:0.875rem; color:#71717a; background:none; border:none;
+            cursor:pointer; padding:0; margin-bottom:1.5rem;
+            font-family:'Outfit',sans-serif; transition:color 0.15s;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .step-back:hover { color:#18181b; }
+        .step-back.visible { display:flex; }
+
+        /* Step labels */
+        .step-tag {
+            display:inline-flex; align-items:center; gap:0.5rem;
+            font-size:0.6875rem; font-weight:700; color:#0d9488;
+            text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.5rem;
+        }
+        .step-tag-pill {
+            background:#f0fdfa; border:1px solid #99f6e4;
+            border-radius:100px; padding:0.2rem 0.625rem;
+            font-size:0.6rem; font-weight:800; color:#0d9488; letter-spacing:0.08em;
+        }
+        .step-heading {
+            font-size:2.25rem; font-weight:800; color:#18181b;
+            line-height:1.1; letter-spacing:-0.025em; margin-bottom:0.5rem;
+        }
+        .step-heading .hl {
+            background:linear-gradient(135deg,#0d9488 0%,#0ea5e9 100%);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+        }
+        .step-desc { font-size:0.9375rem; color:#71717a; line-height:1.5; margin-bottom:1.75rem; }
+
+        /* Step panels */
+        .step-panel { display:none; flex-direction:column; }
+        .step-panel.active { display:flex; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .step-panel.active { animation:fadeUp 0.2s ease; }
+
+        /* Option cards */
+        .options { display:flex; flex-direction:column; gap:0.625rem; }
+        .option-card {
+            border:1.5px solid #e4e4e7; border-radius:0.875rem;
+            padding:0.9rem 1.125rem; cursor:pointer;
+            transition:border-color 0.15s, background 0.15s, transform 0.1s;
+            display:flex; align-items:center; gap:1rem;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .option-card:hover { border-color:#0d9488; background:#f0fdfa; transform:translateY(-1px); }
+        .option-card.selected { border-color:#0d9488; background:#f0fdfa; }
+        .option-num {
+            width:1.75rem; height:1.75rem; border-radius:50%;
+            background:#f4f4f5; color:#71717a;
+            display:flex; align-items:center; justify-content:center;
+            font-size:0.75rem; font-weight:700; flex-shrink:0;
+            transition:background 0.15s, color 0.15s;
+        }
+        .option-card.selected .option-num,
+        .option-card:hover .option-num { background:#0d9488; color:#fff; }
+        .option-text { flex:1; }
+        .option-title { font-size:0.9375rem; font-weight:700; color:#18181b; margin-bottom:0.125rem; }
+        .option-sub { font-size:0.8125rem; color:#71717a; line-height:1.4; }
+        .option-radio {
+            width:1.125rem; height:1.125rem; border-radius:50%;
+            border:2px solid #d4d4d8; flex-shrink:0;
+            transition:all 0.15s;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .option-card.selected .option-radio { border-color:#0d9488; background:#0d9488; }
+        .option-radio-dot { width:5px; height:5px; background:#fff; border-radius:50%; opacity:0; transition:opacity 0.15s; }
+        .option-card.selected .option-radio-dot { opacity:1; }
+
+        /* Form inputs */
+        .fields { display:flex; flex-direction:column; gap:1rem; }
+        .field { display:flex; flex-direction:column; gap:0.375rem; }
+        .field label { font-size:0.875rem; font-weight:600; color:#18181b; }
+        .field-hint { font-size:0.75rem; color:#71717a; }
+        .input-wrap { position:relative; }
+        .input-wrap svg {
+            position:absolute; left:0.875rem; top:50%; transform:translateY(-50%);
+            width:1.125rem; height:1.125rem; color:#a1a1aa; pointer-events:none;
+        }
+        .input-field {
+            width:100%; padding:0.875rem 1rem 0.875rem 2.75rem;
+            border:1.5px solid #e4e4e7; border-radius:0.75rem;
+            font-size:1rem; color:#18181b; background:#fff;
+            outline:none; transition:border-color 0.15s, box-shadow 0.15s;
+            font-family:'Outfit',sans-serif; -webkit-appearance:none;
+        }
+        .input-field:focus { border-color:#0d9488; box-shadow:0 0 0 3px rgba(13,148,136,.12); }
+        .input-field::placeholder { color:#a1a1aa; }
+        .phone-wrap { display:flex; gap:0.5rem; }
+        .country-sel {
+            flex-shrink:0; width:7rem;
+            border:1.5px solid #e4e4e7; border-radius:0.75rem;
+            padding:0.875rem 0.75rem; font-size:0.875rem; color:#18181b;
+            background:#fff; outline:none; cursor:pointer;
+            font-family:'Outfit',sans-serif; appearance:none;
+            transition:border-color 0.15s;
+        }
+        .country-sel:focus { border-color:#0d9488; }
+        .phone-inp {
+            flex:1; border:1.5px solid #e4e4e7; border-radius:0.75rem;
+            padding:0.875rem 1rem; font-size:1rem; color:#18181b;
+            background:#fff; outline:none;
+            font-family:'Outfit',sans-serif; transition:border-color 0.15s;
+        }
+        .phone-inp:focus { border-color:#0d9488; }
+        .phone-inp::placeholder { color:#a1a1aa; }
+
+        /* CTA button */
+        .btn-cta {
+            background:#0d9488; color:#fff; font-weight:700;
+            padding:1rem 1.5rem; border-radius:0.875rem; border:none;
+            cursor:pointer; width:100%; font-size:1rem;
+            display:flex; align-items:center; justify-content:center; gap:0.5rem;
+            transition:background 0.15s, transform 0.1s;
+            font-family:'Outfit',sans-serif; margin-top:1.5rem;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .btn-cta:hover { background:#0f766e; }
+        .btn-cta:active { transform:scale(0.98); }
+        .btn-cta:disabled { background:#d4d4d8; cursor:not-allowed; }
+
+        /* ── CALENDAR ── */
+        .cal-wrap { border:1.5px solid #e4e4e7; border-radius:1rem; overflow:hidden; }
+        .cal-header {
+            background:linear-gradient(135deg,#134e4a,#0f766e);
+            padding:1rem 1.5rem;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .cal-month-label { font-size:1rem; font-weight:700; color:#fff; }
+        .cal-nav-btns { display:flex; gap:0.5rem; }
+        .cal-nav-btn {
+            width:2rem; height:2rem; border-radius:50%; border:none;
+            background:rgba(255,255,255,0.18); color:#fff;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+            font-size:1rem; transition:background 0.15s; line-height:1;
+            font-family:'Outfit',sans-serif;
+        }
+        .cal-nav-btn:hover { background:rgba(255,255,255,0.3); }
+        .cal-body { display:flex; }
+        .cal-grid { flex:1; padding:1rem 0.75rem; }
+        .cal-weekdays {
+            display:grid; grid-template-columns:repeat(7,1fr);
+            text-align:center; margin-bottom:0.375rem;
+        }
+        .cal-wd { font-size:0.625rem; font-weight:700; color:#a1a1aa; padding:0.25rem; }
+        .cal-days { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+        .cal-day {
+            aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+            font-size:0.8125rem; border-radius:0.5rem; cursor:pointer;
+            transition:background 0.12s, color 0.12s; font-weight:500;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .cal-day.empty { pointer-events:none; }
+        .cal-day.past,.cal-day.weekend { color:#d4d4d8; pointer-events:none; cursor:default; }
+        .cal-day.available:hover { background:#ccfbf1; color:#0d9488; }
+        .cal-day.today { background:#f0fdfa; color:#0d9488; font-weight:700; }
+        .cal-day.today:hover { background:#ccfbf1; }
+        .cal-day.selected { background:#0d9488 !important; color:#fff !important; font-weight:700; }
+        .cal-times {
+            width:8.5rem; flex-shrink:0;
+            border-left:1px solid #f4f4f5;
+            padding:0.875rem 0.75rem;
+            display:flex; flex-direction:column; gap:0.375rem;
+        }
+        .times-title { font-size:0.625rem; font-weight:700; color:#a1a1aa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.25rem; }
+        .time-slot {
+            border:1.5px solid #e4e4e7; border-radius:0.625rem;
+            padding:0.5rem 0.5rem; text-align:center;
+            font-size:0.8125rem; font-weight:600; color:#18181b;
+            cursor:pointer; transition:border-color 0.12s, background 0.12s, color 0.12s;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .time-slot:hover { border-color:#0d9488; color:#0d9488; }
+        .time-slot.selected { border-color:#0d9488; background:#0d9488; color:#fff; }
+        .cal-footer { padding:1rem; border-top:1px solid #f4f4f5; }
+
+        /* Success */
+        .success-wrap { text-align:center; padding:3rem 1rem; }
+        .success-icon {
+            width:5rem; height:5rem; background:#f0fdfa; border-radius:50%;
+            display:flex; align-items:center; justify-content:center; margin:0 auto 1.5rem;
+        }
+
+        /* ── MOBILE ── */
+        .mobile-topbar {
+            display:none; background:linear-gradient(135deg,#134e4a,#0f766e);
+            padding:1.25rem 1.25rem 1.5rem;
+        }
+        @media(max-width:767px){
+            body { overflow-x:hidden; }
+            .mobile-topbar { display:block; }
+            .page { flex-direction:column; min-height:auto; }
+            .panel-photo { width:100%; position:relative; top:0; height:auto; min-height:0; padding:1.25rem 1.25rem 0.75rem; }
+            .photo-panel-inner { max-width:100%; }
+            .photo-card img { max-height:260px; }
+            .panel-form { padding:1.5rem 1.25rem 3rem; }
+            .progress { margin-bottom:1.25rem; }
+            .step-heading { font-size:1.875rem; }
+            .photo-bottom { padding:1rem 1.25rem 1.25rem; }
+            .photo-stats { gap:0.625rem; flex-wrap:wrap; }
+            .stat-num { font-size:1rem; }
+            .testimonial-quote { font-size:0.875rem; }
+            .cal-times { width:7.5rem; }
+            .cal-times .time-slot { font-size:0.75rem; padding:0.4rem 0.25rem; }
+            .cal-day { font-size:0.75rem; }
+            .header-badge { display:none; }
+            .header-nav { display:none; }
+            #hamburger { display:flex; }
+        }
+
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes checkBounce {
+            0%{transform:scale(0)} 70%{transform:scale(1.1)} 100%{transform:scale(1)}
+        }
+        .animate-check { animation:checkBounce 0.4s ease forwards; }
+    </style>
+</head>
+<body>
+
+<!-- ── Mobile topbar ── -->
+<div class="mobile-topbar">
+    <img src="/logo vetly blanco.png" alt="Vetly" style="height:1.75rem;width:auto;margin-bottom:0.875rem;">
+    <p style="font-size:0.6875rem;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;margin-bottom:0.2rem;">REUNIÓN DEMO · 30 MIN</p>
+    <p style="font-size:1.0625rem;font-weight:800;color:#fff;line-height:1.3;">Agenda gratis.<br><span style="color:#6ee7b7;">Sin compromiso.</span></p>
+</div>
+
+<!-- ── Site header ── -->
+<nav class="site-header">
+    <div class="header-logo-zone">
+        <a href="/landing">
+            <img src="/logo.png" alt="Vetly" style="height:3rem;width:auto;">
+        </a>
+    </div>
+    <div class="header-right-zone">
+        <div class="header-nav">
+            <a href="/landing#agentes">El Producto</a>
+            <a href="/landing#gestion">Gestión</a>
+            <a href="/landing#precios">Precios</a>
+            <a href="/landing#como-funciona">Cómo funciona</a>
+        </div>
+        <div class="header-actions">
+            <button id="hamburger" aria-label="Abrir menú">
+                <span></span><span></span><span></span>
+            </button>
+            <a href="https://vetly.pro/login" class="back-link">Iniciar sesión</a>
+            <span class="header-badge">
+                <span class="header-badge-dot"></span>
+                REUNIÓN DEMO · 30 MIN
+            </span>
+        </div>
+    </div>
+    <!-- Mobile dropdown -->
+    <div id="mobile-nav">
+        <div id="mobile-nav-inner">
+            <a href="/landing#agentes">El Producto</a>
+            <a href="/landing#gestion">Gestión</a>
+            <a href="/landing#precios">Precios</a>
+            <a href="/landing#como-funciona">Cómo funciona</a>
+            <a href="https://vetly.pro/login">Iniciar sesión</a>
+        </div>
+    </div>
+</nav>
+
+<div class="page">
+
+    <!-- ══ LEFT: Photo panel ══ -->
+    <div class="panel-photo">
+        <div class="photo-panel-inner">
+            <div class="photo-badge-pill">
+                <span class="badge-dot"></span>
+                Clínica Móvil Animalgrace · Linares, Chile 🇨🇱
+            </div>
+            <div class="photo-card">
+                <img src="/imagen-vet-claudia.png" alt="Dra. Claudia Barrera O. — Clínica Móvil Animalgrace">
+                <div class="photo-overlay"></div>
+                <div class="photo-bottom">
+                    <div class="photo-stats">
+                        <div class="stat-pill">
+                            <span class="stat-num">+100</span>
+                            <span class="stat-label">citas agendadas<br>con IA / mes</span>
+                        </div>
+                        <div class="stat-pill">
+                            <span class="stat-num">+50h</span>
+                            <span class="stat-label">ahorradas en<br>WhatsApp / mes</span>
+                        </div>
+                    </div>
+                    <p class="testimonial-quote">"Vetly me ha permitido descansar sabiendo que los mensajes están en buenas manos."</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">C</div>
+                        <div>
+                            <p class="author-name">Dra. Claudia Barrera O.</p>
+                            <p class="author-clinic">Veterinaria · Clínica Móvil Animalgrace</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ RIGHT: Multi-step form ══ -->
+    <div class="panel-form">
+
+        <!-- Progress bar (5 lines: 4 steps + calendar) -->
+        <div class="progress">
+            <div class="progress-line done" id="pl-1"></div>
+            <div class="progress-line" id="pl-2"></div>
+            <div class="progress-line" id="pl-3"></div>
+            <div class="progress-line" id="pl-4"></div>
+            <div class="progress-line" id="pl-5"></div>
+        </div>
+
+        <!-- Back button -->
+        <button class="step-back" id="back-btn" onclick="goBack()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Volver
+        </button>
+
+        <!-- ══ PASO 1: Tipo de clínica ══ -->
+        <div class="step-panel active" id="step-1">
+            <p class="step-tag">PASO 1 DE 4 <span class="step-tag-pill">30 MIN · SIN COMPROMISO</span></p>
+            <h1 class="step-heading">¿Cómo es <span class="hl">tu clínica?</span></h1>
+            <p class="step-desc">Adaptamos la demo a tu tipo de operación para mostrarte lo que más te sirve.</p>
+            <div class="options">
+                <div class="option-card" onclick="selectAndAdvance(this,1)">
+                    <div class="option-num">1</div>
+                    <div class="option-text">
+                        <p class="option-title">🏠 Clínica física con consulta fija</p>
+                        <p class="option-sub">Tengo un local o sala de espera donde atiendo.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,1)">
+                    <div class="option-num">2</div>
+                    <div class="option-text">
+                        <p class="option-title">🚗 Clínica móvil a domicilio</p>
+                        <p class="option-sub">Atiendo directamente en el hogar del paciente.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,1)">
+                    <div class="option-num">3</div>
+                    <div class="option-text">
+                        <p class="option-title">📱 Veterinario/a independiente</p>
+                        <p class="option-sub">Trabajo solo/a, sin local fijo ni equipo de recepción.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,1)">
+                    <div class="option-num">4</div>
+                    <div class="option-text">
+                        <p class="option-title">🏢 Red de clínicas o sucursales</p>
+                        <p class="option-sub">Gestiono varios centros de atención veterinaria.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PASO 2: Mayor desafío ══ -->
+        <div class="step-panel" id="step-2">
+            <p class="step-tag">PASO 2 DE 4 <span class="step-tag-pill">30 MIN · SIN COMPROMISO</span></p>
+            <h1 class="step-heading">¿Cuál es tu <span class="hl">mayor desafío?</span></h1>
+            <p class="step-desc">Personalizamos la demo para mostrarte exactamente lo que más te sirve.</p>
+            <div class="options">
+                <div class="option-card" onclick="selectAndAdvance(this,2)">
+                    <div class="option-num">1</div>
+                    <div class="option-text">
+                        <p class="option-title">💬 Responder WhatsApp todo el día</p>
+                        <p class="option-sub">Paso demasiado tiempo en mensajes que podrían automatizarse.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,2)">
+                    <div class="option-num">2</div>
+                    <div class="option-text">
+                        <p class="option-title">🗺️ Organizar rutas y horarios</p>
+                        <p class="option-sub">Me cuesta cuadrar citas en distintas zonas sin traslaparse.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,2)">
+                    <div class="option-num">3</div>
+                    <div class="option-text">
+                        <p class="option-title">👻 Perder clientes que no vuelven</p>
+                        <p class="option-sub">No tengo sistema para hacer seguimiento a pacientes inactivos.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,2)">
+                    <div class="option-num">4</div>
+                    <div class="option-text">
+                        <p class="option-title">📈 Crecer sin contratar más personal</p>
+                        <p class="option-sub">Quiero más capacidad y citas sin aumentar los costos fijos.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PASO 3: Rol ══ -->
+        <div class="step-panel" id="step-3">
+            <p class="step-tag">PASO 3 DE 4 <span class="step-tag-pill">30 MIN · SIN COMPROMISO</span></p>
+            <h1 class="step-heading">¿Cuál es <span class="hl">tu rol</span> en la clínica?</h1>
+            <p class="step-desc">Adaptamos la reunión a quien está tomando la decisión.</p>
+            <div class="options">
+                <div class="option-card" onclick="selectAndAdvance(this,3)">
+                    <div class="option-num">1</div>
+                    <div class="option-text">
+                        <p class="option-title">🩺 Veterinario/a dueño/a</p>
+                        <p class="option-sub">Soy quien decide e invierte en la clínica.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,3)">
+                    <div class="option-num">2</div>
+                    <div class="option-text">
+                        <p class="option-title">👩‍💼 Administrador/a de la clínica</p>
+                        <p class="option-sub">Coordino las operaciones y el equipo del día a día.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,3)">
+                    <div class="option-num">3</div>
+                    <div class="option-text">
+                        <p class="option-title">📞 Recepcionista o asistente</p>
+                        <p class="option-sub">Atiendo clientes y agendo citas todos los días.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+                <div class="option-card" onclick="selectAndAdvance(this,3)">
+                    <div class="option-num">4</div>
+                    <div class="option-text">
+                        <p class="option-title">🔍 Estoy evaluando para alguien más</p>
+                        <p class="option-sub">Recopilo información para presentársela al equipo o dueño.</p>
+                    </div>
+                    <div class="option-radio"><div class="option-radio-dot"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PASO 4: Datos de contacto ══ -->
+        <div class="step-panel" id="step-4">
+            <p class="step-tag">PASO 4 DE 4 <span class="step-tag-pill">30 MIN · SIN COMPROMISO</span></p>
+            <h1 class="step-heading">Tus <span class="hl">datos</span> de contacto</h1>
+            <p class="step-desc">Para preparar la reunión y confirmarte el horario por WhatsApp.</p>
+
+            <div class="fields">
+                <div class="field">
+                    <label>Nombre completo</label>
+                    <div class="input-wrap">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0"/></svg>
+                        <input type="text" class="input-field" placeholder="Tu nombre completo" autocomplete="name" id="f-name">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Nombre de la clínica</label>
+                    <div class="input-wrap">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>
+                        <input type="text" class="input-field" placeholder="Ej: Animalgrace" autocomplete="organization" id="f-clinic">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Tu WhatsApp personal</label>
+                    <p class="field-hint">Te escribimos directo a ti. Coordinar la demo toma 2 minutos.</p>
+                    <div class="phone-wrap">
+                        <select class="country-sel" id="f-country">
+                            <option value="+56">🇨🇱 +56</option>
+                            <option value="+54">🇦🇷 +54</option>
+                            <option value="+57">🇨🇴 +57</option>
+                            <option value="+52">🇲🇽 +52</option>
+                            <option value="+51">🇵🇪 +51</option>
+                        </select>
+                        <input type="tel" class="phone-inp" placeholder="9 1234 5678" inputmode="tel" id="f-phone">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Email</label>
+                    <div class="input-wrap">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                        <input type="email" class="input-field" placeholder="tu@clinica.cl" autocomplete="email" inputmode="email" id="f-email">
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-cta" onclick="goToStep(5)">
+                Elegir fecha y hora →
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            </button>
+            <p style="font-size:0.75rem;color:#a1a1aa;text-align:center;margin-top:0.75rem;">Sin compromiso · 30 min por videollamada · Google Meet o Zoom</p>
+        </div>
+
+        <!-- ══ PASO 5: Calendario ══ -->
+        <div class="step-panel" id="step-5">
+            <p class="step-tag">ELIGE TU HORARIO <span class="step-tag-pill">30 MIN · VIDEOLLAMADA</span></p>
+            <h1 class="step-heading">¿Cuándo te <span class="hl">acomoda?</span></h1>
+            <p class="step-desc">Te confirmamos por WhatsApp y email con el link de la reunión.</p>
+
+            <div class="cal-wrap">
+                <div class="cal-header">
+                    <span class="cal-month-label" id="cal-month-label">mayo 2026</span>
+                    <div class="cal-nav-btns">
+                        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+                        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+                    </div>
+                </div>
+                <div class="cal-body">
+                    <div class="cal-grid">
+                        <div class="cal-weekdays">
+                            <div class="cal-wd">LUN</div>
+                            <div class="cal-wd">MAR</div>
+                            <div class="cal-wd">MIÉ</div>
+                            <div class="cal-wd">JUE</div>
+                            <div class="cal-wd">VIE</div>
+                            <div class="cal-wd">SÁB</div>
+                            <div class="cal-wd">DOM</div>
+                        </div>
+                        <div class="cal-days" id="cal-days"></div>
+                    </div>
+                    <div class="cal-times">
+                        <p class="times-title" id="times-title">Horarios</p>
+                        <div id="time-slots">
+                            <p style="font-size:0.75rem;color:#a1a1aa;padding:0.25rem 0;">↑ Elige un día</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="cal-footer">
+                    <button class="btn-cta" id="confirm-btn" onclick="confirmBooking()" disabled style="margin-top:0;opacity:.45;cursor:not-allowed;">
+                        Confirmar reunión →
+                    </button>
+                    <p style="font-size:0.75rem;color:#a1a1aa;text-align:center;margin-top:0.5rem;">Lunes a viernes · Chile (GMT-4)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ CONFIRMACIÓN ══ -->
+        <div class="step-panel" id="step-6">
+            <div class="success-wrap">
+                <div class="success-icon animate-check">
+                    <svg width="2.5rem" height="2.5rem" fill="none" stroke="#0d9488" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                </div>
+                <h2 style="font-size:2rem;font-weight:800;color:#18181b;margin-bottom:0.5rem;letter-spacing:-0.02em;">¡Reunión confirmada!</h2>
+                <p id="confirm-summary" style="font-size:1rem;color:#71717a;line-height:1.6;max-width:26rem;margin:0 auto 0.5rem;"></p>
+                <p style="font-size:0.9rem;color:#0d9488;font-weight:600;">Te enviamos la confirmación por WhatsApp y email. 📱</p>
+
+                <div style="margin-top:2rem;padding:1.25rem;background:#f0fdfa;border:1px solid #99f6e4;border-radius:1rem;text-align:left;max-width:26rem;margin-left:auto;margin-right:auto;">
+                    <p style="font-size:0.875rem;font-weight:700;color:#134e4a;margin-bottom:0.5rem;">¿Qué pasa ahora?</p>
+                    <p style="font-size:0.8125rem;color:#0f766e;line-height:1.65;">El equipo Vetly te contactará por WhatsApp para confirmar los detalles y enviarte el link de videollamada. La demo dura 30 minutos y no requiere ninguna preparación de tu parte.</p>
+                </div>
+
+                <a href="/landing" style="display:inline-flex;align-items:center;gap:0.5rem;margin-top:2rem;font-size:0.875rem;color:#71717a;text-decoration:none;font-weight:500;">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    Volver al inicio
+                </a>
+            </div>
+        </div>
+
+    </div><!-- fin panel-form -->
+</div><!-- fin page -->
+
+<script>
+(function(){
+    var cur = 1;
+    var selDay = null, selTime = null;
+    var calY = 2026, calM = 4; // 0-indexed: 4=mayo
+    var TIMES = ['10:00 hrs', '11:30 hrs', '15:00 hrs', '16:30 hrs'];
+    var MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    var DAYS_ES = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+
+    function goToStep(n){
+        document.getElementById('step-'+cur).classList.remove('active');
+        cur = n;
+        document.getElementById('step-'+n).classList.add('active');
+        // Progress
+        for(var i=1;i<=5;i++){
+            var el=document.getElementById('pl-'+i);
+            if(el) el.className='progress-line'+(i<=n?' done':'');
+        }
+        // Back button
+        var back=document.getElementById('back-btn');
+        back.className=(n>1&&n<6)?'step-back visible':'step-back';
+        // Scroll
+        var pf=document.querySelector('.panel-form');
+        if(pf) pf.scrollTo({top:0,behavior:'smooth'});
+        window.scrollTo({top:0,behavior:'smooth'});
+        // Calendar init
+        if(n===5) renderCal();
+        // Hide progress on success
+        if(n===6){
+            document.querySelector('.progress').style.display='none';
+            document.getElementById('back-btn').style.display='none';
+        }
+    }
+
+    window.goToStep = goToStep;
+
+    window.goBack = function(){
+        if(cur>1) goToStep(cur-1);
+    };
+
+    window.selectAndAdvance = function(card, step){
+        var parent=card.parentNode;
+        parent.querySelectorAll('.option-card').forEach(function(c){ c.classList.remove('selected'); });
+        card.classList.add('selected');
+        setTimeout(function(){ goToStep(step+1); }, 320);
+    };
+
+    // ── Calendar ──
+    function renderCal(){
+        var today=new Date(2026,4,22); // mayo 22
+        var firstDay=new Date(calY,calM,1);
+        var lastDay=new Date(calY,calM+1,0);
+        document.getElementById('cal-month-label').textContent=MONTHS[calM]+' '+calY;
+
+        var container=document.getElementById('cal-days');
+        container.innerHTML='';
+
+        // Offset (Mon=0)
+        var dow=firstDay.getDay();
+        var offset=(dow===0)?6:dow-1;
+        for(var i=0;i<offset;i++){
+            var e=document.createElement('div');
+            e.className='cal-day empty';
+            container.appendChild(e);
+        }
+
+        for(var d=1;d<=lastDay.getDate();d++){
+            var date=new Date(calY,calM,d);
+            var wd=date.getDay();
+            var isWeekend=(wd===0||wd===6);
+            var isPast=date<today&&date.toDateString()!==today.toDateString();
+            var isToday=date.toDateString()===today.toDateString();
+            var cell=document.createElement('div');
+            cell.textContent=d;
+
+            var cls='cal-day ';
+            if(isPast) cls+='past';
+            else if(isWeekend) cls+='weekend';
+            else if(selDay===d&&calY===2026&&calM===4) cls+='selected';
+            else if(isToday) cls+='today';
+            else cls+='available';
+
+            cell.className=cls;
+            if(!isPast&&!isWeekend){
+                (function(day,el){
+                    el.onclick=function(){ selectDay(day,el); };
+                })(d,cell);
+            }
+            container.appendChild(cell);
+        }
+        renderSlots();
+    }
+
+    function selectDay(d, cell){
+        selDay=d; selTime=null;
+        document.querySelectorAll('.cal-day').forEach(function(c){
+            if(c.classList.contains('selected')){
+                c.classList.remove('selected');
+                c.classList.add('available');
+            }
+        });
+        cell.classList.remove('available','today');
+        cell.classList.add('selected');
+        renderSlots();
+        updateConfirmBtn();
+    }
+
+    function renderSlots(){
+        var container=document.getElementById('time-slots');
+        var title=document.getElementById('times-title');
+        if(!selDay){
+            title.textContent='Horarios';
+            container.innerHTML='<p style="font-size:.75rem;color:#a1a1aa;padding:.25rem 0;">↑ Elige un día</p>';
+            return;
+        }
+        var date=new Date(calY,calM,selDay);
+        title.textContent=DAYS_ES[date.getDay()]+' '+selDay;
+        container.innerHTML='';
+        TIMES.forEach(function(t){
+            var slot=document.createElement('div');
+            slot.className='time-slot'+(selTime===t?' selected':'');
+            slot.textContent=t;
+            slot.onclick=function(){
+                selTime=t;
+                container.querySelectorAll('.time-slot').forEach(function(s){ s.classList.remove('selected'); });
+                slot.classList.add('selected');
+                updateConfirmBtn();
+            };
+            container.appendChild(slot);
+        });
+    }
+
+    function updateConfirmBtn(){
+        var btn=document.getElementById('confirm-btn');
+        if(selDay&&selTime){
+            btn.disabled=false; btn.style.opacity='1'; btn.style.cursor='pointer';
+        } else {
+            btn.disabled=true; btn.style.opacity='.45'; btn.style.cursor='not-allowed';
+        }
+    }
+
+    window.changeMonth=function(dir){
+        calM+=dir;
+        if(calM>11){calM=0;calY++;}
+        if(calM<0){calM=11;calY--;}
+        selDay=null; selTime=null;
+        renderCal();
+        updateConfirmBtn();
+    };
+
+    window.confirmBooking=function(){
+        if(!selDay||!selTime) return;
+        var date=new Date(calY,calM,selDay);
+        var summary=DAYS_ES[date.getDay()]+' '+selDay+' de '+MONTHS[calM]+' · '+selTime;
+        document.getElementById('confirm-summary').textContent=
+            'Reunión agendada para el '+summary+'. 30 min por videollamada.';
+        goToStep(6);
+    };
+
+    // Init
+    goToStep(1);
+})();
+
+// Hamburger nav
+(function(){
+    var btn = document.getElementById('hamburger');
+    var nav = document.getElementById('mobile-nav');
+    if(!btn||!nav) return;
+    btn.addEventListener('click', function(){
+        btn.classList.toggle('active');
+        nav.classList.toggle('open');
+    });
+    nav.querySelectorAll('a').forEach(function(a){
+        a.addEventListener('click', function(){
+            btn.classList.remove('active');
+            nav.classList.remove('open');
+        });
+    });
+})();
+</script>
+</body>
+</html>

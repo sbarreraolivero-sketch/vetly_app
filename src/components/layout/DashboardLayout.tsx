@@ -69,7 +69,7 @@ const navigationSections = [
         accent: { label: 'text-violet-400/70', active: 'bg-violet-500/[0.18]', dot: 'bg-violet-400', icon: 'text-violet-300' },
         items: [
             { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
-            { name: 'Referidos', href: '/app/referrals', icon: Award },
+            { name: 'Referidos', href: '/app/loyalty?tab=referrals', icon: Award },
         ]
     },
     {

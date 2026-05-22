@@ -20,7 +20,7 @@ import {
     Trophy,
     History as HistoryIcon
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { loyaltyService, LoyaltySettings, LoyaltyReward } from '@/services/loyaltyService'
@@ -30,7 +30,11 @@ import { LoyaltyRewardModal } from '@/components/loyalty/LoyaltyRewardModal'
 
 export default function Loyalty() {
     const { profile } = useAuth()
-    const [activeTab, setActiveTab] = useState<'points' | 'referrals' | 'rewards' | 'alerts' | 'settings'>('points')
+    const [searchParams] = useSearchParams()
+    const initialTab = searchParams.get('tab') as 'points' | 'referrals' | 'rewards' | 'alerts' | 'settings' | null
+    const [activeTab, setActiveTab] = useState<'points' | 'referrals' | 'rewards' | 'alerts' | 'settings'>(
+        initialTab && ['points', 'referrals', 'rewards', 'alerts', 'settings'].includes(initialTab) ? initialTab : 'points'
+    )
     const [loading, setLoading] = useState(true)
     const [settings, setSettings] = useState<LoyaltySettings | null>(null)
     const [rewards, setRewards] = useState<LoyaltyReward[]>([])
