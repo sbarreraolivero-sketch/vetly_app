@@ -662,11 +662,11 @@ export default function Loyalty() {
                             <p className="text-sm text-primary-100 mb-6">
                                 Define cuántos {settings?.loyalty_points_name} recibe un tutor la primera vez que agenda.
                             </p>
-                            <div className="bg-white/10 rounded-soft p-4 border border-white/20">
-                                <label className="text-xs uppercase font-black mb-2 block tracking-widest opacity-70">Bono Actual</label>
+                            <div className="bg-black/20 rounded-soft p-4 border border-white/10">
+                                <label className="text-xs uppercase font-black mb-2 block tracking-widest text-white/60">Bono Actual</label>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-2xl font-black">{settings?.loyalty_welcome_bonus}</span>
-                                    <span className="text-xs opacity-70 uppercase font-bold">{settings?.loyalty_currency_symbol}</span>
+                                    <span className="text-2xl font-black text-white">{settings?.loyalty_welcome_bonus}</span>
+                                    <span className="text-xs text-white/60 uppercase font-bold">{settings?.loyalty_currency_symbol}</span>
                                 </div>
                             </div>
                         </div>
@@ -687,7 +687,7 @@ export default function Loyalty() {
                                             type="number"
                                             value={settings?.loyalty_referral_bonus}
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_referral_bonus: parseInt(e.target.value) } : null)}
-                                            className="w-full h-10 pl-4 pr-12 bg-white/10 border border-white/20 rounded-soft text-sm font-bold text-white focus:bg-white/20 transition-all outline-none"
+                                            className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
                                         />
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
                                     </div>
@@ -700,7 +700,7 @@ export default function Loyalty() {
                                             type="number"
                                             value={settings?.loyalty_welcome_bonus}
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_welcome_bonus: parseInt(e.target.value) } : null)}
-                                            className="w-full h-10 pl-4 pr-12 bg-white/10 border border-white/20 rounded-soft text-sm font-bold text-white focus:bg-white/20 transition-all outline-none"
+                                            className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
                                         />
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
                                     </div>
@@ -713,7 +713,7 @@ export default function Loyalty() {
                                             type="number"
                                             value={settings?.loyalty_points_percentage}
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_points_percentage: parseFloat(e.target.value) } : null)}
-                                            className="w-full h-10 pl-4 pr-12 bg-white/10 border border-white/20 rounded-soft text-sm font-bold text-white focus:bg-white/20 transition-all outline-none"
+                                            className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
                                         />
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">%</span>
                                     </div>
