@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import {
     AlarmClock, Save, Loader2, RefreshCw, Activity,
     CheckCircle2, AlertCircle, Phone,
-    Settings2, Bell, Clock
+    Settings2, Clock
 } from 'lucide-react'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { cn } from '@/lib/utils'
@@ -198,27 +198,20 @@ export default function Reminders() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-20 animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Page Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-black text-charcoal tracking-tighter uppercase flex items-center gap-2 sm:gap-3">
-                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 text-primary-600" />
-                        Centro de Recordatorios
-                    </h1>
-                    <p className="text-charcoal/50 text-xs sm:text-sm font-medium mt-1">
-                        Gestiona y monitorea los mensajes automáticos de citas y controles médicos.
-                    </p>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Centro de Recordatorios</h1>
+                    <p className="text-sm text-charcoal/50 mt-1">Mensajes automáticos de citas y controles médicos.</p>
                 </div>
-                <div className="w-full sm:w-auto">
-                    <button
-                        onClick={handleSaveSettings}
-                        disabled={savingSettings || !settings}
-                        className="w-full sm:w-auto btn-primary shadow-premium py-2.5 px-6 flex items-center justify-center gap-2"
-                    >
-                        {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Guardar Configuración
-                    </button>
-                </div>
+                <button
+                    onClick={handleSaveSettings}
+                    disabled={savingSettings || !settings}
+                    className="btn-primary flex items-center gap-2"
+                >
+                    {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Guardar Configuración
+                </button>
             </div>
 
             {/* Controls */}
@@ -228,7 +221,7 @@ export default function Reminders() {
                         onClick={() => setActiveTab('appointments')}
                         className={cn(
                             "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
-                            activeTab === 'appointments' ? "bg-white text-primary-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
+                            activeTab === 'appointments' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
                         )}
                     >
                         Citas
@@ -237,7 +230,7 @@ export default function Reminders() {
                         onClick={() => setActiveTab('medical')}
                         className={cn(
                             "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
-                            activeTab === 'medical' ? "bg-white text-primary-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
+                            activeTab === 'medical' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
                         )}
                     >
                         Médicos
@@ -262,16 +255,16 @@ export default function Reminders() {
 
                 {/* Configuration Sidebar */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-gradient-to-br from-charcoal to-gray-900 rounded-soft p-6 shadow-xl text-white">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
-                            <div className="p-2 bg-white/10 rounded-lg">
-                                <Settings2 className="w-5 h-5 text-primary-300" />
+                    <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-6">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-silk-beige">
+                            <div className="p-2 bg-amber-50 rounded-lg">
+                                <Settings2 className="w-5 h-5 text-amber-600" />
                             </div>
                             <div>
-                                <h3 className="text-lg font-black uppercase tracking-tighter text-white">
-                                    {activeTab === 'appointments' ? 'Citas' : 'Plantillas Médicas'}
+                                <h3 className="text-base font-bold text-charcoal">
+                                    {activeTab === 'appointments' ? 'Configurar Citas' : 'Plantillas Médicas'}
                                 </h3>
-                                <p className="text-[10px] text-primary-300 uppercase tracking-widest font-bold">Configuración</p>
+                                <p className="text-xs text-charcoal/40 uppercase tracking-widest font-semibold">Configuración</p>
                             </div>
                         </div>
 
@@ -280,12 +273,12 @@ export default function Reminders() {
                                 {activeTab === 'appointments' ? (
                                     <>
                                         {/* 24h Reminder */}
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <p className="font-bold text-sm">24 Horas Antes</p>
                                                 <label className="relative inline-flex items-center cursor-pointer">
                                                     <input type="checkbox" className="sr-only peer" checked={!!settings.reminder_24h_before} onChange={e => setSettings({ ...settings, reminder_24h_before: e.target.checked })} />
-                                                    <div className="w-9 h-5 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500"></div>
+                                                    <div className="w-9 h-5 bg-silk-beige peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500"></div>
                                                 </label>
                                             </div>
                                             {settings.reminder_24h_before && (
@@ -293,33 +286,33 @@ export default function Reminders() {
                                                     label="Plantilla 24h"
                                                     value={settings.template_24h || ''}
                                                     onChange={v => setSettings({ ...settings, template_24h: v })}
-                                                    labelClassName="text-white text-xs"
+                                                    labelClassName="text-charcoal/60 text-xs"
                                                 />
                                             )}
                                         </div>
 
                                         {/* Preferred Hour */}
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige">
                                             <div className="flex items-center gap-2 mb-3">
-                                                <Clock className="w-4 h-4 text-primary-300" />
+                                                <Clock className="w-4 h-4 text-primary-600" />
                                                 <p className="font-bold text-sm">Hora de Envío</p>
                                             </div>
                                             <input
                                                 type="time"
                                                 value={settings.preferred_hour || '09:00'}
                                                 onChange={e => setSettings({ ...settings, preferred_hour: e.target.value })}
-                                                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-medium focus:outline-none focus:border-primary-400 [color-scheme:dark]"
+                                                className="w-full bg-white border border-silk-beige rounded-lg px-3 py-2 text-charcoal text-sm font-medium focus:outline-none focus:border-primary-500"
                                             />
-                                            <p className="text-[10px] text-white/40 mt-2">A partir de esta hora el cron envía los recordatorios del día.</p>
+                                            <p className="text-[10px] text-charcoal/40 mt-2">A partir de esta hora el cron envía los recordatorios del día.</p>
                                         </div>
 
                                         {/* 2h Reminder */}
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <p className="font-bold text-sm">2 Horas Antes</p>
                                                 <label className="relative inline-flex items-center cursor-pointer">
                                                     <input type="checkbox" className="sr-only peer" checked={!!settings.reminder_2h_before} onChange={e => setSettings({ ...settings, reminder_2h_before: e.target.checked })} />
-                                                    <div className="w-9 h-5 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500"></div>
+                                                    <div className="w-9 h-5 bg-silk-beige peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500"></div>
                                                 </label>
                                             </div>
                                             {settings.reminder_2h_before && (
@@ -327,18 +320,18 @@ export default function Reminders() {
                                                     label="Plantilla 2h"
                                                     value={settings.template_2h || ''}
                                                     onChange={v => setSettings({ ...settings, template_2h: v })}
-                                                    labelClassName="text-white text-xs"
+                                                    labelClassName="text-charcoal/60 text-xs"
                                                 />
                                             )}
                                         </div>
 
                                         {/* Confirmation */}
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-4">
                                             <div className="flex items-center justify-between">
-                                                <p className="font-bold text-sm text-primary-300">Solicitar Confirmación</p>
+                                                <p className="font-bold text-sm text-primary-700">Solicitar Confirmación</p>
                                                 <label className="relative inline-flex items-center cursor-pointer">
                                                     <input type="checkbox" className="sr-only peer" checked={!!settings.request_confirmation} onChange={e => setSettings({ ...settings, request_confirmation: e.target.checked })} />
-                                                    <div className="w-9 h-5 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500"></div>
+                                                    <div className="w-9 h-5 bg-silk-beige peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500"></div>
                                                 </label>
                                             </div>
                                             {settings.request_confirmation && (
@@ -346,42 +339,42 @@ export default function Reminders() {
                                                     label="Plantilla Confirmación"
                                                     value={settings.template_confirmation || ''}
                                                     onChange={v => setSettings({ ...settings, template_confirmation: v })}
-                                                    labelClassName="text-white text-xs"
+                                                    labelClassName="text-charcoal/60 text-xs"
                                                 />
                                             )}
                                         </div>
                                     </>
                                 ) : (
                                     <>
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-2">
                                             <TemplateSelector
                                                 label="Vacunación"
                                                 value={settings.vaccine_reminder_template || ''}
                                                 onChange={v => setSettings({ ...settings, vaccine_reminder_template: v })}
-                                                labelClassName="text-white text-xs font-bold uppercase tracking-wider"
+                                                labelClassName="text-charcoal/60 text-xs font-bold uppercase tracking-wider"
                                             />
                                         </div>
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-2">
                                             <TemplateSelector
                                                 label="Desparasitación"
                                                 value={settings.deworming_reminder_template || ''}
                                                 onChange={v => setSettings({ ...settings, deworming_reminder_template: v })}
-                                                labelClassName="text-white text-xs font-bold uppercase tracking-wider"
+                                                labelClassName="text-charcoal/60 text-xs font-bold uppercase tracking-wider"
                                             />
                                         </div>
-                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-2">
                                             <TemplateSelector
                                                 label="Control Médico"
                                                 value={settings.checkup_reminder_template || ''}
                                                 onChange={v => setSettings({ ...settings, checkup_reminder_template: v })}
-                                                labelClassName="text-white text-xs font-bold uppercase tracking-wider"
+                                                labelClassName="text-charcoal/60 text-xs font-bold uppercase tracking-wider"
                                             />
                                         </div>
                                     </>
                                 )}
                             </div>
                         ) : (
-                            <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/50" /></div>
+                            <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-charcoal/30" /></div>
                         )}
                     </div>
                 </div>
@@ -490,7 +483,7 @@ export default function Reminders() {
                     <div className="bg-white rounded-soft border border-silk-beige shadow-sm overflow-hidden">
                         <div className="p-4 sm:p-5 border-b border-silk-beige flex flex-col sm:flex-row sm:items-center justify-between bg-ivory/50 gap-3">
                             <h3 className="font-bold text-charcoal flex items-center gap-2">
-                                <Activity className="w-4 h-4 text-primary-600" />
+                                <Activity className="w-4 h-4 text-amber-600" />
                                 Registro de Envíos
                             </h3>
                             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
@@ -516,7 +509,7 @@ export default function Reminders() {
                                         </button>
                                     </div>
                                 )}
-                                <button onClick={fetchLogs} className="p-2 text-charcoal/40 hover:text-primary-600 transition-colors rounded-lg hover:bg-white border border-transparent sm:border-0">
+                                <button onClick={fetchLogs} className="p-2 text-charcoal/40 hover:text-amber-600 transition-colors rounded-lg hover:bg-white border border-transparent sm:border-0">
                                     <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
                                 </button>
                             </div>
@@ -563,14 +556,14 @@ export default function Reminders() {
                                                             ) : (
                                                                 <>
                                                                     {log.patients?.id ? (
-                                                                        <Link to={`/app/patients/${log.patients.id}`} className="font-bold text-charcoal text-sm hover:text-primary-600 transition-colors hover:underline underline-offset-2">
+                                                                        <Link to={`/app/patients/${log.patients.id}`} className="font-bold text-charcoal text-sm hover:text-amber-600 transition-colors hover:underline underline-offset-2">
                                                                             {log.patients.name || log.title || 'Paciente'}
                                                                         </Link>
                                                                     ) : (
                                                                         <span className="font-bold text-charcoal text-sm">{log.patients?.name || log.title || 'Paciente'}</span>
                                                                     )}
                                                                     {log.patients?.tutor_id ? (
-                                                                        <Link to={`/app/tutors/${log.patients.tutor_id}`} className="text-xs text-charcoal/40 hover:text-primary-600 transition-colors">
+                                                                        <Link to={`/app/tutors/${log.patients.tutor_id}`} className="text-xs text-charcoal/40 hover:text-amber-600 transition-colors">
                                                                             Tutor: {log.patients?.tutors?.name || '-'}
                                                                         </Link>
                                                                     ) : (
@@ -592,7 +585,7 @@ export default function Reminders() {
                                                             log.type === 'confirmation' && "bg-emerald-100 text-emerald-700",
                                                             log.type === 'vaccine' && "bg-purple-100 text-purple-700",
                                                             log.type === 'deworming' && "bg-orange-100 text-orange-700",
-                                                            !['24h', '2h', 'confirmation', 'vaccine', 'deworming'].includes(log.type) && "bg-gray-100 text-gray-700"
+                                                            !['24h', '2h', 'confirmation', 'vaccine', 'deworming'].includes(log.type) && "bg-silk-beige/50 text-charcoal/60"
                                                         )}>
                                                             {log.type === 'vaccine' ? 'Vacuna' : log.type === 'deworming' ? 'Desparasitación' : log.type}
                                                         </span>

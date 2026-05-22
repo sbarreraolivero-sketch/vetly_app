@@ -233,7 +233,12 @@ export default function PatientProfile() {
                 <div className="flex items-center gap-2 text-xs font-bold font-bold text-charcoal/40 uppercase tracking-widest">
                     <button onClick={() => navigate('/app/tutors')} className="hover:text-primary-600 transition-colors">Tutores</button>
                     <span>/</span>
-                    <span className="text-charcoal/60">{tutor?.name}</span>
+                    <button
+                        onClick={() => navigate('/app/tutors', { state: { tutorId: tutor?.id } })}
+                        className="text-charcoal/60 hover:text-primary-600 transition-colors"
+                    >
+                        {tutor?.name}
+                    </button>
                     <span>/</span>
                     <span className="text-primary-600 underline underline-offset-4">{patient.name}</span>
                 </div>
@@ -319,6 +324,110 @@ export default function PatientProfile() {
                     <p className="text-xl font-black text-charcoal truncate uppercase">{tutor?.name || '---'}</p>
                 </div>
             </div>
+
+            {/* Clinical Summary Panel */}
+            {(historyEvents.length > 0 || vaccines.length > 0 || dewormings.length > 0) && (
+                <div className="bg-white rounded-2xl border border-silk-beige shadow-soft-sm overflow-hidden">
+                    <div className="bg-gradient-to-br from-primary-500 to-primary-700 px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-primary-200" />
+                            <p className="text-sm font-black text-white uppercase tracking-widest">Resumen Clínico</p>
+                        </div>
+                        <p className="text-xs text-primary-200 font-bold">{historyEvents.length} {historyEvents.length === 1 ? 'atención' : 'atenciones'} registradas</p>
+                    </div>
+                    <div className="p-5">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
+                            <div>
+                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-widest mb-1">Última Atención Médica</p>
+                                {historyEvents[0] ? (
+                                    <>
+                                        <p className="text-sm font-bold text-charcoal">
+                                            {new Date(historyEvents[0].event_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </p>
+                                        <p className="text-xs text-charcoal/40 mt-0.5">{historyEvents[0].event_type}</p>
+                                    </>
+                                ) : (
+                                    <p className="text-sm font-bold text-charcoal/30">Sin consultas aún</p>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-widest mb-1">Próxima Vacuna</p>
+                                {vaccines[0]?.next_dose_date ? (
+                                    <>
+                                        <p className={cn("text-sm font-bold",
+                                            new Date(vaccines[0].next_dose_date) < new Date() ? 'text-red-500' :
+                                            new Date(vaccines[0].next_dose_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'text-amber-500' :
+                                            'text-emerald-600'
+                                        )}>
+                                            {new Date(vaccines[0].next_dose_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </p>
+                                        <p className="text-xs text-charcoal/40 mt-0.5">{vaccines[0].name}</p>
+                                    </>
+                                ) : (
+                                    <p className="text-sm font-bold text-charcoal/30">Sin registro</p>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Última Desparasitación</p>
+                                <div className="space-y-1.5">
+                                    {(['Interno', 'Externo'] as const).map(tipo => {
+                                        const last = dewormings.find(d => d.type === tipo)
+                                        return (
+                                            <div key={tipo} className="flex items-center gap-2">
+                                                <span className="text-[10px] font-black text-charcoal/30 uppercase w-12 shrink-0">{tipo}</span>
+                                                {last ? (
+                                                    <span className="text-xs font-bold text-charcoal">
+                                                        {new Date(last.application_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs font-bold text-charcoal/30">—</span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Últimas Atenciones</p>
+                                <div className="space-y-1.5">
+                                    {[
+                                        ...historyEvents.map(e => ({ date: e.event_date, label: e.event_type || 'Atención', kind: 'history' })),
+                                        ...vaccines.map(v => ({ date: v.application_date, label: v.name, kind: 'vaccine' })),
+                                        ...dewormings.map(d => ({ date: d.application_date, label: `Desparás. ${d.type}`, kind: 'deworming' }))
+                                    ]
+                                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                        .slice(0, 3)
+                                        .map((item, i) => (
+                                            <div key={i} className="flex items-center gap-2">
+                                                <div className={cn(
+                                                    "w-1.5 h-1.5 rounded-full shrink-0",
+                                                    item.kind === 'vaccine' ? 'bg-emerald-500' :
+                                                    item.kind === 'deworming' ? 'bg-amber-500' : 'bg-primary-500'
+                                                )} />
+                                                <span className="text-xs text-charcoal/60 truncate">{item.label}</span>
+                                                <span className="text-[10px] text-charcoal/30 shrink-0 ml-auto">
+                                                    {new Date(item.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))
+                                    }
+                                    {historyEvents.length === 0 && vaccines.length === 0 && dewormings.length === 0 && (
+                                        <p className="text-xs font-bold text-charcoal/30">Sin registros</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        {(historyEvents[0]?.diagnosis || historyEvents[0]?.procedure_notes) && (
+                            <div className="mt-4 p-3 bg-primary-50 rounded-xl border border-primary-100">
+                                <p className="text-xs font-black text-primary-700 uppercase tracking-widest mb-1">Última nota clínica</p>
+                                <p className="text-xs text-charcoal/60 leading-relaxed line-clamp-2">
+                                    {historyEvents[0].diagnosis || historyEvents[0].procedure_notes}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Main Content Tabs */}
             <div className="flex flex-col gap-6 ">

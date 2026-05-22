@@ -402,78 +402,66 @@ const Finance = () => {
     // ── Render ──
     return (
         <div className="space-y-6">
-            {/* Header Banner */}
-            <div className="bg-hero-gradient rounded-softer p-6 text-white shadow-soft-md relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
-                
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-premium-gradient rounded-full flex items-center justify-center shadow-lg shrink-0">
-                            <DollarSign className="w-7 h-7 text-charcoal" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white tracking-tight">Finanzas</h1>
-                            <p className="text-white/80 text-sm mt-1 max-w-2xl leading-relaxed">
-                                📊 Gestiona los ingresos y gastos de tu clínica. Revisa la rentabilidad, los pagos por cobrar y el historial financiero detallado.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 flex-wrap">
-                        {/* Export dropdown */}
-                        <div className="relative" ref={exportMenuRef}>
-                            <button
-                                onClick={() => setShowExportMenu(!showExportMenu)}
-                                className="btn-gold-border bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-soft text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2"
-                            >
-                                <Download className="w-4 h-4" />
-                                <span className="hidden sm:inline">Exportar</span>
-                                <ChevronDown className={cn("w-3 h-3 transition-transform", showExportMenu && "rotate-180")} />
-                            </button>
-
-                            {showExportMenu && (
-                                <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-lg shadow-xl border border-silk-beige py-1 z-50 animate-in fade-in slide-in-from-top-2">
-                                    <p className="px-4 py-2 text-xs font-medium text-charcoal/40 uppercase tracking-wide">Formato de archivo</p>
-                                    <button
-                                        onClick={() => handleExport('csv')}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
-                                    >
-                                        <FileText className="w-4 h-4 text-emerald-600" />
-                                        <div>
-                                            <p className="font-medium">CSV</p>
-                                            <p className="text-xs text-charcoal/50">Compatible con Excel</p>
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={() => handleExport('json')}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
-                                    >
-                                        <FileText className="w-4 h-4 text-amber-600" />
-                                        <div>
-                                            <p className="font-medium">JSON</p>
-                                            <p className="text-xs text-charcoal/50">Datos para analítica</p>
-                                        </div>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Finanzas</h1>
+                    <p className="text-sm text-charcoal/50 mt-1">Ingresos, gastos y rentabilidad de tu clínica.</p>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                    {/* Export dropdown */}
+                    <div className="relative" ref={exportMenuRef}>
                         <button
-                            onClick={() => setShowIncomeModal(true)}
-                            className="bg-premium-gradient text-charcoal px-6 py-2.5 rounded-soft text-sm font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 flex items-center gap-2 border-none"
+                            onClick={() => setShowExportMenu(!showExportMenu)}
+                            className="btn-ghost flex items-center gap-2"
                         >
-                            <Plus className="w-5 h-5" />
-                            Ingreso
+                            <Download className="w-4 h-4" />
+                            <span className="hidden sm:inline">Exportar</span>
+                            <ChevronDown className={cn("w-3 h-3 transition-transform", showExportMenu && "rotate-180")} />
                         </button>
 
-                        <button
-                            onClick={() => setShowExpenseModal(true)}
-                            className="bg-white text-primary-700 hover:bg-ivory px-4 py-2 rounded-soft text-sm font-bold transition-all shadow-sm flex items-center gap-2"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Gasto</span>
-                        </button>
+                        {showExportMenu && (
+                            <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-silk-beige py-1 z-50 animate-in fade-in slide-in-from-top-2">
+                                <p className="px-4 py-2 text-xs font-medium text-charcoal/40 uppercase tracking-wide">Formato de archivo</p>
+                                <button
+                                    onClick={() => handleExport('csv')}
+                                    className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
+                                >
+                                    <FileText className="w-4 h-4 text-emerald-600" />
+                                    <div>
+                                        <p className="font-medium">CSV</p>
+                                        <p className="text-xs text-charcoal/50">Compatible con Excel</p>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => handleExport('json')}
+                                    className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
+                                >
+                                    <FileText className="w-4 h-4 text-amber-600" />
+                                    <div>
+                                        <p className="font-medium">JSON</p>
+                                        <p className="text-xs text-charcoal/50">Datos para analítica</p>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
                     </div>
+
+                    <button
+                        onClick={() => setShowExpenseModal(true)}
+                        className="btn-ghost flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        <span>Gasto</span>
+                    </button>
+
+                    <button
+                        onClick={() => setShowIncomeModal(true)}
+                        className="btn-primary flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Ingreso
+                    </button>
                 </div>
             </div>
 
@@ -484,7 +472,7 @@ const Finance = () => {
                 <p>El control financiero es el corazón de tu negocio. Aquí puedes ver cómo interactúan tus egresos con las ventas generadas por el equipo.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                     <div className="bg-white/50 p-3.5 rounded-soft border border-silk-beige/30">
-                        <p className="font-bold text-primary-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                        <p className="font-bold text-emerald-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                             <TrendingUp className="w-3.5 h-3.5" /> Ingresos vs Gastos:
                         </p>
                         <p className="text-[11px] leading-relaxed text-charcoal/70">
@@ -492,7 +480,7 @@ const Finance = () => {
                         </p>
                     </div>
                     <div className="bg-white/50 p-3.5 rounded-soft border border-silk-beige/30">
-                        <p className="font-bold text-primary-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                        <p className="font-bold text-emerald-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                             <CreditCard className="w-3.5 h-3.5" /> Pagos por Cobrar:
                         </p>
                         <p className="text-[11px] leading-relaxed text-charcoal/70">
@@ -561,7 +549,7 @@ const Finance = () => {
                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                             <DollarSign className="w-5 h-5 text-blue-600" />
                         </div>
-                        <span className="text-xs font-medium text-charcoal/40 bg-gray-100 px-2 py-1 rounded-full">
+                        <span className="text-xs font-medium text-charcoal/40 bg-silk-beige px-2 py-1 rounded-full">
                             Neto
                         </span>
                     </div>
@@ -598,7 +586,7 @@ const Finance = () => {
                         className={cn(
                             "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                             activeTab === 'dashboard'
-                                ? "border-primary-500 text-primary-600"
+                                ? "border-emerald-500 text-emerald-600"
                                 : "border-transparent text-charcoal/60 hover:text-charcoal"
                         )}
                     >
@@ -609,7 +597,7 @@ const Finance = () => {
                         className={cn(
                             "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                             activeTab === 'transactions'
-                                ? "border-primary-500 text-primary-600"
+                                ? "border-emerald-500 text-emerald-600"
                                 : "border-transparent text-charcoal/60 hover:text-charcoal"
                         )}
                     >
@@ -620,7 +608,7 @@ const Finance = () => {
                         className={cn(
                             "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                             activeTab === 'expenses'
-                                ? "border-primary-500 text-primary-600"
+                                ? "border-emerald-500 text-emerald-600"
                                 : "border-transparent text-charcoal/60 hover:text-charcoal"
                         )}
                     >
@@ -631,7 +619,7 @@ const Finance = () => {
                         className={cn(
                             "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                             activeTab === 'incomes'
-                                ? "border-primary-500 text-primary-600"
+                                ? "border-emerald-500 text-emerald-600"
                                 : "border-transparent text-charcoal/60 hover:text-charcoal"
                         )}
                     >
@@ -647,7 +635,7 @@ const Finance = () => {
                         {/* Chart Placeholders */}
                         <div className="lg:col-span-2 card-soft p-6">
                             <h3 className="font-semibold text-charcoal mb-4">Ingresos vs Gastos</h3>
-                            <div className="h-64 flex items-center justify-center bg-gray-50 rounded-soft border border-dashed border-gray-200">
+                            <div className="h-64 flex items-center justify-center bg-ivory rounded-soft border border-dashed border-silk-beige">
                                 <p className="text-charcoal/40 text-sm">Gráfico de barras (Próximamente)</p>
                             </div>
                         </div>
@@ -659,7 +647,7 @@ const Finance = () => {
                                 {transactions.slice(0, 5).map((tx) => (
                                     <div key={tx.id} className="flex items-center justify-between text-sm">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
+                                            <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                                                 <DollarSign className="w-4 h-4" />
                                             </div>
                                             <div>
@@ -717,7 +705,7 @@ const Finance = () => {
                                                     "px-2 py-1 rounded-full text-xs font-medium",
                                                     tx.payment_status === 'paid' ? "bg-emerald-100 text-emerald-700" :
                                                         tx.payment_status === 'pending' ? "bg-amber-100 text-amber-700" :
-                                                            "bg-gray-100 text-gray-600"
+                                                            "bg-silk-beige text-charcoal/60"
                                                 )}>
                                                     {translateStatus(tx.payment_status)}
                                                 </span>
@@ -726,7 +714,7 @@ const Finance = () => {
                                                 {tx.payment_status === 'pending' && (
                                                     <div className="flex flex-col items-end gap-1">
                                                         <button
-                                                            className="text-xs text-primary-600 font-medium hover:underline"
+                                                            className="text-xs text-emerald-600 font-medium hover:underline"
                                                             onClick={() => handleRegisterPayment(tx.id)}
                                                         >
                                                             Registrar Pago
@@ -787,7 +775,7 @@ const Finance = () => {
                                                 {expense.description}
                                             </td>
                                             <td className="px-6 py-3">
-                                                <span className="bg-gray-100 text-charcoal/70 px-2 py-1 rounded text-xs capitalize">
+                                                <span className="bg-silk-beige text-charcoal/70 px-2 py-1 rounded text-xs capitalize">
                                                     {translateCategoryExpense(expense.category)}
                                                 </span>
                                             </td>
@@ -841,7 +829,7 @@ const Finance = () => {
                                                 {income.description}
                                             </td>
                                             <td className="px-6 py-3">
-                                                <span className="bg-gray-100 text-charcoal/70 px-2 py-1 rounded text-xs capitalize">
+                                                <span className="bg-silk-beige text-charcoal/70 px-2 py-1 rounded text-xs capitalize">
                                                     {translateCategoryIncome(income.category)}
                                                 </span>
                                             </td>
@@ -890,7 +878,7 @@ const Finance = () => {
                                 <input
                                     name="description"
                                     required
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full px-3 py-2 border border-silk-beige rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                                     placeholder="Ej. Compra de insumos"
                                 />
                             </div>
@@ -904,7 +892,7 @@ const Finance = () => {
                                         required
                                         min="0"
                                         step="0.01"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className="w-full px-3 py-2 border border-silk-beige rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                                         placeholder="0.00"
                                     />
                                 </div>
@@ -915,7 +903,7 @@ const Finance = () => {
                                         type="date"
                                         required
                                         defaultValue={new Date().toISOString().split('T')[0]}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className="w-full px-3 py-2 border border-silk-beige rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                                     />
                                 </div>
                             </div>
@@ -925,7 +913,7 @@ const Finance = () => {
                                 <select
                                     name="category"
                                     required
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full px-3 py-2 border border-silk-beige rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                                 >
                                     {(Object.entries(CATEGORY_LABELS_EXPENSE)).map(([val, label]) => (
                                         <option key={val} value={val}>{label}</option>

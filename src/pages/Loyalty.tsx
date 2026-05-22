@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import {
-    Star,
     Users,
     TrendingUp,
     Plus,
@@ -187,36 +186,27 @@ export default function Loyalty() {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Premium Gold Header */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-amber-700 rounded-softer p-6 text-white shadow-soft-lg">
-                <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-amber-900/20 rounded-full blur-3xl" />
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Fidelización &amp; Referidos</h1>
+                    <p className="text-sm text-charcoal/50 mt-1">Programa de lealtad y crecimiento orgánico de tu clínica.</p>
+                </div>
+            </div>
 
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Star className="w-5 h-5 text-amber-200 fill-amber-300" />
-                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm uppercase">Fidelización & Referidos</h1>
-                        </div>
-                        <p className="text-amber-100 text-sm max-w-md">
-                            Gestiona el programa de lealtad de tu clínica. Premia a tus mejores tutores y fomenta el crecimiento orgánico.
-                        </p>
-                    </div>
-
-                    <div className="flex gap-4 w-full md:w-auto overflow-x-auto no-scrollbar pb-2 md:pb-0">
-                        <div className="bg-white/10 backdrop-blur-md rounded-soft p-4 min-w-[140px] border border-white/10">
-                            <p className="text-amber-200 text-xs font-bold uppercase tracking-widest mb-1">{settings?.loyalty_points_name || 'Saldo'} Total</p>
-                            <p className="text-2xl font-black">{stats.totalPointsDist.toLocaleString()}</p>
-                        </div>
-                        <div className="bg-white/10 backdrop-blur-md rounded-soft p-4 min-w-[140px] border border-white/10">
-                            <p className="text-amber-200 text-xs font-bold uppercase tracking-widest mb-1">Referidores</p>
-                            <p className="text-2xl font-black">{stats.totalReferrals}</p>
-                        </div>
-                        <div className="bg-white/10 backdrop-blur-md rounded-soft p-4 min-w-[140px] border border-white/10">
-                            <p className="text-amber-200 text-xs font-bold uppercase tracking-widest mb-1">Recompensas</p>
-                            <p className="text-2xl font-black">{stats.activeAlerts}</p>
-                        </div>
-                    </div>
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-5">
+                    <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-1">{settings?.loyalty_points_name || 'Saldo'} Total</p>
+                    <p className="text-2xl font-bold text-charcoal">{stats.totalPointsDist.toLocaleString()}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-5">
+                    <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-1">Referidores</p>
+                    <p className="text-2xl font-bold text-charcoal">{stats.totalReferrals}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-5">
+                    <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-1">Recompensas</p>
+                    <p className="text-2xl font-bold text-charcoal">{stats.activeAlerts}</p>
                 </div>
             </div>
 
@@ -226,7 +216,7 @@ export default function Loyalty() {
                     onClick={() => setActiveTab('points')}
                     className={cn(
                         "flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-black transition-all whitespace-nowrap",
-                        activeTab === 'points' ? "bg-primary-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
+                        activeTab === 'points' ? "bg-accent-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
                     )}
                 >
                     <Gift className="w-3.5 h-3.5" />
@@ -236,7 +226,7 @@ export default function Loyalty() {
                     onClick={() => setActiveTab('referrals')}
                     className={cn(
                         "flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-black transition-all whitespace-nowrap",
-                        activeTab === 'referrals' ? "bg-primary-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
+                        activeTab === 'referrals' ? "bg-accent-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
                     )}
                 >
                     <Users className="w-3.5 h-3.5" />
@@ -246,7 +236,7 @@ export default function Loyalty() {
                     onClick={() => setActiveTab('rewards')}
                     className={cn(
                         "flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-black transition-all whitespace-nowrap",
-                        activeTab === 'rewards' ? "bg-primary-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
+                        activeTab === 'rewards' ? "bg-accent-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
                     )}
                 >
                     <ShoppingBag className="w-3.5 h-3.5" />
@@ -256,7 +246,7 @@ export default function Loyalty() {
                     onClick={() => setActiveTab('alerts')}
                     className={cn(
                         "flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-black transition-all whitespace-nowrap",
-                        activeTab === 'alerts' ? "bg-primary-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
+                        activeTab === 'alerts' ? "bg-accent-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
                     )}
                 >
                     <HistoryIcon className="w-3.5 h-3.5" />
@@ -266,7 +256,7 @@ export default function Loyalty() {
                     onClick={() => setActiveTab('settings')}
                     className={cn(
                         "flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-black transition-all whitespace-nowrap",
-                        activeTab === 'settings' ? "bg-primary-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
+                        activeTab === 'settings' ? "bg-accent-500 text-white shadow-md" : "text-charcoal/40 hover:text-charcoal"
                     )}
                 >
                     <SettingsIcon className="w-3.5 h-3.5" />
@@ -285,7 +275,7 @@ export default function Loyalty() {
                                 placeholder="Buscar por nombre o celular..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full h-12 pl-12 pr-4 bg-ivory border border-silk-beige rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 transition-all font-bold placeholder:text-charcoal/20"
+                                className="w-full h-12 pl-12 pr-4 bg-ivory border border-silk-beige rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-accent-100 transition-all font-bold placeholder:text-charcoal/20"
                             />
                         </div>
                         {Object.keys(pendingAdjustments).length > 0 && (
@@ -309,14 +299,14 @@ export default function Loyalty() {
                             <div key={tutor.id} className="bg-white rounded-softer p-5 border border-silk-beige shadow-soft-sm hover:shadow-soft-md transition-all group">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-ivory rounded-full flex items-center justify-center text-primary-600 font-bold border border-silk-beige">
+                                        <div className="w-10 h-10 bg-ivory rounded-full flex items-center justify-center text-accent-600 font-bold border border-silk-beige">
                                             {tutor.name?.charAt(0) || '?'}
                                         </div>
                                         <div>
                                             <p className="font-bold text-charcoal">{tutor.name}</p>
                                             <div className="flex flex-col">
                                                 <p className="text-xs text-charcoal/40 uppercase tracking-tight">{tutor.phone_number}</p>
-                                                <p className="text-xs font-bold text-primary-500 uppercase tracking-tight">Cód: {tutor.referral_code || '---'}</p>
+                                                <p className="text-xs font-bold text-accent-500 uppercase tracking-tight">Cód: {tutor.referral_code || '---'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -329,7 +319,7 @@ export default function Loyalty() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-xs font-bold font-black text-charcoal/30 uppercase tracking-widest leading-none mb-1">Saldo Actual</p>
-                                            <p className="text-xl font-black text-charcoal">{tutor.loyalty_points || 0} <span className="text-sm font-bold text-primary-500">{settings?.loyalty_currency_symbol || 'pts'}</span></p>
+                                            <p className="text-xl font-black text-charcoal">{tutor.loyalty_points || 0} <span className="text-sm font-bold text-accent-500">{settings?.loyalty_currency_symbol || 'pts'}</span></p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-xs font-bold font-black text-charcoal/20 uppercase tracking-widest leading-none mb-1">Referidos</p>
@@ -375,7 +365,7 @@ export default function Loyalty() {
                                             onClick={() => {
                                                 copyReferralLink(tutor.referral_code || '');
                                             }}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-full text-xs font-bold hover:bg-primary-100 transition-colors"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-50 text-accent-600 rounded-full text-xs font-bold hover:bg-accent-100 transition-colors"
                                             title="Copiar enlace para el tutor"
                                         >
                                             <Share2 className="w-3 h-3" />
@@ -396,7 +386,7 @@ export default function Loyalty() {
                         <div className="lg:col-span-2 card-soft p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-lg font-bold text-charcoal">Ranking de Embajadores</h3>
-                                <div className="flex items-center gap-2 text-primary-500 bg-primary-50 px-3 py-1.5 rounded-full text-xs font-bold">
+                                <div className="flex items-center gap-2 text-accent-600 bg-accent-50 px-3 py-1.5 rounded-full text-xs font-bold">
                                     <Award className="w-4 h-4" />
                                     Bono: {settings?.loyalty_referral_bonus} {settings?.loyalty_currency_symbol || 'pts'} / amigo referido
                                 </div>
@@ -407,7 +397,7 @@ export default function Loyalty() {
                                     .sort((a, b) => b.referral_count - a.referral_count)
                                     .slice(0, 10)
                                     .map((ambassador, idx) => (
-                                        <div key={ambassador.id} className="flex items-center gap-4 p-4 bg-ivory rounded-soft border border-silk-beige/50 hover:border-primary-200 transition-all">
+                                        <div key={ambassador.id} className="flex items-center gap-4 p-4 bg-ivory rounded-soft border border-silk-beige/50 hover:border-accent-200 transition-all">
                                             <div className={cn(
                                                 "w-8 h-8 rounded-full flex items-center justify-center font-black text-sm",
                                                 idx === 0 ? "bg-amber-500 text-white" : "bg-silk-beige text-charcoal/50"
@@ -416,7 +406,7 @@ export default function Loyalty() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-bold text-charcoal">{ambassador.name}</p>
-                                                <p className="text-xs text-charcoal/40">Código: <span className="font-mono text-primary-500">{ambassador.referral_code}</span></p>
+                                                <p className="text-xs text-charcoal/40">Código: <span className="font-mono text-accent-500">{ambassador.referral_code}</span></p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-lg font-black text-charcoal">{ambassador.referral_count}</p>
@@ -446,15 +436,15 @@ export default function Loyalty() {
                                 <h3 className="font-bold text-charcoal mb-4">¿Cómo funciona?</h3>
                                 <ul className="space-y-3">
                                     <li className="flex gap-2 text-xs text-charcoal/60">
-                                        <span className="text-primary-500 font-bold">1.</span>
+                                        <span className="text-accent-500 font-bold">1.</span>
                                         El tutor comparte su "Magic Link" con un amigo.
                                     </li>
                                     <li className="flex gap-2 text-xs text-charcoal/60">
-                                        <span className="text-primary-500 font-bold">2.</span>
+                                        <span className="text-accent-500 font-bold">2.</span>
                                         El amigo agenda su primera cita usando ese enlace.
                                     </li>
                                     <li className="flex gap-2 text-xs text-charcoal/60">
-                                        <span className="text-primary-500 font-bold">3.</span>
+                                        <span className="text-accent-500 font-bold">3.</span>
                                         Al concretar la cita, el amigo recibe su bono de bienvenida y el referente recibe su bono por invitar.
                                     </li>
                                 </ul>
@@ -473,7 +463,7 @@ export default function Loyalty() {
                         </div>
                         <button
                             onClick={() => setIsRewardModalOpen(true)}
-                            className="flex items-center gap-2 bg-primary-500 text-white px-6 py-3 rounded-full font-black text-sm shadow-md hover:bg-primary-600 transition-all"
+                            className="flex items-center gap-2 bg-accent-500 text-white px-6 py-3 rounded-full font-black text-sm shadow-md hover:bg-accent-600 transition-all"
                         >
                             <Plus className="w-4 h-4" />
                             Nueva Recompensa
@@ -485,7 +475,7 @@ export default function Loyalty() {
                             <div key={reward.id} className="card-soft overflow-hidden group">
                                 <div className="p-6">
                                     <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-primary-50 rounded-soft text-primary-600">
+                                        <div className="p-3 bg-accent-50 rounded-soft text-accent-600">
                                             {reward.reward_type === 'money' && <DollarSign className="w-6 h-6" />}
                                             {reward.reward_type === 'percentage' && <Percent className="w-6 h-6" />}
                                             {(reward.reward_type === 'gift' || reward.reward_type === 'treatment') && <Gift className="w-6 h-6" />}
@@ -520,7 +510,7 @@ export default function Loyalty() {
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
                     <div className="card-soft p-6">
                         <h3 className="text-lg font-bold text-charcoal mb-4 flex items-center gap-2">
-                            <HistoryIcon className="w-5 h-5 text-primary-500" />
+                            <HistoryIcon className="w-5 h-5 text-accent-500" />
                             Historial Global de Movimientos
                         </h3>
                         <div className="space-y-3">
@@ -561,7 +551,7 @@ export default function Loyalty() {
                     <div className="lg:col-span-2 space-y-6">
                         <section className="bg-white rounded-softer border border-silk-beige p-8 shadow-soft-sm">
                             <h3 className="text-xl font-black text-charcoal mb-6 flex items-center gap-2">
-                                <Calculator className="w-6 h-6 text-primary-500" />
+                                <Calculator className="w-6 h-6 text-accent-500" />
                                 Configuración del Programa
                             </h3>
 
@@ -596,11 +586,11 @@ export default function Loyalty() {
                                                 className={cn(
                                                     "flex flex-col items-center text-center p-6 rounded-softer border-2 transition-all",
                                                     settings?.loyalty_program_mode === mode.id
-                                                        ? "border-primary-500 bg-primary-50 shadow-inner"
+                                                        ? "border-accent-500 bg-accent-50 shadow-inner"
                                                         : "border-silk-beige bg-white hover:border-silk-beige/80"
                                                 )}
                                             >
-                                                <mode.icon className={cn("w-8 h-8 mb-4", settings?.loyalty_program_mode === mode.id ? "text-primary-500" : "text-charcoal/30")} />
+                                                <mode.icon className={cn("w-8 h-8 mb-4", settings?.loyalty_program_mode === mode.id ? "text-accent-500" : "text-charcoal/30")} />
                                                 <p className="font-bold text-sm mb-1">{mode.label}</p>
                                                 <p className="text-xs text-charcoal/40 font-medium leading-tight">{mode.desc}</p>
                                             </button>
@@ -616,7 +606,7 @@ export default function Loyalty() {
                                             type="text"
                                             value={settings?.loyalty_points_name}
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_points_name: e.target.value } : null)}
-                                            className="w-full h-11 px-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-primary-100"
+                                            className="w-full h-11 px-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-accent-100"
                                         />
                                     </div>
                                     <div>
@@ -626,7 +616,7 @@ export default function Loyalty() {
                                             type="text"
                                             value={settings?.loyalty_currency_symbol}
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_currency_symbol: e.target.value } : null)}
-                                            className="w-full h-11 px-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-primary-100"
+                                            className="w-full h-11 px-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-accent-100"
                                         />
                                     </div>
                                 </div>

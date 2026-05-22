@@ -123,7 +123,7 @@ export function CalendarView({ events, onSelectEvent, onSelectSlot, onEditEvent 
                 eventPropGetter={eventPropGetter}
                 dayPropGetter={(date) => {
                     const params = { className: 'bg-white' }
-                    if (date.getDay() === 0) params.className = 'bg-gray-50/50' // Sunday
+                    if (date.getDay() === 0) params.className = 'bg-ivory/50'
                     return params
                 }}
             />

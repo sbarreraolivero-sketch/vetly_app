@@ -1217,7 +1217,7 @@ export default function Settings() {
     }
 
     return (
-        <div className="animate-fade-in relative min-h-[calc(100vh-7rem)] bg-gradient-to-br from-accent-200 to-accent-100 p-2 sm:p-4 md:p-8 rounded-xl sm:rounded-[2rem] shadow-soft-xl border border-white/60">
+        <div className="animate-fade-in relative min-h-[calc(100vh-7rem)] p-0">
             <div className="flex flex-col md:flex-row gap-6 md:gap-8">
 
                 {/* Mobile Content Header (Back Button) */}
@@ -1792,7 +1792,7 @@ export default function Settings() {
                                                                 key={prof.member_id}
                                                                 className={cn(
                                                                     "flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer",
-                                                                    isAssigned ? "bg-primary-50 border border-primary-200" : "bg-gray-50 border border-transparent hover:border-gray-200"
+                                                                    isAssigned ? "bg-primary-50 border border-primary-200" : "bg-ivory border border-transparent hover:border-silk-beige"
                                                                 )}
                                                                 onClick={() => {
                                                                     setAssignedProfessionals(prev => ({
@@ -2214,7 +2214,7 @@ export default function Settings() {
                                                                         }}
                                                                         className="sr-only peer"
                                                                     />
-                                                                    <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-500"></div>
+                                                                    <div className="w-8 h-4 bg-silk-beige peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-500"></div>
                                                                 </div>
                                                                 <span className="text-xs font-medium text-charcoal/50">Colación</span>
                                                             </label>
@@ -2346,7 +2346,7 @@ export default function Settings() {
                                             <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto" />
                                         </div>
                                     ) : blockedDates.length === 0 ? (
-                                        <div className="py-12 bg-gray-50/50 rounded-soft border-2 border-dashed border-silk-beige flex flex-col items-center justify-center text-center">
+                                        <div className="py-12 bg-ivory/50 rounded-soft border-2 border-dashed border-silk-beige flex flex-col items-center justify-center text-center">
                                             <Calendar className="w-12 h-12 text-charcoal/10 mb-2" />
                                             <p className="text-charcoal/40 text-sm italic">No hay días bloqueados próximamente.</p>
                                         </div>
@@ -2501,14 +2501,14 @@ export default function Settings() {
                                                     'border rounded-soft p-4 transition-all',
                                                     wh.is_active
                                                         ? 'border-silk-beige bg-white hover:shadow-sm'
-                                                        : 'border-gray-200 bg-gray-50/50 opacity-60'
+                                                        : 'border-silk-beige bg-ivory/50 opacity-60'
                                                 )}
                                             >
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-3">
                                                         <div className={cn(
                                                             'w-2.5 h-2.5 rounded-full',
-                                                            wh.is_active ? 'bg-emerald-400' : 'bg-gray-300'
+                                                            wh.is_active ? 'bg-emerald-400' : 'bg-charcoal/20'
                                                         )} />
                                                         <h3 className="font-medium text-charcoal text-sm">{wh.name}</h3>
                                                     </div>
@@ -2533,7 +2533,7 @@ export default function Settings() {
                                                             {wh.is_active ? (
                                                                 <ToggleRight className="w-5 h-5 text-emerald-500" />
                                                             ) : (
-                                                                <ToggleLeft className="w-5 h-5 text-gray-400" />
+                                                                <ToggleLeft className="w-5 h-5 text-charcoal/30" />
                                                             )}
                                                         </button>
                                                         <button
@@ -2652,7 +2652,7 @@ export default function Settings() {
                                                                 'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0',
                                                                 webhookForm.events.includes(ev.value)
                                                                     ? 'bg-orange-500 border-orange-500'
-                                                                    : 'border-gray-300'
+                                                                    : 'border-silk-beige'
                                                             )}>
                                                                 {webhookForm.events.includes(ev.value) && (
                                                                     <Check className="w-3 h-3 text-white" />
@@ -2917,7 +2917,7 @@ export default function Settings() {
                                         <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Ideal para saludos y agendamientos rápidos usando Flash Mini.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
-                                            aiActiveModel === 'mini' ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-charcoal/30"
+                                            aiActiveModel === 'mini' ? "bg-emerald-100 text-emerald-700" : "bg-silk-beige/50 text-charcoal/30"
                                         )}>
                                             {aiActiveModel === 'mini' ? '✓ Seleccionado' : 'Activar Estrategia'}
                                         </div>
@@ -2949,7 +2949,7 @@ export default function Settings() {
                                         <p className="text-sm font-medium text-charcoal/70 leading-relaxed font-bold">El sistema elige el mejor modelo según la complejidad del mensaje.</p>
                                         <div className={cn(
                                             "mt-6 py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
-                                            aiActiveModel === 'hybrid' ? "bg-primary-500 text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
+                                            aiActiveModel === 'hybrid' ? "bg-primary-500 text-white shadow-lg" : "bg-silk-beige/50 text-charcoal/30"
                                         )}>
                                             {aiActiveModel === 'hybrid' ? 'Motor Inteligente Activo' : 'Activar IA Router'}
                                         </div>
@@ -2976,7 +2976,7 @@ export default function Settings() {
                                         <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-4o para casos clínicos complejos.</p>
                                         <div className={cn(
                                             "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
-                                            aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-gray-100 text-charcoal/30"
+                                            aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-silk-beige/50 text-charcoal/30"
                                         )}>
                                             {aiActiveModel === 'pro' ? '✓ Modo Pro Activo' : 'Activar Modo Pro'}
                                         </div>

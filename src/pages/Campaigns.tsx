@@ -281,7 +281,7 @@ export default function Campaigns() {
             case 'sending': return 'bg-blue-100 text-blue-700'
             case 'failed': return 'bg-red-100 text-red-700'
             case 'scheduled': return 'bg-amber-100 text-amber-700'
-            default: return 'bg-gray-100 text-gray-700'
+            default: return 'bg-silk-beige text-charcoal/60'
         }
     }
 
@@ -297,43 +297,19 @@ export default function Campaigns() {
 
     return (
         <div className="space-y-6">
-            {/* Header Banner */}
-            <div className="bg-hero-gradient rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden shadow-2xl mb-10 border border-white/10">
-                {/* Decorative blobs */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none animate-pulse"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/20 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4 pointer-events-none"></div>
-
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                    <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner group transition-all duration-500 hover:scale-110">
-                            <div className="p-3 bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-600 rounded-xl shadow-lg">
-                                <Megaphone className="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" />
-                            </div>
-                        </div>
-                        <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[12px] font-bold uppercase tracking-widest mb-3 animate-fade-in">
-                                <Megaphone className="w-3.5 h-3.5 text-amber-300" />
-                                <span className="text-amber-50">Difusión y Retención</span>
-                            </div>
-                            <h1 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight drop-shadow-sm uppercase text-white">
-                                Campañas de Marketing
-                            </h1>
-                            <p className="text-emerald-50/90 text-sm sm:text-base max-w-xl font-semibold leading-relaxed">
-                                Envía mensajes masivos por WhatsApp a tus pacientes estratégicamente y aumenta el retorno de tu clínica.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <button
-                            onClick={() => setShowNewCampaignModal(true)}
-                            className="w-full sm:w-auto px-8 py-3.5 bg-white text-emerald-900 hover:bg-emerald-50 transition-all font-black rounded-xl flex items-center justify-center gap-2 shadow-premium hover:scale-105 active:scale-95 uppercase text-xs tracking-widest"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Nueva Campaña
-                        </button>
-                    </div>
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Campañas de Marketing</h1>
+                    <p className="text-sm text-charcoal/50 mt-1">Mensajes masivos por WhatsApp segmentados por etiquetas.</p>
                 </div>
+                <button
+                    onClick={() => setShowNewCampaignModal(true)}
+                    className="btn-primary flex items-center gap-2"
+                >
+                    <Plus className="w-4 h-4" />
+                    Nueva Campaña
+                </button>
             </div>
 
             <GuideBox title="Campañas de WhatsApp Masivas" summary="Automatiza el re-contacto usando etiquetas segmentadas.">
@@ -388,7 +364,7 @@ export default function Campaigns() {
                                 {templates.find(t => t.id === campaign.template_name)?.name || campaign.template_name}
                             </p>
 
-                            <div className="flex items-center gap-4 text-sm text-charcoal/70 mb-6 bg-gray-50 p-3 rounded-soft">
+                            <div className="flex items-center gap-4 text-sm text-charcoal/70 mb-6 bg-ivory p-3 rounded-soft">
                                 <div className="flex items-center gap-1.5 tooltipped" title="Audiencia Objetivo">
                                     <Users className="w-4 h-4 text-primary-500" />
                                     <span>{campaign.total_target}</span>
@@ -436,13 +412,13 @@ export default function Campaigns() {
                         <div className="p-6 overflow-y-auto">
                             {/* Steps Indicator */}
                             <div className="flex items-center gap-2 mb-8 text-sm">
-                                <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary-600 font-medium' : 'text-charcoal/40'}`}>
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-primary-100' : 'bg-gray-100'}`}>1</div>
+                                <div className={`flex items-center gap-2 ${step >= 1 ? 'text-violet-600 font-medium' : 'text-charcoal/40'}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-violet-100' : 'bg-silk-beige'}`}>1</div>
                                     Detalles
                                 </div>
-                                <div className="h-px w-8 bg-gray-200" />
+                                <div className="h-px w-8 bg-silk-beige" />
                                 <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary-600 font-medium' : 'text-charcoal/40'}`}>
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-primary-100' : 'bg-gray-100'}`}>2</div>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-primary-100' : 'bg-silk-beige'}`}>2</div>
                                     Contenido
                                 </div>
                             </div>
@@ -480,8 +456,8 @@ export default function Campaigns() {
                                                             className={`
                                                                 px-2 py-1 rounded text-xs font-bold font-bold uppercase tracking-wider border transition-all
                                                                 ${inclusionTags.includes(tag.id)
-                                                                    ? 'bg-primary-500 text-white border-primary-600 shadow-sm'
-                                                                    : 'bg-white text-charcoal/40 border-silk-beige hover:border-primary-300'
+                                                                    ? 'bg-violet-500 text-white border-violet-600 shadow-sm'
+                                                                    : 'bg-white text-charcoal/40 border-silk-beige hover:border-violet-300'
                                                                 }
                                                             `}
                                                         >
@@ -524,7 +500,7 @@ export default function Campaigns() {
                                             </div>
                                         </div>
 
-                                        <div className="bg-primary-50 text-primary-700 px-4 py-3 rounded-soft text-sm flex items-center justify-between">
+                                        <div className="bg-violet-50 text-violet-700 px-4 py-3 rounded-soft text-sm flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <Users className="w-4 h-4" />
                                                 <span>Público estimado:</span>
@@ -541,7 +517,7 @@ export default function Campaigns() {
                                     <label className="label">Plantilla de WhatsApp</label>
                                     <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-2">
                                         {templates.length === 0 ? (
-                                            <div className="text-sm text-charcoal/50 text-center py-4 bg-gray-50 rounded-soft border border-dashed">
+                                            <div className="text-sm text-charcoal/50 text-center py-4 bg-ivory rounded-soft border border-dashed">
                                                 No hay plantillas aprobadas disponibles.
                                             </div>
                                         ) : (
@@ -551,8 +527,8 @@ export default function Campaigns() {
                                                     className={`
                                                         p-3 rounded-soft border cursor-pointer transition-all
                                                         ${selectedTemplate === template.id
-                                                            ? 'border-primary-500 bg-primary-50'
-                                                            : 'border-silk-beige hover:border-primary-200'
+                                                            ? 'border-violet-500 bg-violet-50'
+                                                            : 'border-silk-beige hover:border-violet-200'
                                                         }
                                                     `}
                                                     onClick={() => setSelectedTemplate(template.id)}
@@ -567,7 +543,7 @@ export default function Campaigns() {
                             )}
                         </div>
 
-                        <div className="p-5 border-t border-silk-beige flex justify-between bg-gray-50 rounded-b-soft">
+                        <div className="p-5 border-t border-silk-beige flex justify-between bg-ivory rounded-b-soft">
                             {step > 1 ? (
                                 <button onClick={() => setStep(step - 1)} className="btn-ghost">
                                     Atrás

@@ -155,33 +155,21 @@ export default function Templates() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            {/* Header Banner */}
-            <div className="bg-hero-gradient rounded-softer p-6 text-white shadow-soft-md relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
-                
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-premium-gradient rounded-full flex items-center justify-center shadow-lg shrink-0">
-                            <FileText className="w-7 h-7 text-charcoal" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white tracking-tight">Plantillas de WhatsApp</h1>
-                            <p className="text-white/80 text-sm mt-1 max-w-2xl leading-relaxed">
-                                💬 Mensajes pre-aprobados por Meta. Úsalos en tus recordatorios de citas, campañas de marketing y motor de retención.
-                            </p>
-                        </div>
-                    </div>
-
-                    {!isCreating && (
-                        <button
-                            onClick={() => setIsCreating(true)}
-                            className="bg-white text-primary-700 hover:bg-ivory px-6 py-2.5 rounded-soft text-sm font-bold transition-all shadow-sm flex items-center gap-2"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Nueva Plantilla</span>
-                        </button>
-                    )}
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Plantillas de WhatsApp</h1>
+                    <p className="text-sm text-charcoal/50 mt-1">Mensajes pre-aprobados por Meta para recordatorios y campañas.</p>
                 </div>
+                {!isCreating && (
+                    <button
+                        onClick={() => setIsCreating(true)}
+                        className="btn-primary flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Nueva Plantilla
+                    </button>
+                )}
             </div>
 
             {/* Creation Form */}
@@ -207,7 +195,7 @@ export default function Templates() {
                         <p>Las plantillas de WhatsApp deben ser aprobadas por <b>Meta</b> antes de ser enviadas. Sigue estos consejos para evitar rechazos:</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                             <div className="bg-white/50 p-3.5 rounded-soft border border-silk-beige/30">
-                                <p className="font-bold text-primary-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                                <p className="font-bold text-sky-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                                     <Check className="w-3.5 h-3.5" /> Uso de Variables {'{{n}}'}:
                                 </p>
                                 <p className="text-[11px] leading-relaxed text-charcoal/70">
@@ -216,7 +204,7 @@ export default function Templates() {
                                 </p>
                             </div>
                             <div className="bg-white/50 p-3.5 rounded-soft border border-silk-beige/30">
-                                <p className="font-bold text-primary-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                                <p className="font-bold text-sky-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                                     <Info className="w-3.5 h-3.5" /> Categorías de Meta:
                                 </p>
                                 <p className="text-[11px] leading-relaxed text-charcoal/70 list-disc">
@@ -234,7 +222,7 @@ export default function Templates() {
                     {/* Pre-built Templates Library */}
                     <div className="mb-8 bg-ivory/50 rounded-xl p-4 border border-silk-beige">
                         <h3 className="text-sm font-semibold text-charcoal flex items-center gap-2 mb-3">
-                            <Sparkles className="w-4 h-4 text-primary-500" />
+                            <Sparkles className="w-4 h-4 text-sky-500" />
                             Plantillas Recomendadas (Rápidas)
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -252,9 +240,9 @@ export default function Templates() {
                                         5: 'AnimalGrace'
                                     })
                                 }}
-                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Reactivación</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Reactivación</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">Hola {'{{1}}'}, en {'{{5}}'} te extrañamos...</div>
                             </button>
                             <button
@@ -272,9 +260,9 @@ export default function Templates() {
                                         5: 'AnimalGrace'
                                     })
                                 }}
-                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Recordatorio Profesional</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Recordatorio Profesional</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">Hola esperamos que te encuentres muy bien! Te enviamos este mensaje...</div>
                             </button>
                             <button
@@ -291,9 +279,9 @@ export default function Templates() {
                                         5: 'AnimalGrace'
                                     })
                                 }}
-                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Oferta Especial</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Oferta Especial</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola {'{{1}}'}! Promoción en {'{{2}}'}...</div>
                             </button>
                             <button
@@ -312,9 +300,9 @@ export default function Templates() {
                                         5: 'AnimalGrace'
                                     })
                                 }}
-                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Seguimiento Médico</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Seguimiento Médico</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 Te escribimos de {'{{5}}'} para recordarte...</div>
                             </button>
                             <button
@@ -329,9 +317,9 @@ export default function Templates() {
                                         1: 'Roco'
                                     })
                                 }}
-                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-primary-300 hover:shadow-soft-sm transition-all text-sm group"
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
                             >
-                                <div className="font-bold text-charcoal mb-1 group-hover:text-primary-600 transition-colors">Satisfacción</div>
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Satisfacción</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 En la clínica nos importa mucho la salud de {'{{1}}'}...</div>
                             </button>
                         </div>
@@ -379,7 +367,7 @@ export default function Templates() {
                                 {/* Seleccionador de Variables */}
                                 <div className="mb-3 p-3 bg-white border border-silk-beige rounded-xl shadow-soft-sm">
                                     <div className="text-[11px] font-semibold text-charcoal/60 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <Code className="w-3.5 h-3.5 text-primary-500" /> Insertar Variables Dinámicas
+                                        <Code className="w-3.5 h-3.5 text-sky-500" /> Insertar Variables Dinámicas
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {QUICK_VARIABLES.map((v, i) => (
@@ -387,7 +375,7 @@ export default function Templates() {
                                                 key={i}
                                                 type="button"
                                                 onClick={() => insertVariable(v.num, v.example)}
-                                                className="px-2.5 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 hover:text-primary-800 border border-primary-200 rounded-lg transition-colors flex items-center gap-1.5"
+                                                className="px-2.5 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-800 border border-sky-200 rounded-lg transition-colors flex items-center gap-1.5"
                                                 title={`Insertar variable para ${v.label}`}
                                             >
                                                 <span>{v.icon}</span> {v.label}
@@ -498,7 +486,7 @@ export default function Templates() {
                                     {/* Chat bubble */}
                                     <div className="bg-white p-3.5 rounded-xl rounded-tl-sm shadow-sm text-[14px] text-[#111B21] mb-2 max-w-[92%] whitespace-pre-wrap leading-relaxed">
                                         {(() => {
-                                            if (!newTemplate.body) return <span className="text-gray-400 italic font-light">Escribe el cuerpo del mensaje para previsualizar...</span>
+                                            if (!newTemplate.body) return <span className="text-charcoal/40 italic font-light">Escribe el cuerpo del mensaje para previsualizar...</span>
 
                                             let previewBody = newTemplate.body
                                             // Replace {{n}} with actual examples in the simulator
@@ -516,7 +504,7 @@ export default function Templates() {
 
                                     {/* Buttons */}
                                     {newTemplate.buttons.map((btn, idx) => btn ? (
-                                        <div key={idx} className="bg-white text-[#00A884] font-medium text-center p-2.5 rounded-xl shadow-[0_1px_1px_rgba(11,20,26,.1)] border border-gray-100 text-base mb-2 hover:bg-gray-50 transition-colors cursor-pointer select-none">
+                                        <div key={idx} className="bg-white text-[#00A884] font-medium text-center p-2.5 rounded-xl shadow-[0_1px_1px_rgba(11,20,26,.1)] border border-silk-beige text-base mb-2 hover:bg-ivory transition-colors cursor-pointer select-none">
                                             {btn}
                                         </div>
                                     ) : null)}
@@ -529,7 +517,7 @@ export default function Templates() {
                         <button
                             type="button"
                             onClick={() => setIsCreating(false)}
-                            className="px-6 py-2.5 text-sm font-bold text-charcoal/60 hover:text-charcoal hover:bg-gray-100 rounded-xl transition-colors"
+                            className="px-6 py-2.5 text-sm font-bold text-charcoal/60 hover:text-charcoal hover:bg-ivory rounded-xl transition-colors"
                         >
                             Cancelar
                         </button>
@@ -582,7 +570,7 @@ export default function Templates() {
                             }} />
 
                             <div className="relative z-10 bg-white p-3.5 rounded-xl rounded-tl-sm shadow-sm text-[13.5px] text-charcoal/90 whitespace-pre-wrap leading-relaxed min-h-[100px]">
-                                {template.desc || template.body || <span className="text-gray-400 italic">El contenido no está disponible para previsualizar...</span>}
+                                {template.desc || template.body || <span className="text-charcoal/40 italic">El contenido no está disponible para previsualizar...</span>}
                             </div>
                         </div>
                     </div>

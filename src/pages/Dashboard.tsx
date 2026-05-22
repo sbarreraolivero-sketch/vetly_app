@@ -4,7 +4,6 @@ import {
     MessageSquare,
     TrendingUp,
     Clock,
-    CheckCircle2,
     Loader2,
     Crown,
     Star,
@@ -368,16 +367,16 @@ export default function Dashboard() {
             name: 'MENSAJES DE IA',
             value: extraStats.aiMessages.toString(),
             icon: MessageSquare,
-            color: 'text-rose-500',
-            bg: 'bg-rose-500/10',
+            color: 'text-sky-500',
+            bg: 'bg-sky-500/10',
             change: calculatePercentage(extraStats.aiMessages, prevStats.aiMessages)
         },
         {
             name: 'RECORDATORIOS',
             value: extraStats.remindersSent.toString(),
             icon: Clock,
-            color: 'text-primary-500',
-            bg: 'bg-primary-500/10',
+            color: 'text-amber-500',
+            bg: 'bg-amber-500/10',
             change: calculatePercentage(extraStats.remindersSent, prevStats.reminders)
         },
         {
@@ -392,9 +391,9 @@ export default function Dashboard() {
             name: 'TIEMPO AHORRADO',
             value: tiempoAhorradoStr,
             icon: TrendingUp,
-            color: 'text-primary-500',
-            bg: 'bg-primary-500/10',
-            change: 0 // No comparison for time saved yet
+            color: 'text-emerald-500',
+            bg: 'bg-emerald-500/10',
+            change: 0
         }
     ]
 
@@ -404,7 +403,7 @@ export default function Dashboard() {
         
         return (
             <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${
-                isNeutral ? 'bg-gray-100 text-gray-500' :
+                isNeutral ? 'bg-silk-beige/50 text-charcoal/40' :
                 isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
             }`}>
                 {isNeutral ? null : 
@@ -416,105 +415,103 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            <div className="bg-hero-gradient rounded-softer p-6 text-white">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-semibold mb-1 text-white">¡Hola, {profile?.full_name?.split(' ')[0]}! 👋</h1>
-                        <p className="text-white/80">
-                            Tu asistente IA está activo y listo para gestionar tus citas.
-                        </p>
-                    </div>
-                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                        <CheckCircle2 className="w-10 h-10 text-white" />
-                    </div>
+            {/* Page Header — limpio y moderno */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">
+                        ¡Hola, {profile?.full_name?.split(' ')[0]}! 👋
+                    </h1>
+                    <p className="text-sm text-charcoal/50 mt-1">
+                        Tu asistente IA está activo y respondiendo 24/7.
+                    </p>
                 </div>
-            </div>
-
-            {/* Sub-Header with Performance Label and Filters */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
-                <h2 className="text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em]">RESUMEN DE RENDIMIENTO</h2>
-                
-                {/* Segmented Control Style Filter */}
-                <div className="bg-white p-1 rounded-full shadow-sm border border-silk-beige flex gap-1">
-                    {[
-                        { id: 'day', label: 'HOY' },
-                        { id: 'week', label: 'ESTA SEMANA' },
-                        { id: 'month', label: 'ESTE MES' },
-                        { id: 'year', label: 'ESTE AÑO' }
-                    ].map((range) => (
-                        <button
-                            key={range.id}
-                            onClick={() => setTimeRange(range.id as any)}
-                            className={`px-4 py-1.5 rounded-full text-[10px] font-bold transition-all duration-200 ${
-                                timeRange === range.id 
-                                ? 'bg-primary-500 text-white shadow-md shadow-primary-500/30' 
-                                : 'text-charcoal/40 hover:text-charcoal/60 hover:bg-ivory'
-                            }`}
-                        >
-                            {range.label}
-                        </button>
-                    ))}
+                <div className="flex items-center gap-3">
+                    <div className="inline-flex items-center gap-2 bg-primary-50 border border-primary-200 text-primary-700 text-xs font-semibold px-3 py-1.5 rounded-full">
+                        <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
+                        Agente activo
+                    </div>
+                    {/* Filtro de período */}
+                    <div className="bg-white border border-silk-beige p-1 rounded-xl flex gap-1">
+                        {[
+                            { id: 'day', label: 'Hoy' },
+                            { id: 'week', label: 'Semana' },
+                            { id: 'month', label: 'Mes' },
+                            { id: 'year', label: 'Año' }
+                        ].map((range) => (
+                            <button
+                                key={range.id}
+                                onClick={() => setTimeRange(range.id as any)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                    timeRange === range.id
+                                    ? 'bg-primary-500 text-white shadow-sm'
+                                    : 'text-charcoal/50 hover:text-charcoal hover:bg-zinc-50'
+                                }`}
+                            >
+                                {range.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 {statCards.map((stat) => (
-                    <div key={stat.name} className="bg-white p-5 rounded-softer border border-silk-beige shadow-sm relative overflow-hidden group">
-                        <div className="flex items-center justify-between relative z-10">
-                            <div className={`w-10 h-10 ${stat.bg} rounded-soft flex items-center justify-center`}>
-                                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                    <div key={stat.name} className="bg-white p-5 rounded-xl border border-silk-beige shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className={`w-9 h-9 ${stat.bg} rounded-lg flex items-center justify-center`}>
+                                <stat.icon className={`w-4.5 h-4.5 ${stat.color}`} />
                             </div>
                             <ChangeBadge change={stat.change} />
                         </div>
-                        <div className="mt-5 relative z-10">
-                            <p className="text-3xl font-black text-charcoal tracking-tight">{stat.value}</p>
-                            <p className="text-[9px] font-black text-charcoal/40 mt-1 uppercase tracking-wider">{stat.name}</p>
-                        </div>
-                        
-                        {/* Pink Accent Line at Bottom */}
-                        <div className="absolute bottom-0 left-0 h-1 bg-primary-500 w-1/4 group-hover:w-full transition-all duration-500" />
+                        <p className="text-3xl font-extrabold text-charcoal tracking-tight">{stat.value}</p>
+                        <p className="text-xs text-charcoal/40 mt-1 font-medium">{stat.name}</p>
                     </div>
                 ))}
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* Upcoming Appointments */}
-                <div className="lg:col-span-2 card-soft p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-charcoal">Próximas Citas</h3>
-                        <Link to="/app/appointments" className="text-sm text-primary-500 hover:text-primary-600 font-medium">
-                            Ver todas
-                        </Link>
+                <div className="lg:col-span-2 bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                    <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-primary-200 mb-1">Agenda</p>
+                                <h3 className="text-lg font-extrabold tracking-tight">Próximas Citas</h3>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Link to="/app/appointments" className="text-xs text-primary-200 hover:text-white font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors">
+                                    Ver todas →
+                                </Link>
+                                <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
+                                    <Calendar className="w-5 h-5 text-white" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
-                    <div className="space-y-3">
+                    <div className="p-5 space-y-2">
                         {upcomingAppointments.length === 0 ? (
-                            <p className="text-charcoal/50 text-center py-4">No hay próximas citas agendadas.</p>
+                            <p className="text-charcoal/40 text-center py-8 text-sm">No hay próximas citas agendadas.</p>
                         ) : (
                             upcomingAppointments.map((appointment) => (
-                                <div
-                                    key={appointment.id}
-                                    className="flex items-center gap-4 p-4 bg-ivory rounded-soft hover:bg-silk-beige/50 transition-colors"
-                                >
-                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-soft">
-                                        <Clock className="w-5 h-5 text-primary-500" />
+                                <div key={appointment.id} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-ivory transition-colors">
+                                    <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center shrink-0">
+                                        <Clock className="w-4.5 h-4.5 text-primary-600" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-charcoal truncate">{appointment.patient_name}</p>
-                                        <p className="text-sm text-charcoal/50">{appointment.service}</p>
+                                        <p className="font-semibold text-charcoal text-sm truncate">{appointment.patient_name}</p>
+                                        <p className="text-xs text-charcoal/50 truncate">{appointment.service}</p>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-medium text-charcoal">
+                                    <div className="text-right shrink-0">
+                                        <p className="font-bold text-charcoal text-sm">
                                             {new Date(appointment.appointment_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </p>
-                                        <span
-                                            className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full ${appointment.status === 'confirmed'
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
-                                                }`}
-                                        >
+                                        <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 ${
+                                            appointment.status === 'confirmed'
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                        }`}>
                                             {appointment.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
                                         </span>
                                     </div>
@@ -525,38 +522,41 @@ export default function Dashboard() {
                 </div>
 
                 {/* Recent Messages */}
-                <div className="card-soft p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-charcoal">Mensajes Recientes</h3>
-                        <Link to="/app/messages" className="text-sm text-primary-500 hover:text-primary-600 font-medium">
-                            Ver todos
-                        </Link>
+                <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                    <div className="bg-gradient-to-br from-sky-500 to-sky-700 p-5 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-sky-200 mb-1">WhatsApp IA</p>
+                                <h3 className="text-lg font-extrabold tracking-tight">Mensajes Recientes</h3>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Link to="/app/messages" className="text-xs text-sky-200 hover:text-white font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors">
+                                    Ver todos →
+                                </Link>
+                                <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
+                                    <MessageSquare className="w-5 h-5 text-white" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
-                    <div className="space-y-4">
+                    <div className="p-5 space-y-3">
                         {recentMessages.length === 0 ? (
-                            <p className="text-charcoal/50 text-center py-4">No hay mensajes recientes.</p>
+                            <p className="text-charcoal/40 text-center py-8 text-sm">No hay mensajes recientes.</p>
                         ) : (
                             recentMessages.map((message) => (
-                                <div
-                                    key={message.id}
-                                    className="p-4 rounded-soft transition-colors hover:bg-ivory cursor-pointer"
-                                    onClick={() => window.location.href = `/app/messages`}
-                                >
+                                <div key={message.id} className="p-3 rounded-xl hover:bg-ivory transition-colors cursor-pointer" onClick={() => window.location.href = `/app/messages`}>
                                     <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 bg-silk-beige rounded-full flex items-center justify-center flex-shrink-0">
-                                            <span className="text-sm font-medium text-charcoal">
-                                                <MessageSquare className="w-4 h-4" />
-                                            </span>
+                                        <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center shrink-0">
+                                            <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="font-medium text-charcoal truncate">{message.contact_phone}</p>
-                                                <span className="text-xs text-charcoal/40 flex-shrink-0">
+                                            <div className="flex items-center justify-between gap-1">
+                                                <p className="font-semibold text-charcoal text-xs truncate">{message.contact_phone}</p>
+                                                <span className="text-[10px] text-charcoal/40 shrink-0">
                                                     {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-charcoal/60 mt-1 line-clamp-2">{message.content}</p>
+                                            <p className="text-xs text-charcoal/50 mt-1 line-clamp-2">{message.content}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -566,139 +566,118 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Services Ranking */}
-            <div className="card-soft p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-soft flex items-center justify-center">
-                            <Crown className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-semibold text-charcoal">Ranking de Servicios (Este Mes)</h3>
-                            <p className="text-sm text-charcoal/50">Servicios más solicitados</p>
+            {/* Bottom Row: Ranking + Analytics */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Services Ranking */}
+                <div className="lg:col-span-1 bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                    <div className="bg-gradient-to-br from-amber-500 to-amber-700 p-5 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">Este mes</p>
+                                <h3 className="text-lg font-extrabold tracking-tight">Top Servicios</h3>
+                            </div>
+                            <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
+                                <Crown className="w-5 h-5 text-white" />
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                <div className="space-y-4">
-                    {servicesRanking.length === 0 ? (
-                        <p className="text-charcoal/50 text-center py-6">
-                            Aún no hay datos suficientes este mes.
-                        </p>
-                    ) : (
-                        servicesRanking.map((service, index) => (
-                            <div key={service.name} className="flex items-center gap-4">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${index === 0 ? 'bg-amber-500 text-white' :
-                                    index === 1 ? 'bg-gray-300 text-gray-700' :
-                                        index === 2 ? 'bg-amber-700 text-white' :
-                                            'bg-silk-beige text-charcoal/60'
-                                    }`}>
-                                    {index + 1}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="font-medium text-charcoal text-sm">{service.name}</p>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-charcoal/60">{service.count} citas</span>
-                                            <TrendingUp className={`w-4 h-4 ${service.trend === 'up' ? 'text-emerald-500' :
-                                                service.trend === 'down' ? 'text-red-500 rotate-180' :
-                                                    'text-charcoal/30'
-                                                }`} />
+                    <div className="p-5 space-y-3.5">
+                        {servicesRanking.length === 0 ? (
+                            <p className="text-charcoal/40 text-center py-6 text-sm">Sin datos este mes.</p>
+                        ) : (
+                            servicesRanking.map((service, index) => (
+                                <div key={service.name} className="flex items-center gap-3">
+                                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                                        index === 0 ? 'bg-amber-100 text-amber-700' :
+                                        index === 1 ? 'bg-silk-beige text-charcoal/60' :
+                                        index === 2 ? 'bg-orange-100 text-orange-700' :
+                                        'bg-ivory text-charcoal/40'
+                                    }`}>{index + 1}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <p className="text-xs font-semibold text-charcoal truncate">{service.name}</p>
+                                            <span className="text-xs text-charcoal/40 shrink-0 ml-2">{service.count}</span>
+                                        </div>
+                                        <div className="h-1.5 bg-silk-beige/50 rounded-full overflow-hidden">
+                                            <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${service.percentage}%` }} />
                                         </div>
                                     </div>
-                                    <div className="h-2 bg-silk-beige rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full transition-all duration-500 ${index === 0 ? 'bg-gradient-to-r from-primary-400 to-primary-600' :
-                                                'bg-primary-400/60'
-                                                }`}
-                                            style={{ width: `${service.percentage}%` }}
-                                        />
-                                    </div>
                                 </div>
-                            </div>
-                        ))
-                    )}
+                            ))
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            {/* Analytics Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Conversion Rate Card */}
-                <div className="card-soft p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-soft flex items-center justify-center">
-                                <Target className="w-5 h-5 text-white" />
-                            </div>
+                {/* Conversion Rate */}
+                <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                    <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg font-semibold text-charcoal">Tasa de Conversión (Mes)</h3>
-                                <p className="text-sm text-charcoal/50">Consultas vs Citas Agendadas</p>
+                                <p className="text-xs font-bold uppercase tracking-widest text-emerald-200 mb-1">IA Efectividad</p>
+                                <h3 className="text-lg font-extrabold tracking-tight">Conversión</h3>
+                            </div>
+                            <div className="w-14 h-10 bg-white/15 rounded-xl flex items-center justify-center">
+                                <span className="text-xl font-extrabold">{conversionStats.rate}<span className="text-sm font-bold opacity-80">%</span></span>
                             </div>
                         </div>
                     </div>
-
-                    <div className="text-center py-6">
-                        <p className="text-4xl font-bold text-charcoal">{conversionStats.rate}%</p>
-                        <p className="text-sm text-charcoal/50 mt-2">De efectividad este mes</p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-silk-beige">
-                        <div className="text-center">
-                            <p className="text-lg font-semibold text-charcoal">{conversionStats.consultations}</p>
-                            <p className="text-xs text-charcoal/50">Contactos</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-lg font-semibold text-charcoal">{conversionStats.converted}</p>
-                            <p className="text-xs text-charcoal/50">Citas</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-lg font-semibold text-charcoal">{conversionStats.lost}</p>
-                            <p className="text-xs text-charcoal/50">Sin Cita</p>
+                    <div className="p-5">
+                        <p className="text-xs text-charcoal/40 text-center mb-4">contactos que agendaron cita este mes</p>
+                        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-silk-beige/50">
+                            <div className="text-center">
+                                <p className="text-base font-bold text-charcoal">{conversionStats.consultations}</p>
+                                <p className="text-xs text-charcoal/40">Contactos</p>
+                            </div>
+                            <div className="text-center border-x border-silk-beige/50">
+                                <p className="text-base font-bold text-emerald-600">{conversionStats.converted}</p>
+                                <p className="text-xs text-charcoal/40">Citas</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-base font-bold text-charcoal">{conversionStats.lost}</p>
+                                <p className="text-xs text-charcoal/40">Sin cita</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Satisfaction Surveys Card */}
-                <div className="card-soft p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-soft flex items-center justify-center">
-                                <Star className="w-5 h-5 text-white" />
-                            </div>
+                {/* Satisfaction NPS */}
+                <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                    <div className="bg-gradient-to-br from-violet-500 to-violet-700 p-5 text-white">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg font-semibold text-charcoal">Satisfacción (NPS)</h3>
-                                <p className="text-sm text-charcoal/50">Calidad de servicio</p>
+                                <p className="text-xs font-bold uppercase tracking-widest text-violet-200 mb-1">Post-cita</p>
+                                <h3 className="text-lg font-extrabold tracking-tight">Satisfacción NPS</h3>
+                            </div>
+                            <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
+                                <Star className="w-5 h-5 text-white fill-white/60" />
                             </div>
                         </div>
                     </div>
-
-                    <div className="text-center py-6">
-                        <div className="flex justify-center gap-1 mb-2">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                    key={star}
-                                    className={`w-6 h-6 ${star <= Math.round(satisfactionStats.average) ? 'text-amber-400 fill-amber-400' : 'text-charcoal/20'}`}
-                                />
-                            ))}
+                    <div className="p-5">
+                        <div className="text-center py-3">
+                            <div className="flex justify-center gap-1 mb-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star key={star} className={`w-5 h-5 ${star <= Math.round(satisfactionStats.average) ? 'text-amber-400 fill-amber-400' : 'text-silk-beige'}`} />
+                                ))}
+                            </div>
+                            <p className="text-3xl font-extrabold text-charcoal tracking-tight">{satisfactionStats.average.toFixed(1)}<span className="text-base text-charcoal/30">/5.0</span></p>
+                            <p className="text-xs text-charcoal/40 mt-1">{satisfactionStats.responded} respuestas</p>
                         </div>
-                        <p className="text-2xl font-bold text-charcoal">{satisfactionStats.average.toFixed(1)} / 5.0</p>
-                        <p className="text-xs text-charcoal/40 mt-1">Promedio de {satisfactionStats.responded} respuestas</p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-silk-beige">
-                        <div className="text-center">
-                            <p className="text-lg font-semibold text-charcoal">{satisfactionStats.sent}</p>
-                            <p className="text-xs text-charcoal/50">Enviadas</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-lg font-semibold text-charcoal">{satisfactionStats.responded}</p>
-                            <p className="text-xs text-charcoal/50">Respondidas</p>
-                        </div>
-                        <div className="text-center">
-                            <p className={`text-lg font-semibold ${satisfactionStats.nps > 0 ? 'text-emerald-500' : 'text-charcoal'}`}>
-                                {satisfactionStats.nps > 0 ? '+' : ''}{satisfactionStats.nps}
-                            </p>
-                            <p className="text-xs text-charcoal/50">NPS</p>
+                        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-silk-beige/50">
+                            <div className="text-center">
+                                <p className="text-base font-bold text-charcoal">{satisfactionStats.sent}</p>
+                                <p className="text-xs text-charcoal/40">Enviadas</p>
+                            </div>
+                            <div className="text-center border-x border-silk-beige/50">
+                                <p className="text-base font-bold text-charcoal">{satisfactionStats.responded}</p>
+                                <p className="text-xs text-charcoal/40">Respondidas</p>
+                            </div>
+                            <div className="text-center">
+                                <p className={`text-base font-bold ${satisfactionStats.nps > 0 ? 'text-emerald-600' : 'text-charcoal'}`}>
+                                    {satisfactionStats.nps > 0 ? '+' : ''}{satisfactionStats.nps}
+                                </p>
+                                <p className="text-xs text-charcoal/40">NPS</p>
+                            </div>
                         </div>
                     </div>
                 </div>

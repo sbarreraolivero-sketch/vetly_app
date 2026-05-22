@@ -199,7 +199,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     </button>
                 </div>
 
-                <div className="flex bg-gray-50/50 border-b border-silk-beige px-4 sm:px-6 pt-4 gap-4 sm:gap-6 overflow-x-auto scrollbar-none whitespace-nowrap">
+                <div className="flex bg-ivory/50 border-b border-silk-beige px-4 sm:px-6 pt-4 gap-4 sm:gap-6 overflow-x-auto scrollbar-none whitespace-nowrap">
                     <button
                         type="button"
                         onClick={() => setActiveTab('anamnesis')}
@@ -423,7 +423,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                             checked={checkupReminderEnabled}
                                             onChange={(e) => setCheckupReminderEnabled(e.target.checked)}
                                         />
-                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                                        <div className="w-11 h-6 bg-silk-beige rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
                                     </label>
                                 </div>
 
@@ -458,7 +458,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     )}
                 </form>
 
-                <div className="p-6 border-t border-silk-beige flex justify-between gap-3 bg-gray-50/50 rounded-b-soft">
+                <div className="p-6 border-t border-silk-beige flex justify-between gap-3 bg-ivory/50 rounded-b-soft">
                     <div className="text-xs font-bold text-charcoal/70 uppercase tracking-widest flex items-center">
                         {activeTab === 'anamnesis' && 'Paso 1 de 3'}
                         {activeTab === 'exam' && 'Paso 2 de 3'}

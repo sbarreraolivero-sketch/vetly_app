@@ -134,7 +134,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                         <h4 className="text-sm font-bold text-charcoal/50 uppercase tracking-widest mb-4">Historial de Recordatorios</h4>
                          <div className="space-y-3">
                             {pastReminders.map(rem => (
-                                <div key={rem.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div key={rem.id} className="flex items-center justify-between p-3 bg-ivory rounded-lg border border-silk-beige">
                                     <div>
                                         <h5 className="font-semibold text-charcoal/70 text-sm line-through decoration-charcoal/20">{rem.title}</h5>
                                         <p className="text-xs text-charcoal/40 mt-0.5">Fecha: {new Date(rem.scheduled_date).toLocaleDateString()}</p>

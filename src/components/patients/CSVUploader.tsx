@@ -125,7 +125,7 @@ export function CSVUploader({ onSuccess }: CSVUploaderProps) {
             {isOpen && (
                 <div className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-scale-in">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                        <div className="p-6 border-b border-silk-beige flex items-center justify-between">
                             <div>
                                 <h3 className="text-xl font-bold text-charcoal flex items-center gap-2">
                                     <FileSpreadsheet className="w-5 h-5 text-primary-500" />
@@ -136,7 +136,7 @@ export function CSVUploader({ onSuccess }: CSVUploaderProps) {
 
                             <button
                                 onClick={() => !isUploading && setIsOpen(false)}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                className="p-2 hover:bg-ivory rounded-full transition-colors"
                             >
                                 <X className="w-5 h-5 text-gray-400" />
                             </button>
@@ -158,7 +158,7 @@ export function CSVUploader({ onSuccess }: CSVUploaderProps) {
                                 </div>
                             )}
 
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 border-dashed text-sm">
+                            <div className="bg-ivory p-4 rounded-xl border border-silk-beige border-dashed text-sm">
                                 <p className="font-bold mb-2">Reglas del archivo:</p>
                                 <ul className="list-disc list-inside space-y-1 text-gray-600">
                                     <li>Debe tener una columna llamada "Teléfono"</li>

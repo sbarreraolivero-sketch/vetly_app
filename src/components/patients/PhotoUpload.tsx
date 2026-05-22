@@ -48,7 +48,7 @@ export function PhotoUpload({ onFileSelect, selectedFile, onClear }: PhotoUpload
             {!selectedFile ? (
                 <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-silk-beige rounded-soft p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors h-32"
+                    className="border-2 border-dashed border-silk-beige rounded-soft p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-ivory transition-colors h-32"
                 >
                     <input
                         type="file"

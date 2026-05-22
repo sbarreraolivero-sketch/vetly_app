@@ -4,33 +4,33 @@
 
 @layer base {
   :root {
-    /* Soft Luxury Color System */
-    --ivory: 48 25% 97%;
-    --silk-beige: 32 26% 90%;
-    --charcoal: 0 0% 18%;
+    /* Modern Teal Palette */
+    --ivory: 0 0% 98%;
+    --silk-beige: 240 5% 90%;
+    --charcoal: 240 6% 10%;
     --gold-soft: 38 45% 60%;
     --champagne: 42 52% 77%;
 
     /* Shadcn/ui tokens */
-    --background: 48 25% 97%;
-    --foreground: 0 0% 18%;
+    --background: 0 0% 98%;
+    --foreground: 240 6% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 18%;
+    --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 18%;
-    --primary: 161 56% 28%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 175 84% 32%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 32 26% 90%;
-    --secondary-foreground: 0 0% 18%;
-    --muted: 32 20% 94%;
-    --muted-foreground: 0 0% 45%;
+    --secondary: 240 5% 90%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
     --accent: 38 45% 60%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 32 20% 70%;
-    --input: 32 20% 70%;
-    --ring: 161 56% 28%;
+    --border: 240 5% 84%;
+    --input: 240 5% 84%;
+    --ring: 175 84% 32%;
     --radius: 12px;
   }
 }
@@ -57,26 +57,26 @@
 
 @layer components {
 
-  /* Premium Card Styles */
+  /* Card Styles */
   .card-soft {
-    @apply bg-white rounded-soft shadow-soft border border-silk-beige/50;
+    @apply bg-white rounded-xl shadow-sm border border-silk-beige;
   }
 
   .card-soft-hover {
-    @apply card-soft transition-all duration-300 hover:shadow-soft-md hover:-translate-y-0.5;
+    @apply card-soft transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
   }
 
   /* Button Variants */
   .btn-primary {
-    @apply bg-primary-500 text-white font-medium px-6 py-3 rounded-soft transition-all duration-300 hover:bg-primary-600 hover:shadow-glow-primary active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-500 disabled:hover:shadow-none disabled:active:scale-100;
+    @apply bg-primary-500 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 hover:bg-primary-600 hover:-translate-y-0.5 hover:shadow-glow-primary active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none;
   }
 
   .btn-premium {
-    @apply bg-premium-gradient text-charcoal font-medium px-6 py-3 rounded-soft transition-all duration-300 hover:shadow-glow-gold hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100;
+    @apply bg-premium-gradient text-charcoal font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-glow-gold hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none;
   }
 
   .btn-ghost {
-    @apply text-charcoal font-medium px-4 py-2 rounded-soft transition-all duration-200 hover:bg-silk-beige/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent;
+    @apply text-charcoal/70 font-medium px-4 py-2.5 rounded-xl border border-silk-beige transition-all duration-200 hover:bg-silk-beige/50 hover:text-charcoal disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   /* Golden gradient border for transparent buttons on green backgrounds */
@@ -101,16 +101,16 @@
 
   /* Input Styles */
   .input-soft {
-    @apply w-full px-4 py-3 bg-white border-2 border-silk-beige/90 rounded-soft text-charcoal font-medium placeholder:text-charcoal/60 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 shadow-sm;
+    @apply w-full px-4 py-2.5 bg-white border border-silk-beige rounded-xl text-charcoal placeholder:text-charcoal/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500;
   }
 
   /* Sidebar Navigation */
   .nav-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-soft text-charcoal/70 transition-all duration-200 hover:bg-silk-beige/50 hover:text-charcoal;
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all duration-200 hover:bg-gray-800 hover:text-white;
   }
 
   .nav-item-active {
-    @apply nav-item bg-accent-500/15 text-accent-700 font-medium hover:bg-accent-500/20 hover:text-accent-800 border border-accent-500/20 shadow-[inset_0_0_8px_rgba(200, 169, 106, 0.1)];
+    @apply nav-item bg-primary-500/20 text-white font-medium border border-primary-500/30 hover:bg-primary-500/25 hover:text-white;
   }
 
   /* Status Badges */

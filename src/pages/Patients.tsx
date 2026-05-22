@@ -96,32 +96,31 @@ export default function Patients() {
     return (
         <SubscriptionGuard>
             <div className="space-y-6 animate-fade-in pb-20">
-                {/* Header Banner */}
-                <div className="bg-hero-gradient rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden shadow-2xl mb-10 border border-white/10">
-                    {/* Decorative blobs */}
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none animate-pulse"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary-400/20 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4 pointer-events-none"></div>
-                    
-                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                        <div className="flex items-center gap-6">
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner group transition-all duration-500 hover:scale-110">
-                                <div className="p-3 bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-600 rounded-xl shadow-lg">
-                                    <Dog className="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[12px] font-bold uppercase tracking-widest mb-3 animate-fade-in">
-                                    <Dog className="w-3.5 h-3.5 text-amber-300" />
-                                    <span className="text-amber-50">Base de Datos Clínica</span>
-                                </div>
-                                <h1 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight drop-shadow-sm uppercase text-white">
-                                    Gestión de Pacientes
-                                </h1>
-                                <p className="text-emerald-50/90 text-sm sm:text-base max-w-xl font-semibold leading-relaxed">
-                                    Listado global de mascotas registradas. Accede a fichas clínicas, tratamientos y evoluciones con un solo click.
-                                </p>
-                            </div>
-                        </div>
+                {/* Page Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                    <div>
+                        <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Pacientes</h1>
+                        <p className="text-sm text-charcoal/50 mt-1">Fichas clínicas, tratamientos y evoluciones de todas las mascotas.</p>
+                    </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-primary-100 bg-primary-50 px-4 py-3 flex flex-col">
+                        <span className="text-2xl font-black text-primary-700">{patients.length}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-primary-600/70 mt-0.5">Total Pacientes</span>
+                    </div>
+                    <div className="rounded-xl border border-silk-beige bg-ivory px-4 py-3 flex flex-col">
+                        <span className="text-2xl font-black text-charcoal">
+                            {patients.filter(p => p.species.toLowerCase().includes('canin') || p.species.toLowerCase().includes('perr')).length}
+                        </span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-charcoal/50 mt-0.5">Caninos</span>
+                    </div>
+                    <div className="rounded-xl border border-silk-beige bg-ivory px-4 py-3 flex flex-col">
+                        <span className="text-2xl font-black text-charcoal">
+                            {patients.filter(p => p.species.toLowerCase().includes('felin') || p.species.toLowerCase().includes('gat')).length}
+                        </span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-charcoal/50 mt-0.5">Felinos</span>
                     </div>
                 </div>
 
@@ -136,9 +135,9 @@ export default function Patients() {
                 </GuideBox>
 
                 {/* Filters */}
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-charcoal/40" />
+                <div className="card-soft p-4 flex flex-col md:flex-row gap-3 items-center">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
                         <input
                             type="text"
                             placeholder="Buscar por nombre de mascota o tutor..."
@@ -147,34 +146,19 @@ export default function Patients() {
                             className="input-soft pl-10 w-full"
                         />
                     </div>
-                    <div className="flex items-center gap-1 bg-silk-beige/30 p-1 rounded-lg w-fit">
-                        <button
-                            onClick={() => setSpeciesFilter('all')}
-                            className={cn(
-                                "px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-md transition-all",
-                                speciesFilter === 'all' ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
-                            )}
-                        >
-                            Todos
-                        </button>
-                        <button
-                            onClick={() => setSpeciesFilter('dog')}
-                            className={cn(
-                                "px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-md transition-all",
-                                speciesFilter === 'dog' ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
-                            )}
-                        >
-                            Caninos
-                        </button>
-                        <button
-                            onClick={() => setSpeciesFilter('cat')}
-                            className={cn(
-                                "px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-md transition-all",
-                                speciesFilter === 'cat' ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
-                            )}
-                        >
-                            Felinos
-                        </button>
+                    <div className="flex items-center gap-1 bg-silk-beige/40 p-1 rounded-lg flex-shrink-0">
+                        {(['all', 'dog', 'cat'] as const).map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setSpeciesFilter(f)}
+                                className={cn(
+                                    "px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-md transition-all",
+                                    speciesFilter === f ? "bg-white text-primary-700 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
+                                )}
+                            >
+                                {f === 'all' ? 'Todos' : f === 'dog' ? 'Caninos' : 'Felinos'}
+                            </button>
+                        ))}
                     </div>
                 </div>
 

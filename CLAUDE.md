@@ -427,6 +427,105 @@ const secretBytes = encoder.encode(secret);
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 8, 2026-05-22)
+
+### Sistema de diseño — tokens y colores por sección
+
+**Paleta de sección establecida** (decisión de diseño permanente):
+| Sección | Color | Páginas |
+|---|---|---|
+| Principal | `sky` (celeste de marca) | Dashboard, Mensajes, Plantillas |
+| Clínica | `primary` (teal #0d9488) | Tutores, Pacientes, CRM, Citas, Recordatorios, Finanzas |
+| Marketing | `violet` | Campañas, Referidos |
+| Configuración | `amber` | Conocimiento, Fidelización, Configuración |
+| Finance especial | `emerald` | sección interna de Finance |
+| Loyalty especial | `accent/gold` | sección interna de Loyalty |
+
+**Limpieza de tokens heredados completada:**
+- `bg-gray-*` / `border-gray-*` / `text-gray-*` eliminados de todas las páginas
+- Reemplazados por: `bg-ivory`, `bg-silk-beige`, `border-silk-beige`, `text-charcoal`, `text-charcoal/60`, `text-charcoal/40`
+- Archivos actualizados: `Loyalty.tsx`, `src/pages/settings/Team.tsx`, `src/pages/settings/MyProfile.tsx`, y todas las páginas principales
+
+### Dashboard — tarjetas con cabeceras de degradado
+
+Patrón de card con header colorido + body blanco (inspirado en la landing):
+```tsx
+<div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+    <div className="bg-gradient-to-br from-[color]-500 to-[color]-700 p-5 text-white">
+        <p className="text-xs font-bold uppercase tracking-widest text-[color]-200 mb-1">Etiqueta</p>
+        <h3 className="text-lg font-extrabold tracking-tight">Título</h3>
+    </div>
+    <div className="p-5">...</div>
+</div>
+```
+Colores aplicados en Dashboard: `primary` (Citas), `sky` (Mensajes), `amber` (Top Servicios), `emerald` (Conversión), `violet` (NPS).
+
+### Banner de página — patrón por sección (piloto: Tutores)
+
+Reemplaza el header plano con un banner de degradado que incluye:
+- Label de sección (`text-xs font-black uppercase tracking-widest text-[color]-200`)
+- Título grande + descripción
+- Fila de estadísticas con divisores verticales (`w-px h-8 bg-white/15`)
+- Botones de acción como pills blancos (`bg-white text-[color]-700`)
+
+Implementado en `Tutors.tsx`. Pendiente aplicar al resto de páginas (ver Tareas pendientes).
+
+### PatientProfile — panel de resumen clínico
+
+Panel insertado entre las tarjetas de estadísticas y las pestañas principales. Se renderiza solo cuando hay datos (`historyEvents || vaccines || dewormings`).
+
+**4 columnas del panel:**
+1. **Última Atención Médica**: `historyEvents[0]` — muestra `event_date` + `event_type`. Solo consultas médicas/controles (no vacunas/desparasitaciones).
+2. **Próxima Vacuna**: `vaccines[0].next_dose_date` con alertas de color (rojo=vencida, ámbar=≤30 días, verde=al día).
+3. **Última Desparasitación**: bucle sobre `['Interno', 'Externo']` → `dewormings.find(d => d.type === tipo)` con fecha del último registro de cada tipo.
+4. **Últimas Atenciones**: array mezclado de historyEvents + vaccines + dewormings ordenado por fecha DESC, sliceado a 3, con puntos de color (teal=historia, emerald=vacuna, amber=desparasitación).
+
+Nota clínica al pie: `historyEvents[0]?.diagnosis || historyEvents[0]?.procedure_notes`.
+
+### Navegación — fix breadcrumb tutor + auto-apertura
+
+**Bug corregido:** el nombre del tutor en el breadcrumb de PatientProfile era `<span>` estático y no navegaba.
+
+**Fix aplicado:**
+```tsx
+// PatientProfile.tsx — breadcrumb
+<button
+    onClick={() => navigate('/app/tutors', { state: { tutorId: tutor?.id } })}
+    className="text-charcoal/60 hover:text-primary-600 transition-colors"
+>
+    {tutor?.name}
+</button>
+```
+
+**Auto-apertura en Tutors.tsx:**
+```tsx
+useEffect(() => {
+    const tutorId = (location.state as any)?.tutorId
+    if (tutorId && contacts.length > 0) {
+        const contact = contacts.find(c => c.id === tutorId)
+        if (contact) {
+            setSelectedContact(contact)
+            navigate('/app/tutors', { replace: true, state: {} })
+        }
+    }
+}, [contacts, location.state])
+```
+Patrón: `navigate('/app/tutors', { state: { tutorId } })` → `useLocation` → `useEffect` auto-abre el panel del tutor.
+
+### TutorDetails — rediseño completo
+
+Reemplazó el header plano y tabs básicos con:
+- **Banner teal con gradiente**: botón "← Tutores", avatar con iniciales, teléfono/email inline, stats Mascotas/Citas
+- **Nueva barra de tabs**: `h-14`, `font-black uppercase tracking-widest`, borde inferior activo `h-1 bg-primary-600`
+- **Tarjetas de mascotas enriquecidas**: tira header `bg-primary-50` con avatar/nombre/raza/badge de estado, body con cálculo de edad correcto (meses para <1 año), botones edit/delete al hacer hover
+
+**Bug corregido en TutorDetails.tsx** — crash en runtime (`cn is not defined`):
+- `cn` se usaba en el rediseño pero no estaba importado
+- `Calendar` se importaba pero no se usaba
+- Fix: `import { formatPhoneNumber, cn } from '@/lib/utils'` + eliminado `Calendar` de lucide imports
+
+---
+
 ## Patrones adicionales a respetar
 
 ### Modelo de datos: patients vs tutors
@@ -456,6 +555,7 @@ const secretBytes = encoder.encode(secret);
 - [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja. Las nuevas citas creadas vía AI agent sí quedan vinculadas.
 
 ### Baja prioridad
+- [ ] **Banner de sección en páginas restantes**: aplicar el patrón de banner con degradado (piloto: Tutores) a: Patients, CRM, Appointments, Reminders, Finance, KnowledgeBase, Campaigns, Messages, Templates, Settings, Loyalty. Cada una con el color de su sección (ver paleta en sesión 8).
 - [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa este archivo (`*`). Documentar explícitamente por qué es `*` (browser widget, no webhook) para que nadie lo "corrija" innecesariamente.
 - [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados, no forman parte del proyecto, pueden eliminarse.
 - [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — `claubarreraolivero@gmail.com` y otros tienen `clinic_id = NULL`. No bloquea el flujo actual (la RLS de `reminder_logs` usa `clinic_members`), pero es inconsistente.

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
-    Phone, Mail, MapPin, Calendar,
+    Phone, Mail, MapPin,
     Plus, Edit2, Trash2, ArrowLeft,
     Dog, ChevronRight, Info, DollarSign, FileText, CreditCard
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Tutor, Patient } from '@/types/database'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatPhoneNumber } from '@/lib/utils'
+import { formatPhoneNumber, cn } from '@/lib/utils'
 import { PetForm } from './PetForm'
 
 interface TutorDetailsProps {
@@ -167,95 +167,73 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
 
     return (
         <div className="space-y-6 animate-fade-in relative pb-20">
-            {/* Header / Navigation */}
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={onBack}
-                        className="p-2 hover:bg-silk-beige rounded-full text-charcoal/60 hover:text-charcoal transition-colors"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <div>
-                        <h1 className="text-2xl font-bold text-charcoal uppercase tracking-tight">{tutor.name}</h1>
-                        <p className="text-charcoal/60 text-sm">Perfil del Tutor</p>
+            {/* Page Banner */}
+            <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                            <button
+                                onClick={onBack}
+                                className="flex items-center gap-1.5 text-xs font-black text-primary-200 hover:text-white uppercase tracking-widest transition-colors bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full mb-4"
+                            >
+                                <ArrowLeft className="w-3 h-3" />
+                                Tutores
+                            </button>
+                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Clínica / Tutores</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">{tutor.name}</h1>
+                        </div>
+                        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                            <span className="text-2xl font-black text-white">{tutor.name?.charAt(0).toUpperCase()}</span>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Quick Stats / Info Card */}
-            <div className="card-soft p-6 bg-white shadow-sm border border-silk-beige">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
-                            <Phone className="w-5 h-5" />
+                    <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
+                        <div className="flex flex-wrap items-center gap-5">
+                            <div className="flex items-center gap-2">
+                                <Phone className="w-3.5 h-3.5 text-primary-200" />
+                                <span className="text-sm font-bold text-white">{formatPhoneNumber(tutor.phone_number) || '—'}</span>
+                            </div>
+                            {tutor.email && (
+                                <div className="flex items-center gap-2">
+                                    <Mail className="w-3.5 h-3.5 text-primary-200" />
+                                    <span className="text-sm font-bold text-white">{tutor.email}</span>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <p className="text-xs text-charcoal/50 uppercase font-medium">Teléfono</p>
-                            <p className="text-charcoal">{formatPhoneNumber(tutor.phone_number)}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-silk-beige flex items-center justify-center text-charcoal/60">
-                            <Mail className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-charcoal/50 uppercase font-medium">Email</p>
-                            <p className="text-charcoal">{tutor.email || 'N/A'}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-silk-beige flex items-center justify-center text-charcoal/60">
-                            <Calendar className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-charcoal/50 uppercase font-medium">Total Citas</p>
-                            <p className="text-charcoal">{tutor.total_appointments}</p>
+                        <div className="flex items-center gap-5">
+                            <div className="text-right">
+                                <p className="text-2xl font-black text-white">{patients.length}</p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest">Mascotas</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/15" />
+                            <div className="text-right">
+                                <p className="text-2xl font-black text-white">{tutor.total_appointments || 0}</p>
+                                <p className="text-xs font-black text-primary-200 uppercase tracking-widest">Citas</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-silk-beige">
-                <div className="flex gap-6">
+            <div className="flex items-center border-b border-silk-beige overflow-x-auto no-scrollbar bg-white rounded-t-soft h-14">
+                {([
+                    { id: 'patients', label: 'Mascotas' },
+                    { id: 'info', label: 'Info Adicional' },
+                    { id: 'finances', label: 'Historial Financiero' },
+                ] as const).map(tab => (
                     <button
-                        onClick={() => setActiveTab('patients')}
-                        className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'patients'
-                            ? 'text-primary-600'
-                            : 'text-charcoal/60 hover:text-charcoal'
-                            }`}
-                    >
-                        Mascotas (Pacientes)
-                        {activeTab === 'patients' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={cn(
+                            "px-6 h-full text-xs font-black uppercase tracking-widest transition-all relative border-r border-silk-beige whitespace-nowrap",
+                            activeTab === tab.id ? "text-primary-700 bg-primary-50/30" : "text-charcoal/40 hover:text-charcoal/60 hover:bg-ivory"
                         )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('info')}
-                        className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'info'
-                            ? 'text-primary-600'
-                            : 'text-charcoal/60 hover:text-charcoal'
-                            }`}
                     >
-                        Información Adicional
-                        {activeTab === 'info' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />
-                        )}
+                        {tab.label}
+                        {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-600" />}
                     </button>
-                    <button
-                        onClick={() => setActiveTab('finances')}
-                        className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'finances'
-                            ? 'text-primary-600'
-                            : 'text-charcoal/60 hover:text-charcoal'
-                            }`}
-                    >
-                        Historial Financiero
-                        {activeTab === 'finances' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />
-                        )}
-                    </button>
-                </div>
+                ))}
             </div>
 
             {/* Content */}
@@ -279,18 +257,15 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                         {loadingPatients ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {[1, 2].map(n => (
-                                    <div key={n} className="h-40 bg-silk-beige/20 animate-pulse rounded-soft" />
+                                    <div key={n} className="h-44 bg-silk-beige/20 animate-pulse rounded-2xl" />
                                 ))}
                             </div>
                         ) : patients.length === 0 ? (
-                            <div className="text-center py-20 bg-ivory rounded-soft border border-dashed border-silk-beige">
+                            <div className="text-center py-20 bg-ivory rounded-2xl border border-dashed border-silk-beige">
                                 <Dog className="w-12 h-12 text-charcoal/20 mx-auto mb-3" />
-                                <h4 className="text-charcoal font-medium">Sin mascotas registradas</h4>
+                                <h4 className="text-charcoal font-bold uppercase tracking-tight">Sin mascotas registradas</h4>
                                 <p className="text-charcoal/50 text-sm mt-1">Este tutor aún no tiene pacientes asociados</p>
-                                <button
-                                    onClick={() => setShowPetForm(true)}
-                                    className="mt-4 text-primary-600 font-medium text-sm hover:underline"
-                                >
+                                <button onClick={() => setShowPetForm(true)} className="mt-4 text-primary-600 font-bold text-sm hover:underline">
                                     + Registrar Mascota
                                 </button>
                             </div>
@@ -299,56 +274,72 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                                 {patients.map(pet => (
                                     <div
                                         key={pet.id}
-                                        className="group bg-white p-5 rounded-soft border border-silk-beige hover:border-primary-200 hover:shadow-premium transition-all cursor-pointer relative"
-                                        onClick={() => {
-                                            window.location.href = `/app/patients/${pet.id}`
-                                        }}
+                                        className="group bg-white rounded-2xl border border-silk-beige hover:border-primary-200 hover:shadow-soft-md transition-all cursor-pointer overflow-hidden"
+                                        onClick={() => { window.location.href = `/app/patients/${pet.id}` }}
                                     >
-                                        <div className="flex justify-between items-start">
+                                        {/* Card header strip */}
+                                        <div className="bg-primary-50 px-5 py-4 flex items-center justify-between border-b border-primary-100/50">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center border border-primary-100">
-                                                    <Dog className="w-6 h-6 text-primary-600" />
+                                                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-primary-200 shadow-sm">
+                                                    <Dog className="w-5 h-5 text-primary-600" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-charcoal group-hover:text-primary-700 transition-colors uppercase tracking-tight">
+                                                    <h4 className="font-extrabold text-charcoal uppercase tracking-tight text-sm group-hover:text-primary-700 transition-colors">
                                                         {pet.name}
                                                     </h4>
-                                                    <p className="text-xs text-charcoal/50">{pet.species} • {pet.breed || 'Raza no especificada'}</p>
+                                                    <p className="text-xs text-charcoal/50">{pet.species} · {pet.breed || 'Sin raza'}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                <span className={cn(
+                                                    "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border",
+                                                    pet.status === 'alive' ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-ivory text-charcoal/40 border-silk-beige"
+                                                )}>
+                                                    {pet.status === 'alive' ? 'Vivo' : 'Difunto'}
+                                                </span>
                                                 <button
-                                                    onClick={() => {
-                                                        setEditingPet(pet)
-                                                        setShowPetForm(true)
-                                                    }}
-                                                    className="p-1.5 hover:bg-silk-beige rounded text-charcoal/60"
+                                                    onClick={() => { setEditingPet(pet); setShowPetForm(true) }}
+                                                    className="p-1.5 hover:bg-white rounded-lg text-charcoal/40 hover:text-primary-600 transition-colors opacity-0 group-hover:opacity-100"
                                                 >
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeletePet(pet.id, pet.name)}
-                                                    className="p-1.5 hover:bg-red-50 text-charcoal/60 hover:text-red-500 rounded"
+                                                    className="p-1.5 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         </div>
 
-                                        <div className="mt-4 grid grid-cols-2 gap-2">
-                                            <div className="p-2 bg-ivory rounded text-xs font-bold font-medium text-charcoal/60">
-                                                SEXO: <span className="text-charcoal font-bold">{getSexLabel(pet.sex)}</span>
+                                        {/* Card body */}
+                                        <div className="px-5 py-4">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest mb-0.5">Sexo</p>
+                                                    <p className="text-sm font-bold text-charcoal">{getSexLabel(pet.sex)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest mb-0.5">Edad</p>
+                                                    <p className="text-sm font-bold text-charcoal">
+                                                        {pet.dob ? (() => {
+                                                            const dob = new Date(pet.dob)
+                                                            const now = new Date()
+                                                            let years = now.getFullYear() - dob.getFullYear()
+                                                            let months = now.getMonth() - dob.getMonth()
+                                                            if (now.getDate() < dob.getDate()) months--
+                                                            if (months < 0) { years--; months += 12 }
+                                                            if (years > 0) return `${years} ${years === 1 ? 'año' : 'años'}`
+                                                            if (months > 0) return `${months} ${months === 1 ? 'mes' : 'meses'}`
+                                                            return '< 1 mes'
+                                                        })() : 'N/A'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="p-2 bg-ivory rounded text-xs font-bold font-medium text-charcoal/60">
-                                                EDAD: <span className="text-charcoal font-bold">
-                                                    {pet.dob ? `${new Date().getFullYear() - new Date(pet.dob).getFullYear()} años` : 'N/A'}
-                                                </span>
+                                            <div className="mt-4 pt-3 border-t border-silk-beige/50 flex items-center justify-between">
+                                                <span className="text-xs font-black text-primary-600 uppercase tracking-widest">Ver Ficha Clínica</span>
+                                                <ChevronRight className="w-4 h-4 text-primary-600 group-hover:translate-x-0.5 transition-transform" />
                                             </div>
-                                        </div>
-
-                                        <div className="mt-4 flex items-center justify-between text-xs font-bold text-primary-600 uppercase tracking-widest pt-4 border-t border-silk-beige/50">
-                                            <span>Ver Ficha Clínica</span>
-                                            <ChevronRight className="w-4 h-4" />
                                         </div>
                                     </div>
                                 ))}
@@ -454,7 +445,7 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                         </div>
 
                         <div className="bg-white rounded-soft border border-silk-beige shadow-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-silk-beige flex justify-between items-center bg-gray-50/50">
+                            <div className="px-6 py-4 border-b border-silk-beige flex justify-between items-center bg-ivory/50">
                                 <h3 className="font-bold text-charcoal">Historial de Transacciones</h3>
                             </div>
                             

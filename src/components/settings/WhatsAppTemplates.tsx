@@ -243,7 +243,7 @@ export function WhatsAppTemplates() {
 
                             {/* Buttons */}
                             {buttons.map((btn, idx) => btn ? (
-                                <div key={idx} className="bg-white text-[#00A884] font-medium text-center p-3 rounded-lg shadow-sm text-sm mb-2 border border-gray-100 flex items-center justify-center">
+                                <div key={idx} className="bg-white text-[#00A884] font-medium text-center p-3 rounded-lg shadow-sm text-sm mb-2 border border-silk-beige flex items-center justify-center">
                                     {btn}
                                 </div>
                             ) : null)}

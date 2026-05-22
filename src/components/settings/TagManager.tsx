@@ -111,7 +111,7 @@ export function TagManager() {
             </div>
 
             {/* Create Form */}
-            <form onSubmit={handleCreateTag} className="flex flex-col sm:flex-row gap-4 items-end bg-gray-50 p-4 rounded-soft border border-dashed border-gray-200">
+            <form onSubmit={handleCreateTag} className="flex flex-col sm:flex-row gap-4 items-end bg-ivory p-4 rounded-soft border border-dashed border-silk-beige">
                 <div className="w-full sm:flex-1">
                     <label className="block text-xs font-medium text-charcoal/60 mb-1 uppercase">Nombre de etiqueta</label>
                     <input
@@ -153,7 +153,7 @@ export function TagManager() {
                 {loading ? (
                     <div className="text-center py-8 text-charcoal/40">Cargando etiquetas...</div>
                 ) : tags.length === 0 ? (
-                    <div className="text-center py-8 text-charcoal/40 italic bg-gray-50 rounded-soft">
+                    <div className="text-center py-8 text-charcoal/40 italic bg-ivory rounded-soft">
                         No hay etiquetas creadas aún.
                     </div>
                 ) : (

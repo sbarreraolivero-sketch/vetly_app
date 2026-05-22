@@ -260,7 +260,7 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
                     </div>
                 </form>
 
-                <div className="p-6 border-t border-silk-beige flex justify-end gap-3 bg-gray-50/50 rounded-b-soft">
+                <div className="p-6 border-t border-silk-beige flex justify-end gap-3 bg-ivory/50 rounded-b-soft">
                     <button
                         type="button"
                         onClick={onClose}

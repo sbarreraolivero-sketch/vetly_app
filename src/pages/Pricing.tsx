@@ -1,79 +1,103 @@
 import { useState } from 'react'
-import { Check, Sparkles, Zap, Crown, ArrowRight } from 'lucide-react'
+import { Check, Sparkles, Zap, Crown, ArrowRight, LayoutDashboard, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const plans = [
     {
-        id: 'essence',
-        name: 'Plan Essence',
-        tagline: 'Ideal para Veterinarios Independientes a Domicilio y Clinicas Pequeñas.',
-        price: 99,
+        id: 'core',
+        name: 'Core',
+        tagline: 'Gestión completa, sin IA conversacional.',
+        price: 39,
         period: '/mes',
-        description: 'Lo necesario para gestionar los prospectos, pacientes y reservas con IA.',
+        description: 'Todo lo que necesitas para administrar tu clínica. Sin el agente de WhatsApp.',
+        highlight: false,
+        icon: LayoutDashboard,
+        features: [
+            '1 usuario',
+            'Dashboard con métricas en tiempo real',
+            'Calendario de citas (gestión manual)',
+            'Fichas médicas e historial animal',
+            'CRM de prospectos',
+            'Campañas de marketing (WhatsApp)',
+            'Sistema de referidos',
+            'Módulo de finanzas y reportes',
+        ],
+        upsells: [
+            'Recordatorios: packs de 50 · 200 · ilimitados/mes',
+            'Mensajes de plantilla: cobro por consumo',
+        ],
+        limitations: [],
+        cta: 'Comenzar con Core',
+        gradient: 'from-zinc-500 to-zinc-700',
+    },
+    {
+        id: 'starter',
+        name: 'Starter',
+        tagline: 'Ideal para veterinarios independientes a domicilio.',
+        price: 89,
+        period: '/mes',
+        description: 'Agrega el agente IA que atiende y agenda por WhatsApp, 24/7.',
         highlight: false,
         icon: Sparkles,
         features: [
-            'Hasta 2 Usuarios',
-            'Agente de IA especializado en rubro veterinario',
-            'Integración con Google Maps (Reservas geolocalizadas)',
-            'Hasta 50 citas automatizadas mensuales',
-            'Hasta 1 agenda disponible',
-            'Gestión de servicios',
-            'Fichas clínicas + historial médico animal',
-            'Dashboard con Métricas (Ranking, Conversión, etc.)',
-            'Integración oficial de WhatsApp (Meta). Libre de bloqueos',
+            'Todo lo de Core, más:',
+            'Hasta 2 usuarios',
+            'Agente IA WhatsApp (GPT-4o mini)',
+            'Hasta 50 citas automatizadas/mes',
+            '1 agenda disponible',
+            'Optimización de ruta con Google Maps',
+            'Integración oficial WhatsApp (Meta)',
         ],
         limitations: [],
-        cta: 'Comenzar con Essence',
-        gradient: 'from-gray-500 to-gray-700',
+        cta: 'Comenzar con Starter',
+        gradient: 'from-primary-500 to-primary-700',
     },
     {
-        id: 'radiance',
-        name: 'Plan Radiance',
-        tagline: 'Para clínicas en pleno crecimiento (Móviles o físicas).',
-        price: 159,
+        id: 'pro',
+        name: 'Pro',
+        tagline: 'Para clínicas en pleno crecimiento, móviles o físicas.',
+        price: 149,
         period: '/mes',
-        description: 'La solución completa para captar, retener por salud y automatizar tu clínica veterinaria.',
+        description: 'IA completa, recordatorios, campañas y citas ilimitadas.',
         highlight: true,
         icon: Zap,
         features: [
-            'Todo lo de Essence, más:',
-            'Hasta 5 usuarios (Adm, Prof, Recepcionista)',
-            '5 agendas independientes disponibles',
-            'Recordatorios de vacunas/desparasitación IA',
-            'Recordatorios confirmación (Hasta 50/mes)',
-            'CRM de ventas para prospectos',
-            'Campañas Marketing masivo (WhatsApp)',
-            'Sistema Inteligente de Referidos con IA',
-            'Módulo de Gestión Financiera',
-            'Citas Ilimitadas',
-            'Encuestas de satisfacción personalizadas',
+            'Todo lo de Starter, más:',
+            'Hasta 5 usuarios (Adm, Prof, Recep)',
+            '5 agendas independientes',
+            'IA GPT-4o — citas ilimitadas',
+            'Recordatorios automáticos (50/mes)',
+            'Campañas masivas de WhatsApp',
+            'Sistema de referidos con IA',
+            'Encuestas de satisfacción',
         ],
         limitations: [],
-        cta: 'Elegir Radiance',
+        cta: 'Elegir Pro',
         gradient: 'from-primary-500 to-primary-700',
         badge: 'Popular',
     },
     {
-        id: 'prestige',
-        name: 'Prestige',
-        tagline: 'Top de línea para redes veterinarias',
+        id: 'enterprise',
+        name: 'Enterprise',
+        tagline: 'Para redes veterinarias y multi-sucursal.',
         price: 349,
         period: '/mes',
-        description: 'Infraestructura empresarial absoluta para controlar y escalar múltiples sedes.',
+        description: 'Infraestructura completa para escalar múltiples sedes con un solo sistema.',
         highlight: false,
         icon: Crown,
         features: [
-            'Todo lo de Radiance, más:',
-            'Usuarios ilimitados',
-            'Multi-sucursal / Multi-hospital',
-            'IA personalizada (especialidades)',
-            'Recordatorios confirmación ilimitados',
-            'Benchmark entre sedes. Super Administrador',
+            'Todo lo de Pro, más:',
+            'Usuarios y agendas ilimitados',
+            'Multi-sucursal con dashboard unificado',
+            'IA personalizada por especialidad',
+            'Recordatorios ilimitados',
+            'Benchmark entre sedes',
+            'Super Administrador',
+            'Soporte prioritario 24/7',
         ],
         limitations: [],
         cta: 'Contactar Ventas',
-        gradient: 'from-charcoal to-charcoal/90',
+        gradient: 'from-zinc-700 to-zinc-900',
     },
 ];
 
@@ -83,12 +107,16 @@ const faqs = [
         answer: 'Sí, puedes subir o bajar de plan cuando quieras. Los cambios se aplican en tu próximo ciclo de facturación.',
     },
     {
-        question: '¿Qué pasa si supero las 50 citas en el plan Essence?',
-        answer: 'Te notificaremos cuando te acerques al límite y podrás comprar un "Refill de Energía" por $29 USD o subir al plan Radiance.',
+        question: '¿Qué incluyen los upsells del plan Core?',
+        answer: 'El plan Core incluye funciones de gestión sin el agente IA de WhatsApp. Puedes agregar packs de recordatorios (50, 200 o ilimitados/mes) o activar el cobro por consumo de mensajes de plantilla de WhatsApp.',
+    },
+    {
+        question: '¿Qué pasa si supero las 50 citas en el plan Starter?',
+        answer: 'Te notificaremos cuando te acerques al límite. Puedes comprar un pack adicional o subir al plan Pro para citas ilimitadas.',
     },
     {
         question: '¿Necesito tener WhatsApp Business?',
-        answer: 'Sí, necesitas una cuenta de WhatsApp Business API. Te guiamos en todo el proceso de configuración con YCloud.',
+        answer: 'Para usar el agente IA (planes Starter, Pro y Enterprise), sí necesitas WhatsApp Business API. El plan Core funciona sin ella. Te guiamos en todo el proceso de configuración con YCloud.',
     },
     {
         question: '¿Ofrecen descuento por pago anual?',
@@ -198,7 +226,7 @@ export default function Pricing() {
                     </div>
 
                     {/* Plans Grid */}
-                    <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                    <div className="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
                         {plans.map((plan) => (
                             <div
                                 key={plan.id}
@@ -271,6 +299,23 @@ export default function Pricing() {
                                     ))}
                                 </ul>
 
+                                {'upsells' in plan && plan.upsells && plan.upsells.length > 0 && (
+                                    <div className="mt-6 pt-5 border-t border-silk-beige">
+                                        <p className="text-xs font-semibold text-charcoal/50 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                            <Plus className="w-3 h-3" />
+                                            Add-ons disponibles
+                                        </p>
+                                        <ul className="space-y-2">
+                                            {plan.upsells.map((upsell, index) => (
+                                                <li key={index} className="text-xs text-charcoal/60 flex items-start gap-2">
+                                                    <span className="text-primary-500 mt-0.5">+</span>
+                                                    {upsell}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
                                 {plan.limitations.length > 0 && (
                                     <div className="mt-4 pt-4 border-t border-silk-beige">
                                         {plan.limitations.map((limitation, index) => (
@@ -324,11 +369,10 @@ export default function Pricing() {
                 <div className="max-w-4xl mx-auto">
                     <div className="bg-hero-gradient rounded-softest p-12 text-center text-white">
                         <h2 className="text-3xl font-semibold mb-4">
-                            ¿Lista para transformar tu clínica?
+                            Tu próxima cita se agenda sola.
                         </h2>
                         <p className="text-white/80 mb-8 max-w-xl mx-auto">
-                            Únete a las clínicas que ya están ahorrando 20+ horas semanales
-                            con su asistente de IA.
+                            14 días gratis. Sin tarjeta. En menos de una hora tu clínica está automatizada.
                         </p>
                         <div className="flex items-center justify-center gap-4">
                             <a href="#pricing" className="bg-white text-primary-600 font-medium px-8 py-4 rounded-soft hover:shadow-soft-lg transition-all">

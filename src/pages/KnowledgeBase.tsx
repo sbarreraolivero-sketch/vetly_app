@@ -423,23 +423,11 @@ export default function KnowledgeBase() {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Header Banner */}
-            <div className="bg-hero-gradient from-primary-600 to-primary-800 rounded-soft p-8 text-white relative overflow-hidden shadow-premium mb-8">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-premium-gradient rounded-full flex items-center justify-center shadow-lg shrink-0">
-                            <BookOpen className="w-7 h-7 text-charcoal" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white tracking-tight">Base de Conocimiento</h1>
-                            <p className="text-white/80 text-sm mt-1 max-w-2xl leading-relaxed">
-                                🧠 Entrena a tu Agente IA con datos sobre tu clínica, servicios y procedimientos para que atienda a tus pacientes, maneje recordatorios y resuelva dudas sin errores.
-                            </p>
-                        </div>
-                    </div>
-
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
+                <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal">Base de Conocimiento</h1>
+                    <p className="text-sm text-charcoal/50 mt-1">Entrena a tu agente IA con la información de tu clínica.</p>
                 </div>
             </div>
 
@@ -496,7 +484,7 @@ export default function KnowledgeBase() {
                                 >
                                     <p>La <b>personalidad</b> determina cómo se siente hablar con tu clínica. Una buena personalidad genera confianza y cercanía inmediata.</p>
                                     <div className="bg-white/50 p-3 rounded-soft border border-silk-beige/30">
-                                        <p className="font-bold mb-1.5 flex items-center gap-1.5 text-primary-700 text-[11px]">
+                                        <p className="font-bold mb-1.5 flex items-center gap-1.5 text-sky-700 text-[11px]">
                                             <Check className="w-3.5 h-3.5" /> EJEMPLO RECOMENDADO:
                                         </p>
                                         <p className="italic text-[11.5px] leading-relaxed text-charcoal/80">"Eres un asesor experto en salud veterinaria. Habla de manera empática y profesional sobre el cuidado de las mascotas. Usa 'nosotros' para referirte a la clínica y enfócate siempre en resolver dudas sobre bienestar animal."</p>
@@ -802,7 +790,7 @@ export default function KnowledgeBase() {
                                             <div className="lg:col-span-9 space-y-4">
                                                 <div className="flex items-center justify-between">
                                                     <label className="text-[11px] uppercase font-bold text-charcoal/60 tracking-wider flex items-center gap-2">
-                                                        <Clock className="w-4 h-4 text-primary-500" />
+                                                        <Clock className="w-4 h-4 text-sky-500" />
                                                         Tramos de Tiempo y Recargos
                                                     </label>
                                                     <button 
@@ -918,7 +906,7 @@ export default function KnowledgeBase() {
                             })}
                         </div>
 
-                        <div className="mt-4 flex items-center justify-between p-4 bg-primary-50/30 rounded-soft border border-primary-100">
+                        <div className="mt-4 flex items-center justify-between p-4 bg-sky-50/30 rounded-soft border border-sky-100">
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div className="relative">
                                     <input
@@ -1005,7 +993,7 @@ export default function KnowledgeBase() {
                         <div className="text-left">
                             <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
                                 Documentos de Conocimiento
-                                <BookOpen className="w-4 h-4 text-primary-500" />
+                                <BookOpen className="w-4 h-4 text-sky-500" />
                             </h2>
                             <p className="text-sm text-charcoal/50 uppercase text-[10px] font-bold tracking-wider">BIBLIOTECA TÉCNICA DEL AGENTE</p>
                         </div>
@@ -1139,7 +1127,7 @@ export default function KnowledgeBase() {
                                                     </div>
 
                                                     {/* Title */}
-                                                    <h3 className="font-bold text-charcoal text-[15px] mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors uppercase tracking-tight">
+                                                    <h3 className="font-bold text-charcoal text-[15px] mb-2 line-clamp-2 group-hover:text-sky-600 transition-colors uppercase tracking-tight">
                                                         {doc.title}
                                                     </h3>
 
@@ -1167,7 +1155,7 @@ export default function KnowledgeBase() {
                                                             'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest',
                                                             doc.status === 'active'
                                                                 ? 'bg-emerald-50 text-emerald-600'
-                                                                : 'bg-gray-100 text-gray-500'
+                                                                : 'bg-silk-beige/50 text-charcoal/40'
                                                         )}>
                                                             {doc.status === 'active' ? 'Activo' : 'Inactivo'}
                                                         </span>
@@ -1186,7 +1174,7 @@ export default function KnowledgeBase() {
                                                             {doc.status === 'active' ? (
                                                                 <ToggleRight className="w-4 h-4 text-emerald-500" />
                                                             ) : (
-                                                                <ToggleLeft className="w-4 h-4 text-gray-400" />
+                                                                <ToggleLeft className="w-4 h-4 text-charcoal/30" />
                                                             )}
                                                         </button>
                                                         <button
@@ -1246,11 +1234,11 @@ export default function KnowledgeBase() {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between p-6 border-b border-silk-beige">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-primary-50 rounded-full flex items-center justify-center">
+                                <div className="w-10 h-10 bg-sky-50 rounded-full flex items-center justify-center">
                                     {editingDoc ? (
-                                        <Edit3 className="w-5 h-5 text-primary-500" />
+                                        <Edit3 className="w-5 h-5 text-sky-500" />
                                     ) : (
-                                        <Plus className="w-5 h-5 text-primary-500" />
+                                        <Plus className="w-5 h-5 text-sky-500" />
                                     )}
                                 </div>
                                 <h2 className="text-xl font-bold text-charcoal">
@@ -1411,7 +1399,7 @@ export default function KnowledgeBase() {
                             <textarea
                                 value={fullscreenPrompt === 'personality' ? masterPrompt : behaviorRules}
                                 onChange={(e) => fullscreenPrompt === 'personality' ? setMasterPrompt(e.target.value) : setBehaviorRules(e.target.value)}
-                                className="w-full h-full p-6 text-lg font-mono leading-relaxed bg-ivory/20 rounded-soft border-2 border-primary-100 focus:border-primary-500 focus:ring-0 overflow-y-auto resize-none shadow-inner"
+                                className="w-full h-full p-6 text-lg font-mono leading-relaxed bg-ivory/20 rounded-soft border-2 border-sky-100 focus:border-sky-500 focus:ring-0 overflow-y-auto resize-none shadow-inner"
                                 spellCheck={false}
                                 autoFocus
                             />

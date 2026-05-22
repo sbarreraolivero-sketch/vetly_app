@@ -182,7 +182,7 @@ export function RetentionSettingsModal({ isOpen, onClose, clinicId, onSaved }: R
                                             <option key={t.id} value={t.id}>{t.name}</option>
                                         ))}
                                     </select>
-                                    <p className="text-xs text-charcoal/40 px-1 bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200 min-h-[40px]">
+                                    <p className="text-xs text-charcoal/40 px-1 bg-ivory p-2 rounded-lg border border-dashed border-silk-beige min-h-[40px]">
                                         {templates.find(t => t.id === settings.medium_risk_template)?.desc || (templates.length === 0 ? 'Sin plantillas configuradas. Ve a la sección Plantillas para crear o sincronizar.' : 'Selecciona una plantilla para ver previsualización')}
                                     </p>
                                 </div>
@@ -204,7 +204,7 @@ export function RetentionSettingsModal({ isOpen, onClose, clinicId, onSaved }: R
                                             <option key={t.id} value={t.id}>{t.name}</option>
                                         ))}
                                     </select>
-                                    <p className="text-xs text-charcoal/40 px-1 bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200 min-h-[40px]">
+                                    <p className="text-xs text-charcoal/40 px-1 bg-ivory p-2 rounded-lg border border-dashed border-silk-beige min-h-[40px]">
                                         {templates.find(t => t.id === settings.high_risk_template)?.desc || (templates.length === 0 ? 'Sin plantillas configuradas. Ve a la sección Plantillas para crear o sincronizar.' : 'Selecciona una plantilla para ver previsualización')}
                                     </p>
                                 </div>

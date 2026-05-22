@@ -369,7 +369,7 @@ export default function MyProfile() {
                                 key={day.key}
                                 className={cn(
                                     "flex flex-wrap items-center gap-3 sm:gap-4 p-3 rounded-lg transition-colors",
-                                    dayHours.enabled ? "bg-ivory" : "bg-gray-50/70"
+                                    dayHours.enabled ? "bg-ivory" : "bg-ivory/50"
                                 )}
                             >
                                 <label className="flex items-center gap-3 w-28 sm:w-32 cursor-pointer flex-shrink-0">
@@ -426,7 +426,7 @@ export default function MyProfile() {
                                                         }}
                                                         className="sr-only peer"
                                                     />
-                                                    <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-500"></div>
+                                                    <div className="w-8 h-4 bg-silk-beige peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-500"></div>
                                                 </div>
                                                 <span className="text-[11px] font-medium text-charcoal/40 group-hover:text-charcoal/60 transition-colors">Colación</span>
                                             </label>

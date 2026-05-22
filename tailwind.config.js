@@ -8,29 +8,29 @@ export default {
     theme: {
         extend: {
             colors: {
-                // Soft Luxury Palette
-                ivory: '#FAFAF8',
-                'silk-beige': '#EDE6DE',
-                charcoal: '#2E2E2E',
+                // Modern Neutral Palette
+                ivory: '#fafafa',
+                'silk-beige': '#e4e4e7',
+                charcoal: '#18181b',
                 'gold-soft': '#C8A96A',
                 champagne: '#E6D3A3',
 
-                // Primary - Verde Clínico
+                // Primary - Teal moderno
                 primary: {
-                    50: '#E8F5F1',
-                    100: '#D1EBE3',
-                    200: '#A3D7C7',
-                    300: '#75C3AB',
-                    400: '#47AF8F',
-                    500: '#1F6F5C',
-                    600: '#1A5C4D',
-                    700: '#15493E',
-                    800: '#10362F',
-                    900: '#0B2F29',
-                    950: '#061A17',
+                    50: '#f0fdfa',
+                    100: '#ccfbf1',
+                    200: '#99f6e4',
+                    300: '#5eead4',
+                    400: '#2dd4bf',
+                    500: '#0d9488',
+                    600: '#0f766e',
+                    700: '#115e59',
+                    800: '#0d4a45',
+                    900: '#083d39',
+                    950: '#042f2e',
                 },
 
-                // Accent - Oro/Champagne
+                // Accent - Oro/Champagne (se mantiene para momentos premium)
                 accent: {
                     50: '#FBF8F0',
                     100: '#F7F1E1',
@@ -73,7 +73,7 @@ export default {
                 },
             },
             fontFamily: {
-                sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+                sans: ['Outfit', 'system-ui', 'sans-serif'],
             },
             fontSize: {
                 'display': ['48px', { lineHeight: '1.1', fontWeight: '700' }],
@@ -94,9 +94,9 @@ export default {
                 'softest': '24px',
             },
             backgroundImage: {
-                'hero-gradient': 'linear-gradient(135deg, #1F6F5C 0%, #7FA89A 100%)',
+                'hero-gradient': 'linear-gradient(135deg, #0d9488 0%, #0ea5e9 100%)',
                 'premium-gradient': 'linear-gradient(135deg, #C8A96A 0%, #E6D3A3 100%)',
-                'subtle-gradient': 'linear-gradient(180deg, #FAFAF8 0%, #EDE6DE 100%)',
+                'subtle-gradient': 'linear-gradient(180deg, #fafafa 0%, #e4e4e7 100%)',
             },
             boxShadow: {
                 'soft': '0 2px 8px rgba(46, 46, 46, 0.06)',
@@ -104,7 +104,7 @@ export default {
                 'soft-lg': '0 8px 32px rgba(46, 46, 46, 0.10)',
                 'soft-xl': '0 16px 48px rgba(46, 46, 46, 0.12)',
                 'glow-gold': '0 0 24px rgba(200, 169, 106, 0.3)',
-                'glow-primary': '0 0 24px rgba(31, 111, 92, 0.2)',
+                'glow-primary': '0 0 24px rgba(13, 148, 136, 0.25)',
             },
             animation: {
                 'fade-in': 'fadeIn 0.3s ease-out',

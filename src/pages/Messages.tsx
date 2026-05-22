@@ -456,8 +456,8 @@ export default function Messages() {
         return (
             <div className="h-[calc(100vh-7rem)] flex items-center justify-center animate-fade-in">
                 <div className="text-center max-w-md">
-                    <div className="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <MessageSquare className="w-10 h-10 text-primary-500" />
+                    <div className="w-20 h-20 bg-sky-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <MessageSquare className="w-10 h-10 text-sky-500" />
                     </div>
                     <h2 className="text-xl font-semibold text-charcoal mb-2">Sin conversaciones</h2>
                     <p className="text-charcoal/50 text-sm">
@@ -518,7 +518,7 @@ export default function Messages() {
                                 className={cn(
                                     'w-full p-4 flex items-start gap-3 text-left transition-colors border-b border-silk-beige/50',
                                     selectedPhone === conversation.phone_number
-                                        ? 'bg-primary-500/5'
+                                        ? 'bg-sky-500/5'
                                         : 'hover:bg-ivory'
                                 )}
                             >
@@ -529,7 +529,7 @@ export default function Messages() {
                                         </span>
                                     </div>
                                     {conversation.unread_count > 0 && (
-                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-sky-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
                                             {conversation.unread_count}
                                         </span>
                                     )}
@@ -713,8 +713,8 @@ export default function Messages() {
                                                     </div>
                                                     {/* Outbound bot avatar */}
                                                     {message.direction === 'outbound' && message.ai_generated && (
-                                                        <div className="w-7 h-7 bg-primary-500/20 rounded-full flex items-center justify-center ml-2 mt-1 flex-shrink-0">
-                                                            <Bot className="w-3.5 h-3.5 text-primary-600" />
+                                                        <div className="w-7 h-7 bg-sky-500/20 rounded-full flex items-center justify-center ml-2 mt-1 flex-shrink-0">
+                                                            <Bot className="w-3.5 h-3.5 text-sky-600" />
                                                         </div>
                                                     )}
                                                 </div>

@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
     Plus,
     Search,
     Edit2,
     User as UserIcon,
+    Users,
     Phone,
     Trash2,
     X,
     Filter,
-    Tag
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { Users } from 'lucide-react'
 
 import { TutorForm } from '@/components/patients/TutorForm'
 import { TutorDetails } from '@/components/patients/TutorDetails'
@@ -41,6 +41,8 @@ interface TagSummary {
 
 export default function Tutors() {
     const { profile } = useAuth()
+    const navigate = useNavigate()
+    const location = useLocation()
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [contacts, setContacts] = useState<Contact[]>([])
@@ -99,6 +101,18 @@ export default function Tutors() {
         return () => clearTimeout(timer)
     }, [searchQuery, profile?.clinic_id])
 
+    // Auto-open tutor when navigating from PatientProfile breadcrumb
+    useEffect(() => {
+        const tutorId = (location.state as any)?.tutorId
+        if (tutorId && contacts.length > 0) {
+            const contact = contacts.find(c => c.id === tutorId)
+            if (contact) {
+                setSelectedContact(contact)
+                navigate('/app/tutors', { replace: true, state: {} })
+            }
+        }
+    }, [contacts, location.state])
+
     const handleDelete = async (contact: Contact) => {
         if (!profile?.clinic_id) return
 
@@ -140,52 +154,51 @@ export default function Tutors() {
                 />
             ) : (
                 <div className="space-y-6 animate-fade-in relative min-h-screen pb-20">
-                    {/* Header Banner */}
-                    <div className="bg-hero-gradient rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden shadow-2xl mb-10 border border-white/10">
-                        {/* Decorative blobs */}
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none animate-pulse"></div>
-                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary-400/20 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4 pointer-events-none"></div>
-
-                        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                            <div className="flex items-center gap-6">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner group transition-all duration-500 hover:scale-110">
-                                    <div className="p-3 bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-600 rounded-xl shadow-lg">
-                                        <Users className="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" />
-                                    </div>
+                    {/* Page Banner */}
+                    <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
+                        <div className="p-6 sm:p-8">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-2">Clínica</p>
+                                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Tutores y Prospectos</h1>
+                                    <p className="text-sm text-primary-100/80 font-light mt-1">Dueños de mascotas y leads en un solo lugar.</p>
                                 </div>
-                                <div>
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[12px] font-bold uppercase tracking-widest mb-3 animate-fade-in">
-                                        <Tag className="w-3.5 h-3.5 text-amber-300" />
-                                        <span className="text-amber-50">Base de Contactos</span>
-                                    </div>
-                                    <h1 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight drop-shadow-sm uppercase text-white">
-                                        Tutores y Prospectos
-                                    </h1>
-                                    <p className="text-emerald-50/90 text-sm sm:text-base max-w-xl font-semibold leading-relaxed">
-                                        Gestiona dueños de mascotas y leads potenciales en un solo lugar. Segmenta y fideliza a tu comunidad veterinaria.
-                                    </p>
+                                <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                                    <Users className="w-6 h-6 text-white" />
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-center gap-3">
-                                <CSVUploader onSuccess={fetchContacts} />
-                                <button
-                                    onClick={() => {
-                                        setEditingTutor(null)
-                                        setIsFormOpen(true)
-                                    }}
-                                    className="w-full sm:w-auto px-8 py-3.5 bg-white text-emerald-900 hover:bg-emerald-50 transition-all font-black rounded-xl flex items-center justify-center gap-2 shadow-premium hover:scale-105 active:scale-95 uppercase text-xs tracking-widest mt-2 sm:mt-0"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                    Nuevo Tutor
-                                </button>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
+                                <div className="flex items-center gap-6">
+                                    <div>
+                                        <p className="text-2xl font-black text-white">{contacts.length}</p>
+                                        <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Total</p>
+                                    </div>
+                                    <div className="w-px h-8 bg-white/15" />
+                                    <div>
+                                        <p className="text-2xl font-black text-white">{contacts.filter(c => c.tags && c.tags.length > 0).length}</p>
+                                        <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Con Etiquetas</p>
+                                    </div>
+                                    <div className="w-px h-8 bg-white/15" />
+                                    <div>
+                                        <p className="text-2xl font-black text-white">{tagSummaries.length}</p>
+                                        <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Segmentos</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CSVUploader onSuccess={fetchContacts} />
+                                    <button
+                                        onClick={() => {
+                                            setEditingTutor(null)
+                                            setIsFormOpen(true)
+                                        }}
+                                        className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Nuevo Tutor
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 bg-silk-beige/30 p-1 rounded-lg w-fit">
-                        <div className="px-4 py-2 text-sm font-bold text-primary-700 bg-white rounded-md shadow-sm uppercase tracking-widest">
-                            Lista de Tutores
                         </div>
                     </div>
 
@@ -274,7 +287,7 @@ export default function Tutors() {
                                                                     {contact.name?.charAt(0).toUpperCase() || <UserIcon className="w-5 h-5" />}
                                                                 </div>
                                                                 <div>
-                                                                    <p className="font-medium text-charcoal group-hover:text-primary-700 transition-colors uppercase text-xs tracking-wide">
+                                                                    <p className="font-bold text-charcoal group-hover:text-primary-700 transition-colors text-sm">
                                                                         {contact.name || 'Sin nombre'}
                                                                     </p>
                                                                     <div className="flex items-center gap-2 text-xs text-charcoal/40">

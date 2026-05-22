@@ -301,7 +301,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
 
                 </form>
 
-                <div className="p-6 border-t border-silk-beige flex justify-end gap-3 bg-gray-50 rounded-b-soft">
+                <div className="p-6 border-t border-silk-beige flex justify-end gap-3 bg-ivory rounded-b-soft">
                     <button
                         type="button"
                         onClick={onClose}

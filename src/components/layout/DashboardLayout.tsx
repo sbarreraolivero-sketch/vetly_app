@@ -42,21 +42,49 @@ interface Notification {
     created_at: string
 }
 
-const navigation = [
-    { name: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
-    { name: 'Mensajes', href: '/app/messages', icon: MessageSquare },
-    { name: 'Plantillas', href: '/app/templates', icon: FileText },
-    { name: 'Tutores', href: '/app/tutors', icon: Users },
-    { name: 'Pacientes', href: '/app/patients', icon: Heart },
-    { name: 'CRM', href: '/app/crm', icon: Target },
-    { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
-    { name: 'Recordatorios', href: '/app/reminders', icon: Clock },
-    { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
-    { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
-    { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
-    { name: 'Fidelización', href: '/app/loyalty', icon: Award },
-    { name: 'Configuración', href: '/app/settings', icon: Settings },
+const navigationSections = [
+    {
+        label: 'Principal',
+        accent: { label: 'text-sky-400/70', active: 'bg-sky-500/[0.18]', dot: 'bg-sky-400', icon: 'text-sky-300' },
+        items: [
+            { name: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
+            { name: 'Mensajes', href: '/app/messages', icon: MessageSquare },
+            { name: 'Plantillas', href: '/app/templates', icon: FileText },
+        ]
+    },
+    {
+        label: 'Clínica',
+        accent: { label: 'text-primary-400/70', active: 'bg-primary-500/[0.18]', dot: 'bg-primary-400', icon: 'text-primary-300' },
+        items: [
+            { name: 'Tutores', href: '/app/tutors', icon: Users },
+            { name: 'Pacientes', href: '/app/patients', icon: Heart },
+            { name: 'CRM', href: '/app/crm', icon: Target },
+            { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
+            { name: 'Recordatorios', href: '/app/reminders', icon: Clock },
+            { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
+        ]
+    },
+    {
+        label: 'Marketing',
+        accent: { label: 'text-violet-400/70', active: 'bg-violet-500/[0.18]', dot: 'bg-violet-400', icon: 'text-violet-300' },
+        items: [
+            { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
+            { name: 'Referidos', href: '/app/referrals', icon: Award },
+        ]
+    },
+    {
+        label: 'Configuración',
+        accent: { label: 'text-amber-400/70', active: 'bg-amber-500/[0.18]', dot: 'bg-amber-400', icon: 'text-amber-300' },
+        items: [
+            { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
+            { name: 'Fidelización', href: '/app/loyalty', icon: Star },
+            { name: 'Configuración', href: '/app/settings', icon: Settings },
+        ]
+    },
 ]
+
+// Flat list for header title lookup
+const navigation = navigationSections.flatMap(s => s.items)
 
 const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -305,80 +333,94 @@ export default function DashboardLayout() {
             )}
 
             <aside className={cn(
-                "fixed inset-y-0 left-0 z-50 bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out md:relative md:translate-x-0 hidden md:flex",
-                isSidebarCollapsed ? "w-20" : "w-64"
+                "fixed inset-y-0 left-0 z-50 bg-[#111827] flex flex-col transition-all duration-300 ease-in-out md:relative md:translate-x-0 hidden md:flex",
+                isSidebarCollapsed ? "w-[68px]" : "w-[216px]"
             )}>
                 {/* Logo */}
-                <div className="h-16 flex items-center justify-between px-6 border-b border-gray-800 relative group cursor-pointer transition-colors hover:bg-gray-800/50" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 md:w-10 md:h-10 shrink-0 bg-gray-800 rounded-soft flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-primary-400" />
-                        </div>
-                        <div className={cn("transition-opacity duration-300", isSidebarCollapsed ? "opacity-0 hidden" : "opacity-100")}>
-                            <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-primary-600">Vetly</h1>
-                            <p className="text-xs text-gray-400 -mt-0.5">Veterinary AI</p>
-                        </div>
+                <div
+                    className="h-14 flex items-center gap-3 px-4 border-b border-white/[0.06] cursor-pointer hover:bg-white/[0.03] transition-colors shrink-0"
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                >
+                    <div className="w-8 h-8 shrink-0 rounded-lg bg-gradient-to-br from-primary-500 to-sky-400 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <div className={cn("transition-all duration-200 overflow-hidden", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
+                        <p className="text-[15px] font-bold text-white leading-tight tracking-tight">Vetly</p>
+                        <p className="text-[10px] text-white/35 font-medium tracking-widest uppercase leading-none">Veterinary AI</p>
                     </div>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                    {navigation.filter(item => {
+                <nav className="flex-1 py-3 overflow-y-auto scrollbar-soft">
+                    {navigationSections.map((section) => {
                         const userRole = member?.role || (profile as any)?.role
-                        
-                        // Nuclear bypass for owners
                         const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
                         const isNuclearOwner = user?.email && ownerEmails.includes(user.email.toLowerCase().trim())
-                        
                         const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin' || isNuclearOwner
                         const isVetAssistant = userRole === 'vet_assistant'
 
-                        // Role-based restrictions
-                        if (isVetAssistant) {
-                            // Asistente Veterinario only sees: Dashboard, Tutores, Pacientes, Citas, Recordatorios, Finanzas
-                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
-                        }
+                        const visibleItems = section.items.filter(item => {
+                            if (isVetAssistant) {
+                                return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
+                            }
+                            if (['Finanzas', 'CRM', 'Campañas', 'Referidos', 'Fidelización'].includes(item.name)) {
+                                return isOwnerOrAdmin
+                            }
+                            return true
+                        })
 
-                        // Hide Finance, CRM, and Campaigns for non-owners/admins (everyone else)
-                        if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
-                            if (!isOwnerOrAdmin) return false
-                        }
-                        
-                        return true
-                    }).map((item) => {
-                        const isActive = location.pathname === item.href
+                        if (visibleItems.length === 0) return null
+
                         return (
-                            <NavLink
-                                key={item.name}
-                                to={item.href}
-                                onClick={() => setShowMobileMenu(false)}
-                                title={isSidebarCollapsed ? item.name : undefined}
-                                className={cn(
-                                    'flex items-center gap-3 px-4 py-3 rounded-soft transition-all duration-200',
-                                    isActive
-                                        ? 'bg-accent-500/15 text-accent-400 font-medium border border-accent-500/20 shadow-[inset_0_0_8px_rgba(200,169,106,0.1)]'
-                                        : 'text-gray-400 hover:bg-gray-800 hover:text-white',
-                                    isSidebarCollapsed && 'justify-center px-0'
+                            <div key={section.label} className="mb-1">
+                                {!isSidebarCollapsed && (
+                                    <p className={cn("px-4 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.1em]", section.accent.label)}>
+                                        {section.label}
+                                    </p>
                                 )}
-                            >
-                                <item.icon className={cn("shrink-0", isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5", isActive ? "text-accent-400" : "text-gray-500")} />
-                                <span className={cn("transition-opacity duration-300", isSidebarCollapsed ? "opacity-0 hidden" : "opacity-100")}>{item.name}</span>
-                            </NavLink>
+                                {visibleItems.map((item) => {
+                                    const isActive = location.pathname === item.href
+                                    return (
+                                        <NavLink
+                                            key={item.name}
+                                            to={item.href}
+                                            title={isSidebarCollapsed ? item.name : undefined}
+                                            className={cn(
+                                                'relative flex items-center gap-3 mx-2 px-3 py-[9px] rounded-lg text-[13px] font-medium transition-all duration-150',
+                                                isActive
+                                                    ? cn(section.accent.active, 'text-white')
+                                                    : 'text-white/50 hover:bg-white/[0.05] hover:text-white/85',
+                                                isSidebarCollapsed && 'justify-center px-0 mx-1'
+                                            )}
+                                        >
+                                            {isActive && (
+                                                <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full", section.accent.dot)} />
+                                            )}
+                                            <item.icon className={cn(
+                                                "shrink-0 w-[18px] h-[18px]",
+                                                isActive ? section.accent.icon : "text-white/40"
+                                            )} />
+                                            <span className={cn("transition-all duration-200 overflow-hidden whitespace-nowrap", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
+                                                {item.name}
+                                            </span>
+                                        </NavLink>
+                                    )
+                                })}
+                            </div>
                         )
                     })}
                 </nav>
 
                 {/* Footer - AI Status */}
-                <div className="p-4 border-t border-gray-800">
-                    <div className={cn("card-soft bg-gray-800 border-none transition-all duration-300", isSidebarCollapsed ? "p-2 flex justify-center" : "p-4")}>
-                        <div className="flex items-center gap-3">
-                            <div className={cn("shrink-0 bg-gray-700 rounded-full flex items-center justify-center", isSidebarCollapsed ? "w-8 h-8" : "w-10 h-10")}>
-                                <Sparkles className="w-5 h-5 text-primary-400" />
-                            </div>
-                            <div className={cn("min-w-0 transition-opacity duration-300", isSidebarCollapsed ? "opacity-0 hidden" : "opacity-100")}>
-                                <p className="text-sm font-medium text-white truncate">IA Activa</p>
-                                <p className="text-xs text-gray-400">Respondiendo 24/7</p>
-                            </div>
+                <div className="p-3 border-t border-white/[0.06] shrink-0">
+                    <div className={cn(
+                        "flex items-center gap-3 rounded-xl bg-primary-500/[0.12] border border-primary-500/25 transition-all duration-200",
+                        isSidebarCollapsed ? "p-2 justify-center" : "px-3 py-3"
+                    )}>
+                        <div className="shrink-0 w-2 h-2 bg-primary-400 rounded-full animate-pulse-soft" />
+                        <div className={cn("min-w-0 overflow-hidden transition-all duration-200", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
+                            <p className="text-[13px] font-semibold text-white leading-tight">IA Activa</p>
+                            <p className="text-[11px] text-white/40">Respondiendo 24/7</p>
                         </div>
                     </div>
                 </div>
@@ -386,76 +428,61 @@ export default function DashboardLayout() {
 
             {/* Mobile Sidebar */}
             <aside className={cn(
-                "fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-300 ease-in-out md:hidden",
+                "fixed inset-y-0 left-0 z-50 w-[216px] bg-[#111827] flex flex-col transition-transform duration-300 ease-in-out md:hidden",
                 showMobileMenu ? "translate-x-0" : "-translate-x-full"
             )}>
-                {/* Logo */}
-                <div className="h-16 flex items-center justify-between px-6 border-b border-gray-800">
+                <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-800 rounded-soft flex items-center justify-center">
-                            <Sparkles className="w-5 h-5 text-primary-400" />
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-sky-400 flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-primary-600">Vetly</h1>
-                            <p className="text-xs text-gray-400 -mt-0.5">Veterinary AI</p>
+                            <p className="text-[15px] font-bold text-white leading-tight">Vetly</p>
+                            <p className="text-[10px] text-white/35 uppercase tracking-widest">Veterinary AI</p>
                         </div>
                     </div>
-                    {/* Close Mobile Menu Button */}
-                    <button
-                        onClick={() => setShowMobileMenu(false)}
-                        className="p-2 -mr-2 text-gray-400 hover:text-white"
-                    >
+                    <button onClick={() => setShowMobileMenu(false)} className="p-1.5 text-white/40 hover:text-white">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-
-                {/* Navigation */}
-                <nav className="flex-1 p-4 space-y-1 overflow-y-auto w-full">
-                    {navigation.filter(item => {
+                <nav className="flex-1 py-3 overflow-y-auto scrollbar-soft">
+                    {navigationSections.map((section) => {
                         const userRole = member?.role || (profile as any)?.role
                         const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
                         const isVetAssistant = userRole === 'vet_assistant'
-
-                        if (isVetAssistant) {
-                            return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
-                        }
-
-                        if (['Finanzas', 'CRM', 'Campañas', 'Fidelización'].includes(item.name)) {
-                            if (!isOwnerOrAdmin) return false
-                        }
-                        return true
-                    }).map((item) => {
-                        const isActive = location.pathname === item.href
+                        const visibleItems = section.items.filter(item => {
+                            if (isVetAssistant) return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
+                            if (['Finanzas', 'CRM', 'Campañas', 'Referidos', 'Fidelización'].includes(item.name)) return isOwnerOrAdmin
+                            return true
+                        })
+                        if (visibleItems.length === 0) return null
                         return (
-                            <NavLink
-                                key={item.name}
-                                to={item.href}
-                                onClick={() => setShowMobileMenu(false)}
-                                className={cn(
-                                    'flex items-center gap-3 px-4 py-3 rounded-soft transition-all duration-200',
-                                    isActive
-                                        ? 'bg-accent-500/15 text-accent-400 font-medium border border-accent-500/20 shadow-[inset_0_0_8px_rgba(200,169,106,0.1)]'
-                                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                                )}
-                            >
-                                <item.icon className={cn("w-5 h-5 shrink-0", isActive ? "text-accent-400" : "text-gray-500")} />
-                                <span>{item.name}</span>
-                            </NavLink>
+                            <div key={section.label} className="mb-1">
+                                <p className={cn("px-4 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.1em]", section.accent.label)}>{section.label}</p>
+                                {visibleItems.map((item) => {
+                                    const isActive = location.pathname === item.href
+                                    return (
+                                        <NavLink key={item.name} to={item.href} onClick={() => setShowMobileMenu(false)}
+                                            className={cn(
+                                                'relative flex items-center gap-3 mx-2 px-3 py-[9px] rounded-lg text-[13px] font-medium transition-all duration-150',
+                                                isActive ? cn(section.accent.active, 'text-white') : 'text-white/50 hover:bg-white/[0.05] hover:text-white/85'
+                                            )}>
+                                            {isActive && <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full", section.accent.dot)} />}
+                                            <item.icon className={cn("shrink-0 w-[18px] h-[18px]", isActive ? section.accent.icon : "text-white/40")} />
+                                            <span>{item.name}</span>
+                                        </NavLink>
+                                    )
+                                })}
+                            </div>
                         )
                     })}
                 </nav>
-
-                {/* Footer - AI Status */}
-                <div className="p-4 border-t border-gray-800">
-                    <div className="card-soft p-4 bg-gray-800 border-none">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center shrink-0">
-                                <Sparkles className="w-5 h-5 text-primary-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">IA Activa</p>
-                                <p className="text-xs text-gray-400">Respondiendo 24/7</p>
-                            </div>
+                <div className="p-3 border-t border-white/[0.06] shrink-0">
+                    <div className="flex items-center gap-3 rounded-xl bg-primary-500/[0.12] border border-primary-500/25 px-3 py-3">
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse-soft shrink-0" />
+                        <div>
+                            <p className="text-[13px] font-semibold text-white">IA Activa</p>
+                            <p className="text-[11px] text-white/40">Respondiendo 24/7</p>
                         </div>
                     </div>
                 </div>
@@ -464,17 +491,15 @@ export default function DashboardLayout() {
             {/* Main Content */}
             <div className="flex-1 flex flex-col w-full min-w-0">
                 {/* Header */}
-                <header className="h-16 border-b border-silk-beige flex items-center justify-between px-4 md:px-6 bg-ivory">
+                <header className="h-14 border-b border-silk-beige flex items-center justify-between px-4 md:px-6 bg-white shrink-0">
                     <div className="flex items-center gap-3">
-                        {/* Mobile Menu Button */}
                         <button
                             onClick={() => setShowMobileMenu(true)}
-                            className="p-2 -ml-2 text-charcoal/60 hover:text-charcoal hover:bg-silk-beige/50 rounded-soft md:hidden"
+                            className="p-2 -ml-2 text-charcoal/60 hover:text-charcoal hover:bg-silk-beige/50 rounded-lg md:hidden"
                         >
-                            <Menu className="w-6 h-6" />
+                            <Menu className="w-5 h-5" />
                         </button>
-
-                        <h2 className="text-lg font-semibold text-charcoal truncate">
+                        <h2 className="text-[15px] font-bold text-charcoal tracking-tight truncate">
                             {navigation.find((n) => n.href === location.pathname)?.name || 'Dashboard'}
                         </h2>
                     </div>
@@ -488,7 +513,7 @@ export default function DashboardLayout() {
                             >
                                 <Bell className="w-5 h-5" />
                                 {unreadCount > 0 && (
-                                    <span className="absolute top-1 right-1 w-4 h-4 bg-accent-500 rounded-full text-xs font-bold font-medium text-white flex items-center justify-center">
+                                    <span className="absolute top-1 right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-bold text-white flex items-center justify-center">
                                         {unreadCount > 9 ? '9+' : unreadCount}
                                     </span>
                                 )}
