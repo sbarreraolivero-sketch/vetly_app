@@ -20,9 +20,14 @@ export default function Team() {
 
     // Centralized plan limits — SINGLE SOURCE OF TRUTH
     const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
-        essence:  { maxUsers: 2,      maxAgendas: 1 },
-        radiance: { maxUsers: 5,      maxAgendas: 5 },
-        prestige: { maxUsers: 999999, maxAgendas: 999999 },
+        core:       { maxUsers: 1,      maxAgendas: 1 },
+        starter:    { maxUsers: 2,      maxAgendas: 1 },
+        pro:        { maxUsers: 5,      maxAgendas: 5 },
+        enterprise: { maxUsers: 999999, maxAgendas: 999999 },
+        // legacy IDs kept for backward compat
+        essence:    { maxUsers: 2,      maxAgendas: 1 },
+        radiance:   { maxUsers: 5,      maxAgendas: 5 },
+        prestige:   { maxUsers: 999999, maxAgendas: 999999 },
     }
 
     // Fallback to profile check if member context is missing
@@ -107,7 +112,7 @@ export default function Team() {
 
             if (subData) {
                 // Subscription table is the ultimate authority
-                const plan = subData.plan || 'essence'
+                const plan = subData.plan || 'starter'
                 setPlanName(plan)
 
                 // Use centralized PLAN_LIMITS as source of truth

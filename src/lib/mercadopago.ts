@@ -6,7 +6,7 @@ import { supabase } from './supabase'
 
 interface CreateSubscriptionParams {
     clinicId: string
-    planId: 'essence' | 'radiance' | 'prestige'
+    planId: 'core' | 'starter' | 'pro' | 'enterprise'
     email: string
     externalReference?: string
 }
@@ -99,71 +99,104 @@ export async function cancelSubscription(subscriptionId: string) {
  * CLP Plan Prices for Mercado Pago (Chile)
  */
 export const PLANS = {
-    essence: {
-        id: 'essence',
-        name: 'Plan Essence',
-        tagline: 'Ideal para Veterinarios Independientes y Clínicas Pequeñas',
-        price: 93000,
+    core: {
+        id: 'core',
+        name: 'Core',
+        tagline: 'Gestión completa sin IA conversacional',
+        price: 33000,
+        currency: 'CLP',
+        monthlyAppointmentsMonthly: 0,
+        maxUsers: 1,
+        maxAgendas: 1,
+        features: [
+            '1 usuario · 1 agenda',
+            'Dashboard + métricas',
+            'Calendario de citas (manual)',
+            'Fichas médicas e historial',
+            'Módulo de finanzas',
+            'Sistema de referidos',
+        ],
+        upsells: [
+            'Recordatorios automáticos — packs opcionales',
+            'Mensajes de plantilla — cobro por consumo',
+        ],
+    },
+    starter: {
+        id: 'starter',
+        name: 'Starter',
+        tagline: 'Para veterinarios independientes',
+        price: 89000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: 50,
         maxUsers: 2,
         maxAgendas: 1,
         features: [
-            'Hasta 2 Usuarios',
-            'Agente de IA especializado veterinario',
-            'Integración Google Maps (Geolocalización)',
-            'Hasta 50 citas automatizadas mensuales',
-            'Hasta 1 agenda disponible',
-            'Fichas clínicas + historial médico',
-            'Dashboard con Métricas (Ranking, Conversión)',
-            'Integración oficial WhatsApp (Meta)',
+            '2 usuarios · 1 agenda',
+            'Todo lo de Core',
+            'Agente IA WhatsApp (Lía)',
+            '1.000 créditos IA incluidos/mes',
+            'Hasta 50 citas con IA/mes',
+            '100 recordatorios/mes',
+            'Campañas masivas',
+            'Logística móvil (Goldi)',
         ],
     },
-    radiance: {
-        id: 'radiance',
-        name: 'Plan Radiance',
-        tagline: 'Para clínicas en pleno crecimiento (Móviles o físicas)',
-        price: 150000,
+    pro: {
+        id: 'pro',
+        name: 'Pro',
+        tagline: 'Para clínicas en crecimiento',
+        price: 149000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: -1,
         maxUsers: 5,
         maxAgendas: 5,
         popular: true,
         features: [
-            'Todo lo de Essence, más:',
-            'Hasta 5 usuarios (Adm, Prof, Rec)',
-            '5 agendas independientes disponibles',
-            'Recordatorios de vacunas/desparasitación IA',
-            'Recordatorios confirmación (Hasta 50/mes)',
-            'CRM de ventas para prospectos',
-            'Marketing vía WhatsApp masivo',
-            'Sistema Inteligente de Referidos con IA',
-            'Módulo de Gestión Financiera',
-            'Encuestas de satisfacción personalizadas',
+            '5 usuarios · 5 agendas',
+            'Todo lo de Starter',
+            '4.000 créditos IA incluidos/mes',
+            'Citas con IA ilimitadas',
+            '250 recordatorios/mes',
+            'Encuestas de satisfacción',
+            'Soporte prioritario',
         ],
     },
-    prestige: {
-        id: 'prestige',
-        name: 'Prestige',
-        tagline: 'Top de línea para redes veterinarias',
-        price: 335000,
+    enterprise: {
+        id: 'enterprise',
+        name: 'Enterprise',
+        tagline: 'Redes y multi-sucursal',
+        price: 349000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: -1,
         maxUsers: 999999,
         maxAgendas: 999999,
         features: [
-            'Todo lo de Radiance, más:',
-            'Usuarios ilimitados',
-            'Multi-sucursal / Multi-hospital',
-            'IA personalizada (especialidades)',
-            'Recordatorios confirmación ilimitados',
-            'Benchmark entre sedes. Super Administrador',
-            'Sistema de Logística PRO',
+            'Usuarios y agendas ilimitados',
+            'Todo lo de Pro',
+            '8.000 créditos IA incluidos/mes',
+            'Recordatorios ilimitados',
+            'Multi-sucursal unificado',
+            'IA personalizada por especialidad',
+            'Super Administrador',
+            'Soporte 24/7 dedicado',
         ],
     },
 } as const;
 
 export type PlanId = keyof typeof PLANS
+
+/** Maps legacy DB plan IDs to current plan IDs */
+export const PLAN_LEGACY_MAP: Record<string, PlanId> = {
+    essence: 'starter',
+    radiance: 'pro',
+    prestige: 'enterprise',
+}
+
+/** Resolves a plan ID that may be legacy to the current equivalent */
+export function normalizePlanId(planId: string): PlanId {
+    if (planId in PLANS) return planId as PlanId
+    return PLAN_LEGACY_MAP[planId] ?? 'starter'
+}
 
 /**
  * CLP Credit Packs — GPT-4o-mini (económico)

@@ -41,7 +41,7 @@ import {
     Settings2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { PLANS, type PlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
+import { PLANS, type PlanId, normalizePlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
 import { LS_PLANS, type LSPlanId, LS_CREDIT_PACKS, redirectToLemonCheckout, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -395,7 +395,7 @@ export default function Settings() {
                             .select('subscription_plan')
                             .eq('id', profile.clinic_id)
                             .single()
-                        planName = csData?.subscription_plan || 'essence'
+                        planName = normalizePlanId(csData?.subscription_plan || 'starter')
                     }
                     setSubscription({
                         plan: planName,
@@ -1046,7 +1046,7 @@ export default function Settings() {
             } else {
                 await redirectToCheckout({
                     clinicId: profile.clinic_id,
-                    planId: planId as "essence" | "radiance" | "prestige",
+                    planId: planId as "core" | "starter" | "pro" | "enterprise",
                     email: user.email,
                 })
             }
@@ -1941,15 +1941,12 @@ export default function Settings() {
                                         <div>
                                             <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-1">Plan Actual</p>
                                             <h3 className="text-3xl font-black text-charcoal capitalize tracking-tight">
-                                                Plan {subscription?.plan || 'Essence (Trial)'}
+                                                {PLANS[normalizePlanId(subscription?.plan || 'starter')]?.name || 'Plan Trial'}
                                             </h3>
                                             <div className="flex items-center gap-2 mt-2">
                                                 <Sparkles className="w-4 h-4 text-primary-500" />
                                                 <p className="text-sm font-medium text-charcoal/70">
-                                                    {subscription?.plan === 'essence' ? 'Control Esencial y Automatización' :
-                                                        subscription?.plan === 'radiance' ? 'Escalamiento Profesional y Retención' :
-                                                            subscription?.plan === 'prestige' ? 'Potencia Empresarial Multi-Sede' :
-                                                                'Prueba gratuita - 7 días de acceso total'}
+                                                    {PLANS[normalizePlanId(subscription?.plan || 'starter')]?.tagline || 'Prueba gratuita — 7 días de acceso total'}
                                                 </p>
                                             </div>
                                         </div>
@@ -2069,27 +2066,28 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
                                     {(Object.keys(PLANS) as PlanId[]).map((planId) => {
                                         const mpPlan = PLANS[planId]
                                         const lsPlan = LS_PLANS[planId as LSPlanId]
                                         const plan = paymentRegion === 'international' ? lsPlan : mpPlan
-                                        const price = plan.price
+                                        const price = plan?.price ?? 0
                                         const currencySymbol = paymentRegion === 'international' ? 'US$' : '$'
                                         const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP'
-                                        const isCurrentPlan = planId === subscription?.plan
-                                        const isRadiance = planId === 'radiance'
+                                        const normalizedCurrent = normalizePlanId(subscription?.plan || '')
+                                        const isCurrentPlan = planId === normalizedCurrent
+                                        const isPro = planId === 'pro'
 
                                         return (
                                             <div
                                                 key={planId}
                                                 className={cn(
-                                                    "relative flex flex-col p-6 rounded-soft border-2 transition-all duration-300",
+                                                    "relative flex flex-col p-5 rounded-soft border-2 transition-all duration-300",
                                                     isCurrentPlan ? "border-primary-500 bg-primary-500/5 ring-4 ring-primary-500/10" : "border-silk-beige bg-white hover:border-primary-300 hover:shadow-xl",
-                                                    isRadiance && !isCurrentPlan && "md:scale-105 shadow-premium-lg border-primary-500 z-10"
+                                                    isPro && !isCurrentPlan && "md:scale-105 shadow-premium-lg border-primary-500 z-10"
                                                 )}
                                             >
-                                                {isRadiance && (
+                                                {isPro && (
                                                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-hero-gradient text-white text-[10px] font-black px-4 py-1 rounded-full shadow-lg uppercase tracking-widest whitespace-nowrap">
                                                         Más Popular
                                                     </div>
@@ -2124,7 +2122,7 @@ export default function Settings() {
                                                         "w-full py-3 rounded-soft font-black text-sm uppercase tracking-widest transition-all",
                                                         isCurrentPlan
                                                             ? "bg-charcoal/10 text-charcoal/40 cursor-not-allowed"
-                                                            : isRadiance
+                                                            : isPro
                                                                 ? "bg-hero-gradient text-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
                                                                 : "bg-charcoal text-white hover:bg-primary-500"
                                                     )}

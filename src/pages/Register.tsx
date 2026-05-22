@@ -7,9 +7,10 @@ import { supabase } from '@/lib/supabase'
 // Payment SDKs removed for free-trial onboarding
 
 const plans = [
-    { id: 'essence', name: 'Essence', price: 99, popular: false },
-    { id: 'radiance', name: 'Radiance', price: 159, popular: true },
-    { id: 'prestige', name: 'Prestige', price: 349, popular: false },
+    { id: 'core', name: 'Core', price: 33, popular: false },
+    { id: 'starter', name: 'Starter', price: 89, popular: false },
+    { id: 'pro', name: 'Pro', price: 149, popular: true },
+    { id: 'enterprise', name: 'Enterprise', price: 349, popular: false },
 ]
 
 const ROLE_TRANSLATIONS: Record<string, string> = {
@@ -33,7 +34,7 @@ export default function Register() {
     const [password, setPassword] = useState('')
     const [fullName, setFullName] = useState(firstNameParam || '')
     const [clinicName, setClinicName] = useState('')
-    const [selectedPlan, setSelectedPlan] = useState('radiance')
+    const [selectedPlan, setSelectedPlan] = useState('pro')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 

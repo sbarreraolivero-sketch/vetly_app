@@ -43,7 +43,7 @@ export interface Database {
                     ai_credits_extra_balance: number
                     ai_credits_extra_4o: number
                     ai_active_model: 'mini' | '4o'
-                    subscription_plan: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    subscription_plan: 'core' | 'starter' | 'pro' | 'enterprise' | 'essence' | 'radiance' | 'prestige' | 'trial'
                     address_references: string | null
                     google_maps_url: string | null
                     business_model: 'physical' | 'mobile' | 'hybrid' | null
@@ -89,7 +89,7 @@ export interface Database {
                     ai_credits_extra_balance?: number
                     ai_credits_extra_4o?: number
                     ai_active_model?: 'mini' | '4o'
-                    subscription_plan?: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    subscription_plan?: 'core' | 'starter' | 'pro' | 'enterprise' | 'essence' | 'radiance' | 'prestige' | 'trial'
                     address_references?: string | null
                     google_maps_url?: string | null
                     business_model?: 'physical' | 'mobile' | 'hybrid' | null
@@ -133,7 +133,7 @@ export interface Database {
                     ai_credits_extra_balance?: number
                     ai_credits_extra_4o?: number
                     ai_active_model?: 'mini' | '4o'
-                    subscription_plan?: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    subscription_plan?: 'core' | 'starter' | 'pro' | 'enterprise' | 'essence' | 'radiance' | 'prestige' | 'trial'
                     address_references?: string | null
                     google_maps_url?: string | null
                     business_model?: 'physical' | 'mobile' | 'hybrid' | null
@@ -150,7 +150,7 @@ export interface Database {
                     id: string
                     clinic_id: string | null
                     plan_id: string | null
-                    plan: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    plan: 'core' | 'starter' | 'pro' | 'enterprise' | 'essence' | 'radiance' | 'prestige' | 'trial'
                     status: 'active' | 'cancelled' | 'past_due' | 'trial'
                     mercadopago_subscription_id: string | null
                     current_period_start: string | null
@@ -165,7 +165,7 @@ export interface Database {
                     id?: string
                     clinic_id?: string | null
                     plan_id?: string | null
-                    plan: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    plan: 'core' | 'starter' | 'pro' | 'enterprise' | 'essence' | 'radiance' | 'prestige' | 'trial'
                     status?: 'active' | 'cancelled' | 'past_due' | 'trial'
                     mercadopago_subscription_id?: string | null
                     current_period_start?: string | null
@@ -180,7 +180,7 @@ export interface Database {
                     id?: string
                     clinic_id?: string | null
                     plan_id?: string | null
-                    plan?: 'essence' | 'radiance' | 'prestige' | 'trial'
+                    plan?: 'core' | 'starter' | 'pro' | 'enterprise' | 'essence' | 'radiance' | 'prestige' | 'trial'
                     status?: 'active' | 'cancelled' | 'past_due' | 'trial'
                     mercadopago_subscription_id?: string | null
                     current_period_start?: string | null

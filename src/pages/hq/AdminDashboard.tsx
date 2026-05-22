@@ -75,8 +75,8 @@ export default function AdminDashboard() {
     }, [fetchPendingClinics])
 
     const handleActivate = async (clinic: PendingClinic) => {
-        const msg = clinic.subscription_plan === 'prestige' 
-            ? `¿Activar ${clinic.clinic_name} en Plan Prestige? El sistema buscará si este dueño ya tiene otra sucursal para unificar el cobro.`
+        const msg = (clinic.subscription_plan === 'enterprise' || clinic.subscription_plan === 'prestige')
+            ? `¿Activar ${clinic.clinic_name} en Plan Enterprise? El sistema buscará si este dueño ya tiene otra sucursal para unificar el cobro.`
             : `¿Activar trial de 7 días para ${clinic.clinic_name}?`
             
         if (!confirm(msg)) return
@@ -95,10 +95,10 @@ export default function AdminDashboard() {
                 'Prefer': 'return=minimal',
             }
 
-            // 1. Lógica Prestige: Chequear si ya existe otra sucursal del mismo dueño activa
+            // 1. Lógica Enterprise: Chequear si ya existe otra sucursal del mismo dueño activa
             let billingStatus = 'trial' // Default
-            
-            if (clinic.subscription_plan === 'prestige' && clinic.owner_email) {
+
+            if ((clinic.subscription_plan === 'enterprise' || clinic.subscription_plan === 'prestige') && clinic.owner_email) {
                 const checkRes = await fetch(
                     `${supabaseUrl}/rest/v1/clinic_settings?select=id,activation_status&clinic_members!inner(email)&clinic_members.email=eq.${clinic.owner_email}&activation_status=eq.active&limit=1`,
                     { headers }

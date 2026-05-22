@@ -6,27 +6,27 @@ import { Link } from 'react-router-dom'
 interface PremiumFeatureProps {
     children: ReactNode
     fallback?: ReactNode
-    requiredPlan?: 'radiance' | 'prestige'
+    requiredPlan?: 'starter' | 'pro' | 'enterprise' | 'radiance' | 'prestige'
     showLock?: boolean
 }
 
-export function PremiumFeature({ children, fallback, requiredPlan = 'radiance', showLock = false }: PremiumFeatureProps) {
+export function PremiumFeature({ children, fallback, requiredPlan = 'pro', showLock = false }: PremiumFeatureProps) {
     const { subscription } = useAuth()
 
-    const plans = ['essence', 'radiance', 'prestige']
-    const currentPlan = subscription?.plan || 'essence'
+    const planOrder = ['core', 'starter', 'pro', 'enterprise']
+    // Normalize legacy IDs
+    const legacyMap: Record<string, string> = { essence: 'starter', radiance: 'pro', prestige: 'enterprise' }
+    const normalize = (p: string) => legacyMap[p] ?? p
+    const currentPlan = normalize(subscription?.plan || 'starter')
+    const normalizedRequired = normalize(requiredPlan)
 
-    // Check if current plan meets requirement
-    // Simple hierarchy check: prestige > radiance > essence
     const meetsRequirement = () => {
         if (!subscription) return false
         if (subscription.status !== 'active' && subscription.status !== 'trial') return false
-
-        // If trial, assume access to everything (or prestige level)
         if (subscription.status === 'trial') return true
 
-        const currentIndex = plans.indexOf(currentPlan)
-        const requiredIndex = plans.indexOf(requiredPlan)
+        const currentIndex = planOrder.indexOf(currentPlan)
+        const requiredIndex = planOrder.indexOf(normalizedRequired)
 
         return currentIndex >= requiredIndex
     }
