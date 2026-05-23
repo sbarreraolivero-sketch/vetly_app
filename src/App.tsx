@@ -1,7 +1,28 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, Component, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Loader2 } from 'lucide-react'
+
+// Retry failed lazy chunk loads (happens after a new Vercel deploy invalidates old chunks)
+class ChunkErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+    constructor(props: { children: ReactNode }) {
+        super(props)
+        this.state = { hasError: false }
+    }
+    static getDerivedStateFromError() { return { hasError: true } }
+    componentDidCatch(error: Error) {
+        const isChunkError = error.name === 'ChunkLoadError' ||
+            error.message?.includes('Loading chunk') ||
+            error.message?.includes('Failed to fetch dynamically imported module')
+        if (isChunkError) {
+            window.location.reload()
+        }
+    }
+    render() {
+        if (this.state.hasError) return null
+        return this.props.children
+    }
+}
 
 // Layouts
 const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'))
@@ -62,22 +83,24 @@ const PageLoader = () => (
 function HQRoutes() {
     return (
         <AdminAuthProvider>
-            <Suspense fallback={<PageLoader />}>
-                <Routes>
-                    <Route path="login" element={<AdminLogin />} />
-                    <Route element={<AdminProtectedRoute />}>
-                        <Route element={<AdminLayout />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<AdminDashboard />} />
-                            <Route path="calendar" element={<AdminCalendar />} />
-                            <Route path="clinics" element={<AdminClinics />} />
-                            <Route path="messages" element={<AdminMessages />} />
-                            <Route path="crm" element={<AdminCRM />} />
-                            <Route path="settings" element={<AdminSettings />} />
+            <ChunkErrorBoundary>
+                <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                        <Route path="login" element={<AdminLogin />} />
+                        <Route element={<AdminProtectedRoute />}>
+                            <Route element={<AdminLayout />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<AdminDashboard />} />
+                                <Route path="calendar" element={<AdminCalendar />} />
+                                <Route path="clinics" element={<AdminClinics />} />
+                                <Route path="messages" element={<AdminMessages />} />
+                                <Route path="crm" element={<AdminCRM />} />
+                                <Route path="settings" element={<AdminSettings />} />
+                            </Route>
                         </Route>
-                    </Route>
-                </Routes>
-            </Suspense>
+                    </Routes>
+                </Suspense>
+            </ChunkErrorBoundary>
         </AdminAuthProvider>
     )
 }
@@ -86,7 +109,8 @@ function HQRoutes() {
 function MainRoutes() {
     return (
         <AuthProvider>
-            <Suspense fallback={<PageLoader />}>
+            <ChunkErrorBoundary>
+                <Suspense fallback={<PageLoader />}>
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<Landing />} />
@@ -230,7 +254,8 @@ function MainRoutes() {
                     {/* Catch all */}
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
-            </Suspense>
+                </Suspense>
+            </ChunkErrorBoundary>
         </AuthProvider>
     )
 }
