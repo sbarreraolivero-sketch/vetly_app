@@ -1038,12 +1038,12 @@ const checkAvail = async (
   );
   const nowLocalMinutes = currentH * 60 + currentM;
 
+  const isAnimalGrace = clinicId === CLINIC_ANIMALGRACE_ID;
+
   if (date === localDate) {
     // Determine buffer based on address/zone
     const addressLower = (address || "").toLowerCase();
-    
-    const isAnimalGrace = clinicId === CLINIC_ANIMALGRACE_ID;
-    
+
     let bufferMinutes = 60; // Default
 
     // Default buffer logic
@@ -3684,6 +3684,7 @@ ${knowledgeSummary}
           const schedulingSignals = [
             "cita", "agend", "disponib", "horario", "slot", "hora disponible",
             "reserv", "sector", "direcci", "ubicaci", "traslado", "zona",
+            "comuna", "cobertura", "recargo", "castr", "cirug", "esteril",
           ];
           const activeSchedulingFlow = recentOutbound.some(msg =>
             schedulingSignals.some(s => msg.includes(s))
