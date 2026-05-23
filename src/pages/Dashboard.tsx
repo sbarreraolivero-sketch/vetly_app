@@ -171,14 +171,16 @@ export default function Dashboard() {
                         .from('appointments')
                         .select('service')
                         .gte('appointment_date', startOfMonth)
-                        .eq('clinic_id', profile.clinic_id),
+                        .eq('clinic_id', profile.clinic_id)
+                        .limit(500),
                     // 6. Inbound messages this month (for conversion rate)
                     (supabase as any)
                         .from('messages')
                         .select('phone_number')
                         .eq('direction', 'inbound')
                         .gte('created_at', startOfMonth)
-                        .eq('clinic_id', profile.clinic_id),
+                        .eq('clinic_id', profile.clinic_id)
+                        .limit(1000),
                     // 7. Satisfaction surveys
                     (supabase as any)
                         .from('satisfaction_surveys')

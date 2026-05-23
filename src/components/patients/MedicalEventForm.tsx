@@ -70,7 +70,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
     useEffect(() => {
         if (event) {
             setFormData({
-                event_date: event.event_date.split('T')[0],
+                event_date: (event.event_date ?? '').split('T')[0] || new Date().toISOString().split('T')[0],
                 event_type: event.event_type || 'Consulta General',
                 reason: event.reason || '',
                 anamnesis: event.anamnesis || '',

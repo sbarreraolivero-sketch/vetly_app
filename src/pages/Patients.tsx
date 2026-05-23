@@ -53,6 +53,7 @@ export default function Patients() {
                 .eq('clinic_id', profile.clinic_id)
                 .is('death_date', null)
                 .order('created_at', { ascending: false })
+                .limit(500)
 
             if (error) throw error
             setPatients((data as any) || [])

@@ -157,7 +157,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             if (!error && data) {
-                console.log('✅ Fresh Subscription Loaded:', data)
                 localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(data))
                 return data as Subscription
             }
@@ -315,7 +314,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
                 
                 try {
-                    console.log('🔐 Auth state change:', _event, { userId: session?.user?.id })
                     setSession(session)
                     const currentUser = session?.user ?? null
                     setUser(current => (current?.id === currentUser?.id ? current : currentUser))
@@ -382,7 +380,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Auto-refresh when window is focused (e.g. user returns after idle)
         const handleFocus = () => {
             if (session) {
-                console.log('Window focused: checking session validity...')
                 supabase.auth.getSession().then(({ data: { session: freshSession } }) => {
                     if (freshSession) setSession(freshSession)
                 })

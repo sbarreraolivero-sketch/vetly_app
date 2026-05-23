@@ -47,6 +47,10 @@ export default function Messages() {
         selectedPhoneRef.current = selectedPhone
     }, [selectedPhone])
 
+    // Stable refs to avoid recreating Realtime subscription when callbacks change
+    const fetchConversationsRef = useRef<() => Promise<void>>(() => Promise.resolve())
+    const scrollToBottomRef = useRef<() => void>(() => {})
+
     // Scroll to bottom of messages
     const scrollToBottom = useCallback(() => {
         setTimeout(() => {
@@ -66,6 +70,7 @@ export default function Messages() {
                 .select('phone_number, content, direction, created_at, is_read')
                 .eq('clinic_id', profile.clinic_id)
                 .order('created_at', { ascending: false })
+                .limit(3000)
 
             if (error && error.message?.includes('is_read')) {
                 console.warn('is_read column missing, falling back to basic query')
@@ -74,6 +79,7 @@ export default function Messages() {
                     .select('phone_number, content, direction, created_at')
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
+                    .limit(3000)
 
                 if (fallbackError) throw fallbackError
                 msgs = fallbackMsgs
@@ -183,6 +189,10 @@ export default function Messages() {
         }
     }, [profile?.clinic_id])
 
+    // Keep refs in sync so Realtime handler always calls the latest version
+    useEffect(() => { fetchConversationsRef.current = fetchConversations }, [fetchConversations])
+    useEffect(() => { scrollToBottomRef.current = scrollToBottom }, [scrollToBottom])
+
     // Fetch messages for selected conversation
     const fetchMessages = useCallback(async () => {
         if (!profile?.clinic_id || !selectedPhone) return
@@ -256,7 +266,7 @@ export default function Messages() {
                 }
 
                 // Update conversations list (to refresh unread counts and last message)
-                fetchConversations()
+                fetchConversationsRef.current()
 
                 // If the message belongs to the selected conversation, add it to the UI
                 if (newMsg.phone_number === selectedPhoneRef.current) {
@@ -264,13 +274,13 @@ export default function Messages() {
                         if (prev.some(m => m.id === newMsg.id)) return prev;
                         return [...prev, newMsg];
                     })
-                    scrollToBottom()
+                    scrollToBottomRef.current()
                 }
             })
             .subscribe()
 
         return () => { supabase.removeChannel(channel) }
-    }, [profile?.clinic_id, fetchConversations, scrollToBottom])
+    }, [profile?.clinic_id])
 
     // Toggle AI (Requires Human flag)
     const toggleAIStatus = async (conv: Conversation) => {
