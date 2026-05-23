@@ -561,6 +561,43 @@ Claudia reportó respuestas erróneas del AI agent (precios mal, "problema técn
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 11, 2026-05-23)
+
+### Migración de planes: essence/radiance/prestige → core/starter/pro/enterprise
+
+**Motivación:** la UI de Settings mostraba los planes con los nombres y precios legacy (Essence $93.000, Radiance $150.000, Prestige $335.000). Los planes actuales de la landing son Core/Starter/Pro/Enterprise.
+
+**Archivos actualizados:**
+- **`src/lib/mercadopago.ts`**: `PLANS` reemplazado con los 4 planes nuevos (Core $33.000, Starter $89.000, Pro $149.000, Enterprise $349.000 CLP). Agregadas `PLAN_LEGACY_MAP` y `normalizePlanId()` para backward compat con registros DB existentes que siguen almacenando `'radiance'` etc.
+- **`src/types/database.ts`**: 6 union types expandidos para incluir los 4 IDs nuevos además de los 3 legacy — la DB sigue almacenando valores viejos, el frontend normaliza al leer.
+- **`src/components/common/PremiumFeature.tsx`**: `planOrder = ['core','starter','pro','enterprise']`, `legacyMap` para normalizar IDs legacy al comparar.
+- **`src/pages/Register.tsx`**: lista de planes actualizada a Core/Starter/Pro/Enterprise, default `'pro'`.
+- **`src/pages/Landing.tsx`**: planes del React landing actualizados con features y precios nuevos.
+- **`src/pages/settings/Team.tsx`**: `PLAN_LIMITS` con los 4 planes nuevos + legacy como fallback; fallback de `subData.plan` cambiado de `'essence'` a `'starter'`.
+- **`src/components/layout/BranchSwitcher.tsx`**: `canCreateBranch` acepta `'enterprise'` y `'prestige'` para compatibilidad.
+- **`src/pages/hq/AdminDashboard.tsx`**: lógica Enterprise acepta ambos IDs (`'enterprise' || 'prestige'`).
+- **`src/pages/Settings.tsx`**: `isRadiance` → `isPro`, grid de 4 columnas para los 4 planes.
+
+**Nota permanente:** los registros en `subscriptions.plan` siguen con valores legacy. Siempre usar `normalizePlanId()` (de `src/lib/mercadopago.ts`) antes de comparar planes. Nunca hardcodear `'essence'`, `'radiance'` o `'prestige'` en código nuevo.
+
+### Navegación — fix duplicado Referidos / Fidelización
+
+**Problema:** el sidebar tenía dos ítems para la misma página (`/app/loyalty`): "Referidos" bajo Marketing y "Fidelización" bajo Configuración. Hacer clic en "Referidos" no cambiaba el tab porque React no re-monta el componente al cambiar solo los query params.
+
+**Fixes:**
+- `DashboardLayout.tsx`: eliminado ítem "Referidos" de Marketing. Fidelización movida de Configuración a Marketing.
+- `Loyalty.tsx`: agregado `useEffect` que escucha cambios en `searchParams` y llama `setActiveTab` — corrige el bug donde navegar a `?tab=referrals` desde el mismo componente no actualizaba el tab.
+
+**Estructura final del sidebar:**
+- MARKETING: Campañas, Fidelización
+- CONFIGURACIÓN: Conocimiento, Configuración
+
+### Loyalty — color de banner actualizado a violet (Marketing)
+
+El banner pasó de `from-accent-500 to-accent-700` (gold) a `from-violet-500 to-violet-700` (violet), consistente con la sección de Marketing. Label cambiado de "Configuración" a "Marketing".
+
+---
+
 ## Cambios realizados — mayo 2026 (sesión 10, 2026-05-23)
 
 ### Push a GitHub — sincronización del repositorio
@@ -602,7 +639,7 @@ Claudia reportó respuestas erróneas del AI agent (precios mal, "problema técn
 - [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja. Las nuevas citas creadas vía AI agent sí quedan vinculadas.
 
 ### Baja prioridad
-- [ ] **Banner de sección en páginas restantes**: aplicar el patrón de banner con degradado (piloto: Tutores) a: Patients, CRM, Appointments, Reminders, Finance, KnowledgeBase, Campaigns, Messages, Templates, Settings, Loyalty. Cada una con el color de su sección (ver paleta en sesión 8).
+- [x] **Banner de sección en todas las páginas** ✅ completado sesión 11 — Patients, CRM, Appointments, Reminders, Finance, KnowledgeBase, Campaigns, Templates, Settings, Loyalty. Messages omitida (chat full-height, banner reduciría el área útil).
 - [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa este archivo (`*`). Documentar explícitamente por qué es `*` (browser widget, no webhook) para que nadie lo "corrija" innecesariamente.
 - [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados, no forman parte del proyecto, pueden eliminarse.
 - [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — `claubarreraolivero@gmail.com` y otros tienen `clinic_id = NULL`. No bloquea el flujo actual (la RLS de `reminder_logs` usa `clinic_members`), pero es inconsistente.
