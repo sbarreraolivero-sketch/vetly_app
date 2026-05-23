@@ -31,10 +31,17 @@ import { LoyaltyRewardModal } from '@/components/loyalty/LoyaltyRewardModal'
 export default function Loyalty() {
     const { profile } = useAuth()
     const [searchParams] = useSearchParams()
-    const initialTab = searchParams.get('tab') as 'points' | 'referrals' | 'rewards' | 'alerts' | 'settings' | null
-    const [activeTab, setActiveTab] = useState<'points' | 'referrals' | 'rewards' | 'alerts' | 'settings'>(
-        initialTab && ['points', 'referrals', 'rewards', 'alerts', 'settings'].includes(initialTab) ? initialTab : 'points'
+    const VALID_TABS = ['points', 'referrals', 'rewards', 'alerts', 'settings'] as const
+    type LoyaltyTab = typeof VALID_TABS[number]
+    const initialTab = searchParams.get('tab') as LoyaltyTab | null
+    const [activeTab, setActiveTab] = useState<LoyaltyTab>(
+        initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'points'
     )
+
+    useEffect(() => {
+        const tab = searchParams.get('tab') as LoyaltyTab | null
+        if (tab && VALID_TABS.includes(tab)) setActiveTab(tab)
+    }, [searchParams])
     const [loading, setLoading] = useState(true)
     const [settings, setSettings] = useState<LoyaltySettings | null>(null)
     const [rewards, setRewards] = useState<LoyaltyReward[]>([])
