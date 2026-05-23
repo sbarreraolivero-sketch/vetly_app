@@ -561,6 +561,18 @@ Claudia reportó respuestas erróneas del AI agent (precios mal, "problema técn
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 10, 2026-05-23)
+
+### Push a GitHub — sincronización del repositorio
+- 10 commits acumulados desde sesión 7 (incluyendo todos los fixes de sesiones 7–9) estaban solo en local.
+- Causa del bloqueo: `git push` via HTTPS requiere Personal Access Token desde que GitHub deprecó autenticación por contraseña.
+- Fix: token generado en github.com → Settings → Developer settings → Personal access tokens → Tokens (classic), scope `repo`, **sin expiración**.
+- Token configurado con `git remote set-url origin https://<token>@github.com/sbarreraolivero-sketch/vetly_app`.
+- Push exitoso: rama `main` en GitHub sincronizada hasta commit `57cbff0` (docs: rutina de monitoreo).
+- El token queda persistido en la URL del remote — próximos `git push` desde este proyecto funcionan sin configuración adicional.
+
+---
+
 ## Patrones adicionales a respetar
 
 ### Modelo de datos: patients vs tutors
