@@ -480,7 +480,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-primary-200 mb-1">Agenda</p>
-                                <h3 className="text-lg font-extrabold tracking-tight">Próximas Citas</h3>
+                                <h3 className="text-lg font-extrabold tracking-tight text-white">Próximas Citas</h3>
                             </div>
                             <div className="flex items-center gap-3">
                                 <Link to="/app/appointments" className="text-xs text-primary-200 hover:text-white font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors">
@@ -529,7 +529,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-sky-200 mb-1">WhatsApp IA</p>
-                                <h3 className="text-lg font-extrabold tracking-tight">Mensajes Recientes</h3>
+                                <h3 className="text-lg font-extrabold tracking-tight text-white">Mensajes Recientes</h3>
                             </div>
                             <div className="flex items-center gap-3">
                                 <Link to="/app/messages" className="text-xs text-sky-200 hover:text-white font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors">
@@ -576,7 +576,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">Este mes</p>
-                                <h3 className="text-lg font-extrabold tracking-tight">Top Servicios</h3>
+                                <h3 className="text-lg font-extrabold tracking-tight text-white">Top Servicios</h3>
                             </div>
                             <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
                                 <Crown className="w-5 h-5 text-white" />
@@ -616,7 +616,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-emerald-200 mb-1">IA Efectividad</p>
-                                <h3 className="text-lg font-extrabold tracking-tight">Conversión</h3>
+                                <h3 className="text-lg font-extrabold tracking-tight text-white">Conversión</h3>
                             </div>
                             <div className="w-14 h-10 bg-white/15 rounded-xl flex items-center justify-center">
                                 <span className="text-xl font-extrabold">{conversionStats.rate}<span className="text-sm font-bold opacity-80">%</span></span>
@@ -648,7 +648,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-violet-200 mb-1">Post-cita</p>
-                                <h3 className="text-lg font-extrabold tracking-tight">Satisfacción NPS</h3>
+                                <h3 className="text-lg font-extrabold tracking-tight text-white">Satisfacción NPS</h3>
                             </div>
                             <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
                                 <Star className="w-5 h-5 text-white fill-white/60" />
