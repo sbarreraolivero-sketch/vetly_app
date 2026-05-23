@@ -68,6 +68,7 @@ const navigationSections = [
         accent: { label: 'text-violet-400/70', active: 'bg-violet-500/[0.18]', dot: 'bg-violet-400', icon: 'text-violet-300' },
         items: [
             { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
+            { name: 'Fidelización', href: '/app/loyalty', icon: Star },
         ]
     },
     {
@@ -75,7 +76,6 @@ const navigationSections = [
         accent: { label: 'text-amber-400/70', active: 'bg-amber-500/[0.18]', dot: 'bg-amber-400', icon: 'text-amber-300' },
         items: [
             { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
-            { name: 'Fidelización', href: '/app/loyalty', icon: Star },
             { name: 'Configuración', href: '/app/settings', icon: Settings },
         ]
     },
