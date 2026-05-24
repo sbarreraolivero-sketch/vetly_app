@@ -306,36 +306,32 @@ export default function AdminCRM() {
     return (
         <div className="space-y-8 p-8 max-w-7xl mx-auto animate-fade-in">
             {/* HQ Header */}
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[2.5rem] p-12 text-white shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-1/2 h-full bg-primary-500/10 blur-[120px] -z-0" />
-                <div className="relative z-10">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-                        <div>
-                            <div className="flex items-center gap-3 mb-4">
-                                <span className="px-3 py-1 bg-primary-500/20 text-primary-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-primary-500/30">HQ Exclusive</span>
-                            </div>
-                            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4">CRM de Prospectos</h1>
-                            <p className="text-gray-400 font-medium max-w-xl text-lg">Centraliza y gestiona el flujo de adquisición de nuevas clínicas para Vetly.</p>
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[2rem] px-6 py-5 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-1/3 h-full bg-primary-500/10 blur-[80px] -z-0" />
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <span className="px-2.5 py-0.5 bg-primary-500/20 text-primary-400 text-[9px] font-black uppercase tracking-widest rounded-full border border-primary-500/30 mb-2 inline-block">HQ Exclusive</span>
+                        <h1 className="text-2xl font-black tracking-tight text-white leading-none">CRM de Prospectos</h1>
+                        <p className="text-gray-400 font-medium text-xs mt-1">Centraliza y gestiona el flujo de adquisición de nuevas clínicas para Vetly.</p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-white transition-all" />
+                            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar leads..." className="pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:bg-white/10 focus:ring-2 focus:ring-primary-500/20 transition-all text-white placeholder:text-white/20 font-bold text-sm" />
                         </div>
-                        <div className="flex gap-4">
-                            <div className="relative group">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 group-focus-within:text-white transition-all" />
-                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar leads..." className="pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:bg-white/10 focus:ring-2 focus:ring-primary-500/20 transition-all text-white placeholder:text-white/20 font-bold" />
-                            </div>
-                            <div className="relative group">
-                                <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 group-focus-within:text-white transition-all" />
-                                <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="pl-12 pr-10 py-4 bg-white/5 border border-white/10 rounded-2xl focus:bg-white/10 focus:ring-2 focus:ring-primary-500/20 transition-all text-white font-bold appearance-none cursor-pointer">
-                                    <option value="" className="bg-gray-900">Todas las etiquetas</option>
-                                    {tags.map(t => (
-                                        <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                            </div>
-                            <button onClick={() => setShowTagManager(true)} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-white/60 hover:text-white"><Tag className="w-6 h-6" /></button>
-                            <button onClick={() => setShowStageConfig(true)} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-white/60 hover:text-white"><Settings2 className="w-6 h-6" /></button>
-                            <button onClick={() => openProspectModal()} className="px-8 py-4 bg-primary-500 hover:bg-primary-600 text-white font-black rounded-2xl shadow-lg shadow-primary-500/20 transition-all hover:-translate-y-1 active:scale-95 flex items-center gap-3"><Plus className="w-6 h-6" /> Nuevo Lead</button>
+                        <div className="relative group">
+                            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-white transition-all" />
+                            <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="pl-10 pr-8 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:bg-white/10 transition-all text-white font-bold appearance-none cursor-pointer text-sm">
+                                <option value="" className="bg-gray-900">Todas las etiquetas</option>
+                                {tags.map(t => (
+                                    <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
                         </div>
+                        <button onClick={() => setShowTagManager(true)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all text-white/60 hover:text-white"><Tag className="w-4 h-4" /></button>
+                        <button onClick={() => setShowStageConfig(true)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all text-white/60 hover:text-white"><Settings2 className="w-4 h-4" /></button>
+                        <button onClick={() => openProspectModal()} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-black rounded-xl shadow-lg shadow-primary-500/20 transition-all hover:-translate-y-0.5 active:scale-95 flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> Nuevo Lead</button>
                     </div>
                 </div>
             </div>
