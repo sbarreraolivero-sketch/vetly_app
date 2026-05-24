@@ -781,11 +781,61 @@ La landing es la fuente de verdad. Todos los archivos de planes actualizados par
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 14, 2026-05-24)
+
+### Sistema de límites y compra de recordatorios — implementación completa
+
+#### Límite mensual compartido (citas + médicos)
+- **DB**: columna `reminders_pack_balance INTEGER DEFAULT 0` en `subscriptions` (sesión previa)
+- **Función `reset_monthly_ai_usage()`**: actualizada para también resetear `monthly_reminders_used` y `reminders_pack_balance` el día 1 de cada mes
+- **Límites por plan**: Core=0, Starter=100, Pro=250, Enterprise=null (ilimitado). Pool compartido entre recordatorios de citas (PART 1/2) y médicos (PART 4)
+- **`cron-process-reminders` v17**: helpers `effectiveLimit(sub)` y `pickSub(sub)` — `effLimit = monthly_reminders_limit + reminders_pack_balance`; contador local `poolUsed` que hace `break` al alcanzar el límite
+
+#### Filtros de fecha coherentes en Reminders.tsx
+- **Pendientes médicos**: filtro forward-window (`scheduled_date >= hoy`). Labels dinámicos "Próximos N días"
+- **Historial + citas**: filtro backward-window. Labels "Últimos N días"
+- Fecha en tabla médica muestra `scheduled_date` (no `created_at`), con día de semana como sublabel
+
+#### Indicador de pool en Resumen de Envíos
+- Card con barra de progreso: `monthly_reminders_used / effLimit`
+- Colores: verde (<80%), ámbar (≥80%), rojo (al límite)
+- CTA a tab Packs cuando está al límite
+
+#### Compra por unidad (Packs tab) — (sesión 14)
+**Precio**: $150 CLP / US$0.15 por unidad. Mínimo 20 unidades. ~81% de margen.
+
+**UI (Reminders.tsx):**
+- Reemplazó 3 tarjetas de pack fijas por un selector de cantidad con stepper (`−` / input / `+`) + presets rápidos (50, 100, 200)
+- Total calculado en tiempo real (CLP + USD)
+- Botón "Comprar N recordatorios" → checkout LS
+- Detecta `?payment=success` al volver y muestra toast
+
+**`src/lib/lemonsqueezy.ts`:** función `redirectToLemonRemindersCheckout(clinicId, email, quantity)`
+
+**`lemonsqueezy-create-checkout` (deployada):**
+- Nuevo `type: 'reminders'` en RequestBody
+- `'reminders': Deno.env.get("LS_VARIANT_REMINDERS") || "PLACEHOLDER_REMINDERS"` en VARIANT_IDS
+- `customData.quantity = String(Math.max(20, quantity))` — el webhook lee este campo
+- `checkoutData.quantity = quantity` para pre-llenar la cantidad en el checkout LS
+
+**`lemonsqueezy-webhook` (deployada):**
+- Nuevo bloque `if (purchaseType === 'reminders')` — solo procesa `order_created`
+- Lee `customData.quantity`, incrementa `subscriptions.reminders_pack_balance`
+
+**Pendiente crítico:** crear el producto en LemonSqueezy dashboard y configurar `LS_VARIANT_REMINDERS` como secret en Supabase → Edge Functions → Secrets. Sin ese secret, el botón devuelve error "PLACEHOLDER_REMINDERS variant not configured".
+
+#### TemplateSelector — cache de módulo (sesión previa)
+- Cache `Map<clinicId, Template[]>` + `inFlight Map<clinicId, Promise>` a nivel de módulo
+- Evita 3-4 llamadas duplicadas a YCloud por carga de página (varios `TemplateSelector` comparten un solo request por clínica)
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
 - [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
 - [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()` para leer `logisticsConfig.routing_mode` en vez de comparar por ID.
+- [ ] **LS_VARIANT_REMINDERS** — crear producto "Recordatorio" en LemonSqueezy dashboard ($0.15 USD/unidad, cantidad editable, mín 20). Una vez obtenido el Variant ID, configurarlo como secret `LS_VARIANT_REMINDERS` en Supabase Dashboard → Edge Functions → Secrets. Sin este secret, el botón de compra en Packs tab devuelve error.
 
 ### Media prioridad
 - [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase (servicios, profesionales, slots, citas del día). Candidato a `Promise.all` donde no haya dependencia.
