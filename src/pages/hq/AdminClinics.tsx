@@ -38,12 +38,9 @@ interface ClinicGroup {
     ownerName: string | null
     primaryClinic: ClinicData
     clinics: ClinicData[]
-    totalMiniUsed: number
-    totalMiniLimit: number
-    totalMiniExtra: number
-    total4oUsed: number
-    total4oLimit: number
-    total4oExtra: number
+    totalRealUsed: number
+    totalLimit: number
+    totalExtra: number
 }
 
 const statusColors: Record<string, { bg: string; text: string; border: string; label: string }> = {
@@ -62,6 +59,8 @@ export default function AdminClinics() {
     const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
     const [chargeTargets, setChargeTargets] = useState<Record<string, string>>({})
 
+    const [usageMap, setUsageMap] = useState<Record<string, number>>({})
+
     const fetchClinics = useCallback(async () => {
         setLoading(true)
         try {
@@ -71,20 +70,29 @@ export default function AdminClinics() {
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
             const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-            const response = await fetch(
-                `${supabaseUrl}/rest/v1/clinic_settings?select=*,clinic_members(email,role,first_name)&order=created_at.desc`,
-                {
-                    headers: {
-                        'apikey': supabaseKey,
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json',
-                    },
-                }
-            )
+            const [settingsRes, usageRes] = await Promise.all([
+                fetch(
+                    `${supabaseUrl}/rest/v1/clinic_settings?select=*,clinic_members(email,role,first_name)&order=created_at.desc`,
+                    {
+                        headers: {
+                            'apikey': supabaseKey,
+                            'Authorization': `Bearer ${session.access_token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                ),
+                (supabase as any).rpc('get_monthly_credit_usage_all_clinics'),
+            ])
 
-            if (!response.ok) throw new Error(`Error ${response.status}`)
-            const data = await response.json()
+            if (!settingsRes.ok) throw new Error(`Error ${settingsRes.status}`)
+            const data = await settingsRes.json()
             setClinics((data as ClinicData[]).filter(c => c.id !== HQ_ID))
+
+            const map: Record<string, number> = {}
+            for (const row of (usageRes.data || [])) {
+                map[row.clinic_id] = Number(row.total_credits)
+            }
+            setUsageMap(map)
         } catch (err: any) {
             console.error('Error fetching clinics:', err)
         } finally {
@@ -136,22 +144,16 @@ export default function AdminClinics() {
                         ownerName: owner?.first_name || null,
                         primaryClinic: clinic,
                         clinics: [],
-                        totalMiniUsed: 0,
-                        totalMiniLimit: 0,
-                        totalMiniExtra: 0,
-                        total4oUsed: 0,
-                        total4oLimit: 0,
-                        total4oExtra: 0,
+                        totalRealUsed: 0,
+                        totalLimit: 0,
+                        totalExtra: 0,
                     }
                 }
                 const g = acc[key]
                 g.clinics.push(clinic)
-                g.totalMiniUsed += clinic.ai_credits_monthly_mini_used || 0
-                g.totalMiniLimit += clinic.ai_credits_monthly_limit || 0
-                g.totalMiniExtra += clinic.ai_credits_extra_balance || 0
-                g.total4oUsed += clinic.ai_credits_monthly_4o_used || 0
-                g.total4oLimit += clinic.ai_credits_monthly_4o_limit || 0
-                g.total4oExtra += clinic.ai_credits_extra_4o || 0
+                g.totalRealUsed += usageMap[clinic.id] || 0
+                g.totalLimit += clinic.ai_credits_monthly_limit || 0
+                g.totalExtra += clinic.ai_credits_extra_balance || 0
                 if ((clinic.ai_credits_monthly_limit || 0) > (g.primaryClinic.ai_credits_monthly_limit || 0)) {
                     g.primaryClinic = clinic
                 }
@@ -230,11 +232,9 @@ export default function AdminClinics() {
                     const chargeAmount = chargeAmounts[groupKey] ?? 500
                     const chargeTarget = chargeTargets[groupKey] ?? primaryClinic.id
 
-                    const miniTotal = group.totalMiniLimit + group.totalMiniExtra
-                    const miniPercent = Math.min(100, Math.round((group.totalMiniUsed / (miniTotal || 1)) * 100))
-
-                    const fTotal = group.total4oLimit + group.total4oExtra
-                    const fPercent = Math.min(100, Math.round((group.total4oUsed / (fTotal || 1)) * 100))
+                    const totalPool = group.totalLimit + group.totalExtra
+                    const usedPct = Math.round((group.totalRealUsed / (totalPool || 1)) * 100)
+                    const barColor = usedPct >= 100 ? 'bg-red-500' : usedPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
 
                     const allActive = branches.every(c => c.activation_status === 'active')
                     const anyStatus = allActive ? 'active' : branches[0]?.activation_status
@@ -298,7 +298,7 @@ export default function AdminClinics() {
                             </div>
 
                             {/* Credits metrics */}
-                            <div className="space-y-5 p-6 bg-gray-50 rounded-[1.8rem] border border-gray-50 shadow-inner">
+                            <div className="space-y-4 p-6 bg-gray-50 rounded-[1.8rem] border border-gray-50 shadow-inner">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                         <Sparkles className="w-4 h-4 text-primary-500" />
@@ -312,50 +312,31 @@ export default function AdminClinics() {
                                     </div>
                                 </div>
 
-                                {/* Mini / universal credits */}
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-end">
-                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">Mini (estándar)</p>
+                                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Consumo real del mes</p>
                                         <p className="text-[10px] font-bold text-gray-500">
-                                            <span className={cn("font-black", group.totalMiniUsed > group.totalMiniLimit ? "text-red-600" : "text-gray-900")}>
-                                                {group.totalMiniUsed.toLocaleString()}
+                                            <span className={cn("font-black text-sm", usedPct >= 100 ? "text-red-600" : "text-gray-900")}>
+                                                {group.totalRealUsed.toLocaleString()}
                                             </span>
-                                            {' '}/ {miniTotal.toLocaleString()}
+                                            <span className="text-gray-400"> / {totalPool.toLocaleString()}</span>
                                         </p>
                                     </div>
-                                    <div className="h-3 w-full bg-emerald-100 rounded-full overflow-hidden">
+                                    <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
                                         <div
-                                            className={cn("h-full transition-all duration-1000", miniPercent >= 100 ? "bg-red-500" : miniPercent >= 80 ? "bg-amber-500" : "bg-emerald-500")}
-                                            style={{ width: `${miniPercent}%` }}
+                                            className={cn("h-full transition-all duration-1000", barColor)}
+                                            style={{ width: `${Math.min(100, usedPct)}%` }}
                                         />
                                     </div>
-                                    <p className="text-[9px] text-gray-400 font-bold">
-                                        {group.totalMiniLimit.toLocaleString()} incluidos
-                                        {group.totalMiniExtra > 0 && ` · ${group.totalMiniExtra.toLocaleString()} extra`}
-                                    </p>
-                                </div>
-
-                                {/* 4o credits */}
-                                <div className="space-y-2 pt-3 border-t border-gray-200/40">
-                                    <div className="flex justify-between items-end">
-                                        <p className="text-[10px] font-black text-primary-600 uppercase tracking-tighter">4o (avanzado)</p>
-                                        <p className="text-[10px] font-bold text-gray-500">
-                                            <span className={cn("font-black", group.total4oUsed > group.total4oLimit ? "text-red-600" : "text-gray-900")}>
-                                                {group.total4oUsed.toLocaleString()}
-                                            </span>
-                                            {' '}/ {fTotal.toLocaleString()}
+                                    <div className="flex justify-between">
+                                        <p className="text-[9px] text-gray-400 font-bold">
+                                            {group.totalLimit.toLocaleString()} plan
+                                            {group.totalExtra > 0 && ` · ${group.totalExtra.toLocaleString()} extra`}
+                                        </p>
+                                        <p className={cn("text-[9px] font-black", usedPct >= 100 ? "text-red-500" : usedPct >= 80 ? "text-amber-500" : "text-emerald-600")}>
+                                            {usedPct}% usado
                                         </p>
                                     </div>
-                                    <div className="h-3 w-full bg-primary-100 rounded-full overflow-hidden">
-                                        <div
-                                            className={cn("h-full transition-all duration-1000", fPercent >= 100 ? "bg-red-500" : fPercent >= 80 ? "bg-amber-500" : "bg-primary-600")}
-                                            style={{ width: `${fPercent}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-[9px] text-gray-400 font-bold">
-                                        {group.total4oLimit.toLocaleString()} incluidos
-                                        {group.total4oExtra > 0 && ` · ${group.total4oExtra.toLocaleString()} extra`}
-                                    </p>
                                 </div>
                             </div>
 

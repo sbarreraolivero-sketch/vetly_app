@@ -82,7 +82,7 @@ export const LS_PLANS = {
         features: [
             'Usuarios y agendas ilimitados',
             'Todo lo de Pro',
-            '8.000 créditos IA incluidos/mes',
+            '12.000 créditos IA incluidos/mes',
             'Recordatorios ilimitados',
             'Multi-sucursal unificado',
             'IA personalizada por especialidad',
