@@ -23,6 +23,7 @@ export default function Reminders() {
     const { profile } = useAuth()
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
     const [planId, setPlanId] = useState<string>('')
+    const [planLoading, setPlanLoading] = useState<boolean>(true)
     const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
     const [dateRange, setDateRange] = useState<DateRange>('week')
     const [isLoading, setIsLoading] = useState(true)
@@ -42,9 +43,13 @@ export default function Reminders() {
                 (supabase as any).from('subscriptions').select('plan, plan_id').eq('clinic_id', profile.clinic_id).single()
             ])
             setSettings({ ...(clinicSettings || {}), ...(reminderData || {}) })
-            if (subData) {
-                const raw = subData.plan_id || subData.plan || ''
-                setPlanId(normalizePlanId(raw))
+            const raw = subData?.plan_id || subData?.plan || ''
+            const normalized = normalizePlanId(raw)
+            setPlanId(normalized)
+            setPlanLoading(false)
+            // If plan is Enterprise and user somehow landed on packs tab, reset
+            if ((normalized === 'enterprise') && activeTab === 'packs') {
+                setActiveTab('appointments')
             }
         }
         fetchSettings()
@@ -261,7 +266,7 @@ export default function Reminders() {
                     >
                         Médicos
                     </button>
-                    {!isEnterprise && (
+                    {!planLoading && !isEnterprise && (
                         <button
                             onClick={() => setActiveTab('packs')}
                             className={cn(
