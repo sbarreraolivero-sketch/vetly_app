@@ -55,6 +55,18 @@ interface RequestBody {
     };
 }
 
+// Límite mensual de recordatorios por plan (acepta IDs nuevos y legacy).
+// null = ilimitado (Enterprise). Pool compartido entre citas y médicos.
+function reminderLimitForPlan(plan: string): number | null {
+    switch (plan) {
+        case 'core': return 0;
+        case 'starter': case 'essence': return 100;
+        case 'pro': case 'radiance': return 250;
+        case 'enterprise': case 'prestige': return null;
+        default: return 0;
+    }
+}
+
 Deno.serve(async (req: Request) => {
     // Handle CORS
     if (req.method === "OPTIONS") {
@@ -156,9 +168,10 @@ Deno.serve(async (req: Request) => {
             trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days trial
             monthly_appointments_limit: plan === "essence" ? 50 : null,
             max_agendas: plan === "essence" ? 1 : (plan === "radiance" ? 5 : 1000),
-            monthly_reminders_limit: plan === "radiance" ? 50 : (plan === "essence" ? 0 : 1000000),
+            monthly_reminders_limit: reminderLimitForPlan(plan),
             monthly_appointments_used: 0,
             monthly_reminders_used: 0,
+            reminders_pack_balance: 0,
         }, {
             onConflict: "clinic_id",
         });

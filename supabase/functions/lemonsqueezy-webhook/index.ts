@@ -57,6 +57,18 @@ interface LemonSqueezyWebhookPayload {
     };
 }
 
+// Límite mensual de recordatorios por plan (acepta IDs nuevos y legacy).
+// null = ilimitado (Enterprise). El pool es compartido entre citas y médicos.
+function reminderLimitForPlan(plan: string): number | null {
+    switch (plan) {
+        case 'core': return 0;
+        case 'starter': case 'essence': return 100;
+        case 'pro': case 'radiance': return 250;
+        case 'enterprise': case 'prestige': return null;
+        default: return 0;
+    }
+}
+
 Deno.serve(async (req: Request) => {
     // Handle GET (health check)
     if (req.method === "GET") {
@@ -153,7 +165,7 @@ Deno.serve(async (req: Request) => {
 
                 const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 999999);
                 const maxAgendas = plan === "essence" ? 1 : (plan === "radiance" ? 5 : 999999);
-                const remindersLimit = plan === "radiance" ? 50 : (plan === "essence" ? 0 : 1000000);
+                const remindersLimit = reminderLimitForPlan(plan);
 
                 await supabase.from("subscriptions").upsert({
                     clinic_id: clinicId,
@@ -254,6 +266,7 @@ Deno.serve(async (req: Request) => {
                         current_period_end: renewsAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                         monthly_appointments_used: 0, // Reset monthly counter
                         monthly_reminders_used: 0,    // Reset monthly counter
+                        reminders_pack_balance: 0,    // Packs no se acumulan: se reinician en cada renovación
                     })
                     .eq("clinic_id", clinicId);
 

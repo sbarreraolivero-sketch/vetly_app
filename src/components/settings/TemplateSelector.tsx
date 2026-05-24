@@ -8,6 +8,38 @@ interface Template {
     status: 'APPROVED' | 'PENDING' | 'REJECTED'
 }
 
+// Cache a nivel de módulo: varias instancias de TemplateSelector (24h, 2h, vacuna,
+// desparasitación, control) comparten un solo request a YCloud por clínica.
+const templatesCache = new Map<string, Template[]>()
+const inFlight = new Map<string, Promise<Template[]>>()
+
+async function fetchClinicTemplates(clinicId: string): Promise<Template[]> {
+    if (templatesCache.has(clinicId)) return templatesCache.get(clinicId)!
+    if (inFlight.has(clinicId)) return inFlight.get(clinicId)!
+
+    const promise = (async () => {
+        const { data, error } = await supabase.functions.invoke('ycloud-templates', {
+            body: { action: 'list', clinic_id: clinicId }
+        })
+        if (error) throw error
+        if (data?.isError || data?.error) throw new Error(data.error || 'API Error')
+        const list: Template[] = (data?.templates || []).filter((t: any) =>
+            t.status === 'APPROVED' ||
+            t.status?.toUpperCase?.()?.startsWith?.('ACTIVE') ||
+            t.status?.toLowerCase?.() === 'approved'
+        )
+        templatesCache.set(clinicId, list)
+        return list
+    })()
+
+    inFlight.set(clinicId, promise)
+    try {
+        return await promise
+    } finally {
+        inFlight.delete(clinicId)
+    }
+}
+
 interface TemplateSelectorProps {
     value: string
     onChange: (value: string) => void
@@ -33,39 +65,27 @@ export function TemplateSelector({
 
     useEffect(() => {
         let isMounted = true
-        const fetchTemplates = async () => {
-            if (!clinicId) return
-            
-            // Timeout to prevent hanging UI
-            const timeout = setTimeout(() => {
-                if (isMounted) setIsLoading(false)
-            }, 5000)
+        if (!clinicId) return
 
-            try {
-                const { data, error } = await supabase.functions.invoke('ycloud-templates', {
-                    body: { action: 'list', clinic_id: clinicId }
-                })
-                
-                if (error) throw error
-                if (data?.isError || data?.error) throw new Error(data.error || 'API Error')
+        // Cache instantáneo si ya se cargaron las plantillas de esta clínica
+        if (templatesCache.has(clinicId)) {
+            setTemplates(templatesCache.get(clinicId)!)
+            setIsLoading(false)
+            return
+        }
 
-                if (isMounted && data?.templates) {
-                    // Accept APPROVED and any active-* status variants from YCloud
-                    setTemplates(data.templates.filter((t: any) => 
-                        t.status === 'APPROVED' || 
-                        t.status?.toUpperCase?.()?.startsWith?.('ACTIVE') ||
-                        t.status?.toLowerCase?.() === 'approved'
-                    ))
-                }
-            } catch (err) {
-                console.error('Error fetching templates:', err)
-            } finally {
+        const timeout = setTimeout(() => {
+            if (isMounted) setIsLoading(false)
+        }, 5000)
+
+        fetchClinicTemplates(clinicId)
+            .then((list) => { if (isMounted) setTemplates(list) })
+            .catch((err) => console.error('Error fetching templates:', err))
+            .finally(() => {
                 clearTimeout(timeout)
                 if (isMounted) setIsLoading(false)
-            }
-        }
-        
-        fetchTemplates()
+            })
+
         return () => { isMounted = false }
     }, [clinicId])
 

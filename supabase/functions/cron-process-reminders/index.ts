@@ -52,6 +52,15 @@ Deno.serve(async (req) => {
             return n > 0 ? all.slice(0, n) : all
         }
 
+        // Límite efectivo del pool de recordatorios (citas + médicos comparten el mismo pool).
+        // null = ilimitado (Enterprise). Si hay límite, se le suma el balance de packs comprados este mes.
+        const effectiveLimit = (sub: any): number | null => {
+            const limit = sub?.monthly_reminders_limit
+            if (limit === null || limit === undefined) return null
+            return limit + (sub?.reminders_pack_balance || 0)
+        }
+        const pickSub = (subArray: any): any => Array.isArray(subArray) ? subArray[0] : subArray
+
         // 1. Fetch all clinics with 24h reminders enabled
         // We join with clinic_settings to get keys and timezone
         const { data: settingsList, error: settingsError } = await supabaseClient
@@ -66,7 +75,8 @@ Deno.serve(async (req) => {
                     ycloud_phone_number,
                     subscriptions (
                         monthly_reminders_limit,
-                        monthly_reminders_used
+                        monthly_reminders_used,
+                        reminders_pack_balance
                     )
                 )
             `)
@@ -90,13 +100,12 @@ Deno.serve(async (req) => {
                 continue
             }
 
-            // Check Limits
-            const subArray = clinic?.subscriptions || []
-            const sub = Array.isArray(subArray) ? subArray[0] : subArray
-            const limit = sub?.monthly_reminders_limit
-            const used = sub?.monthly_reminders_used || 0
+            // Check Limits (pool compartido citas + médicos)
+            const sub = pickSub(clinic?.subscriptions || [])
+            const effLimit = effectiveLimit(sub)
+            let poolUsed = sub?.monthly_reminders_used || 0
 
-            if (limit !== null && limit !== undefined && used >= limit) {
+            if (effLimit !== null && poolUsed >= effLimit) {
                 results.push({ clinicId: settings.clinic_id, status: 'skipped', reason: 'Monthly reminder limit reached' })
                 continue
             }
@@ -192,6 +201,9 @@ Deno.serve(async (req) => {
                     .eq('appointment_id', appt.id).eq('type', '24h').limit(1)
                 if (existingLog24h && existingLog24h.length > 0) continue
 
+                // Corte por límite a mitad del loop
+                if (effLimit !== null && poolUsed >= effLimit) break
+
                 try {
                     const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
                     const formattedTime = apptDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone })
@@ -278,6 +290,7 @@ Deno.serve(async (req) => {
                         column_name: 'monthly_reminders_used',
                         clinic_uuid: clinic.id
                     })
+                    poolUsed++
 
                     sentCount++
 
@@ -306,7 +319,8 @@ Deno.serve(async (req) => {
                     ycloud_phone_number,
                     subscriptions (
                         monthly_reminders_limit,
-                        monthly_reminders_used
+                        monthly_reminders_used,
+                        reminders_pack_balance
                     )
                 )
             `)
@@ -319,13 +333,12 @@ Deno.serve(async (req) => {
                 const clinic = settings.clinic_settings
                 if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) continue
 
-                // Check Limits
-                const subArray = clinic?.subscriptions || []
-                const sub = Array.isArray(subArray) ? subArray[0] : subArray
-                const limit = sub?.monthly_reminders_limit
-                const used = sub?.monthly_reminders_used || 0
+                // Check Limits (pool compartido citas + médicos)
+                const sub = pickSub(clinic?.subscriptions || [])
+                const effLimit = effectiveLimit(sub)
+                let poolUsed = sub?.monthly_reminders_used || 0
 
-                if (limit !== null && limit !== undefined && used >= limit) {
+                if (effLimit !== null && poolUsed >= effLimit) {
                     continue
                 }
 
@@ -407,6 +420,9 @@ Deno.serve(async (req) => {
 
                     if (apptHour !== targetHour) continue
 
+                    // Corte por límite a mitad del loop
+                    if (effLimit !== null && poolUsed >= effLimit) break
+
                     // SEND WHATSAPP (Reused logic - copy paste for safety in this constrained env)
                     try {
                         const formattedDate = apptDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone })
@@ -478,6 +494,7 @@ Deno.serve(async (req) => {
                                 column_name: 'monthly_reminders_used',
                                 clinic_uuid: clinic.id
                             })
+                            poolUsed++
 
                             sentCount++
                         } else {
@@ -510,11 +527,24 @@ Deno.serve(async (req) => {
             .from('clinic_settings')
             .select('id, clinic_name, timezone, ycloud_api_key, ycloud_phone_number, vaccine_reminder_template, deworming_reminder_template, checkup_reminder_template')
 
+        // Mapa de subscripciones para el check de límite (pool compartido con citas)
+        const { data: allSubs } = await supabaseClient
+            .from('subscriptions')
+            .select('clinic_id, monthly_reminders_limit, monthly_reminders_used, reminders_pack_balance')
+        const subMap: Record<string, any> = {}
+        for (const s of (allSubs || [])) subMap[s.clinic_id] = s
+
         if (allClinicsError) {
             console.error('Error fetching clinics for general reminders', allClinicsError)
         } else {
             for (const clinic of (allClinics || [])) {
                 if (!clinic.ycloud_api_key || !clinic.ycloud_phone_number) continue
+
+                // Check de límite (pool compartido citas + médicos)
+                const sub = subMap[clinic.id]
+                const effLimit = effectiveLimit(sub)
+                let poolUsed = sub?.monthly_reminders_used || 0
+                if (effLimit !== null && poolUsed >= effLimit) continue
 
                 const timeZone = clinic.timezone || 'America/Santiago'
 
@@ -574,6 +604,9 @@ Deno.serve(async (req) => {
                         }).eq('id', rem.id)
                         continue
                     }
+
+                    // Corte por límite a mitad del loop (los pendientes restantes quedan para el próximo mes / pack)
+                    if (effLimit !== null && poolUsed >= effLimit) break
 
                     try {
                         const formattedDate = new Date(rem.scheduled_date + 'T12:00:00Z').toLocaleDateString('es-MX', {
@@ -635,6 +668,7 @@ Deno.serve(async (req) => {
                                 column_name: 'monthly_reminders_used',
                                 clinic_uuid: clinic.id
                             })
+                            poolUsed++
                         } else {
                             await supabaseClient.from('reminders').update({
                                 status: 'failed',

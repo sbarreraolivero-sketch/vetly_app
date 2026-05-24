@@ -31,16 +31,21 @@ export default function Reminders() {
     const [settings, setSettings] = useState<any>(null)
     const [appointmentLogs, setAppointmentLogs] = useState<any[]>([])
     const [medicalLogs, setMedicalLogs] = useState<any[]>([])
+    const [reminderUsage, setReminderUsage] = useState<any>(null)
 
     // Settings fetch — only re-runs when clinic changes
     useEffect(() => {
         if (!profile?.clinic_id) return
         const fetchSettings = async () => {
-            const [{ data: clinicSettings }, { data: reminderData }] = await Promise.all([
+            const [{ data: clinicSettings }, { data: reminderData }, { data: subData }] = await Promise.all([
                 supabase.from('clinic_settings').select('*').eq('id', profile.clinic_id).single(),
                 supabase.from('reminder_settings').select('*').eq('clinic_id', profile.clinic_id).single(),
+                (supabase as any).from('subscriptions')
+                    .select('monthly_reminders_limit, monthly_reminders_used, reminders_pack_balance')
+                    .eq('clinic_id', profile.clinic_id).maybeSingle(),
             ])
             setSettings({ ...(clinicSettings || {}), ...(reminderData || {}) })
+            setReminderUsage(subData || null)
             setPlanLoading(false)
         }
         fetchSettings()
@@ -206,6 +211,16 @@ export default function Reminders() {
         { name: 'Pack Pro', count: 200, priceCLP: 15000, priceUSD: 15, desc: 'Para clínicas con alto volumen de citas', popular: true },
         { name: 'Pack Ilimitado', count: -1, priceCLP: 25000, priceUSD: 25, desc: 'Sin límite durante el mes actual' },
     ]
+
+    // Pool mensual de recordatorios (compartido entre citas y médicos)
+    const rLimit = reminderUsage?.monthly_reminders_limit
+    const rUsed = reminderUsage?.monthly_reminders_used ?? 0
+    const rPack = reminderUsage?.reminders_pack_balance ?? 0
+    const isUnlimited = rLimit === null || rLimit === undefined
+    const effLimit: number | null = isUnlimited ? null : rLimit + rPack
+    const atLimit = !isUnlimited && rUsed >= (effLimit as number)
+    const poolPct = isUnlimited ? 0 : Math.min(100, Math.round((rUsed / Math.max(1, effLimit as number)) * 100))
+    const poolColor = atLimit ? 'bg-red-500' : poolPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-20 animate-fade-in">
@@ -487,6 +502,57 @@ export default function Reminders() {
 
                 {/* Main Content — metrics left */}
                 <div className="lg:col-span-2 space-y-6 lg:order-1">
+                    {/* Pool mensual de recordatorios (citas + médicos comparten el mismo cupo) */}
+                    <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-xs font-bold text-charcoal/50 uppercase tracking-widest">
+                                Recordatorios este mes
+                            </h4>
+                            {planLoading ? (
+                                <span className="text-xs text-charcoal/30">—</span>
+                            ) : isUnlimited ? (
+                                <span className="text-sm font-black text-primary-600 flex items-center gap-1">
+                                    <InfinityIcon className="w-4 h-4" /> Ilimitado
+                                </span>
+                            ) : (
+                                <span className={cn("text-sm font-black", atLimit ? "text-red-600" : "text-charcoal")}>
+                                    {rUsed} / {effLimit}
+                                </span>
+                            )}
+                        </div>
+                        {!planLoading && !isUnlimited && (
+                            <>
+                                <div className="w-full h-2.5 bg-ivory rounded-full overflow-hidden">
+                                    <div className={cn("h-full rounded-full transition-all", poolColor)} style={{ width: `${poolPct}%` }} />
+                                </div>
+                                <div className="flex items-center justify-between mt-2">
+                                    <p className="text-[11px] text-charcoal/40">
+                                        Cupo compartido entre citas y recordatorios médicos.
+                                        {rPack > 0 && <span className="text-emerald-600 font-bold"> +{rPack} de packs</span>}
+                                    </p>
+                                    {!atLimit && <span className="text-[11px] font-bold text-charcoal/40">{poolPct}%</span>}
+                                </div>
+                                {atLimit && (
+                                    <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold text-red-700">Límite mensual alcanzado</p>
+                                            <p className="text-xs text-red-600/80 mt-0.5">
+                                                El envío automático de recordatorios está pausado. Compra un pack para seguir enviando este mes.
+                                            </p>
+                                            <button
+                                                onClick={() => setActiveTab('packs')}
+                                                className="mt-2 inline-flex items-center gap-1.5 bg-red-500 text-white text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg hover:bg-red-600 transition-colors"
+                                            >
+                                                <Package className="w-3.5 h-3.5" /> Ver packs
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Stat counters */}
                         <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm h-64 flex flex-col">
