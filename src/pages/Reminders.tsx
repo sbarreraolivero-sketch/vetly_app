@@ -93,29 +93,26 @@ export default function Reminders() {
                     .from('reminders')
                     .select('*, patients(id, name, tutor_id, tutors(id, name, phone_number))')
                     .eq('clinic_id', profile.clinic_id)
-                    .order('scheduled_date', { ascending: false })
 
-                if (startDate) {
-                    const startDateStr = startDate.toISOString().split('T')[0]
-                    if (medicalTab === 'history') {
-                        query = query.gte('scheduled_date', startDateStr).lte('scheduled_date', todayStr)
-                    } else {
-                        const daysDiff = Math.max(1, Math.round((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
-                        const futureDate = new Date()
-                        futureDate.setDate(futureDate.getDate() + daysDiff)
-                        query = query.gte('scheduled_date', todayStr).lte('scheduled_date', futureDate.toISOString().split('T')[0])
+                if (medicalTab === 'pending') {
+                    // Próximos en cola: solo pending con scheduled_date >= hoy, orden ascendente (más cercano primero)
+                    query = query
+                        .eq('status', 'pending')
+                        .gte('scheduled_date', todayStr)
+                        .order('scheduled_date', { ascending: true })
+                } else {
+                    // Historial: enviados/fallidos filtrados por el rango de fecha elegido
+                    query = query
+                        .in('status', ['sent', 'failed'])
+                        .order('scheduled_date', { ascending: false })
+                    if (startDate) {
+                        query = query.gte('scheduled_date', startDate.toISOString().split('T')[0]).lte('scheduled_date', todayStr)
                     }
                 }
 
                 const { data, error } = await query.limit(300)
                 if (error) console.error('Error fetching medical reminders:', error)
-
-                if (data) {
-                    const filtered = medicalTab === 'history'
-                        ? data.filter((d: any) => d.status === 'sent' || d.status === 'failed')
-                        : data.filter((d: any) => d.status === 'pending')
-                    setMedicalLogs(filtered)
-                }
+                setMedicalLogs(data || [])
             }
         } catch (error) {
             console.error('Error fetching reminders data:', error)
