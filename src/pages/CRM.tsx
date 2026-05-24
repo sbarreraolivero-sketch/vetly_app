@@ -102,6 +102,9 @@ export default function CRM() {
     const draggedProspect = useRef<string | null>(null)
     const [dragOverStage, setDragOverStage] = useState<string | null>(null)
 
+    // Cerrados ocultos por default
+    const [showClosed, setShowClosed] = useState(false)
+
     // Services for dropdown
     const [services, setServices] = useState<{ id: string; name: string }[]>([])
 
@@ -533,14 +536,34 @@ export default function CRM() {
                             <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                     </select>
+                    <button
+                        onClick={() => setShowClosed(v => !v)}
+                        className={cn(
+                            'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors whitespace-nowrap',
+                            showClosed
+                                ? 'bg-charcoal/10 text-charcoal border-charcoal/20'
+                                : 'bg-white text-charcoal/50 border-silk-beige hover:border-charcoal/20'
+                        )}
+                    >
+                        {showClosed ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        Cerrados
+                        {(() => {
+                            const closedStage = stages.find(s => s.name.toLowerCase().includes('cerrado'))
+                            const count = closedStage ? prospects.filter(p => p.stage_id === closedStage.id).length : 0
+                            return count > 0 ? <span className="bg-charcoal/15 text-charcoal px-1.5 py-0.5 rounded-full text-xs">{count}</span> : null
+                        })()}
+                    </button>
                 </div>
             </div>
 
             {/* Pipeline Kanban */}
             <div className="overflow-x-auto pb-4 -mx-2">
                 <div className="flex gap-4 min-w-max px-2">
-                    {stages.map(stage => {
-                        const stageProspects = filteredProspects.filter(p => p.stage_id === stage.id)
+                    {stages.filter(s => showClosed || !s.name.toLowerCase().includes('cerrado')).map((stage, stageIdx) => {
+                        const stageProspects = filteredProspects.filter(p =>
+                            p.stage_id === stage.id ||
+                            (stageIdx === 0 && (p.stage_id === null || p.stage_id === undefined))
+                        )
                         return (
                             <div
                                 key={stage.id}

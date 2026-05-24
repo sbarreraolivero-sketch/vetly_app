@@ -16,8 +16,6 @@ const speciesOptions = ['Canino', 'Felino', 'Ave', 'Reptil', 'Conejo', 'Otro']
 const sexOptions = [
     { value: 'M', label: 'Macho' },
     { value: 'F', label: 'Hembra' },
-    { value: 'MN', label: 'Macho Castrado' },
-    { value: 'FN', label: 'Hembra Esterilizada' }
 ]
 
 export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
@@ -30,7 +28,7 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
         species: 'Canino',
         breed: '',
         color: '',
-        sex: 'M' as 'M' | 'F' | 'MN' | 'FN',
+        sex: 'M' as 'M' | 'F',
         dob: '',
         is_sterilized: false,
         microchip_id: '',
@@ -39,14 +37,18 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
 
     useEffect(() => {
         if (pet) {
+            // Backward compat: MN → M + is_sterilized:true, FN → F + is_sterilized:true
+            const rawSex = (pet.sex as string) || 'M'
+            const sex: 'M' | 'F' = rawSex === 'MN' ? 'M' : rawSex === 'FN' ? 'F' : rawSex === 'H' ? 'F' : rawSex as 'M' | 'F'
+            const isSterilized = pet.is_sterilized || rawSex === 'MN' || rawSex === 'FN'
             setFormData({
                 name: pet.name || '',
                 species: pet.species || 'Canino',
                 breed: pet.breed || '',
                 color: pet.color || '',
-                sex: (pet.sex as any) || 'M',
+                sex,
                 dob: pet.dob ? pet.dob.split('T')[0] : '',
-                is_sterilized: pet.is_sterilized || false,
+                is_sterilized: isSterilized,
                 microchip_id: pet.microchip_id || '',
                 notes: pet.notes || ''
             })
@@ -68,7 +70,7 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
                 species: formData.species,
                 breed: formData.breed || null,
                 color: formData.color || null,
-                sex: formData.sex || null,
+                sex: formData.sex,
                 dob: formData.dob || null,
                 is_sterilized: formData.is_sterilized,
                 microchip_id: formData.microchip_id || null,
@@ -183,22 +185,39 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
                             <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
                                 Sexo
                             </label>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex gap-2">
                                 {sexOptions.map(opt => (
                                     <button
                                         key={opt.value}
                                         type="button"
-                                        onClick={() => {
-                                            const isSterilized = opt.value === 'MN' || opt.value === 'FN'
-                                            setFormData({ 
-                                                ...formData, 
-                                                sex: opt.value as any,
-                                                is_sterilized: isSterilized
-                                            })
-                                        }}
-                                        className={`px-3 py-2 rounded-soft text-[10px] font-bold uppercase tracking-widest transition-all border ${
-                                            formData.sex === opt.value 
-                                            ? 'bg-primary-600 text-white border-primary-600 shadow-sm' 
+                                        onClick={() => setFormData({ ...formData, sex: opt.value as 'M' | 'F' })}
+                                        className={`px-4 py-2 rounded-soft text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                                            formData.sex === opt.value
+                                            ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                                            : 'bg-white text-charcoal/60 border-silk-beige hover:border-primary-200'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2 ml-1">
+                                Esterilizado/a
+                            </label>
+                            <div className="flex gap-2">
+                                {[{ value: true, label: 'Sí' }, { value: false, label: 'No' }].map(opt => (
+                                    <button
+                                        key={String(opt.value)}
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, is_sterilized: opt.value })}
+                                        className={`px-4 py-2 rounded-soft text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                                            formData.is_sterilized === opt.value
+                                            ? opt.value
+                                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                                                : 'bg-charcoal/10 text-charcoal border-charcoal/20 shadow-sm'
                                             : 'bg-white text-charcoal/60 border-silk-beige hover:border-primary-200'
                                         }`}
                                     >

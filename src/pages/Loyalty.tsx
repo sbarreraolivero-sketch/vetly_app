@@ -59,12 +59,13 @@ export default function Loyalty() {
 
     const [tutorAmounts, setTutorAmounts] = useState<Record<string, string>>({});
     const [pendingAdjustments, setPendingAdjustments] = useState<Record<string, number>>({});
+    const [clinicPhone, setClinicPhone] = useState<string>('')
 
     const fetchData = async () => {
         if (!profile?.clinic_id) return
         setLoading(true)
         try {
-            const [s, tDataRes, rData, transDataRes] = await Promise.all([
+            const [s, tDataRes, rData, transDataRes, clinicSettingsRes] = await Promise.all([
                 loyaltyService.getSettings(profile.clinic_id),
                 (supabase as any)
                     .from('tutors')
@@ -77,10 +78,16 @@ export default function Loyalty() {
                     .select('*, tutors(name)')
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
-                    .limit(50)
+                    .limit(50),
+                (supabase as any)
+                    .from('clinic_settings')
+                    .select('ycloud_phone_number')
+                    .eq('id', profile.clinic_id)
+                    .maybeSingle()
             ])
             setSettings(s)
             setTutors(tDataRes.data || [])
+            setClinicPhone(clinicSettingsRes.data?.ycloud_phone_number || '')
             setRewards(rData || [])
             setTransactions(transDataRes.data || [])
 
@@ -176,10 +183,16 @@ export default function Loyalty() {
         }
     };
 
-    const copyReferralLink = (code: string) => {
-        const link = `${window.location.origin}/r/${code}`
+    const copyReferralLink = (code: string, tutorName?: string) => {
+        const phone = clinicPhone.replace(/\D/g, '')
+        const msg = tutorName
+            ? `Hola! Me contacto de parte de ${tutorName} 🐾 Mi código de referido es *${code}*. ¡Quiero agendar una consulta!`
+            : `Hola! Tengo un código de referido: *${code}*. ¡Quiero agendar una consulta!`
+        const link = phone
+            ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+            : `https://wa.me/?text=${encodeURIComponent(msg)}`
         navigator.clipboard.writeText(link)
-        toast.success('¡Enlace mágico copiado!')
+        toast.success('¡Enlace de WhatsApp copiado!')
     }
 
     if (loading) {
@@ -384,7 +397,7 @@ export default function Loyalty() {
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => {
-                                                copyReferralLink(tutor.referral_code || '');
+                                                copyReferralLink(tutor.referral_code || '', tutor.name);
                                             }}
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-50 text-accent-600 rounded-full text-xs font-bold hover:bg-accent-100 transition-colors"
                                             title="Copiar enlace para el tutor"
@@ -665,7 +678,7 @@ export default function Loyalty() {
                     <div className="space-y-6">
                         <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-softer p-6 text-white shadow-soft-md">
                             <Trophy className="w-8 h-8 mb-4 text-primary-200" />
-                            <h3 className="text-lg font-bold mb-2">Reglas de Bienvenida</h3>
+                            <h3 className="text-lg font-bold mb-2 text-white">Reglas de Bienvenida</h3>
                             <p className="text-sm text-primary-100 mb-6">
                                 Define cuántos {settings?.loyalty_points_name} recibe un tutor la primera vez que agenda.
                             </p>

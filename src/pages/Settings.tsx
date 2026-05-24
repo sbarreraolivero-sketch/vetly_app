@@ -246,6 +246,7 @@ export default function Settings() {
         trialEndsAt: string | null
         monthlyLimit: number
         monthlyUsed: number
+        manuallyActive: boolean
     } | null>(null)
     const [cancellingSubscription, setCancellingSubscription] = useState(false)
 
@@ -400,7 +401,8 @@ export default function Settings() {
                         status: subData.status,
                         trialEndsAt: subData.trial_ends_at,
                         monthlyLimit: subData.monthly_appointments_limit,
-                        monthlyUsed: subData.monthly_appointments_used || 0
+                        monthlyUsed: subData.monthly_appointments_used || 0,
+                        manuallyActive: subData.manually_active ?? false
                     })
                 }
             } catch (error) {
@@ -1923,15 +1925,20 @@ export default function Settings() {
                                             <p className="text-sm text-charcoal/50">Gestiona tu plan y facturación</p>
                                         </div>
                                     </div>
-                                    <div className={cn(
-                                        "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider",
-                                        subscription?.status === 'trial' ? 'bg-amber-100 text-amber-700' :
-                                            subscription?.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                                                'bg-charcoal/10 text-charcoal/60'
-                                    )}>
-                                        {subscription?.status === 'trial' ? 'En Prueba' :
-                                            subscription?.status === 'active' ? 'Plan Activo' : 'Inactivo'}
-                                    </div>
+                                    {(() => {
+                                        const isTrial = subscription?.status === 'trial'
+                                        const isActive = subscription?.manuallyActive || subscription?.status === 'active'
+                                        return (
+                                            <div className={cn(
+                                                "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider",
+                                                isTrial ? 'bg-amber-100 text-amber-700' :
+                                                    isActive ? 'bg-emerald-100 text-emerald-700' :
+                                                        'bg-charcoal/10 text-charcoal/60'
+                                            )}>
+                                                {isTrial ? 'En Prueba' : isActive ? 'Plan Activo' : 'Inactivo'}
+                                            </div>
+                                        )
+                                    })()}
                                 </div>
 
                                 <div className="bg-ivory border border-silk-beige rounded-soft p-6 mb-8">

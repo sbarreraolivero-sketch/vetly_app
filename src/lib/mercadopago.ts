@@ -134,18 +134,17 @@ export const PLANS = {
             '2 usuarios · 1 agenda',
             'Todo lo de Core',
             'Agente IA WhatsApp (Lía)',
-            '2.000 créditos IA incluidos/mes',
+            '1.000 créditos IA incluidos/mes',
             'Hasta 50 citas con IA/mes',
             '100 recordatorios/mes',
             'Campañas masivas',
             'Logística móvil (Goldi)',
-            'Sistema de referidos con IA',
         ],
     },
     pro: {
         id: 'pro',
         name: 'Pro',
-        tagline: 'Para clínicas móviles y físicas en crecimiento',
+        tagline: 'Para clínicas en crecimiento',
         price: 149000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: -1,
@@ -153,7 +152,7 @@ export const PLANS = {
         maxAgendas: 5,
         popular: true,
         features: [
-            'Hasta 5 usuarios (Adm, Prof, Recep, Asist) · 5 agendas',
+            '5 usuarios · 5 agendas',
             'Todo lo de Starter',
             '4.000 créditos IA incluidos/mes',
             'Citas con IA ilimitadas',
@@ -166,7 +165,7 @@ export const PLANS = {
         id: 'enterprise',
         name: 'Enterprise',
         tagline: 'Redes y multi-sucursal',
-        price: 335000,
+        price: 349000,
         currency: 'CLP',
         monthlyAppointmentsMonthly: -1,
         maxUsers: 999999,
@@ -203,8 +202,8 @@ export function normalizePlanId(planId: string): PlanId {
  * CLP Credit Packs — GPT-4o-mini (económico)
  */
 export const CREDIT_PACKS = {
-    'pack_500': { id: 'pack_500', name: 'Pack Inicial', credits: 500, price: 5000, description: '500 Créditos de IA' },
-    'pack_1500': { id: 'pack_1500', name: 'Pack Pro', credits: 1500, price: 12000, description: '1500 Créditos de IA' },
+    'pack_500': { id: 'pack_500', name: 'Pack Inicial', credits: 500, price: 8000, description: '500 Créditos de IA' },
+    'pack_1500': { id: 'pack_1500', name: 'Pack Pro', credits: 1500, price: 13000, description: '1500 Créditos de IA' },
     'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 4000, price: 25000, description: '4000 Créditos de IA' },
 } as const
 

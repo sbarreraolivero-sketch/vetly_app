@@ -93,13 +93,18 @@ export default function Tutors() {
         }
     }
 
+    // Carga inicial inmediata al montar o cambiar clínica
     useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchContacts()
-            fetchTagSummaries()
-        }, 500)
+        fetchContacts()
+        fetchTagSummaries()
+    }, [profile?.clinic_id])
+
+    // Búsqueda con debounce — solo cuando el usuario escribe
+    useEffect(() => {
+        if (!searchQuery) return
+        const timer = setTimeout(() => fetchContacts(), 400)
         return () => clearTimeout(timer)
-    }, [searchQuery, profile?.clinic_id])
+    }, [searchQuery])
 
     // Auto-open tutor when navigating from PatientProfile breadcrumb
     useEffect(() => {

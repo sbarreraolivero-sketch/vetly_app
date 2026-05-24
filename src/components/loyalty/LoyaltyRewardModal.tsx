@@ -75,7 +75,7 @@ export function LoyaltyRewardModal({ clinicId, onClose, onSave, pointsName = 'Pu
                         <div>
                             <label className="text-xs font-bold font-black text-charcoal uppercase tracking-widest mb-1.5 block px-1">Descripción (Opcional)</label>
                             <textarea
-                                placeholder="Válido para cualquier tratamiento..."
+                                placeholder="Válido para cualquier vacuna..."
                                 value={formData.description}
                                 onChange={e => setFormData({ ...formData, description: e.target.value })}
                                 className="w-full p-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 min-h-[80px]"
@@ -105,9 +105,9 @@ export function LoyaltyRewardModal({ clinicId, onClose, onSave, pointsName = 'Pu
                                 >
                                     <option value="money">Dinero ($)</option>
                                     <option value="percentage">Porcentaje (%)</option>
-                                    <option value="treatment">Tratamiento / Producto</option>
+                                    <option value="treatment">Servicio / Producto</option>
                                 </select>
-                                <p className="text-xs font-bold text-charcoal/40 mt-1 pl-1 italic">Elige "Tratamiento" para que sea gratis.</p>
+                                <p className="text-xs font-bold text-charcoal/40 mt-1 pl-1 italic">Elige "Servicio/Producto" para que sea gratis.</p>
                             </div>
                         </div>
 

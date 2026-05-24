@@ -618,11 +618,166 @@ El banner pasó de `from-accent-500 to-accent-700` (gold) a `from-violet-500 to-
 - Cualquier operación que requiera contactar a alguien (WhatsApp, recordatorios, campañas) debe ir vía `tutors`.
 
 ### Campañas — flujo de segmentación
-- Tags se guardan en `patient_tags` (junction table, `patient_id` + `tag_id`)
+- Tags de tutor se guardan en `tutor_tags` (junction table, `tutor_id` + `tag_id`) — fuente de verdad para el frontend
 - El RPC `get_tag_counts(p_clinic_id)` devuelve `tag_id` (UUID) + `tag_name` + `contact_count`
 - El frontend usa `tag_id` como el `id` de cada Tag (UUID real, no el nombre)
 - `get_estimated_audience(clinic_id, inclusion_tags UUID[], exclusion_tags UUID[])` cuenta tutores únicos con teléfono
 - `send-whatsapp-campaign` lee `campaign.inclusion_tags` / `campaign.exclusion_tags` (JSONB con UUIDs)
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 12, 2026-05-23)
+
+### Suscripciones — estado "Inactivo" falso para Animalgrace
+
+**Problema:** el badge de Settings mostraba "INACTIVO" para Animalgrace porque MercadoPago guarda `status = "trialing"` para suscripciones pagadas, y el frontend solo reconocía `"active"`.
+
+**Fix:**
+- **Migración `add_manually_active_to_subscriptions`**: columna `manually_active BOOLEAN DEFAULT false` añadida a `subscriptions`. Animalgrace Linares y Santiago tienen `manually_active = true` (pagan por transferencia bancaria, no vía MercadoPago).
+- **`Settings.tsx`**: badge usa `subscription?.manuallyActive || status === 'active'`. Las demás clínicas muestran su estado real de MercadoPago. Botón de cancelar solo aparece con `status = 'active'` real.
+- **Para autorizar manualmente una nueva clínica que pague por transferencia:** `UPDATE subscriptions SET manually_active = true WHERE clinic_id = '...'`
+
+### Magic Link de Referidos — ahora genera enlace WhatsApp
+
+**Problema:** el botón "Magic Link" en Fidelización copiaba `${origin}/r/{code}`, una URL interna inexistente.
+
+**Fix en `Loyalty.tsx`:**
+- Obtiene `ycloud_phone_number` de `clinic_settings` en el fetch inicial.
+- `copyReferralLink(code, tutorName)` genera `https://wa.me/{phone}?text=Hola! Me contacto de parte de {tutorName} 🐾 Mi código de referido es *{code}*...`
+- El amigo hace clic → abre WhatsApp con la clínica → mensaje pre-escrito con el código del referidor.
+
+### CRM — prospectos no visibles en el kanban
+
+**Causa raíz:** cuando el webhook creó los primeros prospectos, `crm_pipeline_stages` estaba vacía → `defaultStageId = undefined` → `stage_id = null` en DB. El kanban filtraba por `stage_id === stage.id`, así que todos quedaban invisibles.
+
+**Fix:**
+- **SQL retroactivo:** 70 prospectos asignados al stage "Nuevo Prospecto" (position=0) de su clínica.
+- **`CRM.tsx`:** primera columna del kanban también captura `stage_id = null` como red de seguridad.
+
+### Etiquetas — RLS bloqueaba toda lectura de la tabla `tags`
+
+**Causa raíz:** la tabla `tags` tenía RLS habilitada pero **sin ninguna política** → cualquier query desde el frontend devolvía vacío silenciosamente. Por eso Settings → Etiquetas siempre mostraba "No hay etiquetas creadas aún" aunque hubiera 22 en la DB.
+
+**Fix — migración `add_rls_policies_tags_table`:** políticas SELECT/INSERT/UPDATE/DELETE vía `clinic_members` + service_role. Ahora los tags son visibles en Settings y en el CRM.
+
+### Etiquetas en Tutores — tabla incorrecta en el webhook
+
+**Causa raíz (estructural):** hay DOS tablas de junction para tags:
+- `tutor_tags` (`tutor_id + tag_id`) — lo que leen los RPCs `get_unified_contacts` y `get_tag_counts`
+- `patient_tags` (`patient_id + tag_id`) — donde el webhook `tagPatient` insertaba (tabla creada en sesión 6)
+
+El webhook insertaba en la tabla equivocada → nunca aparecían tags en la vista de Tutores.
+
+**Fix:**
+- **Migración `populate_tutor_tags_from_patient_tags`:** 183 registros migrados de `patient_tags` → `tutor_tags` vía `patients.tutor_id`. Los tutores de Linares y Santiago ahora tienen sus etiquetas asignadas.
+- **Webhook `tagPatient` (v212):** reescrito para insertar directamente en `tutor_tags` por `tutor_id` (una sola fila por tutor, no un loop por mascota). Código `23505` (unique violation) ignorado silenciosamente para idempotencia.
+- Deploy: `ycloud-whatsapp-webhook` v212.
+
+### Regla permanente — sistema de tags
+
+- `tutor_tags` es la fuente de verdad para el frontend (Tutores, Campañas, CRM).
+- `patient_tags` sigue existiendo pero solo para usos futuros a nivel de mascota individual.
+- Cualquier nueva asignación de tag desde el webhook debe ir a `tutor_tags`.
+- Los RPCs `get_unified_contacts` y `get_tag_counts` leen de `tutor_tags` (y `crm_tags` para prospectos CRM).
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 13, 2026-05-24)
+
+### PetForm — separación de sexo y esterilización
+
+**Problema:** el formulario de edición de mascotas mezclaba sexo y esterilización en un solo campo ("Macho castrado", "Hembra esterilizada").
+
+**Fix en `src/components/patients/PetForm.tsx`:**
+- `sexOptions` reducido a solo `[Macho, Hembra]` — siempre 'M' o 'F', nunca 'MN'/'FN'
+- Backward compat en `useEffect`: `MN → M + is_sterilized:true`, `FN → F + is_sterilized:true`, `H → F`
+- Nuevo toggle independiente "Esterilizado/a" con Sí (emerald) / No (charcoal/10)
+- `petData.sex` guardado siempre como 'M' o 'F'; `is_sterilized` como campo separado
+
+**Trigger DB — `tr_update_sterilized_tag_on_patient_change`:**
+- Se dispara en UPDATE de `patients.is_sterilized`
+- Si `is_sterilized = true` → elimina la etiqueta "No Esterilizado" del tutor en `tutor_tags`
+- Si `is_sterilized = false` → inserta etiqueta "No Esterilizado" en `tutor_tags` (si existe el tag para esa clínica)
+- Idempotente en ambas direcciones
+
+### Tutors.tsx — fix delay en breadcrumb y auto-apertura
+
+**Problema:** al navegar desde PatientProfile al tutor, la página cargaba con 400–500ms de delay antes de abrir el panel del tutor, porque el debounce de búsqueda se aplicaba también a la carga inicial.
+
+**Fix:** separados en dos `useEffect` independientes:
+```tsx
+// Carga inmediata al cambiar clínica
+useEffect(() => { fetchContacts(); fetchTagSummaries() }, [profile?.clinic_id])
+
+// Debounce solo para búsqueda
+useEffect(() => {
+    if (!searchQuery) return
+    const timer = setTimeout(() => fetchContacts(), 400)
+    return () => clearTimeout(timer)
+}, [searchQuery])
+```
+
+### LoyaltyRewardModal — correcciones de texto
+
+- Opción "Tratamiento / Producto" → **"Servicio / Producto"**
+- Helper text: `'Elige "Tratamiento" para que sea gratis'` → `'Elige "Servicio/Producto" para que sea gratis.'`
+- Placeholder descripción → `'Válido para cualquier vacuna...'`
+
+### Loyalty.tsx — color título "Reglas de Bienvenida"
+
+El `h3` del card de Reglas de Bienvenida tenía `text-charcoal` sobre fondo de degradado oscuro. Fix: `className="text-lg font-bold mb-2 text-white"`.
+
+### CRM — cierre automático y toggle "Cerrados"
+
+**Problema:** los prospectos en "Cita agendada" acumulaban indefinidamente sin moverse aunque la cita ya hubiera pasado.
+
+**Migración `cron_auto_close_crm_prospects`:**
+- Función `auto_close_crm_prospects()`: mueve prospectos con `appointment_date < NOW()` del stage "Cita agendada" al stage "Cerrado" de su clínica
+- pg_cron schedule: ejecuta diariamente a las 06:00 UTC
+
+**`CRM.tsx`:**
+- Estado `showClosed` (default `false`) — oculta la columna "Cerrado" por defecto
+- Toggle "Cerrados" en la barra de filtros con badge del conteo
+- Primera columna del kanban también captura `stage_id === null` como red de seguridad
+
+### Planes — alineación exacta con Landing.tsx
+
+La landing es la fuente de verdad. Todos los archivos de planes actualizados para coincidir exactamente:
+
+**`src/lib/mercadopago.ts` (CLP):**
+- Starter: `2.000` → `1.000` créditos; eliminado "Sistema de referidos con IA"
+- Pro: tagline → "Para clínicas en crecimiento"; features[0] → "5 usuarios · 5 agendas"
+- Enterprise: precio `$335.000` → `$349.000`
+
+**`src/lib/lemonsqueezy.ts` (USD):**
+- Core: precio `$39` → `$33`; features reducidas a 6 (igual que landing)
+- Starter: precio `$99` → `$89`; `2.000` → `1.000` créditos; eliminado "Sistema de referidos con IA"
+- Pro: precio `$169` → `$149`; tagline → "Para clínicas en crecimiento"; features[0] → "5 usuarios · 5 agendas"; eliminado "Sistema de referidos con IA"
+- Enterprise: precio `$379` → `$349`; tagline → "Redes y multi-sucursal"; features alineadas
+
+### LemonSqueezy — variant IDs actualizados
+
+**Problema:** la edge function `lemonsqueezy-create-checkout` solo tenía entradas para los plan IDs legacy (`essence`, `radiance`, `prestige`) y nunca para los nuevos (`core`, `starter`, `pro`, `enterprise`). Los packs de créditos tenían variant IDs viejos (1459xxx).
+
+**Fix en `supabase/functions/lemonsqueezy-create-checkout/index.ts` (deployada):**
+
+| Clave | Variant ID | Observación |
+|---|---|---|
+| `core` | 1696093 | Nuevo producto |
+| `starter` | 1459505 | Reutiliza variant de `essence` |
+| `pro` | 1459526 | Reutiliza variant de `radiance` |
+| `enterprise` | 1459528 | Reutiliza variant de `prestige` |
+| `essence` / `radiance` / `prestige` | ídem | Mantenidos para backward compat |
+| `pack_500` | 1696070 | Nuevo |
+| `pack_1500` | 1696077 | Nuevo |
+| `pack_4000` | 1696079 | Nuevo |
+| `pack_500_4o` / `pack_1500_4o` / `pack_4000_4o` | 1459861/69/72 | Sin cambios — confirmar si aplica |
+
+**Precios de packs actualizados:**
+- USD: $9 / $15 / $29 (antes $5 / $12 / $25)
+- CLP: $8.000 / $13.000 / $25.000 (antes $5.000 / $12.000 / $25.000)
+
+**Regla permanente:** editar un producto en LemonSqueezy **no cambia su variant ID**. Solo cambia si se elimina y recrea el variant.
 
 ---
 

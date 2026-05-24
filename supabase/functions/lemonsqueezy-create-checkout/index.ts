@@ -14,16 +14,21 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
  * To find them: Dashboard → Store → Products → Click product → Copy variant ID from URL.
  */
 const VARIANT_IDS: Record<string, string> = {
-    // Subscription Plans
-    'essence':     Deno.env.get("LS_VARIANT_ESSENCE") || "1459505",
-    'radiance':    Deno.env.get("LS_VARIANT_RADIANCE") || "1459526",
-    'prestige':    Deno.env.get("LS_VARIANT_PRESTIGE") || "1459528",
+    // Subscription Plans (current IDs)
+    'core':       Deno.env.get("LS_VARIANT_CORE")       || "1696093",
+    'starter':    Deno.env.get("LS_VARIANT_STARTER")    || "1459505",
+    'pro':        Deno.env.get("LS_VARIANT_PRO")        || "1459526",
+    'enterprise': Deno.env.get("LS_VARIANT_ENTERPRISE") || "1459528",
+    // Legacy plan IDs — backward compat for existing subscriptions in DB
+    'essence':    Deno.env.get("LS_VARIANT_STARTER")    || "1459505",
+    'radiance':   Deno.env.get("LS_VARIANT_PRO")        || "1459526",
+    'prestige':   Deno.env.get("LS_VARIANT_ENTERPRISE") || "1459528",
     // AI Credit Packs (mini)
-    'pack_500':    Deno.env.get("LS_VARIANT_PACK_500") || "1459837",
-    'pack_1500':   Deno.env.get("LS_VARIANT_PACK_1500") || "1459853",
-    'pack_4000':   Deno.env.get("LS_VARIANT_PACK_4000") || "1459858",
+    'pack_500':    Deno.env.get("LS_VARIANT_PACK_500")   || "1696070",
+    'pack_1500':   Deno.env.get("LS_VARIANT_PACK_1500")  || "1696077",
+    'pack_4000':   Deno.env.get("LS_VARIANT_PACK_4000")  || "1696079",
     // AI Credit Packs (4o premium)
-    'pack_500_4o':  Deno.env.get("LS_VARIANT_PACK_500_4O") || "1459861",
+    'pack_500_4o':  Deno.env.get("LS_VARIANT_PACK_500_4O")  || "1459861",
     'pack_1500_4o': Deno.env.get("LS_VARIANT_PACK_1500_4O") || "1459869",
     'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "1459872",
 };
