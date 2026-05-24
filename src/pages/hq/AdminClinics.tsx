@@ -229,6 +229,17 @@ export default function AdminClinics() {
                     const isMultiBranch = branches.length > 1
                     const groupKey = group.ownerEmail
 
+                    // Strip common prefix from branch names for compact labels
+                    const commonPrefix = isMultiBranch
+                        ? branches[0].clinic_name.split(' ').filter((word, i) =>
+                            branches.every(b => b.clinic_name.split(' ')[i] === word)
+                        ).join(' ')
+                        : ''
+                    const branchLabel = (b: ClinicData) => {
+                        const label = commonPrefix ? b.clinic_name.slice(commonPrefix.length).trim() : b.clinic_name
+                        return label || b.clinic_name
+                    }
+
                     const chargeAmount = chargeAmounts[groupKey] ?? 500
                     const chargeTarget = chargeTargets[groupKey] ?? primaryClinic.id
 
@@ -352,7 +363,7 @@ export default function AdminClinics() {
                                         >
                                             {branches.map(b => (
                                                 <option key={b.id} value={b.id}>
-                                                    {b.clinic_name.split(' ').slice(-1)[0]}
+                                                    {branchLabel(b)}
                                                 </option>
                                             ))}
                                         </select>
