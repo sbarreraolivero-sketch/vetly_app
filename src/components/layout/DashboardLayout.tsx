@@ -24,7 +24,9 @@ import {
     FileText,
     BellOff,
     Heart,
-    Target
+    Target,
+    Plug,
+    SlidersHorizontal,
 } from 'lucide-react'
 import { AIChatWidget } from '../AIChatWidget'
 import { cn, getInitials } from '@/lib/utils'
@@ -72,10 +74,18 @@ const navigationSections = [
         ]
     },
     {
+        label: 'Agente IA',
+        accent: { label: 'text-sky-400/70', active: 'bg-sky-500/[0.18]', dot: 'bg-sky-400', icon: 'text-sky-300' },
+        items: [
+            { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
+            { name: 'Integraciones', href: '/app/settings?tab=integrations', icon: Plug },
+            { name: 'Ajustes IA', href: '/app/settings?tab=ai', icon: SlidersHorizontal },
+        ]
+    },
+    {
         label: 'Configuración',
         accent: { label: 'text-amber-400/70', active: 'bg-amber-500/[0.18]', dot: 'bg-amber-400', icon: 'text-amber-300' },
         items: [
-            { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
             { name: 'Configuración', href: '/app/settings', icon: Settings },
         ]
     },
@@ -109,7 +119,7 @@ export default function DashboardLayout() {
     const location = useLocation()
     const navigate = useNavigate()
     const { user, profile, member, signOut } = useAuth()
-    console.log('DashboardLayout Auth State:', { userId: user?.id, email: user?.email, clinicId: profile?.clinic_id, memberRole: member?.role })
+
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
@@ -377,7 +387,10 @@ export default function DashboardLayout() {
                                     </p>
                                 )}
                                 {visibleItems.map((item) => {
-                                    const isActive = location.pathname === item.href
+                                    const [itemPath, itemQuery] = item.href.split('?')
+                                    const isActive = itemQuery
+                                        ? location.pathname === itemPath && location.search === `?${itemQuery}`
+                                        : location.pathname === item.href
                                     return (
                                         <NavLink
                                             key={item.name}
@@ -458,7 +471,10 @@ export default function DashboardLayout() {
                             <div key={section.label} className="mb-1">
                                 <p className={cn("px-4 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.1em]", section.accent.label)}>{section.label}</p>
                                 {visibleItems.map((item) => {
-                                    const isActive = location.pathname === item.href
+                                    const [itemPath, itemQuery] = item.href.split('?')
+                                    const isActive = itemQuery
+                                        ? location.pathname === itemPath && location.search === `?${itemQuery}`
+                                        : location.pathname === item.href
                                     return (
                                         <NavLink key={item.name} to={item.href} onClick={() => setShowMobileMenu(false)}
                                             className={cn(

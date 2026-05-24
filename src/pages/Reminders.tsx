@@ -637,6 +637,59 @@ export default function Reminders() {
                     </div>
                 </div>
             </div>
+
+            {/* Reminder Addon Packs */}
+            <div className="bg-white rounded-xl border border-silk-beige shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white">
+                    <p className="text-xs font-bold uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
+                    <h3 className="text-lg font-extrabold tracking-tight">Packs de Recordatorios</h3>
+                    <p className="text-sm text-primary-100 mt-1">Amplía la capacidad mensual de recordatorios de tu plan</p>
+                </div>
+                <div className="p-5 sm:p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {[
+                            { name: 'Pack Básico', count: 50, priceCLP: 5000, priceUSD: 5, desc: 'Ideal para meses con mayor actividad' },
+                            { name: 'Pack Pro', count: 200, priceCLP: 15000, priceUSD: 15, desc: 'Para clínicas con alto volumen de citas', popular: true },
+                            { name: 'Pack Ilimitado', count: -1, priceCLP: 25000, priceUSD: 25, desc: 'Sin límite durante el mes actual' },
+                        ].map((pack) => (
+                            <div key={pack.name} className={cn(
+                                "relative rounded-xl border p-4 flex flex-col gap-3",
+                                pack.popular ? "border-primary-300 bg-primary-50" : "border-silk-beige bg-ivory"
+                            )}>
+                                {pack.popular && (
+                                    <span className="absolute -top-2.5 left-4 bg-primary-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                        Popular
+                                    </span>
+                                )}
+                                <div>
+                                    <p className="font-black text-charcoal text-sm">{pack.name}</p>
+                                    <p className="text-2xl font-black text-charcoal mt-1">
+                                        {pack.count === -1 ? '∞' : pack.count}
+                                        <span className="text-xs font-bold text-charcoal/40 ml-1">recordatorios</span>
+                                    </p>
+                                    <p className="text-xs text-charcoal/50 mt-1 leading-snug">{pack.desc}</p>
+                                </div>
+                                <div className="border-t border-silk-beige pt-3 mt-auto">
+                                    <p className="text-lg font-black text-charcoal">${pack.priceCLP.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP</span></p>
+                                    <p className="text-xs text-charcoal/40">US${pack.priceUSD} USD</p>
+                                </div>
+                                <Link
+                                    to="/app/settings?tab=subscription"
+                                    className={cn(
+                                        "text-center py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                                        pack.popular
+                                            ? "bg-primary-500 text-white hover:bg-primary-600"
+                                            : "bg-charcoal text-white hover:bg-primary-500"
+                                    )}
+                                >
+                                    Agregar Pack
+                                </Link>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-xs text-charcoal/40 text-center mt-4">Los packs son de un solo uso y se aplican al mes en curso. Disponible en Settings → Plan.</p>
+                </div>
+            </div>
         </div>
     )
 }

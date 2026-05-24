@@ -1951,17 +1951,18 @@ export default function Settings() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-3xl font-black text-charcoal">
-                                                {paymentRegion === 'international' ? 'US$' : '$'}
-                                                {subscription?.plan && subscription.plan !== 'trial'
-                                                    ? (paymentRegion === 'international'
-                                                        ? LS_PLANS[subscription.plan as LSPlanId]?.price
-                                                        : PLANS[subscription.plan as PlanId]?.price)
-                                                    : '0'}
-                                                <span className="text-sm font-medium text-charcoal/40 ml-1">
-                                                    {paymentRegion === 'international' ? 'USD' : 'CLP'} / mes
-                                                </span>
-                                            </p>
+                                            {(() => {
+                                                const np = normalizePlanId(subscription?.plan || '')
+                                                const clpPrice = PLANS[np as PlanId]?.price
+                                                const usdPrice = LS_PLANS[np as LSPlanId]?.price
+                                                return (
+                                                    <div>
+                                                        {clpPrice ? <p className="text-2xl font-black text-charcoal">${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span></p> : null}
+                                                        {usdPrice ? <p className="text-sm font-semibold text-charcoal/50 mt-0.5">US${usdPrice} <span className="text-xs">USD/mes</span></p> : null}
+                                                        {!clpPrice && !usdPrice && <p className="text-2xl font-black text-charcoal">$0 <span className="text-xs font-bold text-charcoal/40">CLP/mes</span></p>}
+                                                    </div>
+                                                )
+                                            })()}
                                             {subscription?.trialEndsAt && (
                                                 <div className="mt-2 flex items-center justify-end gap-2 text-amber-600">
                                                     <Clock className="w-4 h-4" />
@@ -2066,14 +2067,10 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-5">
                                     {(Object.keys(PLANS) as PlanId[]).map((planId) => {
                                         const mpPlan = PLANS[planId]
                                         const lsPlan = LS_PLANS[planId as LSPlanId]
-                                        const plan = paymentRegion === 'international' ? lsPlan : mpPlan
-                                        const price = plan?.price ?? 0
-                                        const currencySymbol = paymentRegion === 'international' ? 'US$' : '$'
-                                        const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP'
                                         const normalizedCurrent = normalizePlanId(subscription?.plan || '')
                                         const isCurrentPlan = planId === normalizedCurrent
                                         const isPro = planId === 'pro'
@@ -2084,7 +2081,7 @@ export default function Settings() {
                                                 className={cn(
                                                     "relative flex flex-col p-5 rounded-soft border-2 transition-all duration-300",
                                                     isCurrentPlan ? "border-primary-500 bg-primary-500/5 ring-4 ring-primary-500/10" : "border-silk-beige bg-white hover:border-primary-300 hover:shadow-xl",
-                                                    isPro && !isCurrentPlan && "md:scale-105 shadow-premium-lg border-primary-500 z-10"
+                                                    isPro && !isCurrentPlan && "shadow-premium-lg border-primary-500 z-10"
                                                 )}
                                             >
                                                 {isPro && (
@@ -2093,19 +2090,22 @@ export default function Settings() {
                                                     </div>
                                                 )}
 
-                                                <div className="mb-6">
-                                                    <h3 className="text-xl font-black text-charcoal uppercase tracking-tighter">{plan.name}</h3>
-                                                    <p className="text-xs font-bold text-charcoal/40 mt-1 h-8 leading-tight">{plan.tagline}</p>
-                                                    <div className="mt-4 flex items-baseline gap-1 border-b border-silk-beige pb-4">
-                                                        <span className="text-4xl font-black text-charcoal">
-                                                            {currencySymbol}{price.toLocaleString()}
-                                                        </span>
-                                                        <span className="text-sm font-bold text-charcoal/30 uppercase">{currencyCode}/mes</span>
+                                                <div className="mb-5">
+                                                    <h3 className="text-xl font-black text-charcoal uppercase tracking-tighter">{mpPlan.name}</h3>
+                                                    <p className="text-xs font-bold text-charcoal/40 mt-1 leading-tight min-h-[2.5rem]">{mpPlan.tagline}</p>
+                                                    <div className="mt-3 border-b border-silk-beige pb-3">
+                                                        <div className="flex items-baseline gap-1 flex-wrap">
+                                                            <span className="text-3xl font-black text-charcoal">${mpPlan.price.toLocaleString()}</span>
+                                                            <span className="text-xs font-bold text-charcoal/40 uppercase">CLP/mes</span>
+                                                        </div>
+                                                        {lsPlan && (
+                                                            <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${lsPlan.price} USD/mes</p>
+                                                        )}
                                                     </div>
                                                 </div>
 
                                                 <ul className="space-y-3 mb-8 flex-grow">
-                                                    {plan.features.map((feature, idx) => (
+                                                    {mpPlan.features.map((feature, idx) => (
                                                         <li key={idx} className="flex items-start gap-3">
                                                             <div className="mt-1 w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                                                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
