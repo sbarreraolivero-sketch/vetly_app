@@ -78,8 +78,8 @@ const navigationSections = [
         accent: { label: 'text-sky-400/70', active: 'bg-sky-500/[0.18]', dot: 'bg-sky-400', icon: 'text-sky-300' },
         items: [
             { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
-            { name: 'Integraciones', href: '/app/settings?tab=integrations', icon: Plug },
-            { name: 'Ajustes IA', href: '/app/settings?tab=ai', icon: SlidersHorizontal },
+            { name: 'Integraciones', href: '/app/integrations', icon: Plug },
+            { name: 'Ajustes IA', href: '/app/ai-settings', icon: SlidersHorizontal },
         ]
     },
     {

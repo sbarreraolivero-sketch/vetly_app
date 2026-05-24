@@ -46,6 +46,8 @@ const Templates = lazy(() => import('./pages/Templates'))
 const Loyalty = lazy(() => import('./pages/Loyalty'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const AICredits = lazy(() => import('./pages/AICredits'))
+const AISettings = lazy(() => import('./pages/AISettings'))
+const Integrations = lazy(() => import('./pages/Integrations'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const Landing = lazy(() => import('./pages/Landing'))
@@ -238,6 +240,16 @@ function MainRoutes() {
                         <Route path="ai-credits" element={
                             <SubscriptionGuard>
                                 <AICredits />
+                            </SubscriptionGuard>
+                        } />
+                        <Route path="ai-settings" element={
+                            <SubscriptionGuard>
+                                <AISettings />
+                            </SubscriptionGuard>
+                        } />
+                        <Route path="integrations" element={
+                            <SubscriptionGuard>
+                                <Integrations />
                             </SubscriptionGuard>
                         } />
                         <Route path="settings" element={<Settings />} />

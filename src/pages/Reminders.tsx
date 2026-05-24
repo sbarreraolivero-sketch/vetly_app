@@ -4,10 +4,11 @@ import { useAuth } from '@/contexts/AuthContext'
 import {
     AlarmClock, Save, Loader2, RefreshCw, Activity,
     CheckCircle2, AlertCircle, Phone,
-    Settings2, Clock
+    Settings2, Clock, Package, Infinity as InfinityIcon
 } from 'lucide-react'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { cn } from '@/lib/utils'
+import { normalizePlanId } from '@/lib/mercadopago'
 import toast from 'react-hot-toast'
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -15,12 +16,13 @@ import {
 } from 'recharts'
 import { Link } from 'react-router-dom'
 
-type TabType = 'appointments' | 'medical'
+type TabType = 'appointments' | 'medical' | 'packs'
 type DateRange = 'today' | 'week' | 'month' | 'all'
 
 export default function Reminders() {
     const { profile } = useAuth()
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
+    const [planId, setPlanId] = useState<string>('')
     const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
     const [dateRange, setDateRange] = useState<DateRange>('week')
     const [isLoading, setIsLoading] = useState(true)
@@ -34,11 +36,16 @@ export default function Reminders() {
     useEffect(() => {
         if (!profile?.clinic_id) return
         const fetchSettings = async () => {
-            const [{ data: clinicSettings }, { data: reminderData }] = await Promise.all([
+            const [{ data: clinicSettings }, { data: reminderData }, { data: subData }] = await Promise.all([
                 supabase.from('clinic_settings').select('*').eq('id', profile.clinic_id).single(),
-                supabase.from('reminder_settings').select('*').eq('clinic_id', profile.clinic_id).single()
+                supabase.from('reminder_settings').select('*').eq('clinic_id', profile.clinic_id).single(),
+                (supabase as any).from('subscriptions').select('plan, plan_id').eq('clinic_id', profile.clinic_id).single()
             ])
             setSettings({ ...(clinicSettings || {}), ...(reminderData || {}) })
+            if (subData) {
+                const raw = subData.plan_id || subData.plan || ''
+                setPlanId(normalizePlanId(raw))
+            }
         }
         fetchSettings()
     }, [profile?.clinic_id])
@@ -195,6 +202,13 @@ export default function Reminders() {
     const chartData = getChartData()
     const sent = appointmentLogs.filter((l: any) => l.status === 'sent').length
     const failed = appointmentLogs.filter((l: any) => l.status === 'failed').length
+    const isEnterprise = planId === 'enterprise' || planId === 'prestige'
+
+    const PACKS = [
+        { name: 'Pack Básico', count: 50, priceCLP: 5000, priceUSD: 5, desc: 'Ideal para meses con mayor actividad' },
+        { name: 'Pack Pro', count: 200, priceCLP: 15000, priceUSD: 15, desc: 'Para clínicas con alto volumen de citas', popular: true },
+        { name: 'Pack Ilimitado', count: -1, priceCLP: 25000, priceUSD: 25, desc: 'Sin límite durante el mes actual' },
+    ]
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-20 animate-fade-in">
@@ -208,14 +222,16 @@ export default function Reminders() {
                             <p className="text-sm text-primary-100/80 font-light mt-1">Mensajes automáticos de citas y controles médicos.</p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleSaveSettings}
-                                disabled={savingSettings || !settings}
-                                className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm disabled:opacity-50"
-                            >
-                                {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                Guardar
-                            </button>
+                            {activeTab !== 'packs' && (
+                                <button
+                                    onClick={handleSaveSettings}
+                                    disabled={savingSettings || !settings}
+                                    className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm disabled:opacity-50"
+                                >
+                                    {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                    Guardar
+                                </button>
+                            )}
                             <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
                                 <AlarmClock className="w-6 h-6 text-white" />
                             </div>
@@ -245,75 +261,97 @@ export default function Reminders() {
                     >
                         Médicos
                     </button>
+                    {!isEnterprise && (
+                        <button
+                            onClick={() => setActiveTab('packs')}
+                            className={cn(
+                                "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
+                                activeTab === 'packs' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
+                            )}
+                        >
+                            Packs
+                        </button>
+                    )}
                 </div>
-                <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto">
-                    <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
-                    <select
-                        value={dateRange}
-                        onChange={(e) => setDateRange(e.target.value as DateRange)}
-                        className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
-                    >
-                        <option value="today">Hoy</option>
-                        <option value="week">Últimos 7 días</option>
-                        <option value="month">Últimos 30 días</option>
-                        <option value="all">Todos</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Reminder Addon Packs */}
-            <div className="bg-white rounded-soft border border-silk-beige shadow-sm overflow-hidden">
-                <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 sm:p-6 text-white">
-                    <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
-                    <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">Packs de Recordatorios</h3>
-                    <p className="text-sm text-primary-100 font-light mt-1">Amplía la capacidad mensual de recordatorios de tu plan.</p>
-                </div>
-                <div className="p-5 sm:p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
-                        {[
-                            { name: 'Pack Básico', count: 50, priceCLP: 5000, priceUSD: 5, desc: 'Ideal para meses con mayor actividad' },
-                            { name: 'Pack Pro', count: 200, priceCLP: 15000, priceUSD: 15, desc: 'Para clínicas con alto volumen de citas', popular: true },
-                            { name: 'Pack Ilimitado', count: -1, priceCLP: 25000, priceUSD: 25, desc: 'Sin límite durante el mes actual' },
-                        ].map((pack) => (
-                            <div key={pack.name} className={cn(
-                                "relative rounded-xl border p-4 flex flex-col gap-3",
-                                pack.popular ? "border-primary-300 bg-primary-50" : "border-silk-beige bg-ivory"
-                            )}>
-                                {pack.popular && (
-                                    <span className="absolute -top-2.5 left-4 bg-primary-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
-                                        Popular
-                                    </span>
-                                )}
-                                <div>
-                                    <p className="font-black text-charcoal text-sm">{pack.name}</p>
-                                    <p className="text-2xl font-black text-charcoal mt-1">
-                                        {pack.count === -1 ? '∞' : pack.count}
-                                        <span className="text-xs font-bold text-charcoal/40 ml-1">recordatorios</span>
-                                    </p>
-                                    <p className="text-xs text-charcoal/50 mt-1 leading-snug">{pack.desc}</p>
-                                </div>
-                                <div className="border-t border-silk-beige pt-3 mt-auto">
-                                    <p className="text-lg font-black text-charcoal">${pack.priceCLP.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP</span></p>
-                                    <p className="text-xs text-charcoal/40">US${pack.priceUSD} USD</p>
-                                </div>
-                                <Link
-                                    to="/app/settings?tab=subscription"
-                                    className={cn(
-                                        "text-center py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-                                        pack.popular
-                                            ? "bg-primary-500 text-white hover:bg-primary-600"
-                                            : "bg-accent-500 text-white hover:bg-accent-600"
-                                    )}
-                                >
-                                    Agregar Pack
-                                </Link>
-                            </div>
-                        ))}
+                {activeTab !== 'packs' && (
+                    <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto">
+                        <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
+                        <select
+                            value={dateRange}
+                            onChange={(e) => setDateRange(e.target.value as DateRange)}
+                            className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
+                        >
+                            <option value="today">Hoy</option>
+                            <option value="week">Últimos 7 días</option>
+                            <option value="month">Últimos 30 días</option>
+                            <option value="all">Todos</option>
+                        </select>
                     </div>
-                    <p className="text-xs text-charcoal/40 text-center mt-4">Los packs son de un solo uso y se aplican al mes en curso. Gestiónalos desde Configuración → Plan.</p>
-                </div>
+                )}
             </div>
 
+            {/* Packs Tab Content */}
+            {activeTab === 'packs' && (
+                <div className="bg-white rounded-soft border border-silk-beige shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 sm:p-6 text-white">
+                        <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
+                        <h3 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">Packs de Recordatorios</h3>
+                        <p className="text-sm text-primary-100 font-light mt-1">Amplía la capacidad mensual de recordatorios de tu plan.</p>
+                    </div>
+                    <div className="p-5 sm:p-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-stretch">
+                            {PACKS.map((pack) => (
+                                <div key={pack.name} className={cn(
+                                    "relative rounded-2xl border p-6 flex flex-col gap-4",
+                                    pack.popular ? "border-primary-300 bg-primary-50 shadow-sm" : "border-silk-beige bg-ivory"
+                                )}>
+                                    {pack.popular && (
+                                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm whitespace-nowrap">
+                                            Más popular
+                                        </span>
+                                    )}
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="font-black text-charcoal text-base">{pack.name}</p>
+                                            <p className="text-xs text-charcoal/50 mt-1 leading-snug">{pack.desc}</p>
+                                        </div>
+                                        <div className={cn(
+                                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                                            pack.popular ? "bg-primary-100" : "bg-white border border-silk-beige"
+                                        )}>
+                                            <Package className={cn("w-5 h-5", pack.popular ? "text-primary-600" : "text-charcoal/40")} />
+                                        </div>
+                                    </div>
+                                    <div className="py-4 border-y border-silk-beige">
+                                        <p className="text-4xl font-black text-charcoal flex items-baseline gap-1">
+                                            {pack.count === -1 ? <InfinityIcon className="w-9 h-9" /> : pack.count}
+                                            <span className="text-xs font-bold text-charcoal/40">recordatorios</span>
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xl font-black text-charcoal">${pack.priceCLP.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP</span></p>
+                                        <p className="text-xs text-charcoal/40 mt-0.5">US${pack.priceUSD} USD</p>
+                                    </div>
+                                    <Link
+                                        to="/app/settings?tab=subscription"
+                                        className={cn(
+                                            "mt-auto text-center py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                                            pack.popular
+                                                ? "bg-primary-500 text-white hover:bg-primary-600"
+                                                : "bg-accent-500 text-white hover:bg-accent-600"
+                                        )}
+                                    >
+                                        Agregar Pack
+                                    </Link>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-charcoal/40 text-center mt-6">Los packs son de un solo uso y se aplican al mes en curso. Gestiónalos desde Configuración → Plan.</p>
+                    </div>
+                </div>
+            )}
+
+            {activeTab !== 'packs' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Configuration Sidebar */}
@@ -690,6 +728,7 @@ export default function Reminders() {
                     </div>
                 </div>
             </div>
+            )}
         </div>
     )
 }

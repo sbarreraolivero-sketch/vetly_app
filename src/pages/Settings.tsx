@@ -60,8 +60,6 @@ const tabs = [
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'subscription', label: 'Plan', icon: CreditCard },
     { id: 'schedule', label: 'Horarios', icon: Clock },
-    { id: 'integrations', label: 'Integraciones', icon: Key },
-    { id: 'ai', label: 'Inteligencia Artificial', icon: Sparkles },
     { id: 'tags', label: 'Etiquetas', icon: Tag },
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
 ]
@@ -2094,12 +2092,24 @@ export default function Settings() {
                                                     <h3 className="text-xl font-black text-charcoal uppercase tracking-tighter">{mpPlan.name}</h3>
                                                     <p className="text-xs font-bold text-charcoal/40 mt-1 leading-tight min-h-[2.5rem]">{mpPlan.tagline}</p>
                                                     <div className="mt-3 border-b border-silk-beige pb-3">
-                                                        <div className="flex items-baseline gap-1 flex-wrap">
-                                                            <span className="text-3xl font-black text-charcoal">${mpPlan.price.toLocaleString()}</span>
-                                                            <span className="text-xs font-bold text-charcoal/40 uppercase">CLP/mes</span>
-                                                        </div>
-                                                        {lsPlan && (
-                                                            <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${lsPlan.price} USD/mes</p>
+                                                        {paymentRegion === 'international' ? (
+                                                            <>
+                                                                <div className="flex items-baseline gap-1 flex-wrap">
+                                                                    <span className="text-3xl font-black text-charcoal">US${lsPlan?.price ?? 0}</span>
+                                                                    <span className="text-xs font-bold text-charcoal/40 uppercase">USD/mes</span>
+                                                                </div>
+                                                                <p className="text-xs font-semibold text-charcoal/40 mt-0.5">${mpPlan.price.toLocaleString()} CLP/mes</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="flex items-baseline gap-1 flex-wrap">
+                                                                    <span className="text-3xl font-black text-charcoal">${mpPlan.price.toLocaleString()}</span>
+                                                                    <span className="text-xs font-bold text-charcoal/40 uppercase">CLP/mes</span>
+                                                                </div>
+                                                                {lsPlan && (
+                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${lsPlan.price} USD/mes</p>
+                                                                )}
+                                                            </>
                                                         )}
                                                     </div>
                                                 </div>
