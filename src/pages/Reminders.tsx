@@ -95,9 +95,10 @@ export default function Reminders() {
                     .eq('clinic_id', profile.clinic_id)
 
                 if (medicalTab === 'pending') {
-                    // Todos los pending ordenados por fecha ASC: primero los atrasados, luego los próximos
+                    // Solo los próximos en cola: scheduled_date >= hoy, orden ASC (más cercano primero)
                     query = query
                         .eq('status', 'pending')
+                        .gte('scheduled_date', todayStr)
                         .order('scheduled_date', { ascending: true })
                 } else {
                     // Historial: enviados/fallidos filtrados por el rango de fecha elegido
@@ -695,11 +696,6 @@ export default function Reminders() {
                                                             )}>
                                                                 {log.status === 'sent' ? 'Enviado' : log.status === 'pending' ? 'Pendiente' : 'Fallido'}
                                                             </span>
-                                                            {log.status === 'pending' && log.scheduled_date && log.scheduled_date < new Date().toISOString().split('T')[0] && (
-                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5 rounded-sm">
-                                                                    Atrasado
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
