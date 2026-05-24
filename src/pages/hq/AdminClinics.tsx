@@ -189,38 +189,42 @@ export default function AdminClinics() {
 
     return (
         <div className="p-4 lg:p-8 space-y-6 max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">HQ Clínicas</h1>
-                    <p className="text-sm text-gray-500 font-medium font-outfit uppercase tracking-widest mt-1 opacity-60">
-                        {clinicGroups.length} cliente{clinicGroups.length !== 1 ? 's' : ''} · {clinics.length} sucursal{clinics.length !== 1 ? 'es' : ''}
-                    </p>
+            {/* Banner */}
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[2rem] px-6 py-5 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-1/3 h-full bg-primary-500/10 blur-[80px] -z-0" />
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <span className="px-2.5 py-0.5 bg-primary-500/20 text-primary-400 text-[9px] font-black uppercase tracking-widest rounded-full border border-primary-500/30 mb-2 inline-block">HQ Exclusive</span>
+                        <h1 className="text-2xl font-black tracking-tight text-white leading-none">HQ Clínicas</h1>
+                        <p className="text-gray-400 font-medium text-xs mt-1">
+                            {clinicGroups.length} cliente{clinicGroups.length !== 1 ? 's' : ''} · {clinics.length} sucursal{clinics.length !== 1 ? 'es' : ''} · Consumo IA en tiempo real
+                        </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap items-center">
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-white transition-all" />
+                            <input
+                                type="text"
+                                placeholder="Buscar clínica o dueño..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:bg-white/10 focus:ring-2 focus:ring-primary-500/20 transition-all text-white placeholder:text-white/20 font-bold text-sm outline-none"
+                            />
+                        </div>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none text-white cursor-pointer"
+                        >
+                            <option value="all" className="bg-gray-900">Todos</option>
+                            <option value="active" className="bg-gray-900">Activas</option>
+                            <option value="pending_activation" className="bg-gray-900">Pendientes</option>
+                        </select>
+                        <button onClick={fetchClinics} className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-white/60 hover:text-white">
+                            <RefreshCw className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
-                <button onClick={fetchClinics} className="p-4 bg-white border border-gray-100 rounded-[1.5rem] hover:bg-primary-50 transition-all text-gray-400 hover:text-primary-600 shadow-sm active:scale-90">
-                    <RefreshCw className="w-5 h-5" />
-                </button>
-            </div>
-
-            <div className="bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Buscar clínica o dueño..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl text-sm font-bold focus:bg-white focus:ring-4 focus:ring-primary-500/5 transition-all outline-none"
-                    />
-                </div>
-                <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-6 py-4 bg-gray-50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-primary-100 cursor-pointer"
-                >
-                    <option value="all">TODOS</option>
-                    <option value="active">ACTIVAS</option>
-                    <option value="pending_activation">PENDIENTES</option>
-                </select>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
