@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { cn } from '@/lib/utils'
-import { normalizePlanId } from '@/lib/mercadopago'
+
 import toast from 'react-hot-toast'
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -22,7 +22,6 @@ type DateRange = 'today' | 'week' | 'month' | 'all'
 export default function Reminders() {
     const { profile } = useAuth()
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
-    const [planId, setPlanId] = useState<string>('')
     const [planLoading, setPlanLoading] = useState<boolean>(true)
     const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
     const [dateRange, setDateRange] = useState<DateRange>('week')
@@ -37,20 +36,12 @@ export default function Reminders() {
     useEffect(() => {
         if (!profile?.clinic_id) return
         const fetchSettings = async () => {
-            const [{ data: clinicSettings }, { data: reminderData }, { data: subData }] = await Promise.all([
+            const [{ data: clinicSettings }, { data: reminderData }] = await Promise.all([
                 supabase.from('clinic_settings').select('*').eq('id', profile.clinic_id).single(),
                 supabase.from('reminder_settings').select('*').eq('clinic_id', profile.clinic_id).single(),
-                (supabase as any).from('subscriptions').select('plan, plan_id').eq('clinic_id', profile.clinic_id).single()
             ])
             setSettings({ ...(clinicSettings || {}), ...(reminderData || {}) })
-            const raw = subData?.plan_id || subData?.plan || ''
-            const normalized = normalizePlanId(raw)
-            setPlanId(normalized)
             setPlanLoading(false)
-            // If plan is Enterprise and user somehow landed on packs tab, reset
-            if ((normalized === 'enterprise') && activeTab === 'packs') {
-                setActiveTab('appointments')
-            }
         }
         fetchSettings()
     }, [profile?.clinic_id])
@@ -207,8 +198,6 @@ export default function Reminders() {
     const chartData = getChartData()
     const sent = appointmentLogs.filter((l: any) => l.status === 'sent').length
     const failed = appointmentLogs.filter((l: any) => l.status === 'failed').length
-    const isEnterprise = planId === 'enterprise' || planId === 'prestige'
-
     const PACKS = [
         { name: 'Pack Básico', count: 50, priceCLP: 5000, priceUSD: 5, desc: 'Ideal para meses con mayor actividad' },
         { name: 'Pack Pro', count: 200, priceCLP: 15000, priceUSD: 15, desc: 'Para clínicas con alto volumen de citas', popular: true },
@@ -266,7 +255,7 @@ export default function Reminders() {
                     >
                         Médicos
                     </button>
-                    {!planLoading && !isEnterprise && (
+                    {!planLoading && (
                         <button
                             onClick={() => setActiveTab('packs')}
                             className={cn(
@@ -359,8 +348,8 @@ export default function Reminders() {
             {activeTab !== 'packs' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* Configuration Sidebar */}
-                <div className="lg:col-span-1 space-y-6">
+                {/* Configuration Sidebar — right */}
+                <div className="lg:col-span-1 space-y-6 lg:order-2">
                     <div className="bg-white rounded-xl border border-silk-beige shadow-sm p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-silk-beige">
                             <div className="p-2 bg-amber-50 rounded-lg">
@@ -485,9 +474,8 @@ export default function Reminders() {
                     </div>
                 </div>
 
-                {/* Main Content */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Analytics */}
+                {/* Main Content — metrics left */}
+                <div className="lg:col-span-2 space-y-6 lg:order-1">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Stat counters */}
                         <div className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm h-64 flex flex-col">
