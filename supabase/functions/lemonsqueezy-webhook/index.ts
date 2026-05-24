@@ -154,6 +154,46 @@ Deno.serve(async (req: Request) => {
             return new Response("Credits OK", { status: 200 });
         }
 
+        // ─── Reminder Units Purchase ───
+        if (purchaseType === 'reminders') {
+            if (eventName !== 'order_created') {
+                console.log(`Ignoring ${eventName} for reminders`);
+                return new Response("OK", { status: 200 });
+            }
+
+            const unitsToAdd = parseInt(customData.quantity || '0');
+            if (unitsToAdd <= 0) {
+                console.error("Invalid reminder units amount:", unitsToAdd);
+                return new Response("Invalid quantity", { status: 400 });
+            }
+
+            const { data: sub, error: fetchError } = await supabase
+                .from('subscriptions')
+                .select('reminders_pack_balance')
+                .eq('clinic_id', clinicId)
+                .single();
+
+            if (fetchError) {
+                console.error("Error fetching subscription:", fetchError);
+                return new Response("DB fetch error", { status: 500 });
+            }
+
+            const newBalance = (sub?.reminders_pack_balance || 0) + unitsToAdd;
+
+            const { error: updateError } = await supabase
+                .from('subscriptions')
+                .update({ reminders_pack_balance: newBalance })
+                .eq('clinic_id', clinicId);
+
+            if (updateError) {
+                console.error("Error updating reminder balance:", updateError);
+                return new Response("DB update error", { status: 500 });
+            }
+
+            console.log(`[LS] Reminders for ${clinicId}: +${unitsToAdd} → Balance: ${newBalance}`);
+            return new Response("Reminders OK", { status: 200 });
+        }
+
         // ─── Subscription Events ───
         const plan = customData.plan || 'essence';
 

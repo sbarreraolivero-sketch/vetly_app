@@ -31,14 +31,17 @@ const VARIANT_IDS: Record<string, string> = {
     'pack_500_4o':  Deno.env.get("LS_VARIANT_PACK_500_4O")  || "1459861",
     'pack_1500_4o': Deno.env.get("LS_VARIANT_PACK_1500_4O") || "1459869",
     'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "1459872",
+    // Reminder Units — per-unit purchase ($0.15 USD/unit, min 20)
+    'reminders': Deno.env.get("LS_VARIANT_REMINDERS") || "PLACEHOLDER_REMINDERS",
 };
 
 interface RequestBody {
     clinic_id: string;
     email: string;
-    type: 'subscription' | 'ai_credits';
-    plan_or_pack_id: string;  // e.g. 'essence', 'pack_500', 'pack_1500_4o'
-    model?: 'mini' | '4o';    // for credits only
+    type: 'subscription' | 'ai_credits' | 'reminders';
+    plan_or_pack_id: string;  // e.g. 'essence', 'pack_500', 'reminders'
+    model?: 'mini' | '4o';    // for ai_credits only
+    quantity?: number;         // for reminders: units to purchase (min 20)
     success_url?: string;
 }
 
@@ -62,7 +65,7 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: RequestBody = await req.json();
-        const { clinic_id, email, type, plan_or_pack_id, model, success_url } = body;
+        const { clinic_id, email, type, plan_or_pack_id, model, quantity, success_url } = body;
 
         if (!clinic_id || !email || !plan_or_pack_id) {
             return new Response(
@@ -104,19 +107,26 @@ Deno.serve(async (req: Request) => {
         if (type === 'ai_credits') {
             customData.credits = String(creditsMap[plan_or_pack_id] || 0);
             customData.model = model || 'mini';
+        } else if (type === 'reminders') {
+            customData.quantity = String(Math.max(20, quantity || 20));
         } else {
             customData.plan = plan_or_pack_id;
         }
 
         // Build LemonSqueezy checkout payload (JSON:API format)
+        const checkoutData: Record<string, unknown> = {
+            email: email,
+            custom: customData,
+        };
+        if (type === 'reminders' && quantity) {
+            checkoutData.quantity = Math.max(20, quantity);
+        }
+
         const checkoutPayload = {
             data: {
                 type: "checkouts",
                 attributes: {
-                    checkout_data: {
-                        email: email,
-                        custom: customData,
-                    },
+                    checkout_data: checkoutData,
                     checkout_options: {
                         embed: false,
                         media: true,

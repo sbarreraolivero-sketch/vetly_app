@@ -14,24 +14,37 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
     BarChart, Bar, Legend
 } from 'recharts'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { redirectToLemonRemindersCheckout } from '@/lib/lemonsqueezy'
 
 type TabType = 'appointments' | 'medical' | 'packs'
 type DateRange = 'today' | 'week' | 'month' | 'all'
 
 export default function Reminders() {
     const { profile } = useAuth()
+    const location = useLocation()
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
     const [planLoading, setPlanLoading] = useState<boolean>(true)
     const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
     const [dateRange, setDateRange] = useState<DateRange>('week')
     const [isLoading, setIsLoading] = useState(true)
     const [savingSettings, setSavingSettings] = useState(false)
+    const [reminderQty, setReminderQty] = useState(20)
+    const [checkoutLoading, setCheckoutLoading] = useState(false)
 
     const [settings, setSettings] = useState<any>(null)
     const [appointmentLogs, setAppointmentLogs] = useState<any[]>([])
     const [medicalLogs, setMedicalLogs] = useState<any[]>([])
     const [reminderUsage, setReminderUsage] = useState<any>(null)
+
+    // Detectar retorno de pago exitoso
+    useEffect(() => {
+        const params = new URLSearchParams(location.search)
+        if (params.get('payment') === 'success') {
+            toast.success('¡Pago procesado! Los recordatorios se acreditarán en instantes.')
+            setActiveTab('packs')
+        }
+    }, [location.search])
 
     // Settings fetch — only re-runs when clinic changes
     useEffect(() => {
@@ -206,11 +219,27 @@ export default function Reminders() {
     const chartData = getChartData()
     const sent = appointmentLogs.filter((l: any) => l.status === 'sent').length
     const failed = appointmentLogs.filter((l: any) => l.status === 'failed').length
-    const PACKS = [
-        { name: 'Pack Básico', count: 50, priceCLP: 5000, priceUSD: 5, desc: 'Ideal para meses con mayor actividad' },
-        { name: 'Pack Pro', count: 200, priceCLP: 15000, priceUSD: 15, desc: 'Para clínicas con alto volumen de citas', popular: true },
-        { name: 'Pack Ilimitado', count: -1, priceCLP: 25000, priceUSD: 25, desc: 'Sin límite durante el mes actual' },
-    ]
+
+    const UNIT_PRICE_CLP = 150
+    const UNIT_PRICE_USD = 0.15
+
+    const handleBuyReminders = async () => {
+        if (!profile?.clinic_id || !profile?.email) {
+            toast.error('No se pudo obtener tu información de cuenta.')
+            return
+        }
+        if (reminderQty < 20) {
+            toast.error('El mínimo es 20 unidades.')
+            return
+        }
+        setCheckoutLoading(true)
+        try {
+            await redirectToLemonRemindersCheckout(profile.clinic_id, profile.email, reminderQty)
+        } catch (err: any) {
+            toast.error(err.message || 'Error al iniciar el pago.')
+            setCheckoutLoading(false)
+        }
+    }
 
     // Pool mensual de recordatorios (compartido entre citas y médicos)
     const rLimit = reminderUsage?.monthly_reminders_limit
@@ -312,61 +341,112 @@ export default function Reminders() {
 
             {/* Packs Tab Content */}
             {activeTab === 'packs' && (
-                <div className="bg-white rounded-soft border border-silk-beige shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 sm:p-6 text-white">
-                        <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
-                        <h3 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">Packs de Recordatorios</h3>
-                        <p className="text-sm text-primary-100 font-light mt-1">Amplía la capacidad mensual de recordatorios de tu plan.</p>
-                    </div>
-                    <div className="p-5 sm:p-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-stretch">
-                            {PACKS.map((pack) => (
-                                <div key={pack.name} className={cn(
-                                    "relative rounded-2xl border p-6 flex flex-col gap-4",
-                                    pack.popular ? "border-primary-300 bg-primary-50 shadow-sm" : "border-silk-beige bg-ivory"
-                                )}>
-                                    {pack.popular && (
-                                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm whitespace-nowrap">
-                                            Más popular
-                                        </span>
-                                    )}
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <p className="font-black text-charcoal text-base">{pack.name}</p>
-                                            <p className="text-xs text-charcoal/50 mt-1 leading-snug">{pack.desc}</p>
-                                        </div>
-                                        <div className={cn(
-                                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                                            pack.popular ? "bg-primary-100" : "bg-white border border-silk-beige"
-                                        )}>
-                                            <Package className={cn("w-5 h-5", pack.popular ? "text-primary-600" : "text-charcoal/40")} />
-                                        </div>
-                                    </div>
-                                    <div className="py-4 border-y border-silk-beige">
-                                        <p className="text-4xl font-black text-charcoal flex items-baseline gap-1">
-                                            {pack.count === -1 ? <InfinityIcon className="w-9 h-9" /> : pack.count}
-                                            <span className="text-xs font-bold text-charcoal/40">recordatorios</span>
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xl font-black text-charcoal">${pack.priceCLP.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP</span></p>
-                                        <p className="text-xs text-charcoal/40 mt-0.5">US${pack.priceUSD} USD</p>
-                                    </div>
-                                    <Link
-                                        to="/app/settings?tab=subscription"
-                                        className={cn(
-                                            "mt-auto text-center py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                                            pack.popular
-                                                ? "bg-primary-500 text-white hover:bg-primary-600"
-                                                : "bg-accent-500 text-white hover:bg-accent-600"
-                                        )}
-                                    >
-                                        Agregar Pack
-                                    </Link>
-                                </div>
-                            ))}
+                <div className="max-w-lg mx-auto space-y-5">
+                    {/* Balance actual */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white">
+                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
+                            <h3 className="text-lg font-extrabold tracking-tight">Recordatorios adicionales</h3>
+                            <p className="text-sm text-primary-100/80 font-light mt-1">Compra unidades extra para este mes.</p>
                         </div>
-                        <p className="text-xs text-charcoal/40 text-center mt-6">Los packs son de un solo uso y se aplican al mes en curso. Gestiónalos desde Configuración → Plan.</p>
+                        <div className="p-6 flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Balance disponible</p>
+                                <p className="text-3xl font-black text-charcoal">
+                                    {reminderUsage?.reminders_pack_balance ?? 0}
+                                    <span className="text-sm font-bold text-charcoal/40 ml-2">unidades</span>
+                                </p>
+                                <p className="text-xs text-charcoal/40 mt-1">Se reinician con la renovación mensual</p>
+                            </div>
+                            <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center">
+                                <Package className="w-7 h-7 text-primary-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Selector de cantidad */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-6 space-y-6">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Precio por unidad</p>
+                            <p className="text-2xl font-black text-charcoal">
+                                ${UNIT_PRICE_CLP.toLocaleString('es-CL')} <span className="text-sm font-bold text-charcoal/40">CLP</span>
+                                <span className="text-base font-bold text-charcoal/30 mx-2">·</span>
+                                <span className="text-base font-bold text-charcoal/50">US${UNIT_PRICE_USD.toFixed(2)}</span>
+                            </p>
+                        </div>
+
+                        {/* Stepper */}
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-3">Cantidad (mín. 20)</p>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setReminderQty(q => Math.max(20, q - 10))}
+                                    disabled={reminderQty <= 20}
+                                    className="w-11 h-11 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige disabled:opacity-30 transition-colors"
+                                >
+                                    −
+                                </button>
+                                <input
+                                    type="number"
+                                    min={20}
+                                    step={1}
+                                    value={reminderQty}
+                                    onChange={(e) => {
+                                        const v = parseInt(e.target.value) || 20
+                                        setReminderQty(Math.max(20, v))
+                                    }}
+                                    className="w-24 h-11 text-center text-xl font-black text-charcoal border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                                />
+                                <button
+                                    onClick={() => setReminderQty(q => q + 10)}
+                                    className="w-11 h-11 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige transition-colors"
+                                >
+                                    +
+                                </button>
+                                <div className="ml-2 flex gap-1.5">
+                                    {[50, 100, 200].map(preset => (
+                                        <button
+                                            key={preset}
+                                            onClick={() => setReminderQty(preset)}
+                                            className={cn(
+                                                "px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                                                reminderQty === preset
+                                                    ? "bg-primary-500 text-white"
+                                                    : "bg-ivory border border-silk-beige text-charcoal/60 hover:text-charcoal"
+                                            )}
+                                        >
+                                            {preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Total */}
+                        <div className="bg-ivory rounded-xl p-4 flex items-center justify-between">
+                            <p className="text-sm font-bold text-charcoal/60">Total a pagar</p>
+                            <div className="text-right">
+                                <p className="text-xl font-black text-charcoal">
+                                    ${(reminderQty * UNIT_PRICE_CLP).toLocaleString('es-CL')} <span className="text-xs font-bold text-charcoal/40">CLP</span>
+                                </p>
+                                <p className="text-xs text-charcoal/40">US${(reminderQty * UNIT_PRICE_USD).toFixed(2)} USD</p>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleBuyReminders}
+                            disabled={checkoutLoading}
+                            className="w-full py-3.5 bg-primary-500 hover:bg-primary-600 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {checkoutLoading
+                                ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
+                                : <><Package className="w-4 h-4" /> Comprar {reminderQty} recordatorios</>
+                            }
+                        </button>
+
+                        <p className="text-xs text-charcoal/40 text-center leading-relaxed">
+                            El pago se procesa en USD vía LemonSqueezy. Los recordatorios se acreditan inmediatamente y se reinician con tu próxima renovación mensual.
+                        </p>
                     </div>
                 </div>
             )}

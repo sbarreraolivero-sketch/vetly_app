@@ -147,9 +147,6 @@ export async function redirectToLemonCheckout(
     window.location.href = data.url
 }
 
-/**
- * Creates a LemonSqueezy checkout for AI credit packs.
- */
 export async function redirectToLemonCreditsCheckout(
     clinicId: string,
     email: string,
@@ -169,6 +166,39 @@ export async function redirectToLemonCreditsCheckout(
 
     if (error) {
         console.error('Error creating LemonSqueezy credits checkout:', error)
+        throw new Error(error.message || 'Error al conectar con LemonSqueezy')
+    }
+
+    if (!data?.url) {
+        console.error('No checkout URL returned:', data)
+        throw new Error('No se recibió una URL de pago válida')
+    }
+
+    window.location.href = data.url
+}
+
+/**
+ * Creates a LemonSqueezy checkout for per-unit reminder credits.
+ * Price: US$0.15/unit, minimum 20 units.
+ */
+export async function redirectToLemonRemindersCheckout(
+    clinicId: string,
+    email: string,
+    quantity: number
+) {
+    const { data, error } = await supabase.functions.invoke('lemonsqueezy-create-checkout', {
+        body: {
+            clinic_id: clinicId,
+            email: email,
+            type: 'reminders',
+            plan_or_pack_id: 'reminders',
+            quantity: Math.max(20, quantity),
+            success_url: `${window.location.origin}/app/reminders?payment=success`,
+        },
+    })
+
+    if (error) {
+        console.error('Error creating reminders checkout:', error)
         throw new Error(error.message || 'Error al conectar con LemonSqueezy')
     }
 
