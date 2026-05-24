@@ -95,10 +95,9 @@ export default function Reminders() {
                     .eq('clinic_id', profile.clinic_id)
 
                 if (medicalTab === 'pending') {
-                    // Próximos en cola: solo pending con scheduled_date >= hoy, orden ascendente (más cercano primero)
+                    // Todos los pending ordenados por fecha ASC: primero los atrasados, luego los próximos
                     query = query
                         .eq('status', 'pending')
-                        .gte('scheduled_date', todayStr)
                         .order('scheduled_date', { ascending: true })
                 } else {
                     // Historial: enviados/fallidos filtrados por el rango de fecha elegido
@@ -696,15 +695,22 @@ export default function Reminders() {
                                                             )}>
                                                                 {log.status === 'sent' ? 'Enviado' : log.status === 'pending' ? 'Pendiente' : 'Fallido'}
                                                             </span>
+                                                            {log.status === 'pending' && log.scheduled_date && log.scheduled_date < new Date().toISOString().split('T')[0] && (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5 rounded-sm">
+                                                                    Atrasado
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                                                         <div className="flex flex-col items-end">
                                                             <span className="text-sm font-medium text-charcoal">
-                                                                {new Date(log.sent_at || log.created_at || log.scheduled_date).toLocaleDateString('es-ES')}
+                                                                {new Date(activeTab === 'medical' && log.scheduled_date ? log.scheduled_date + 'T12:00:00' : (log.sent_at || log.created_at || log.scheduled_date)).toLocaleDateString('es-ES')}
                                                             </span>
                                                             <span className="text-[11px] text-charcoal/40 font-bold uppercase">
-                                                                {new Date(log.sent_at || log.created_at || log.scheduled_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                                                {activeTab === 'medical' && log.scheduled_date
+                                                                    ? new Date(log.scheduled_date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short' })
+                                                                    : new Date(log.sent_at || log.created_at || log.scheduled_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                             </span>
                                                         </div>
                                                     </td>
