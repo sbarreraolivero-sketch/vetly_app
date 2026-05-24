@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar as CalendarIcon, Clock, Building2, Mail, Loader2, CheckCircle, XCircle, User, Phone } from 'lucide-react'
+import { Calendar as CalendarIcon, Clock, Building2, Mail, Loader2, CheckCircle, XCircle, Phone } from 'lucide-react'
 
 type HQAppointment = {
     id: string
