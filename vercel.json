@@ -1,8 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/", "destination": "/landing.html" },
-    { "source": "/landing", "destination": "/landing.html" },
-    { "source": "/demo", "destination": "/demo.html" },
-    { "source": "/((?!landing|demo|.*\\.).*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "/", "dest": "/landing.html" },
+    { "src": "/landing", "dest": "/landing.html" },
+    { "src": "/demo", "dest": "/demo.html" },
+    { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
