@@ -95,11 +95,17 @@ export default function Reminders() {
                     .eq('clinic_id', profile.clinic_id)
 
                 if (medicalTab === 'pending') {
-                    // Solo los próximos en cola: scheduled_date >= hoy, orden ASC (más cercano primero)
+                    // Próximos en cola: scheduled_date entre hoy y el límite hacia adelante según el filtro
                     query = query
                         .eq('status', 'pending')
                         .gte('scheduled_date', todayStr)
                         .order('scheduled_date', { ascending: true })
+                    if (dateRange !== 'all') {
+                        const end = new Date()
+                        if (dateRange === 'week') end.setDate(end.getDate() + 7)
+                        else if (dateRange === 'month') end.setDate(end.getDate() + 30)
+                        query = query.lte('scheduled_date', end.toISOString().split('T')[0])
+                    }
                 } else {
                     // Historial: enviados/fallidos filtrados por el rango de fecha elegido
                     query = query
@@ -272,10 +278,18 @@ export default function Reminders() {
                             onChange={(e) => setDateRange(e.target.value as DateRange)}
                             className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
                         >
-                            <option value="today">Hoy</option>
-                            <option value="week">Últimos 7 días</option>
-                            <option value="month">Últimos 30 días</option>
-                            <option value="all">Todos</option>
+                            {(() => {
+                                const forward = activeTab === 'medical' && medicalTab === 'pending'
+                                const prefix = forward ? 'Próximos' : 'Últimos'
+                                return (
+                                    <>
+                                        <option value="today">Hoy</option>
+                                        <option value="week">{prefix} 7 días</option>
+                                        <option value="month">{prefix} 30 días</option>
+                                        <option value="all">Todos</option>
+                                    </>
+                                )
+                            })()}
                         </select>
                     </div>
                 )}
