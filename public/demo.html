@@ -882,6 +882,55 @@
         if(!selDay||!selTime) return;
         var date=new Date(calY,calM,selDay);
         var summary=DAYS_ES[date.getDay()]+' '+selDay+' de '+MONTHS[calM]+' · '+selTime;
+
+        // Recopilar datos del formulario
+        var name   = (document.getElementById('f-name')||{}).value||'';
+        var clinic = (document.getElementById('f-clinic')||{}).value||'';
+        var phone  = ((document.getElementById('f-country')||{}).value||'+56') + ((document.getElementById('f-phone')||{}).value||'');
+        var email  = (document.getElementById('f-email')||{}).value||'';
+
+        // Opciones seleccionadas por paso
+        var clinicType = '';
+        var sel1=document.querySelector('#step-1 .option-card.selected .option-title');
+        if(sel1) clinicType=sel1.textContent.trim();
+        var needs='';
+        var sel2=document.querySelector('#step-2 .option-card.selected .option-title');
+        if(sel2) needs=sel2.textContent.trim();
+        var role='';
+        var sel3=document.querySelector('#step-3 .option-card.selected .option-title');
+        if(sel3) role=sel3.textContent.trim();
+
+        // Construir timestamp (Chile GMT-4)
+        var timeH=parseInt(selTime.split(':')[0],10);
+        var timeM=parseInt(selTime.split(':')[1],10);
+        date.setHours(timeH,timeM,0,0);
+        var scheduledAt=date.toISOString();
+
+        // Guardar en Supabase
+        var SUPA_URL='https://ehmncwawzdciajvuallg.supabase.co';
+        var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVobW5jd2F3emRjaWFqdnVhbGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDY4NzgsImV4cCI6MjA4OTQyMjg3OH0.FBiTDJ6ecEip6aEJrWaNzhLK93jO-VKJTff-Kt9lKng';
+
+        fetch(SUPA_URL+'/rest/v1/demo_requests',{
+            method:'POST',
+            headers:{
+                'apikey':SUPA_KEY,
+                'Authorization':'Bearer '+SUPA_KEY,
+                'Content-Type':'application/json',
+                'Prefer':'return=minimal'
+            },
+            body:JSON.stringify({
+                name:name,
+                clinic_name:clinic,
+                phone:phone,
+                email:email,
+                clinic_type:clinicType,
+                needs:needs,
+                role:role,
+                scheduled_at:scheduledAt,
+                status:'pending'
+            })
+        }).catch(function(e){ console.error('Error guardando demo request:',e); });
+
         document.getElementById('confirm-summary').textContent=
             'Reunión agendada para el '+summary+'. 30 min por videollamada.';
         goToStep(6);

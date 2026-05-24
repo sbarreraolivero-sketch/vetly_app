@@ -180,15 +180,24 @@ export default function AdminClinics() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {filteredClinics.map((clinic) => {
                     const owner = clinic.clinic_members?.find(m => m.role === 'owner') || { email: 'S/N' }
-                    const isPremium = clinic.ai_active_model === 'gpt-4o'
-                    
+                    const modelLabel: Record<string, string> = {
+                        hybrid: 'Híbrido',
+                        mini: 'Mini',
+                        pro: 'Pro (4o)',
+                        'gpt-4o': 'Pro (4o)',
+                        'gpt-4o-mini': 'Mini',
+                    }
+                    const activeModel = modelLabel[clinic.ai_active_model] ?? clinic.ai_active_model ?? 'Híbrido'
+                    const isProModel = clinic.ai_active_model === 'pro' || clinic.ai_active_model === 'gpt-4o'
+
                     const miniTotal = (clinic.ai_credits_monthly_limit || 0) + (clinic.ai_credits_extra_balance || 0)
                     const miniUsed = (clinic.ai_credits_used || 0)
                     const miniPercent = Math.min(100, Math.round((miniUsed / (miniTotal || 1)) * 100))
-                    
+
                     const gpt4Total = (clinic.ai_credits_monthly_limit_gpt4o || 0) + (clinic.ai_credits_extra_gpt4o || 0)
                     const gpt4Used = (clinic.ai_credits_used_gpt4o || 0)
                     const gpt4Percent = Math.min(100, Math.round((gpt4Used / (gpt4Total || 1)) * 100))
+                    const hasLegacy4o = gpt4Total > 0
 
                     return (
                         <div key={clinic.id} className="group bg-white rounded-[2.5rem] border border-gray-100 p-8 flex flex-col gap-6 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
@@ -229,35 +238,40 @@ export default function AdminClinics() {
                                     </h4>
                                     <div className={cn(
                                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm",
-                                        isPremium ? "bg-primary-600 text-white" : "bg-emerald-500 text-white"
+                                        isProModel ? "bg-primary-600 text-white" : "bg-emerald-500 text-white"
                                     )}>
-                                        Activo: {isPremium ? 'GPT-4o Premium' : 'GPT-4o Mini'}
+                                        Activo: {activeModel}
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-end">
-                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">Mini (Usados)</p>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">Créditos IA (Usados)</p>
                                         <p className="text-[10px] font-bold text-gray-500">
-                                            <span className="text-gray-900 font-black">{miniUsed}</span> / {miniTotal}
+                                            <span className="text-gray-900 font-black">{miniUsed.toLocaleString()}</span> / {miniTotal.toLocaleString()}
                                         </p>
                                     </div>
                                     <div className="h-3 w-full bg-emerald-100 rounded-full overflow-hidden">
                                         <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${miniPercent}%` }} />
                                     </div>
+                                    <p className="text-[9px] text-gray-400 font-bold">
+                                        {(clinic.ai_credits_monthly_limit || 0).toLocaleString()} incluidos · {(clinic.ai_credits_extra_balance || 0).toLocaleString()} extra
+                                    </p>
                                 </div>
 
-                                <div className="space-y-3 pt-4 border-t border-gray-200/40">
-                                    <div className="flex justify-between items-end">
-                                        <p className="text-[10px] font-black text-primary-600 uppercase tracking-tighter">Premium (Usados)</p>
-                                        <p className="text-[10px] font-bold text-gray-500">
-                                            <span className="text-gray-900 font-black">{gpt4Used}</span> / {gpt4Total}
-                                        </p>
+                                {hasLegacy4o && (
+                                    <div className="space-y-3 pt-4 border-t border-gray-200/40">
+                                        <div className="flex justify-between items-end">
+                                            <p className="text-[10px] font-black text-primary-600 uppercase tracking-tighter">Créditos 4o (Usados)</p>
+                                            <p className="text-[10px] font-bold text-gray-500">
+                                                <span className="text-gray-900 font-black">{gpt4Used.toLocaleString()}</span> / {gpt4Total.toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <div className="h-3 w-full bg-primary-100 rounded-full overflow-hidden">
+                                            <div className="h-full bg-primary-600 transition-all duration-1000" style={{ width: `${gpt4Percent}%` }} />
+                                        </div>
                                     </div>
-                                    <div className="h-3 w-full bg-primary-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary-600 transition-all duration-1000" style={{ width: `${gpt4Percent}%` }} />
-                                    </div>
-                                </div>
+                                )}
                             </div>
 
                             <div className="pt-4 border-t border-gray-50 space-y-4">

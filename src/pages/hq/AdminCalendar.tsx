@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar as CalendarIcon, Clock, Building2, Mail, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { Calendar as CalendarIcon, Clock, Building2, Mail, Loader2, CheckCircle, XCircle, User, Phone } from 'lucide-react'
 
-// Define un tipo extendido para incluir los datos de la clínica
 type HQAppointment = {
     id: string
     clinic_id: string
@@ -13,25 +12,32 @@ type HQAppointment = {
     duration_minutes: number
     notes: string | null
     created_at: string
-    clinic_settings?: {
-        clinic_name: string
-    } | null
-    clinic_members?: {
-        first_name: string
-        last_name: string
-        email: string
-        phone_number: string // Assuming phone number is stored somewhere, or we fetch from user_profiles if needed
-    }[]
+    clinic_settings?: { clinic_name: string } | null
+    clinic_members?: { first_name: string; last_name: string; email: string }[]
+}
+
+type DemoRequest = {
+    id: string
+    name: string
+    clinic_name: string | null
+    phone: string | null
+    email: string | null
+    clinic_type: string | null
+    needs: string | null
+    role: string | null
+    scheduled_at: string
+    status: string
+    created_at: string
 }
 
 export default function AdminCalendar() {
     const [appointments, setAppointments] = useState<HQAppointment[]>([])
+    const [demoRequests, setDemoRequests] = useState<DemoRequest[]>([])
     const [loading, setLoading] = useState(true)
 
     const fetchAppointments = async () => {
         setLoading(true)
         try {
-            // First get the appointments
             const { data: apts, error } = await (supabase as any)
                 .from('hq_appointments')
                 .select('*')
@@ -39,9 +45,6 @@ export default function AdminCalendar() {
 
             if (error) throw error
 
-            // Now theoretically we should bring clinic_settings and their owner. 
-            // In a real query we can do a inner join if proper foreign keys exist.
-            // But let's fetch clinics for these apts
             const clinicIds = [...new Set(apts.map((a: any) => a.clinic_id))]
 
             const { data: clinics } = await supabase
@@ -62,11 +65,24 @@ export default function AdminCalendar() {
             }))
 
             setAppointments(enriched)
+
+            // Fetch demo requests
+            const { data: demos } = await (supabase as any)
+                .from('demo_requests')
+                .select('*')
+                .order('scheduled_at', { ascending: true })
+
+            setDemoRequests(demos || [])
         } catch (error) {
             console.error('Error fetching calendar:', error)
         } finally {
             setLoading(false)
         }
+    }
+
+    const handleUpdateDemoStatus = async (id: string, newStatus: string) => {
+        await (supabase as any).from('demo_requests').update({ status: newStatus }).eq('id', id)
+        fetchAppointments()
     }
 
     useEffect(() => {
@@ -114,20 +130,112 @@ export default function AdminCalendar() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 p-4 lg:p-8 max-w-7xl mx-auto">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Calendario de Activaciones</h1>
-                    <p className="text-gray-500">Sesiones estratégicas agendadas por prospectos pendientes</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Calendario</h1>
+                    <p className="text-gray-500">Demos y activaciones agendadas</p>
                 </div>
                 <div className="flex gap-2">
+                    <span className="px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-sm font-medium border border-violet-200">
+                        {demoRequests.filter(d => d.status === 'pending').length} Demos pendientes
+                    </span>
                     <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-sm font-medium border border-amber-200">
-                        {appointments.filter(a => a.status === 'scheduled').length} Pendientes
+                        {appointments.filter(a => a.status === 'scheduled').length} Activaciones
                     </span>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {/* ── Solicitudes de Demo ── */}
+            <div>
+                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />
+                    Reuniones Demo — Landing vetly.pro
+                </h2>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha y Hora</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Prospecto</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contacto</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo / Necesidad</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {demoRequests.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-10 text-center text-gray-400 text-sm">
+                                            No hay solicitudes de demo aún
+                                        </td>
+                                    </tr>
+                                ) : demoRequests.map(demo => {
+                                    const date = new Date(demo.scheduled_at)
+                                    return (
+                                        <tr key={demo.id} className="hover:bg-violet-50/30 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="text-sm font-bold text-gray-900 capitalize block">
+                                                    {format(date, 'EEEE d MMM, yyyy', { locale: es })}
+                                                </span>
+                                                <span className="flex items-center text-sm text-gray-500 mt-1 gap-1">
+                                                    <Clock className="w-3.5 h-3.5 text-violet-500" />
+                                                    {format(date, 'HH:mm')} hrs
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center text-violet-700 font-black text-sm shrink-0">
+                                                        {(demo.name || '?').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-gray-900">{demo.name || '—'}</p>
+                                                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                                                            <Building2 className="w-3 h-3" />{demo.clinic_name || '—'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <p className="text-sm text-gray-800 flex items-center gap-1"><Mail className="w-3.5 h-3.5 text-gray-400" />{demo.email || '—'}</p>
+                                                <p className="text-xs text-gray-500 flex items-center gap-1 mt-1"><Phone className="w-3 h-3 text-gray-400" />{demo.phone || '—'}</p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <p className="text-xs font-medium text-gray-700">{demo.clinic_type || '—'}</p>
+                                                <p className="text-xs text-gray-400 mt-0.5">{demo.needs || '—'}</p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {demo.status === 'pending' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800 border border-violet-200">Pendiente</span>}
+                                                {demo.status === 'completed' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Completada</span>}
+                                                {demo.status === 'cancelled' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">Cancelada</span>}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                {demo.status === 'pending' && (
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button onClick={() => handleUpdateDemoStatus(demo.id, 'completed')} className="p-1.5 text-green-600 hover:bg-green-50 rounded border border-green-200 shadow-sm transition-colors" title="Marcar completada"><CheckCircle className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleUpdateDemoStatus(demo.id, 'cancelled')} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 shadow-sm transition-colors" title="Cancelar"><XCircle className="w-4 h-4" /></button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Activaciones HQ ── */}
+            <div>
+                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                    Sesiones de Activación — Clínicas registradas
+                </h2>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -231,6 +339,7 @@ export default function AdminCalendar() {
                             })}
                         </tbody>
                     </table>
+                </div>
                 </div>
             </div>
         </div>
