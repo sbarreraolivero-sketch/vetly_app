@@ -115,8 +115,8 @@ Deno.serve(async (req: Request) => {
             'reminders_50': 80, 'reminders_350': 350, 'reminders_unlimited': 9999,
         };
 
-        // lsQuantity: quantity to pass to LS checkout (packs of 10 for individual units)
-        let lsQuantity: number | undefined;
+        // lsCustomPrice: custom_price in USD cents to override variant price for variable-quantity products
+        let lsCustomPrice: number | undefined;
 
         if (type === 'ai_credits') {
             customData.credits = String(creditsMap[plan_or_pack_id] || 0);
@@ -126,22 +126,18 @@ Deno.serve(async (req: Request) => {
             if (fixedQty !== undefined) {
                 customData.quantity = String(fixedQty);
             } else {
-                // Individual units: LS variant = $1.50 per 10 units (LS minimum $0.50/variant)
-                // customData.quantity = actual reminders to credit in DB
-                // lsQuantity         = what LS charges for (packs of 10)
+                // Individual units: $0.15 USD/unit → custom_price in cents = units * 15
                 const units = Math.max(10, quantity || 10);
                 const roundedUnits = Math.ceil(units / 10) * 10;
                 customData.quantity = String(roundedUnits);
-                lsQuantity = roundedUnits / 10;
+                lsCustomPrice = roundedUnits * 15;
             }
         } else if (type === 'campaign_credits') {
-            // US$0.15/crédito · mín 50 · LS variant = $1.50 por 10 créditos (mín $0.50 de LS)
-            // customData.quantity = créditos reales a acreditar en DB
-            // lsQuantity         = decenas que LS cobra
+            // US$0.15/crédito · mín 50 → custom_price in cents = credits * 15
             const credits = Math.max(50, quantity || 50);
             const roundedCredits = Math.ceil(credits / 10) * 10;
             customData.quantity = String(roundedCredits);
-            lsQuantity = roundedCredits / 10;
+            lsCustomPrice = roundedCredits * 15;
         } else {
             customData.plan = plan_or_pack_id;
         }
@@ -167,8 +163,8 @@ Deno.serve(async (req: Request) => {
                 redirect_url: success_url || `${SUPABASE_URL.replace('.supabase.co', '')}/app/settings?payment=success`,
             },
         };
-        if (lsQuantity !== undefined) {
-            checkoutAttributes.quantity = lsQuantity;
+        if (lsCustomPrice !== undefined) {
+            checkoutAttributes.custom_price = lsCustomPrice;
         }
 
         const checkoutPayload = {
