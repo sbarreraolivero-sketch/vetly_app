@@ -288,6 +288,7 @@ export default function Campaigns() {
                 body: { campaign_id: campaignId }
             })
 
+            fetchCampaignCredits()
             alert('Campaña iniciada. Los mensajes se enviarán en breve.')
 
         } catch (error) {
