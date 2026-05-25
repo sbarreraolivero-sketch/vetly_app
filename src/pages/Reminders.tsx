@@ -38,12 +38,23 @@ export default function Reminders() {
     const [medicalLogs, setMedicalLogs] = useState<any[]>([])
     const [reminderUsage, setReminderUsage] = useState<any>(null)
 
+    const fetchReminderUsage = async () => {
+        if (!profile?.clinic_id) return
+        const { data } = await (supabase as any)
+            .from('subscriptions')
+            .select('monthly_reminders_limit, monthly_reminders_used, reminders_pack_balance')
+            .eq('clinic_id', profile.clinic_id)
+            .maybeSingle()
+        setReminderUsage(data || null)
+    }
+
     // Detectar retorno de pago exitoso
     useEffect(() => {
         const params = new URLSearchParams(location.search)
         if (params.get('payment') === 'success') {
             toast.success('¡Pago procesado! Los recordatorios se acreditarán en instantes.')
             setActiveTab('packs')
+            fetchReminderUsage()
         }
     }, [location.search])
 
@@ -330,7 +341,7 @@ export default function Reminders() {
                                 activeTab === 'packs' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
                             )}
                         >
-                            Packs
+                            Recordatorios Extra
                         </button>
                     )}
                 </div>
@@ -366,20 +377,26 @@ export default function Reminders() {
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
                         <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-6 text-white">
                             <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
-                            <h3 className="text-xl font-extrabold tracking-tight text-white">Recordatorios adicionales</h3>
-                            <p className="text-sm text-primary-100/80 font-light mt-1">Compra unidades extra para este mes — caducan con tu renovación mensual.</p>
+                            <h3 className="text-xl font-extrabold tracking-tight text-white">Compras y Saldos</h3>
+                            <p className="text-sm text-primary-100/80 font-light mt-1">Resumen de uso mensual — las unidades extra caducan con tu renovación.</p>
                         </div>
-                        <div className="p-6 flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Pack comprado este mes</p>
-                                <p className="text-4xl font-black text-charcoal">
-                                    {reminderUsage?.reminders_pack_balance ?? 0}
-                                    <span className="text-base font-bold text-charcoal/40 ml-2">unidades disponibles</span>
-                                </p>
-                                <p className="text-xs text-charcoal/40 mt-1">Se descuentan de tu cupo junto con el plan · Caducan al renovar</p>
+                        <div className="p-6 grid grid-cols-3 divide-x divide-silk-beige">
+                            <div className="pr-6">
+                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Consumidos</p>
+                                <p className="text-3xl font-black text-charcoal">{rUsed}</p>
+                                <p className="text-xs text-charcoal/40 mt-1">este mes</p>
                             </div>
-                            <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center">
-                                <Package className="w-8 h-8 text-primary-600" />
+                            <div className="px-6">
+                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Comprados</p>
+                                <p className="text-3xl font-black text-charcoal">{rPack}</p>
+                                <p className="text-xs text-charcoal/40 mt-1">unidades extra</p>
+                            </div>
+                            <div className="pl-6">
+                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Saldo actual</p>
+                                <p className={`text-3xl font-black ${atLimit ? 'text-red-500' : 'text-emerald-600'}`}>
+                                    {isUnlimited ? '∞' : Math.max(0, (effLimit as number) - rUsed)}
+                                </p>
+                                <p className="text-xs text-charcoal/40 mt-1">disponibles</p>
                             </div>
                         </div>
                     </div>
