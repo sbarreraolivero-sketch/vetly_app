@@ -45,78 +45,70 @@ Deno.serve(async (req) => {
         const ycloudKey = campaign.clinic_settings?.ycloud_api_key
         if (!ycloudKey) throw new Error('No YCloud API Key found for this clinic')
 
-        // 2. Resolve audience via inclusion/exclusion tag UUIDs (stored in JSONB)
-        // Tags are on patients; phone numbers are on tutors. We send one message per tutor.
+        // 2. Resolve audience via inclusion/exclusion tag UUIDs
+        // Tags live in tutor_tags (migrated from patient_tags in session 12).
+        // One message per tutor — no need to go through patients.
         const inclusionTags: string[] = campaign.inclusion_tags ?? []
         const exclusionTags: string[] = campaign.exclusion_tags ?? []
 
-        // Build set of patient IDs to include
-        let includedPatientIds: string[] | null = null
+        // Build set of tutor IDs to include
+        let includedTutorIds: string[] | null = null
 
         if (inclusionTags.length > 0) {
-            const { data: taggedPatients, error: tagError } = await supabaseClient
-                .from('patient_tags')
-                .select('patient_id')
+            const { data: taggedTutors, error: tagError } = await supabaseClient
+                .from('tutor_tags')
+                .select('tutor_id')
                 .in('tag_id', inclusionTags)
 
             if (tagError) throw tagError
-            includedPatientIds = [...new Set(taggedPatients.map((r: any) => r.patient_id))]
+            includedTutorIds = [...new Set((taggedTutors || []).map((r: any) => r.tutor_id))]
 
-            if (includedPatientIds.length === 0) {
+            if (includedTutorIds.length === 0) {
                 await supabaseClient
                     .from('campaigns')
                     .update({ status: 'completed', sent_count: 0, total_target: 0 })
                     .eq('id', campaign_id)
                 return new Response(
-                    JSON.stringify({ success: true, processed: 0, message: 'No patients in this segment' }),
+                    JSON.stringify({ success: true, processed: 0, message: 'No tutors in this segment' }),
                     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 )
             }
         }
 
-        // Build set of patient IDs to exclude
-        let excludedPatientIds: Set<string> = new Set()
+        // Build set of tutor IDs to exclude
+        let excludedTutorIds: Set<string> = new Set()
         if (exclusionTags.length > 0) {
-            const { data: excPatients, error: excError } = await supabaseClient
-                .from('patient_tags')
-                .select('patient_id')
+            const { data: excTutors, error: excError } = await supabaseClient
+                .from('tutor_tags')
+                .select('tutor_id')
                 .in('tag_id', exclusionTags)
 
             if (excError) throw excError
-            excludedPatientIds = new Set(excPatients.map((r: any) => r.patient_id))
+            excludedTutorIds = new Set((excTutors || []).map((r: any) => r.tutor_id))
         }
 
-        // 3. Fetch active patients matching the criteria, joined to their tutor for phone/name
-        let patientQuery = supabaseClient
-            .from('patients')
-            .select('id, name, tutor_id, tutors!inner(id, name, phone_number)')
+        // 3. Fetch tutors directly (tags are at tutor level, no need to join through patients)
+        let tutorQuery = supabaseClient
+            .from('tutors')
+            .select('id, name, phone_number')
             .eq('clinic_id', campaign.clinic_id)
-            .is('death_date', null)
+            .not('phone_number', 'is', null)
 
-        if (includedPatientIds !== null) {
-            patientQuery = patientQuery.in('id', includedPatientIds)
+        if (includedTutorIds !== null) {
+            tutorQuery = tutorQuery.in('id', includedTutorIds)
         }
 
-        const { data: patients, error: patientsError } = await patientQuery
-        if (patientsError) throw patientsError
+        const { data: tutors, error: tutorsError } = await tutorQuery
+        if (tutorsError) throw tutorsError
 
-        // Filter out excluded patients and group by tutor (deduplicate — one message per phone)
-        const tutorMap = new Map<string, { tutorId: string; phone: string; name: string }>()
-
-        for (const patient of (patients || [])) {
-            if (excludedPatientIds.has(patient.id)) continue
-            const tutor = (patient as any).tutors
-            if (!tutor?.phone_number) continue
-            if (!tutorMap.has(tutor.id)) {
-                tutorMap.set(tutor.id, {
-                    tutorId: tutor.id,
-                    phone: tutor.phone_number,
-                    name: tutor.name || 'Tutor',
-                })
-            }
-        }
-
-        const recipients = [...tutorMap.values()]
+        // Deduplicate recipients and apply exclusion filter
+        const recipients = (tutors || [])
+            .filter(tutor => !excludedTutorIds.has(tutor.id))
+            .map(tutor => ({
+                tutorId: tutor.id,
+                phone: tutor.phone_number as string,
+                name: tutor.name || 'Tutor',
+            }))
         console.log(`Found ${recipients.length} unique recipients for campaign.`)
 
         // 4. Fetch Template from YCloud
