@@ -38,7 +38,7 @@ const VARIANT_IDS: Record<string, string> = {
     'reminders_350':       Deno.env.get("LS_VARIANT_REMINDERS_350")       || "1701021",
     'reminders_unlimited': Deno.env.get("LS_VARIANT_REMINDERS_UNLIMITED") || "1701025",
     // Campaign Credits — US$0.15/crédito, mín 50, sin vencimiento
-    'campaign_credits': Deno.env.get("LS_VARIANT_CAMPAIGN_CREDITS") || "1701169",
+    'campaign_credits': Deno.env.get("LS_VARIANT_CAMPAIGN_CREDITS") || "1702308",
 };
 
 interface RequestBody {

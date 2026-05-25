@@ -992,6 +992,83 @@ Todos los IDs están hardcodeados como fallback (no requieren secrets en Supabas
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 17, 2026-05-25)
+
+### Landing page — causa raíz de "cambios no visibles en producción"
+
+**Descubrimiento crítico:** `vercel.json` enruta `/` → `public/landing.html` (archivo estático), **no** al componente React `Landing.tsx`. Todos los cambios previos a `Landing.tsx` eran invisibles en `vetly.pro` porque la landing real es el HTML estático.
+
+**Regla permanente:** cualquier cambio visual en la landing pública (`vetly.pro`) debe editarse en **`public/landing.html`**, no en `src/pages/Landing.tsx`. `Landing.tsx` solo aplica a la ruta interna `/app/landing` si existe.
+
+---
+
+### Planes — "Campañas masivas" eliminado como feature incluida
+
+**Motivación:** las campañas masivas son un extra de pago (créditos por uso), no una feature incluida en el plan. Se eliminó de todos los planes y se reemplazó con una caja "Extras opcionales".
+
+**Archivos actualizados:**
+- **`src/lib/lemonsqueezy.ts`**: eliminado "Campañas masivas" de Starter; añadido `upsells: ['Mensajería masiva de marketing segmentada']` a Starter, Pro, Enterprise; Core upsells actualizados.
+- **`src/lib/mercadopago.ts`**: mismos cambios para planes CLP.
+- **`src/pages/Landing.tsx`**: eliminado "Campañas masivas" de Starter; añadido bloque de renderizado "Extras opcionales" con `+` prefix en color primary.
+- **`src/pages/Pricing.tsx`**: eliminado "Campañas masivas" de Core y Pro; añadida caja de upsells con el mismo patrón de renderizado ya existente.
+- **`public/landing.html`**: eliminado `<li>✓ Campañas masivas</li>` del plan Starter y `<li>– Campañas masivas</li>` del Core; añadida caja "Extras opcionales" a los 4 planes con estilos coherentes (teal para Core/Starter/Enterprise, dark para Pro). Texto del Core: "Recarga de recordatorios automáticos — WhatsApp 24h y 2h antes de cada cita y recordatorios médicos".
+
+---
+
+### Fix bug campañas — todos los tags se seleccionaban al hacer clic en uno
+
+**Síntoma:** al hacer clic en una etiqueta de inclusión → 0 contactos (todas seleccionadas). Al hacer clic en una de exclusión → 58 contactos (todas seleccionadas).
+
+**Causa raíz 1 — `get_tag_counts` sin `tag_id`:**
+El RPC no devolvía la columna `tag_id` en su tipo de retorno → todos los tags del frontend mapeaban con `id: undefined` → `.includes(undefined)` era `true` para todos → cualquier clic seleccionaba todo.
+
+**Causa raíz 2 — `get_estimated_audience` filtraba `patient_tags` en vez de `tutor_tags`:**
+Los tags se migraron a `tutor_tags` en sesión 12, pero el RPC seguía consultando `patient_tags` (vacía) → inclusión = 0 contactos, exclusión = todos los contactos.
+
+**Migración aplicada en producción (`fix_campaign_rpcs_tag_id_and_tutor_tags`):**
+```sql
+-- DROP + CREATE para añadir columna tag_id al tipo de retorno
+DROP FUNCTION IF EXISTS public.get_tag_counts(UUID);
+CREATE FUNCTION public.get_tag_counts(p_clinic_id UUID)
+RETURNS TABLE (tag_id UUID, tag_name TEXT, tag_color TEXT, contact_count BIGINT)
+-- GROUP BY tag_id AND tag_name
+
+-- get_estimated_audience reescrito para usar tutor_tags
+-- EXISTS (SELECT 1 FROM tutor_tags tt WHERE tt.tutor_id = t.id AND tt.tag_id = ANY(p_inclusion_tags))
+-- NOT EXISTS (SELECT 1 FROM tutor_tags tt WHERE tt.tutor_id = t.id AND tt.tag_id = ANY(p_exclusion_tags))
+```
+
+---
+
+### Sistema de créditos de campaña — implementación completa
+
+**Modelo de precios:** US$0.15 / crédito · mínimo 50 · incrementos de 50 · **sin vencimiento** (a diferencia de `reminders_pack_balance` que se resetea mensualmente).
+
+**Solución al mínimo $0.50 de LemonSqueezy:** mismo patrón "decenas" que recordatorios — variant a $1.50 USD = 10 créditos. `lsQuantity = roundedCredits / 10`; `customData.quantity = roundedCredits` (lo que el webhook acredita).
+
+#### DB
+- **Migración `add_campaign_credits_balance`**: `ALTER TABLE subscriptions ADD COLUMN campaign_credits_balance INTEGER NOT NULL DEFAULT 0`
+- La columna **no se resetea** en `reset_monthly_ai_usage()` — los créditos son permanentes
+
+#### Edge Functions (todas deployadas)
+- **`lemonsqueezy-create-checkout` (v20)**: nuevo tipo `'campaign_credits'`; variant ID `1702308` hardcodeado como fallback; lógica decenas en bloque `campaign_credits`
+- **`lemonsqueezy-webhook`**: nuevo bloque `if (purchaseType === 'campaign_credits')` — solo procesa `order_created`; incrementa `subscriptions.campaign_credits_balance`
+- **`send-whatsapp-campaign`**: verifica `campaign_credits_balance >= recipients.length` antes de enviar; si insuficiente → marca campaña `'failed'` y retorna 400; al terminar descuenta solo `sentCount` (no `recipients.length`)
+
+#### Frontend
+- **`src/lib/lemonsqueezy.ts`**: función `redirectToLemonCampaignCreditsCheckout(clinicId, email, quantity)` — `quantity: Math.max(50, quantity)`
+- **`src/pages/Campaigns.tsx`**: tarjeta de saldo con gradiente violet; stepper ±50 (mínimo 50); presets rápidos [100, 300, 500]; precio en tiempo real (CLP + USD); guard en `handleLaunchCampaign` (deshabilita botón si créditos insuficientes); badge de advertencia por campaña; detección de `?payment=success` al volver del checkout
+
+#### LemonSqueezy — producto creado
+| Campo | Valor |
+|---|---|
+| Nombre | Créditos de Campaña |
+| Variant | Créditos × decenas |
+| Precio | US$1.50 |
+| Variant ID | **1702308** |
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
