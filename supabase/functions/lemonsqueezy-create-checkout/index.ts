@@ -31,12 +31,12 @@ const VARIANT_IDS: Record<string, string> = {
     'pack_500_4o':  Deno.env.get("LS_VARIANT_PACK_500_4O")  || "1459861",
     'pack_1500_4o': Deno.env.get("LS_VARIANT_PACK_1500_4O") || "1459869",
     'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "1459872",
-    // Reminder Units — per-unit purchase ($0.15 USD/unit, min 20)
+    // Reminder Units — per-unit purchase ($1.50 USD / 10 units, min 20 units)
     'reminders': Deno.env.get("LS_VARIANT_REMINDERS") || "PLACEHOLDER_REMINDERS",
-    // Reminder Packs — fixed-quantity bundles ($9/$19/$29 USD)
-    'reminders_50':        Deno.env.get("LS_VARIANT_REMINDERS_50")        || "PLACEHOLDER_REMINDERS_50",
-    'reminders_350':       Deno.env.get("LS_VARIANT_REMINDERS_350")       || "PLACEHOLDER_REMINDERS_350",
-    'reminders_unlimited': Deno.env.get("LS_VARIANT_REMINDERS_UNLIMITED") || "PLACEHOLDER_REMINDERS_UNLIMITED",
+    // Reminder Packs — fixed-quantity bundles
+    'reminders_50':        Deno.env.get("LS_VARIANT_REMINDERS_50")        || "1701015",
+    'reminders_350':       Deno.env.get("LS_VARIANT_REMINDERS_350")       || "1701021",
+    'reminders_unlimited': Deno.env.get("LS_VARIANT_REMINDERS_UNLIMITED") || "1701025",
 };
 
 interface RequestBody {
@@ -113,12 +113,25 @@ Deno.serve(async (req: Request) => {
             'reminders_50': 50, 'reminders_350': 350, 'reminders_unlimited': 9999,
         };
 
+        // lsQuantity: quantity to pass to LS checkout (packs of 10 for individual units)
+        let lsQuantity: number | undefined;
+
         if (type === 'ai_credits') {
             customData.credits = String(creditsMap[plan_or_pack_id] || 0);
             customData.model = model || 'mini';
         } else if (type === 'reminders') {
             const fixedQty = reminderPackQtyMap[plan_or_pack_id];
-            customData.quantity = String(fixedQty ?? Math.max(20, quantity || 20));
+            if (fixedQty !== undefined) {
+                customData.quantity = String(fixedQty);
+            } else {
+                // Individual units: LS variant = $1.50 per 10 units (LS minimum $0.50/variant)
+                // customData.quantity = actual reminders to credit in DB
+                // lsQuantity         = what LS charges for (packs of 10)
+                const units = Math.max(20, quantity || 20);
+                const roundedUnits = Math.ceil(units / 10) * 10;
+                customData.quantity = String(roundedUnits);
+                lsQuantity = roundedUnits / 10;
+            }
         } else {
             customData.plan = plan_or_pack_id;
         }
@@ -128,8 +141,8 @@ Deno.serve(async (req: Request) => {
             email: email,
             custom: customData,
         };
-        if (type === 'reminders' && quantity) {
-            checkoutData.quantity = Math.max(20, quantity);
+        if (lsQuantity !== undefined) {
+            checkoutData.quantity = lsQuantity;
         }
 
         const checkoutPayload = {
