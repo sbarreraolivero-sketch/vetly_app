@@ -80,9 +80,9 @@ const plans = [
             '1.000 créditos IA incluidos/mes',
             'Hasta 50 citas con IA/mes',
             '100 recordatorios/mes',
-            'Campañas masivas',
             'Logística móvil (Goldi)',
         ],
+        upsells: ['Mensajería masiva de marketing segmentada'],
         cta: 'Agendar Implementación',
         gradient: 'from-sky-500 to-sky-700',
     },
@@ -104,6 +104,7 @@ const plans = [
             'Encuestas de satisfacción',
             'Soporte prioritario',
         ],
+        upsells: ['Mensajería masiva de marketing segmentada'],
         cta: 'Agendar Implementación',
         gradient: 'from-primary-500 to-primary-700',
         badge: 'Popular',
@@ -127,6 +128,7 @@ const plans = [
             'Super Administrador',
             'Soporte 24/7 dedicado',
         ],
+        upsells: ['Mensajería masiva de marketing segmentada'],
         cta: 'Agendar Implementación',
         gradient: 'from-charcoal to-charcoal/90',
     },
@@ -616,7 +618,7 @@ export default function Landing() {
 
                                 <p className="text-base text-charcoal/90 font-medium mb-8 pb-8 border-b border-silk-beige border-dashed">{plan.description}</p>
 
-                                <ul className="space-y-4 mb-12 flex-grow">
+                                <ul className="space-y-4 mb-6 flex-grow">
                                     {plan.features.map((feature, index) => (
                                         <li key={index} className="flex items-start gap-4">
                                             <div className={`mt-0.5 rounded-full p-1 flex-shrink-0 ${plan.highlight ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-charcoal/60'}`}>
@@ -626,6 +628,20 @@ export default function Landing() {
                                         </li>
                                     ))}
                                 </ul>
+
+                                {'upsells' in plan && (plan as any).upsells?.length > 0 && (
+                                    <div className="mb-6 pt-4 border-t border-dashed border-silk-beige">
+                                        <p className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-2">Extras opcionales</p>
+                                        <ul className="space-y-1.5">
+                                            {(plan as any).upsells.map((upsell: string, i: number) => (
+                                                <li key={i} className="flex items-center gap-2 text-sm text-charcoal/60 font-medium">
+                                                    <span className="text-primary-500 font-black">+</span>
+                                                    {upsell}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
 
                                 <Link
                                     to="/register"

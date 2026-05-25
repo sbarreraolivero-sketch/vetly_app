@@ -118,7 +118,7 @@ export const PLANS = {
         ],
         upsells: [
             'Recordatorios automáticos — packs opcionales',
-            'Mensajes de plantilla — cobro por consumo',
+            'Mensajería masiva de marketing segmentada',
         ],
     },
     starter: {
@@ -137,8 +137,10 @@ export const PLANS = {
             '1.000 créditos IA incluidos/mes',
             'Hasta 50 citas con IA/mes',
             '100 recordatorios/mes',
-            'Campañas masivas',
             'Logística móvil (Goldi)',
+        ],
+        upsells: [
+            'Mensajería masiva de marketing segmentada',
         ],
     },
     pro: {
@@ -160,6 +162,9 @@ export const PLANS = {
             'Encuestas de satisfacción',
             'Soporte prioritario',
         ],
+        upsells: [
+            'Mensajería masiva de marketing segmentada',
+        ],
     },
     enterprise: {
         id: 'enterprise',
@@ -179,6 +184,9 @@ export const PLANS = {
             'IA personalizada por especialidad',
             'Super Administrador',
             'Soporte 24/7 dedicado',
+        ],
+        upsells: [
+            'Mensajería masiva de marketing segmentada',
         ],
     },
 } as const;
