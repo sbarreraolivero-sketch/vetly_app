@@ -249,8 +249,8 @@ export default function Reminders() {
             toast.error('No se pudo obtener tu información de cuenta.')
             return
         }
-        if (reminderQty < 20) {
-            toast.error('El mínimo es 20 unidades.')
+        if (reminderQty < 10) {
+            toast.error('El mínimo es 10 unidades.')
             return
         }
         setCheckoutLoading(true)
