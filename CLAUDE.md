@@ -110,6 +110,26 @@ Si la RLS se rompe y un usuario no ve datos, verificar que tenga filas activas e
 - **PART 3**: ~~Recordatorios 1h~~ — **ELIMINADO** en mayo 2026.
 - **PART 4**: Recordatorios médicos (vacunas/desparasitaciones). Consulta `reminders WHERE status = 'pending' AND scheduled_date <= tomorrowStr`. Usa `lte` para hacer catch-up de registros atrasados. Fallback de template: `rem.whatsapp_template` → `clinic.vaccine/deworming/checkup_reminder_template`. Si no hay teléfono o template → marca como `failed`.
 
+### Sectorización AnimalGrace — `getSectorAG` (fuente única de verdad)
+`getSectorAG(addr, lat)` es el único helper para clasificar una dirección como "Linares" o "Talca". Vive en `ycloud-whatsapp-webhook/index.ts`. **Regla crítica: siempre verificar `linaresCommunes` ANTES que `talcaCommunes`.**
+
+```typescript
+const getSectorAG = (addr: string | null, lat: number | null): "Linares" | "Talca" | null => {
+  const norm = (addr || "").toLowerCase();
+  const linaresCommunes = ["linares", "colbun", "colbún", "longavi", "longaví", "parral", "retiro", "san javier", "villa alegre", "yerbas buenas"];
+  const talcaCommunes = ["talca", "constitucion", "constitución", "curepto", "empedrado", "maule", "pelarco", "pencahue", "rio claro", "río claro", "san clemente", "san rafael"];
+  if (linaresCommunes.some(k => norm.includes(k))) return "Linares";
+  if (talcaCommunes.some(k => norm.includes(k))) return "Talca";
+  if (lat !== null) return lat <= -35.55 ? "Linares" : "Talca";
+  if (!addr || addr.trim() === "") return "Linares";
+  return null;
+};
+```
+
+**Por qué el orden importa:** "Maule" es tanto una **REGIÓN** (aparece en todas las direcciones de Linares: `"..., Linares, Maule"`) como una **COMUNA** del sector Talca. Si se chequea Talca primero, cualquier dirección de Linares con `lat=null` quedaba clasificada como Talca. Al chequear Linares primero, `"linares"` hace match antes de llegar a `"maule"`.
+
+**No duplicar esta lógica.** Antes había 3 implementaciones inconsistentes en `checkAvail()`. Todo el código que necesite el sector de una cita móvil debe llamar a `getSectorAG`.
+
 ### Formato de tools OpenAI
 Todo el código usa el formato moderno (`tools`/`tool_choice`/`tool_call_id`), no el deprecado (`functions`/`function_call`). El `ai-simulator` fue migrado en mayo 2026.
 
@@ -830,12 +850,154 @@ La landing es la fuente de verdad. Todos los archivos de planes actualizados par
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 15, 2026-05-24)
+
+### Bug crítico logística Linares/Talca — corrección completa
+
+**Contexto:** Claudia reportó que el agente agendó el lunes 2026-05-25 en orden Talca→Linares→Talca, lo que es físicamente imposible de cumplir.
+
+**Diagnóstico:** 5 bugs independientes que se combinaban para permitir rutas inválidas:
+
+#### Bug 1 — "Maule" misclasificado como Talca (raíz del problema)
+Citas sin GPS en el sector Linares tenían `latitude = NULL`. El código hacía `norm.includes("maule")` sobre la dirección para asignar coordenadas virtuales. "Maule" es la región chilena → aparece en **todas** las direcciones de Linares (`"..., Linares, Maule"`). Resultado: coords de Talca asignadas a citas de Linares → el sistema creía que eran del mismo sector → no disparaba el buffer inter-sector.
+
+**Fix:** creado helper `getSectorAG` (ver sección Patrones críticos) que verifica `linaresCommunes` **antes** que `talcaCommunes`. "linares" hace match y retorna antes de evaluar "maule". Todas las referencias de sectorización en `checkAvail()` migradas a este helper único.
+
+#### Bug 2 — Unidades de travel time incorrectas
+`getTravelDetails()` devuelve minutos, pero el código hacía `Math.ceil(cached.duration / 60)` → dividía por 60 otra vez → travel time inter-sector ≈ 1 minuto → buffer de 60 min nunca se activaba.
+
+**Fix:** `travelTimeMinutes = cached.duration` (ya está en minutos, confirmado por comentario en línea ~1391).
+
+#### Bug 3 — Umbral de capacidad inconsistente
+`ai_behavior_rules` decía "5 citas en Linares → prohibir Talca", pero el código usaba `linaresCount >= 4`.
+
+**Fix:** umbral actualizado a `>= 5`.
+
+#### Bug 4 — Contradicción 120 vs 60 minutos
+El prompt embebido en `rutaContext` (dentro de `checkAvail`) decía "REGLA DE LAS 2 HORAS: 120 min". El KB, `ai_behavior_rules` y el código usaban 60 min.
+
+**Fix:** prompt actualizado a "REGLA DE 1 HORA: 60 min" con descripción de continuidad territorial.
+
+#### Bug 5 — Umbral latitud -35.6 (San Javier)
+El fallback por latitud usaba `-35.6` como umbral, pero San Javier tiene latitud `-35.5974 > -35.6` → clasificaba como Talca siendo sector Linares.
+
+**Fix:** umbral corregido a `-35.55` (consistente con `getSector` original).
+
+#### Chequeo anti-rebote (capa de seguridad adicional)
+Aunque todos los bugs anteriores estén corregidos, se agregó un chequeo explícito que detecta la subsecuencia T→L→T en la secuencia de sectores del día:
+
+```typescript
+// Si isPossible && isAnimalGrace && targetSectorAG:
+// Reconstruye la secuencia del día con el nuevo slot insertado
+// Detecta patrón: Talca → Linares → Talca → marca isPossible = false
+```
+
+Bloquea el agendamiento incluso si algún otro path permitiera llegar hasta el chequeo final con una ruta inválida.
+
+**Deploy:** webhook v213 (incluye todos los fixes anteriores).
+
+---
+
+### Bug $6.000 Santiago — causa confirmada con evidencia real
+
+**Diagnóstico:** queries a `messages` confirmaron que ambos casos reportados (Quilicura y Quinta Normal) fueron generados por el modelo `mini` (columna `ai_model = 'gpt-4o-mini'`). El modelo mini tiene tendencia a alucinación en cálculos de precio/recargo.
+
+**Causa raíz de la caída a mini:** `selectModelTier()` no tenía keywords de precio/recargo en `needsSchedulingReason`. Cuando el usuario respondía solo la comuna (ej: "Quinta Normal"), no había keywords que mantuvieran el flujo en 4o → caía a mini → alucinaba el recargo.
+
+**Fixes aplicados:**
+- **Código:** agregadas keywords a `needsSchedulingReason`: `precio`, `valor`, `cuánto`, `cuanto`, `cuesta`, `costo`, `recargo`, `tarifa`, `cotiz`, `comuna`. Ahora las preguntas de precio y las respuestas de comuna se mantienen en 4o.
+- **KB Santiago `#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES`:** sección anti-error explícita: solo Las Condes tiene recargo $6.000; cualquier otra comuna = $0. Prohibición de inventar recargos.
+- **`ai_behavior_rules` Santiago (sección 5):** regla anti-error reforzada con lista de comunas Tramo A (sin recargo) y amenaza de "GRAVE ERROR" si se inventa recargo.
+
+---
+
+### Regla de cachorro — no asumir especie
+
+**Problema:** el agente asumía "cachorro" = perro sin preguntar.
+
+**Fix aplicado en ambas sucursales:**
+- **KB `PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE`:** sección nueva "REGLA: CACHORRO SIN ESPECIE DEFINIDA" — si el tutor dice "cachorro/gatito/bebé" sin especificar, preguntar explícitamente antes de cotizar.
+- **`ai_behavior_rules` Linares (sección 8) y Santiago (sección 5):** regla explícita — cachorro no implica canino; confirmar especie antes de continuar.
+
+---
+
+### Protocolo de vacunación primera vez
+
+**Problema:** el agente ofrecía 2 vacunas en la misma visita (ej: óctuple + antirrábica) sin verificar si era la primera vez del animal.
+
+**Regla clínica:** si el animal **nunca fue vacunado antes**, solo se aplica UNA vacuna por visita. La segunda se agenda en la siguiente visita. Aplica a perros (óctuple/séxtuple vs antirrábica) y gatos (triple felina vs antirrábica).
+
+**Fix aplicado en ambas sucursales:**
+- **KB `PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE`:** sección nueva "PROTOCOLO PRIMERA VACUNACIÓN" — preguntar si es primera vez; si sí → solo una vacuna; reagendar la segunda.
+- **`ai_behavior_rules` Linares (sección 8) y Santiago (sección 5):** regla explícita con la misma lógica.
+
+---
+
+### Promociones proactivas — cambio de política
+
+**Problema:** el doc de promociones tenía una "REGLA DE ORO" que prohibía ofrecer promociones salvo que el tutor preguntara explícitamente. Esto bloqueaba la IA de ofrecer descuentos aunque detectara oportunidades claras (ej: 3 perros a vacunar = pack familiar).
+
+**Fix en ambas sucursales — KB `PROMOCIONES_Y_DESCUENTOS_VIGENTES`:**
+- "REGLA DE ORO" reescrita como positiva: la IA **debe** ofrecer la promoción proactivamente cuando detecta una oportunidad (múltiples mascotas, servicios combinables, etc.).
+- Criterio: presentar primero el precio normal, luego la promoción como ventaja adicional.
+- No esperar a que el tutor pregunte.
+
+---
+
+### Operacional — citas lunes 2026-05-25 ya agendadas con ruta inválida
+
+Las 3 citas del lunes ya están en la DB con el orden Talca (12:00) → Linares (15:30) → Talca (16:30). El fix previene futuras reservas malas pero no corrige las existentes. Claudia debe reagendar manualmente una de las dos citas de Talca.
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 16, 2026-05-25)
+
+### Tab Packs de Recordatorios — rediseño completo
+
+**Motivación:** la UI anterior solo mostraba un selector por unidad sin packs fijos, y el título "Recordatorios adicionales" aparecía en color oscuro sobre fondo teal.
+
+#### Estructura nueva
+
+**3 packs fijos con descuento real por unidad** (más económicos que comprar suelto):
+
+| Pack | Unidades | CLP | USD | Por unidad | Variant ID LS |
+|---|---|---|---|---|---|
+| Pack Básico | 50 | $5.000 | $9 | $100/u (−33%) | 1701015 |
+| Pack Pro ⭐ | 350 | $15.000 | $19 | $43/u (−71%) | 1701021 |
+| Pack Ilimitado | 9.999 (∞) | $25.000 | $29 | Sin límite | 1701025 |
+
+**Selector por unidad** debajo de un divisor con texto "¿Necesitas otro número exacto? Compra por unidad":
+- Precio: $150 CLP / $0.15 USD por unidad
+- Mínimo: **10 unidades**
+- Stepper de ±10, arranca en 10
+- Variant ID LS: **1701169** ("Recordatorios × decenas", precio $1.50 USD/decena)
+
+#### Solución al mínimo $0.50 de LemonSqueezy
+
+LS no permite variantes con precio < $0.50 USD. Para el selector por unidad ($0.15/u):
+- Variante creada a **$1.50 USD por 10 unidades** ("Recordatorios × decenas")
+- La edge function pasa `checkoutData.quantity = roundedUnits / 10` (lo que LS cobra)
+- `customData.quantity = roundedUnits` (lo que el webhook acredita en DB)
+- El usuario ve el precio correcto en el UI; LS cobra la cantidad de decenas
+
+#### Archivos modificados
+
+- **`src/pages/Reminders.tsx`**: rediseño completo del tab Packs — 3 tarjetas con badge, chip de ahorro por unidad, divisor, selector compacto. Fix título blanco. Estado inicial qty=10, mín=10.
+- **`src/lib/lemonsqueezy.ts`**: nueva función `redirectToLemonReminderPackCheckout(clinicId, email, packId)` + tipo `ReminderPackId`.
+- **`supabase/functions/lemonsqueezy-create-checkout/index.ts`** (v16): 4 nuevos variant IDs hardcodeados; lógica `lsQuantity` para packs-de-10; mín 10 unidades.
+
+#### Variant IDs hardcodeados en la edge function
+
+Todos los IDs están hardcodeados como fallback (no requieren secrets en Supabase). Si en el futuro se quieren cambiar sin deploy, configurar los correspondientes `LS_VARIANT_REMINDERS_*` en Supabase → Edge Functions → Secrets.
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
+- [ ] **Reagendar citas lunes 2026-05-25**: ruta Talca (12:00)→Linares (15:30)→Talca (16:30) es inválida. Claudia debe mover una de las dos citas de Talca. El fix del webhook ya previene nuevas rutas inválidas, pero estas citas ya existen en DB.
 - [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
 - [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()` para leer `logisticsConfig.routing_mode` en vez de comparar por ID.
-- [ ] **LS_VARIANT_REMINDERS** — crear producto "Recordatorio" en LemonSqueezy dashboard ($0.15 USD/unidad, cantidad editable, mín 20). Una vez obtenido el Variant ID, configurarlo como secret `LS_VARIANT_REMINDERS` en Supabase Dashboard → Edge Functions → Secrets. Sin este secret, el botón de compra en Packs tab devuelve error.
 
 ### Media prioridad
 - [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase (servicios, profesionales, slots, citas del día). Candidato a `Promise.all` donde no haya dependencia.
