@@ -32,7 +32,7 @@ const VARIANT_IDS: Record<string, string> = {
     'pack_1500_4o': Deno.env.get("LS_VARIANT_PACK_1500_4O") || "1459869",
     'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "1459872",
     // Reminder Units — per-unit purchase ($1.50 USD / 10 units, min 20 units)
-    'reminders': Deno.env.get("LS_VARIANT_REMINDERS") || "PLACEHOLDER_REMINDERS",
+    'reminders': Deno.env.get("LS_VARIANT_REMINDERS") || "1701169",
     // Reminder Packs — fixed-quantity bundles
     'reminders_50':        Deno.env.get("LS_VARIANT_REMINDERS_50")        || "1701015",
     'reminders_350':       Deno.env.get("LS_VARIANT_REMINDERS_350")       || "1701021",
