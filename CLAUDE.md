@@ -1101,6 +1101,31 @@ RETURNS TABLE (tag_id UUID, tag_name TEXT, tag_color TEXT, contact_count BIGINT)
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 18, 2026-05-25)
+
+### `lemonsqueezy-webhook` — `verify_jwt: false` (REGLA PERMANENTE)
+
+**Problema:** todos los pagos de LemonSqueezy llegaban con 401 porque Supabase bloqueaba las requests antes de que llegaran al código. LS no envía JWT de Supabase.
+
+**Fix:** redesplegar `lemonsqueezy-webhook` con `verify_jwt: false` (v17). La autenticación real la hace la verificación HMAC de la firma `x-signature`.
+
+**⚠️ Regla permanente:** cualquier redesploy de `lemonsqueezy-webhook` debe incluir `verify_jwt: false`. Si se usa el default (`true`), ningún pago se procesa y los 401 no aparecen en los logs de la función (Supabase los bloquea antes).
+
+### YCloud Santiago — saldo insuficiente (2026-05-25)
+
+Recordatorios de citas fallando con `BALANCE_INSUFFICIENT`. La cuenta de YCloud de Santiago tiene $0.0555 USD. Claudia debe recargar.
+
+**Costo referencial YCloud Chile:** ~$0.053–$0.089 USD por mensaje (conversación WhatsApp). Cada cita genera hasta 2 mensajes (24h + 2h). Presupuesto recomendado: $20–25 USD/mes para el volumen actual de Santiago.
+
+### UI Recordatorios — tab y card de saldo
+
+- Tab renombrado: "Packs" → "Recordatorios Extra"
+- Card renombrada: "Recordatorios adicionales" → "Compras y Saldos"
+- 3 métricas: Consumidos · Comprados · Saldo actual
+- `fetchReminderUsage()` extraída como función independiente — se llama al detectar `?payment=success` para refrescar el saldo inmediatamente al volver del checkout
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
