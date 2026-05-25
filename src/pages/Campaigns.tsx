@@ -9,12 +9,18 @@ import {
     X,
     Loader2,
     BarChart3,
-    Trash2
+    Trash2,
+    Coins,
+    ShoppingCart,
+    AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { retentionService } from '@/services/retentionService'
 import { GuideBox } from '@/components/ui/GuideBox'
+import { redirectToLemonCampaignCreditsCheckout } from '@/lib/lemonsqueezy'
+
+const CREDIT_PRICE_USD = 0.15
 
 interface Campaign {
     id: string
@@ -63,12 +69,28 @@ export default function Campaigns() {
     const [estimatedAudience, setEstimatedAudience] = useState<number | null>(null)
     const [creating, setCreating] = useState(false)
 
+    // Campaign credits
+    const [campaignCredits, setCampaignCredits] = useState<number>(0)
+    const [buyCreditsQty, setBuyCreditsQty] = useState(100)
+    const [showBuyCredits, setShowBuyCredits] = useState(false)
+    const [buyingCredits, setBuyingCredits] = useState(false)
+
     useEffect(() => {
         if (!profile?.clinic_id) return
         fetchCampaigns()
         fetchTags()
         fetchTemplates()
+        fetchCampaignCredits()
     }, [profile?.clinic_id])
+
+    // Detect ?payment=success on return from LS checkout
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('payment') === 'success') {
+            window.history.replaceState({}, '', '/app/campaigns')
+            fetchCampaignCredits()
+        }
+    }, [])
 
     const fetchTemplates = async () => {
         try {
@@ -79,6 +101,27 @@ export default function Campaigns() {
             }
         } catch (error) {
             console.error('Error fetching templates:', error)
+        }
+    }
+
+    const fetchCampaignCredits = async () => {
+        if (!profile?.clinic_id) return
+        const { data } = await (supabase as any)
+            .from('subscriptions')
+            .select('campaign_credits_balance')
+            .eq('clinic_id', profile.clinic_id)
+            .single()
+        setCampaignCredits(data?.campaign_credits_balance ?? 0)
+    }
+
+    const handleBuyCredits = async () => {
+        if (!profile?.clinic_id || !profile?.email) return
+        setBuyingCredits(true)
+        try {
+            await redirectToLemonCampaignCreditsCheckout(profile.clinic_id, profile.email, buyCreditsQty)
+        } catch (err: any) {
+            alert(err.message || 'Error al iniciar el pago')
+            setBuyingCredits(false)
         }
     }
 
@@ -215,7 +258,13 @@ export default function Campaigns() {
     }
 
     const handleLaunchCampaign = async (campaignId: string) => {
-        if (!confirm('¿Estás seguro de enviar esta campaña a todos los pacientes del segmento?')) return
+        const campaign = campaigns.find(c => c.id === campaignId)
+        const needed = campaign?.total_target ?? 0
+        if (needed > campaignCredits) {
+            alert(`Créditos insuficientes. Necesitas ${needed} créditos y tienes ${campaignCredits}. Compra más créditos antes de lanzar.`)
+            return
+        }
+        if (!confirm(`¿Enviar esta campaña a ${needed} contacto${needed !== 1 ? 's' : ''}? Se usarán ${needed} crédito${needed !== 1 ? 's' : ''} de tu saldo.`)) return
 
         try {
             // Update status to 'sending' (or 'scheduled' if we had a date)
@@ -322,6 +371,79 @@ export default function Campaigns() {
                 </div>
             </div>
 
+            {/* Campaign Credits Card */}
+            <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-white flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center">
+                            <Coins className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest text-violet-200">Créditos de Campaña</p>
+                            <p className="text-2xl font-extrabold leading-tight">{campaignCredits.toLocaleString('es-CL')} <span className="text-base font-medium text-violet-200">disponibles</span></p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowBuyCredits(v => !v)}
+                        className="flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-4 py-2 rounded-xl hover:bg-violet-50 transition-colors shrink-0"
+                    >
+                        <ShoppingCart className="w-4 h-4" />
+                        Comprar créditos
+                    </button>
+                </div>
+
+                {showBuyCredits && (
+                    <div className="p-5 border-t border-silk-beige">
+                        <p className="text-xs text-charcoal/50 mb-3">
+                            <strong className="text-charcoal">US$0.15 por crédito · 1 crédito = 1 mensaje · Sin vencimiento</strong>
+                        </p>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-2 bg-ivory border border-silk-beige rounded-xl px-3 py-2">
+                                <button
+                                    onClick={() => setBuyCreditsQty(q => Math.max(50, q - 50))}
+                                    className="w-7 h-7 rounded-lg bg-silk-beige hover:bg-violet-100 text-charcoal font-bold flex items-center justify-center transition-colors"
+                                >−</button>
+                                <input
+                                    type="number"
+                                    min={50}
+                                    step={50}
+                                    value={buyCreditsQty}
+                                    onChange={e => setBuyCreditsQty(Math.max(50, parseInt(e.target.value) || 50))}
+                                    className="w-20 text-center bg-transparent font-bold text-charcoal text-lg focus:outline-none"
+                                />
+                                <button
+                                    onClick={() => setBuyCreditsQty(q => q + 50)}
+                                    className="w-7 h-7 rounded-lg bg-silk-beige hover:bg-violet-100 text-charcoal font-bold flex items-center justify-center transition-colors"
+                                >+</button>
+                            </div>
+                            <div className="flex gap-2">
+                                {[100, 300, 500].map(preset => (
+                                    <button
+                                        key={preset}
+                                        onClick={() => setBuyCreditsQty(preset)}
+                                        className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${buyCreditsQty === preset ? 'bg-violet-100 border-violet-300 text-violet-700' : 'bg-white border-silk-beige text-charcoal/60 hover:border-violet-200'}`}
+                                    >{preset}</button>
+                                ))}
+                            </div>
+                            <div className="ml-auto flex items-center gap-3">
+                                <span className="text-lg font-extrabold text-charcoal">
+                                    US${(buyCreditsQty * CREDIT_PRICE_USD).toFixed(2)}
+                                </span>
+                                <button
+                                    onClick={handleBuyCredits}
+                                    disabled={buyingCredits}
+                                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2.5 rounded-xl transition-colors disabled:opacity-50"
+                                >
+                                    {buyingCredits ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                                    Comprar {buyCreditsQty} créditos
+                                </button>
+                            </div>
+                        </div>
+                        <p className="text-xs text-charcoal/40 mt-3">Mínimo 50 créditos por compra. Los créditos no vencen.</p>
+                    </div>
+                )}
+            </div>
+
             <GuideBox title="Campañas de WhatsApp Masivas" summary="Automatiza el re-contacto usando etiquetas segmentadas.">
                 <div className="space-y-4">
                     <p>Las campañas te permiten notificar promociones, descuentos o avisos importantes a un gran grupo de pacientes a la vez en base a etiquetas.</p>
@@ -388,13 +510,22 @@ export default function Campaigns() {
 
                             <div className="flex gap-2">
                                 {campaign.status === 'draft' && (
-                                    <button
-                                        onClick={() => handleLaunchCampaign(campaign.id)}
-                                        className="w-full btn-primary py-2 text-sm flex items-center justify-center gap-2"
-                                    >
-                                        <Send className="w-4 h-4" />
-                                        Lanzar Ahora
-                                    </button>
+                                    <>
+                                        {campaign.total_target > campaignCredits && (
+                                            <div className="w-full flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-1">
+                                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                                Necesitas {campaign.total_target} créditos (tienes {campaignCredits})
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={() => handleLaunchCampaign(campaign.id)}
+                                            disabled={campaign.total_target > campaignCredits}
+                                            className="w-full btn-primary py-2 text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                            Lanzar Ahora
+                                        </button>
+                                    </>
                                 )}
                                 {campaign.status !== 'draft' && (
                                     <button className="w-full btn-ghost py-2 text-sm border border-silk-beige" disabled>

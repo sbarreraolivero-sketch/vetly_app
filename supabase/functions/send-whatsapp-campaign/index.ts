@@ -111,7 +111,28 @@ Deno.serve(async (req) => {
             }))
         console.log(`Found ${recipients.length} unique recipients for campaign.`)
 
-        // 4. Fetch Template from YCloud
+        // 4. Verify campaign credits balance
+        const { data: subData, error: subError } = await supabaseClient
+            .from('subscriptions')
+            .select('campaign_credits_balance')
+            .eq('clinic_id', campaign.clinic_id)
+            .single()
+
+        if (subError) throw new Error(`Error fetching subscription: ${subError.message}`)
+
+        const currentCredits: number = subData?.campaign_credits_balance ?? 0
+        if (currentCredits < recipients.length) {
+            await supabaseClient
+                .from('campaigns')
+                .update({ status: 'failed' })
+                .eq('id', campaign_id)
+            return new Response(
+                JSON.stringify({ error: `Créditos insuficientes. Necesitas ${recipients.length}, tienes ${currentCredits}.` }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            )
+        }
+
+        // 5. Fetch Template from YCloud
         const templatesRes = await fetch('https://api.ycloud.com/v2/whatsapp/templates?limit=100', {
             headers: { 'X-API-Key': ycloudKey }
         })
@@ -190,7 +211,7 @@ Deno.serve(async (req) => {
             }
         }
 
-        // 6. Update Campaign Status
+        // 6. Update Campaign Status + deduct credits
         const finalStatus = sentCount === recipients.length ? 'completed' : 'partial'
 
         await supabaseClient
@@ -201,6 +222,12 @@ Deno.serve(async (req) => {
                 total_target: recipients.length
             })
             .eq('id', campaign_id)
+
+        // Deduct credits used (only what was actually sent)
+        await supabaseClient
+            .from('subscriptions')
+            .update({ campaign_credits_balance: Math.max(0, currentCredits - sentCount) })
+            .eq('clinic_id', campaign.clinic_id)
 
         return new Response(
             JSON.stringify({ success: true, processed: recipients.length, sent: sentCount, details: results }),

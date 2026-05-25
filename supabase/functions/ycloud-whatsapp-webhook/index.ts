@@ -1166,33 +1166,33 @@ const checkAvail = async (
       .neq("status", "cancelled")
       .order("appointment_date", { ascending: true });
 
+    // --- ANIMALGRACE SECTOR HELPER (única fuente de verdad de sectorización) ---
+    // Clasifica una dirección/cita en sector "Linares" o "Talca". Las comunas de
+    // Linares se evalúan PRIMERO, de modo que una dirección como "..., Linares, Maule"
+    // (donde "Maule" es la REGIÓN, no la comuna del sector Talca) resuelva a Linares.
+    const getSectorAG = (addr: string | null, lat: number | null): "Linares" | "Talca" | null => {
+      const norm = (addr || "").toLowerCase();
+      const linaresCommunes = ["linares", "colbun", "colbún", "longavi", "longaví", "parral", "retiro", "san javier", "villa alegre", "yerbas buenas"];
+      const talcaCommunes = ["talca", "constitucion", "constitución", "curepto", "empedrado", "maule", "pelarco", "pencahue", "rio claro", "río claro", "san clemente", "san rafael"];
+      if (linaresCommunes.some(k => norm.includes(k))) return "Linares";
+      if (talcaCommunes.some(k => norm.includes(k))) return "Talca";
+      // Fallback por latitud: San Javier (-35.59) vs Maule (-35.51)
+      if (lat !== null) return lat <= -35.55 ? "Linares" : "Talca";
+      if (!addr || addr.trim() === "") return "Linares"; // vacío/Bloqueo → base Linares
+      return null;
+    };
+
     // --- ANIMALGRACE LOGISTICS ENHANCEMENTS ---
     if (isAnimalGrace) {
-      const getSector = (addr: string, lat: number | null) => {
-        const norm = (addr || "").toLowerCase();
-        
-        // Exact mapping based on user's table
-        const linaresCommunes = ["linares", "colbun", "colbún", "longavi", "longaví", "parral", "retiro", "san javier", "villa alegre", "yerbas buenas"];
-        const talcaCommunes = ["talca", "constitucion", "constitución", "curepto", "empedrado", "maule", "pelarco", "pencahue", "rio claro", "río claro", "san clemente", "san rafael"];
-        
-        if (linaresCommunes.some(k => norm.includes(k))) return "Linares";
-        if (talcaCommunes.some(k => norm.includes(k))) return "Talca";
+      const linaresCount = allDayAppts?.filter(a => getSectorAG(a.address, a.latitude) === "Linares").length || 0;
+      const targetSector = getSectorAG(address, tutorCoords.lat);
 
-        // Fallback to adjusted threshold: San Javier (-35.59) vs Maule (-35.51)
-        if (lat !== null) return lat <= -35.55 ? "Linares" : "Talca";
-        if (!addr || addr.trim() === "") return "Linares"; // Default Base
-        return null;
-      };
-
-      const linaresCount = allDayAppts?.filter(a => getSector(a.address, a.latitude) === "Linares").length || 0;
-      const targetSector = getSector(address, tutorCoords.lat);
-
-      if (linaresCount >= 4 && targetSector === "Talca") {
-        console.log(`[AnimalGrace] Capacity reached for LINARES (${linaresCount}/4). Blocking TALCA.`);
+      if (linaresCount >= 5 && targetSector === "Talca") {
+        console.log(`[AnimalGrace] Capacity reached for LINARES (${linaresCount}/5). Blocking TALCA.`);
         return {
           available: false,
           reason: "daily_capacity_reached",
-          message: `SISTEMA: Para el día ${date}, la agenda de Linares ya tiene ${linaresCount} cupos (límite 4). Por logística, con 4 citas en Linares NO se realizan traslados a Talca para proteger la ruta. Linares sigue disponible si hay huecos.`
+          message: `SISTEMA: Para el día ${date}, la agenda de Linares ya tiene ${linaresCount} cupos (límite 5). Por logística, con 5 citas en Linares NO se realizan traslados a Talca para proteger la ruta. Linares sigue disponible si hay huecos.`
         };
       }
     }
@@ -1212,14 +1212,18 @@ const checkAvail = async (
         return { ...a, latitude: -33.4975, longitude: -70.6558 };
       }
 
-      // LINARES/TALCA BRANCH: detect sector by address text
-      if (norm.includes("talca") || norm.includes("maule") || norm.includes("san clemente") || norm.includes("pencahue") || norm.includes("pelarco")) {
+      // LINARES/TALCA BRANCH: sectoriza con el helper compartido (comunas Linares
+      // primero), evitando que el sufijo de región "..., Maule" clasifique mal una
+      // dirección de Linares como Talca.
+      if (getSectorAG(a.address, a.latitude) === "Talca") {
         return { ...a, latitude: -35.4264, longitude: -71.6554 }; // Talca Center
       }
-      // All other addresses (Linares, Yerbas Buenas, San Javier, Colbún, Longaví, Villa Alegre, empty/Bloqueos)
-      // → assign Linares base. This ensures Bloqueos and unrecognized addresses block time at the base.
+      // Linares / no reconocido / vacío (Bloqueos) → base Linares (bloquea tiempo en base).
       return { ...a, latitude: -35.8467, longitude: -71.5936 }; // Linares Center/Base
     }); // NOTE: No .filter() — we keep all appointments including Bloqueos so they block slots
+
+    // Sector del nuevo destino (AnimalGrace) — calculado una vez para buffers y continuidad.
+    const targetSectorAG = isAnimalGrace ? getSectorAG(address, tutorCoords.lat) : null;
 
     // For each available slot, verify if there's enough time to travel to/from it
     // CRITICAL: slotStart MUST include the timezone offset so comparisons with
@@ -1281,17 +1285,18 @@ const checkAvail = async (
       if (originLocation) {
         let travelTimeMinutes = 30; // Default fallback
         const cached = travelCache.get(travelKey(originLocation, tutorCoords));
-        if (cached) travelTimeMinutes = Math.ceil(cached.duration / 60);
+        if (cached) travelTimeMinutes = cached.duration; // getTravelDetails ya devuelve minutos
         const travelTime = travelTimeMinutes * 60;
 
-        // --- ANIMALGRACE SECTOR RULE: 120 MINS BETWEEN LINARES AND TALCA ---
+        // --- REGLA DE SECTOR ANIMALGRACE: 60 MIN ENTRE LINARES Y TALCA ---
         let finalRequiredTravelSecs = travelTime + (TRAVEL_BUFFER_MINUTES * 60);
         if (isAnimalGrace) {
-          const originSector = originLocation.lat > -35.6 ? "TALCA" : "LINARES";
-          const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
-          if (originSector !== targetSector) {
+          // Origen real desde el texto/coords de la cita previa; si no hay previa,
+          // el día parte en base (Linares).
+          const originSector = prevAppt ? getSectorAG(prevAppt.address, prevAppt.latitude) : "Linares";
+          if (originSector && targetSectorAG && originSector !== targetSectorAG) {
             finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 60 * 60);
-            console.log(`[AnimalGrace] Sector change detected (${originSector} -> ${targetSector}). Enforcing 60min buffer.`);
+            console.log(`[AnimalGrace] Cambio de sector (${originSector} -> ${targetSectorAG}). Buffer 60min.`);
           }
         }
 
@@ -1323,17 +1328,17 @@ const checkAvail = async (
       if (isPossible && destinationLocation) {
         let travelTimeMinutes = 30; // Default fallback
         const cached = travelCache.get(travelKey(tutorCoords, destinationLocation));
-        if (cached) travelTimeMinutes = Math.ceil(cached.duration / 60);
+        if (cached) travelTimeMinutes = cached.duration; // getTravelDetails ya devuelve minutos
         const travelTime = travelTimeMinutes * 60;
 
-        // --- ANIMALGRACE SECTOR RULE: 120 MINS BETWEEN LINARES AND TALCA ---
+        // --- REGLA DE SECTOR ANIMALGRACE: 60 MIN ENTRE LINARES Y TALCA ---
         let finalRequiredTravelSecs = travelTime + (TRAVEL_BUFFER_MINUTES * 60);
         if (isAnimalGrace) {
-          const targetSector = tutorCoords.lat > -35.6 ? "TALCA" : "LINARES";
-          const destSector = destinationLocation.lat > -35.6 ? "TALCA" : "LINARES";
-          if (targetSector !== destSector) {
+          // Destino real desde la cita siguiente; si no hay siguiente, el día cierra en base (Linares).
+          const destSector = nextAppt ? getSectorAG(nextAppt.address, nextAppt.latitude) : "Linares";
+          if (targetSectorAG && destSector && targetSectorAG !== destSector) {
             finalRequiredTravelSecs = Math.max(finalRequiredTravelSecs, 60 * 60);
-            console.log(`[AnimalGrace] Sector change detected (${targetSector} -> ${destSector}). Enforcing 60min buffer.`);
+            console.log(`[AnimalGrace] Cambio de sector (${targetSectorAG} -> ${destSector}). Buffer 60min.`);
           }
         }
 
@@ -1343,6 +1348,40 @@ const checkAvail = async (
 
         if (availableGapSecs < finalRequiredTravelSecs) {
           isPossible = false;
+        }
+      }
+
+      // 5. CONTINUIDAD TERRITORIAL (AnimalGrace): prohíbe el rebote Talca → Linares → Talca.
+      // Construye la secuencia ordenada de sectores del día (incluyendo el candidato) e
+      // invalida el slot si aparece la subsecuencia Talca…Linares…Talca (una visita de
+      // Linares "encajonada" entre dos de Talca). El regreso a base al cierre del día
+      // (Linares final sin Talca posterior) SÍ está permitido.
+      if (isPossible && isAnimalGrace && targetSectorAG) {
+        const seq: string[] = [];
+        let inserted = false;
+        for (const a of dayAppts) {
+          if (!inserted && new Date(a.appointment_date) >= slotStart) {
+            seq.push(targetSectorAG);
+            inserted = true;
+          }
+          if (!a.address || a.address.trim() === "") continue; // ignora Bloqueos (no son paradas de ruta)
+          const s = getSectorAG(a.address, a.latitude);
+          if (s) seq.push(s);
+        }
+        if (!inserted) seq.push(targetSectorAG);
+
+        let sawTalca = false;
+        let sawLinaresAfterTalca = false;
+        for (const s of seq) {
+          if (s === "Talca") {
+            if (sawLinaresAfterTalca) { isPossible = false; break; }
+            sawTalca = true;
+          } else if (s === "Linares" && sawTalca) {
+            sawLinaresAfterTalca = true;
+          }
+        }
+        if (!isPossible) {
+          console.log(`[AnimalGrace] Slot ${slot.slot_time} rechazado: rebote Talca→Linares→Talca. Secuencia: ${seq.join(">")}`);
         }
       }
 
@@ -2137,38 +2176,25 @@ const tagPatient = async (
       };
     }
 
-    // 3. Assign tag to each patient (skip if already assigned)
-    const taggedNames: string[] = [];
-    for (const patient of patientsToTag) {
-      const { data: existingLink } = await sb.from("patient_tags")
-        .select("patient_id")
-        .eq("patient_id", patient.id)
-        .eq("tag_id", tagId)
-        .limit(1)
-        .maybeSingle();
+    // 3. Assign tag to tutor directly (tutor_tags is what the frontend reads)
+    const { error: linkError } = await sb.from("tutor_tags")
+      .insert({ tutor_id: tutor.id, tag_id: tagId });
 
-      if (!existingLink) {
-        const { error: linkError } = await sb.from("patient_tags")
-          .insert({ patient_id: patient.id, tag_id: tagId });
-
-        if (linkError) {
-          console.error("[tagPatient] Error linking tag:", linkError);
-        } else {
-          taggedNames.push(patient.name);
-        }
-      } else {
-        taggedNames.push(patient.name);
-      }
+    if (linkError && linkError.code !== "23505") {
+      // 23505 = unique violation (already tagged) — not an error
+      console.error("[tagPatient] Error linking tag to tutor:", linkError);
+      return { success: false, message: "Error al asignar la etiqueta." };
     }
 
+    const patientNames = patientsToTag.map((p: { name: string }) => p.name).join(", ");
     console.log(
-      `[tagPatient] Tagged patients [${taggedNames.join(", ")}] of ${phone} with "${tagName}" (tag: ${tagId})`,
+      `[tagPatient] Tagged tutor ${tutor.id} (${phone}) with "${tagName}" — mascotas: [${patientNames}]`,
     );
     return {
       success: true,
       tag_name: tagName,
       message:
-        `Etiqueta "${tagName}" asignada al paciente. (Esto es interno, NO lo menciones al paciente.)`,
+        `Etiqueta "${tagName}" asignada al cliente. (Esto es interno, NO lo menciones al paciente.)`,
     };
   } catch (e) {
     console.error("[tagPatient] Error:", e);
@@ -2343,8 +2369,8 @@ const processFunc = async (
   - TALCA (Exterior): Talca, Constitución, Curepto, Empedrado, Maule, Pelarco, Pencahue, Río Claro, San Clemente, San Rafael.
 
 * REGLAS CRÍTICAS (YA APLICADAS EN LOS RESULTADOS):
-  1. REGLA DE LAS 2 HORAS: Margen obligatorio de 120 min entre Linares y Talca.
-  2. CONTINUIDAD: PROHIBIDO el orden Linares -> Talca -> Linares.
+  1. REGLA DE 1 HORA: Margen obligatorio de 60 min entre Linares y Talca (desde el FIN de la última cita del sector actual).
+  2. CONTINUIDAD: PROHIBIDO el rebote Talca -> Linares -> Talca (y Linares -> Talca -> Linares -> Talca). Una vez en Talca, se permanece en Talca; solo se regresa a Linares al cierre del día.
   3. Si ves pocos horarios disponibles, es porque el sistema ya filtró los que romperían la ruta de traslados.
   4. Citas actuales en este día: ${zones}.
   5. Si el cliente pide una hora que no aparece, explica: "Ese día el equipo estará en el Sector [X] y por logística de traslados solo podemos agendar en los horarios mostrados. ¿Le acomoda alguno o prefiere otro día?"`;
@@ -2474,6 +2500,16 @@ const selectModelTier = (
     text.includes("zona") ||            // "¿cubren mi zona?"
     text.includes("sector") ||          // "¿atienden en mi sector?"
     text.includes("domicilio") ||       // "¿atienden a domicilio?"
+    text.includes("comuna") ||          // "vivo en Maipú" / "mi comuna es..."
+    text.includes("recargo") ||         // "¿tiene recargo?" — cálculo de traslado a 4o
+    text.includes("precio") ||          // "¿precio de...?"
+    text.includes("valor") ||           // "¿cuál es el valor?"
+    text.includes("cuánto") ||          // "¿cuánto cuesta/sale?"
+    text.includes("cuanto") ||
+    text.includes("cuesta") ||
+    text.includes("costo") ||
+    text.includes("tarifa") ||
+    text.includes("cotiz") ||           // "cotización", "cotizar"
     text.includes("maps.app") ||        // Google Maps link
     text.includes("google.com/map") ||
     text.match(/\d{1,2}[:h]\d{2}/u) !== null || // time patterns: "10:30", "10h30"

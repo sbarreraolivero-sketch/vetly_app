@@ -37,15 +37,17 @@ const VARIANT_IDS: Record<string, string> = {
     'reminders_50':        Deno.env.get("LS_VARIANT_REMINDERS_50")        || "1701015",
     'reminders_350':       Deno.env.get("LS_VARIANT_REMINDERS_350")       || "1701021",
     'reminders_unlimited': Deno.env.get("LS_VARIANT_REMINDERS_UNLIMITED") || "1701025",
+    // Campaign Credits — US$0.15/crédito, mín 50, sin vencimiento
+    'campaign_credits': Deno.env.get("LS_VARIANT_CAMPAIGN_CREDITS") || "1701169",
 };
 
 interface RequestBody {
     clinic_id: string;
     email: string;
-    type: 'subscription' | 'ai_credits' | 'reminders';
-    plan_or_pack_id: string;  // e.g. 'essence', 'pack_500', 'reminders'
+    type: 'subscription' | 'ai_credits' | 'reminders' | 'campaign_credits';
+    plan_or_pack_id: string;  // e.g. 'essence', 'pack_500', 'reminders', 'campaign_credits'
     model?: 'mini' | '4o';    // for ai_credits only
-    quantity?: number;         // for reminders: units to purchase (min 20)
+    quantity?: number;         // for reminders/campaign_credits: units to purchase
     success_url?: string;
 }
 
@@ -132,6 +134,14 @@ Deno.serve(async (req: Request) => {
                 customData.quantity = String(roundedUnits);
                 lsQuantity = roundedUnits / 10;
             }
+        } else if (type === 'campaign_credits') {
+            // US$0.15/crédito · mín 50 · LS variant = $1.50 por 10 créditos (mín $0.50 de LS)
+            // customData.quantity = créditos reales a acreditar en DB
+            // lsQuantity         = decenas que LS cobra
+            const credits = Math.max(50, quantity || 50);
+            const roundedCredits = Math.ceil(credits / 10) * 10;
+            customData.quantity = String(roundedCredits);
+            lsQuantity = roundedCredits / 10;
         } else {
             customData.plan = plan_or_pack_id;
         }

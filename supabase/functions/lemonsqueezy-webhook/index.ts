@@ -194,6 +194,46 @@ Deno.serve(async (req: Request) => {
             return new Response("Reminders OK", { status: 200 });
         }
 
+        // ─── Campaign Credits Purchase ───
+        if (purchaseType === 'campaign_credits') {
+            if (eventName !== 'order_created') {
+                console.log(`Ignoring ${eventName} for campaign_credits`);
+                return new Response("OK", { status: 200 });
+            }
+
+            const creditsToAdd = parseInt(customData.quantity || '0');
+            if (creditsToAdd <= 0) {
+                console.error("Invalid campaign credits amount:", creditsToAdd);
+                return new Response("Invalid quantity", { status: 400 });
+            }
+
+            const { data: sub, error: fetchError } = await supabase
+                .from('subscriptions')
+                .select('campaign_credits_balance')
+                .eq('clinic_id', clinicId)
+                .single();
+
+            if (fetchError) {
+                console.error("Error fetching subscription for campaign_credits:", fetchError);
+                return new Response("DB fetch error", { status: 500 });
+            }
+
+            const newBalance = (sub?.campaign_credits_balance || 0) + creditsToAdd;
+
+            const { error: updateError } = await supabase
+                .from('subscriptions')
+                .update({ campaign_credits_balance: newBalance })
+                .eq('clinic_id', clinicId);
+
+            if (updateError) {
+                console.error("Error updating campaign_credits_balance:", updateError);
+                return new Response("DB update error", { status: 500 });
+            }
+
+            console.log(`[LS] Campaign credits for ${clinicId}: +${creditsToAdd} → Balance: ${newBalance}`);
+            return new Response("Campaign Credits OK", { status: 200 });
+        }
+
         // ─── Subscription Events ───
         const plan = customData.plan || 'essence';
 

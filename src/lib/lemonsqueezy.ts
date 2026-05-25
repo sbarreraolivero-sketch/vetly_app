@@ -221,6 +221,40 @@ export async function redirectToLemonRemindersCheckout(
 export type ReminderPackId = 'reminders_50' | 'reminders_350' | 'reminders_unlimited'
 
 /**
+ * Creates a LemonSqueezy checkout for campaign credits.
+ * Price: US$0.15/crédito · mínimo 50 · sin vencimiento.
+ * LS variant = $1.50 por 10 créditos (límite mínimo de LS $0.50).
+ */
+export async function redirectToLemonCampaignCreditsCheckout(
+    clinicId: string,
+    email: string,
+    quantity: number
+) {
+    const { data, error } = await supabase.functions.invoke('lemonsqueezy-create-checkout', {
+        body: {
+            clinic_id: clinicId,
+            email: email,
+            type: 'campaign_credits',
+            plan_or_pack_id: 'campaign_credits',
+            quantity: Math.max(50, quantity),
+            success_url: `${window.location.origin}/app/campaigns?payment=success`,
+        },
+    })
+
+    if (error) {
+        console.error('Error creating campaign credits checkout:', error)
+        throw new Error(error.message || 'Error al conectar con LemonSqueezy')
+    }
+
+    if (!data?.url) {
+        console.error('No checkout URL returned:', data)
+        throw new Error('No se recibió una URL de pago válida')
+    }
+
+    window.location.href = data.url
+}
+
+/**
  * Creates a LemonSqueezy checkout for a fixed reminder pack.
  * Pack 50: $5.000 CLP/$9 USD · Pack 350: $15.000 CLP/$19 USD · Ilimitado: $25.000 CLP/$29 USD
  */
