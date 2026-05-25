@@ -29,7 +29,7 @@ export default function Reminders() {
     const [dateRange, setDateRange] = useState<DateRange>('week')
     const [isLoading, setIsLoading] = useState(true)
     const [savingSettings, setSavingSettings] = useState(false)
-    const [reminderQty, setReminderQty] = useState(20)
+    const [reminderQty, setReminderQty] = useState(10)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
     const [packCheckoutLoading, setPackCheckoutLoading] = useState<string | null>(null)
 
@@ -513,7 +513,7 @@ export default function Reminders() {
                         <div className="flex items-start justify-between">
                             <div>
                                 <p className="text-sm font-bold text-charcoal">Precio por unidad</p>
-                                <p className="text-xs text-charcoal/40 mt-0.5">Sin descuento · Mínimo 20 unidades</p>
+                                <p className="text-xs text-charcoal/40 mt-0.5">Sin descuento · Mínimo 10 unidades</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-xl font-black text-charcoal">
@@ -525,18 +525,18 @@ export default function Reminders() {
 
                         <div className="flex items-center gap-3">
                             <button
-                                onClick={() => setReminderQty(q => Math.max(20, q - 10))}
-                                disabled={reminderQty <= 20}
+                                onClick={() => setReminderQty(q => Math.max(10, q - 10))}
+                                disabled={reminderQty <= 10}
                                 className="w-10 h-10 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige disabled:opacity-30 transition-colors"
                             >
                                 −
                             </button>
                             <input
                                 type="number"
-                                min={20}
-                                step={1}
+                                min={10}
+                                step={10}
                                 value={reminderQty}
-                                onChange={(e) => setReminderQty(Math.max(20, parseInt(e.target.value) || 20))}
+                                onChange={(e) => setReminderQty(Math.max(10, parseInt(e.target.value) || 10))}
                                 className="w-20 h-10 text-center text-lg font-black text-charcoal border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
                             />
                             <button

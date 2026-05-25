@@ -192,7 +192,7 @@ export async function redirectToLemonRemindersCheckout(
             email: email,
             type: 'reminders',
             plan_or_pack_id: 'reminders',
-            quantity: Math.max(20, quantity),
+            quantity: Math.max(10, quantity),
             success_url: `${window.location.origin}/app/reminders?payment=success`,
         },
     })
