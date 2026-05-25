@@ -137,31 +137,34 @@ Deno.serve(async (req: Request) => {
         }
 
         // Build LemonSqueezy checkout payload (JSON:API format)
+        // Note: quantity goes at the attributes level, NOT inside checkout_data
         const checkoutData: Record<string, unknown> = {
             email: email,
             custom: customData,
         };
+
+        const checkoutAttributes: Record<string, unknown> = {
+            checkout_data: checkoutData,
+            checkout_options: {
+                embed: false,
+                media: true,
+                logo: true,
+                desc: true,
+                discount: true,
+                locale: "es",
+            },
+            product_options: {
+                redirect_url: success_url || `${SUPABASE_URL.replace('.supabase.co', '')}/app/settings?payment=success`,
+            },
+        };
         if (lsQuantity !== undefined) {
-            checkoutData.quantity = lsQuantity;
+            checkoutAttributes.quantity = lsQuantity;
         }
 
         const checkoutPayload = {
             data: {
                 type: "checkouts",
-                attributes: {
-                    checkout_data: checkoutData,
-                    checkout_options: {
-                        embed: false,
-                        media: true,
-                        logo: true,
-                        desc: true,
-                        discount: true,
-                        locale: "es",
-                    },
-                    product_options: {
-                        redirect_url: success_url || `${SUPABASE_URL.replace('.supabase.co', '')}/app/settings?payment=success`,
-                    },
-                },
+                attributes: checkoutAttributes,
                 relationships: {
                     store: {
                         data: {

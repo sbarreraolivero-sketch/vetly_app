@@ -221,13 +221,12 @@ export default function Reminders() {
     const sent = appointmentLogs.filter((l: any) => l.status === 'sent').length
     const failed = appointmentLogs.filter((l: any) => l.status === 'failed').length
 
-    const UNIT_PRICE_CLP = 150
     const UNIT_PRICE_USD = 0.15
 
     const REMINDER_PACKS = [
-        { id: 'reminders_50' as ReminderPackId,        name: 'Pack Básico',    qty: 50,   unlimited: false, totalCLP: 5000,  totalUSD: 9.00,  unitCLP: 100, badge: null },
-        { id: 'reminders_350' as ReminderPackId,       name: 'Pack Pro',       qty: 350,  unlimited: false, totalCLP: 15000, totalUSD: 19.00, unitCLP: 43,  badge: 'Más popular' },
-        { id: 'reminders_unlimited' as ReminderPackId, name: 'Pack Ilimitado', qty: 9999, unlimited: true,  totalCLP: 25000, totalUSD: 29.00, unitCLP: null, badge: 'Mejor valor' },
+        { id: 'reminders_50' as ReminderPackId,        name: 'Pack Básico',    qty: 50,   unlimited: false, totalUSD: 9.00,  unitUSD: 9.00  / 50,   badge: null },
+        { id: 'reminders_350' as ReminderPackId,       name: 'Pack Pro',       qty: 350,  unlimited: false, totalUSD: 19.00, unitUSD: 19.00 / 350,  badge: 'Más popular' },
+        { id: 'reminders_unlimited' as ReminderPackId, name: 'Pack Ilimitado', qty: 9999, unlimited: true,  totalUSD: 29.00, unitUSD: null,         badge: 'Mejor valor' },
     ]
 
     const handleBuyPack = async (packId: ReminderPackId) => {
@@ -394,7 +393,9 @@ export default function Reminders() {
                             {REMINDER_PACKS.map(pack => {
                                 const isPopular = pack.badge === 'Más popular'
                                 const isLoading = packCheckoutLoading === pack.id
-                                const savingPct = pack.unitCLP ? Math.round((1 - pack.unitCLP / UNIT_PRICE_CLP) * 100) : null
+                                const savingPct = pack.unitUSD && pack.unitUSD < UNIT_PRICE_USD
+                                    ? Math.round((1 - pack.unitUSD / UNIT_PRICE_USD) * 100)
+                                    : null
                                 return (
                                     <div
                                         key={pack.id}
@@ -447,17 +448,15 @@ export default function Reminders() {
                                         <div className="p-4 flex flex-col gap-3 flex-1">
                                             <div>
                                                 <p className="text-xl font-black text-charcoal">
-                                                    ${pack.totalCLP.toLocaleString('es-CL')}
-                                                    <span className="text-xs font-bold text-charcoal/40 ml-1">CLP</span>
+                                                    US${pack.totalUSD % 1 === 0 ? pack.totalUSD : pack.totalUSD.toFixed(2)}
                                                 </p>
-                                                <p className="text-xs text-charcoal/40">US${pack.totalUSD.toFixed(2)}</p>
                                             </div>
                                             {pack.unlimited ? (
                                                 <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                                                     <p className="text-xs font-bold text-amber-700">Envíos ilimitados</p>
                                                     <p className="text-[10px] font-semibold text-amber-600">Sin corte por cupo este mes</p>
                                                 </div>
-                                            ) : (
+                                            ) : savingPct ? (
                                                 <div className={cn(
                                                     "rounded-xl px-3 py-2 border",
                                                     isPopular ? "bg-primary-50 border-primary-100" : "bg-emerald-50 border-emerald-100"
@@ -466,8 +465,8 @@ export default function Reminders() {
                                                         "text-xs font-bold",
                                                         isPopular ? "text-primary-700" : "text-emerald-700"
                                                     )}>
-                                                        ${pack.unitCLP}/u &nbsp;
-                                                        <span className="line-through font-normal text-charcoal/30">${UNIT_PRICE_CLP}</span>
+                                                        US${pack.unitUSD!.toFixed(3)}/u &nbsp;
+                                                        <span className="line-through font-normal text-charcoal/30">US${UNIT_PRICE_USD}</span>
                                                     </p>
                                                     <p className={cn(
                                                         "text-[10px] font-semibold",
@@ -475,6 +474,11 @@ export default function Reminders() {
                                                     )}>
                                                         {savingPct}% más barato por unidad
                                                     </p>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-ivory border border-silk-beige rounded-xl px-3 py-2">
+                                                    <p className="text-xs font-bold text-charcoal/60">50 recordatorios fijos</p>
+                                                    <p className="text-[10px] font-semibold text-charcoal/40">Sin vencimiento mensual</p>
                                                 </div>
                                             )}
                                             <button
@@ -517,9 +521,8 @@ export default function Reminders() {
                             </div>
                             <div className="text-right">
                                 <p className="text-xl font-black text-charcoal">
-                                    ${UNIT_PRICE_CLP} <span className="text-xs text-charcoal/40">CLP</span>
+                                    US${UNIT_PRICE_USD.toFixed(2)}<span className="text-xs text-charcoal/40 ml-1">/u</span>
                                 </p>
-                                <p className="text-xs text-charcoal/40">US${UNIT_PRICE_USD.toFixed(2)}/u</p>
                             </div>
                         </div>
 
@@ -547,9 +550,8 @@ export default function Reminders() {
                             </button>
                             <div className="ml-auto text-right">
                                 <p className="text-lg font-black text-charcoal">
-                                    ${(reminderQty * UNIT_PRICE_CLP).toLocaleString('es-CL')} <span className="text-xs text-charcoal/40">CLP</span>
+                                    US${(reminderQty * UNIT_PRICE_USD).toFixed(2)}
                                 </p>
-                                <p className="text-xs text-charcoal/40">US${(reminderQty * UNIT_PRICE_USD).toFixed(2)}</p>
                             </div>
                         </div>
 
