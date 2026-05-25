@@ -208,9 +208,10 @@ Deno.serve(async (req: Request) => {
         if (!lsResponse.ok) {
             const errorText = await lsResponse.text();
             console.error(`LemonSqueezy API error (${lsResponse.status}):`, errorText);
+            // Return 200 so the frontend can read the error body via data.details
             return new Response(
-                JSON.stringify({ error: "Failed to create checkout", details: errorText }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                JSON.stringify({ success: false, error: `Error de LemonSqueezy (${lsResponse.status})`, details: errorText }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
 

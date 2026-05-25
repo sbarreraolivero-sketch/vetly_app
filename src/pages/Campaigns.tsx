@@ -348,23 +348,30 @@ export default function Campaigns() {
         <div className="space-y-6">
             {/* Banner */}
             <div className="bg-gradient-to-br from-violet-500 to-violet-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8">
+                    <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest text-violet-200 mb-2">Marketing</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Campañas de Marketing</h1>
-                            <p className="text-sm text-violet-100/80 font-light mt-1">Mensajes masivos por WhatsApp segmentados por etiquetas.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
+                            <p className="text-xs font-black uppercase tracking-widest text-violet-200 mb-1">Marketing</p>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">Campañas de Marketing</h1>
+                            <p className="text-sm text-violet-100/80 font-light mt-1.5">Mensajes masivos por WhatsApp segmentados por etiquetas.</p>
                             <button
                                 onClick={() => setShowNewCampaignModal(true)}
-                                className="flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-violet-50 transition-colors shadow-sm"
+                                className="mt-4 sm:hidden flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-4 py-2 rounded-xl hover:bg-violet-50 transition-colors shadow-sm"
                             >
                                 <Plus className="w-4 h-4" />
                                 Nueva Campaña
                             </button>
-                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
-                                <Megaphone className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button
+                                onClick={() => setShowNewCampaignModal(true)}
+                                className="hidden sm:flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-violet-50 transition-colors shadow-sm"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Nueva Campaña
+                            </button>
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/15 rounded-xl sm:rounded-2xl flex items-center justify-center">
+                                <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                             </div>
                         </div>
                     </div>
@@ -373,22 +380,23 @@ export default function Campaigns() {
 
             {/* Campaign Credits Card */}
             <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                <div className="bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-white flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center">
+                <div className="bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-white flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center shrink-0">
                             <Coins className="w-5 h-5 text-white" />
                         </div>
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-widest text-violet-200">Créditos de Campaña</p>
-                            <p className="text-2xl font-extrabold leading-tight">{campaignCredits.toLocaleString('es-CL')} <span className="text-base font-medium text-violet-200">disponibles</span></p>
+                        <div className="min-w-0">
+                            <p className="text-xs font-black uppercase tracking-widest text-violet-200 truncate">Créditos de Campaña</p>
+                            <p className="text-xl sm:text-2xl font-extrabold leading-tight">{campaignCredits.toLocaleString('es-CL')} <span className="text-sm sm:text-base font-medium text-violet-200">disp.</span></p>
                         </div>
                     </div>
                     <button
                         onClick={() => setShowBuyCredits(v => !v)}
-                        className="flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-4 py-2 rounded-xl hover:bg-violet-50 transition-colors shrink-0"
+                        className="flex items-center gap-1.5 bg-white text-violet-700 font-bold text-sm px-3 py-2 rounded-xl hover:bg-violet-50 transition-colors shrink-0"
                     >
                         <ShoppingCart className="w-4 h-4" />
-                        Comprar créditos
+                        <span className="hidden sm:inline">Comprar créditos</span>
+                        <span className="sm:hidden">Comprar</span>
                     </button>
                 </div>
 
@@ -397,42 +405,44 @@ export default function Campaigns() {
                         <p className="text-xs text-charcoal/50 mb-3">
                             <strong className="text-charcoal">US$0.15 por crédito · 1 crédito = 1 mensaje · Sin vencimiento</strong>
                         </p>
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <div className="flex items-center gap-2 bg-ivory border border-silk-beige rounded-xl px-3 py-2">
-                                <button
-                                    onClick={() => setBuyCreditsQty(q => Math.max(50, q - 50))}
-                                    className="w-7 h-7 rounded-lg bg-silk-beige hover:bg-violet-100 text-charcoal font-bold flex items-center justify-center transition-colors"
-                                >−</button>
-                                <input
-                                    type="number"
-                                    min={50}
-                                    step={50}
-                                    value={buyCreditsQty}
-                                    onChange={e => setBuyCreditsQty(Math.max(50, parseInt(e.target.value) || 50))}
-                                    className="w-20 text-center bg-transparent font-bold text-charcoal text-lg focus:outline-none"
-                                />
-                                <button
-                                    onClick={() => setBuyCreditsQty(q => q + 50)}
-                                    className="w-7 h-7 rounded-lg bg-silk-beige hover:bg-violet-100 text-charcoal font-bold flex items-center justify-center transition-colors"
-                                >+</button>
-                            </div>
-                            <div className="flex gap-2">
-                                {[100, 300, 500].map(preset => (
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 bg-ivory border border-silk-beige rounded-xl px-3 py-2">
                                     <button
-                                        key={preset}
-                                        onClick={() => setBuyCreditsQty(preset)}
-                                        className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${buyCreditsQty === preset ? 'bg-violet-100 border-violet-300 text-violet-700' : 'bg-white border-silk-beige text-charcoal/60 hover:border-violet-200'}`}
-                                    >{preset}</button>
-                                ))}
+                                        onClick={() => setBuyCreditsQty(q => Math.max(50, q - 50))}
+                                        className="w-7 h-7 rounded-lg bg-silk-beige hover:bg-violet-100 text-charcoal font-bold flex items-center justify-center transition-colors"
+                                    >−</button>
+                                    <input
+                                        type="number"
+                                        min={50}
+                                        step={50}
+                                        value={buyCreditsQty}
+                                        onChange={e => setBuyCreditsQty(Math.max(50, parseInt(e.target.value) || 50))}
+                                        className="w-16 text-center bg-transparent font-bold text-charcoal text-lg focus:outline-none"
+                                    />
+                                    <button
+                                        onClick={() => setBuyCreditsQty(q => q + 50)}
+                                        className="w-7 h-7 rounded-lg bg-silk-beige hover:bg-violet-100 text-charcoal font-bold flex items-center justify-center transition-colors"
+                                    >+</button>
+                                </div>
+                                <div className="flex gap-2">
+                                    {[100, 300, 500].map(preset => (
+                                        <button
+                                            key={preset}
+                                            onClick={() => setBuyCreditsQty(preset)}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${buyCreditsQty === preset ? 'bg-violet-100 border-violet-300 text-violet-700' : 'bg-white border-silk-beige text-charcoal/60 hover:border-violet-200'}`}
+                                        >{preset}</button>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="ml-auto flex items-center gap-3">
+                            <div className="flex items-center justify-between gap-3">
                                 <span className="text-lg font-extrabold text-charcoal">
                                     US${(buyCreditsQty * CREDIT_PRICE_USD).toFixed(2)}
                                 </span>
                                 <button
                                     onClick={handleBuyCredits}
                                     disabled={buyingCredits}
-                                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2.5 rounded-xl transition-colors disabled:opacity-50"
+                                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50"
                                 >
                                     {buyingCredits ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
                                     Comprar {buyCreditsQty} créditos
