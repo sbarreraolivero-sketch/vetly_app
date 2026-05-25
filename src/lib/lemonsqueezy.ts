@@ -209,3 +209,37 @@ export async function redirectToLemonRemindersCheckout(
 
     window.location.href = data.url
 }
+
+export type ReminderPackId = 'reminders_50' | 'reminders_350' | 'reminders_unlimited'
+
+/**
+ * Creates a LemonSqueezy checkout for a fixed reminder pack.
+ * Pack 50: $5.000 CLP/$9 USD · Pack 350: $15.000 CLP/$19 USD · Ilimitado: $25.000 CLP/$29 USD
+ */
+export async function redirectToLemonReminderPackCheckout(
+    clinicId: string,
+    email: string,
+    packId: ReminderPackId
+) {
+    const { data, error } = await supabase.functions.invoke('lemonsqueezy-create-checkout', {
+        body: {
+            clinic_id: clinicId,
+            email: email,
+            type: 'reminders',
+            plan_or_pack_id: packId,
+            success_url: `${window.location.origin}/app/reminders?payment=success`,
+        },
+    })
+
+    if (error) {
+        console.error('Error creating reminder pack checkout:', error)
+        throw new Error(error.message || 'Error al conectar con LemonSqueezy')
+    }
+
+    if (!data?.url) {
+        console.error('No checkout URL returned:', data)
+        throw new Error('No se recibió una URL de pago válida')
+    }
+
+    window.location.href = data.url
+}

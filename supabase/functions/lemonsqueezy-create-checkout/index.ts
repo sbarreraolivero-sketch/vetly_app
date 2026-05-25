@@ -33,6 +33,10 @@ const VARIANT_IDS: Record<string, string> = {
     'pack_4000_4o': Deno.env.get("LS_VARIANT_PACK_4000_4O") || "1459872",
     // Reminder Units — per-unit purchase ($0.15 USD/unit, min 20)
     'reminders': Deno.env.get("LS_VARIANT_REMINDERS") || "PLACEHOLDER_REMINDERS",
+    // Reminder Packs — fixed-quantity bundles ($9/$19/$29 USD)
+    'reminders_50':        Deno.env.get("LS_VARIANT_REMINDERS_50")        || "PLACEHOLDER_REMINDERS_50",
+    'reminders_350':       Deno.env.get("LS_VARIANT_REMINDERS_350")       || "PLACEHOLDER_REMINDERS_350",
+    'reminders_unlimited': Deno.env.get("LS_VARIANT_REMINDERS_UNLIMITED") || "PLACEHOLDER_REMINDERS_UNLIMITED",
 };
 
 interface RequestBody {
@@ -104,11 +108,17 @@ Deno.serve(async (req: Request) => {
             type: type,
         };
 
+        // Fixed quantities for reminder packs (9999 = effectively unlimited for the month)
+        const reminderPackQtyMap: Record<string, number> = {
+            'reminders_50': 50, 'reminders_350': 350, 'reminders_unlimited': 9999,
+        };
+
         if (type === 'ai_credits') {
             customData.credits = String(creditsMap[plan_or_pack_id] || 0);
             customData.model = model || 'mini';
         } else if (type === 'reminders') {
-            customData.quantity = String(Math.max(20, quantity || 20));
+            const fixedQty = reminderPackQtyMap[plan_or_pack_id];
+            customData.quantity = String(fixedQty ?? Math.max(20, quantity || 20));
         } else {
             customData.plan = plan_or_pack_id;
         }

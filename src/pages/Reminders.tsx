@@ -15,7 +15,7 @@ import {
     BarChart, Bar, Legend
 } from 'recharts'
 import { Link, useLocation } from 'react-router-dom'
-import { redirectToLemonRemindersCheckout } from '@/lib/lemonsqueezy'
+import { redirectToLemonRemindersCheckout, redirectToLemonReminderPackCheckout, type ReminderPackId } from '@/lib/lemonsqueezy'
 
 type TabType = 'appointments' | 'medical' | 'packs'
 type DateRange = 'today' | 'week' | 'month' | 'all'
@@ -31,6 +31,7 @@ export default function Reminders() {
     const [savingSettings, setSavingSettings] = useState(false)
     const [reminderQty, setReminderQty] = useState(20)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
+    const [packCheckoutLoading, setPackCheckoutLoading] = useState<string | null>(null)
 
     const [settings, setSettings] = useState<any>(null)
     const [appointmentLogs, setAppointmentLogs] = useState<any[]>([])
@@ -223,6 +224,26 @@ export default function Reminders() {
     const UNIT_PRICE_CLP = 150
     const UNIT_PRICE_USD = 0.15
 
+    const REMINDER_PACKS = [
+        { id: 'reminders_50' as ReminderPackId,        name: 'Pack Básico',    qty: 50,   unlimited: false, totalCLP: 5000,  totalUSD: 9.00,  unitCLP: 100, badge: null },
+        { id: 'reminders_350' as ReminderPackId,       name: 'Pack Pro',       qty: 350,  unlimited: false, totalCLP: 15000, totalUSD: 19.00, unitCLP: 43,  badge: 'Más popular' },
+        { id: 'reminders_unlimited' as ReminderPackId, name: 'Pack Ilimitado', qty: 9999, unlimited: true,  totalCLP: 25000, totalUSD: 29.00, unitCLP: null, badge: 'Mejor valor' },
+    ]
+
+    const handleBuyPack = async (packId: ReminderPackId) => {
+        if (!profile?.clinic_id || !profile?.email) {
+            toast.error('No se pudo obtener tu información de cuenta.')
+            return
+        }
+        setPackCheckoutLoading(packId)
+        try {
+            await redirectToLemonReminderPackCheckout(profile.clinic_id, profile.email, packId)
+        } catch (err: any) {
+            toast.error(err.message || 'Error al iniciar el pago.')
+            setPackCheckoutLoading(null)
+        }
+    }
+
     const handleBuyReminders = async () => {
         if (!profile?.clinic_id || !profile?.email) {
             toast.error('No se pudo obtener tu información de cuenta.')
@@ -341,15 +362,15 @@ export default function Reminders() {
 
             {/* Packs Tab Content */}
             {activeTab === 'packs' && (
-                <div className="max-w-lg mx-auto space-y-5">
+                <div className="max-w-2xl mx-auto space-y-5">
                     {/* Balance actual */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
                         <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white">
                             <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
-                            <h3 className="text-lg font-extrabold tracking-tight">Recordatorios adicionales</h3>
+                            <h3 className="text-lg font-extrabold tracking-tight text-white">Recordatorios adicionales</h3>
                             <p className="text-sm text-primary-100/80 font-light mt-1">Compra unidades extra para este mes.</p>
                         </div>
-                        <div className="p-6 flex items-center justify-between">
+                        <div className="p-5 flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Balance disponible</p>
                                 <p className="text-3xl font-black text-charcoal">
@@ -364,79 +385,178 @@ export default function Reminders() {
                         </div>
                     </div>
 
-                    {/* Selector de cantidad */}
-                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-6 space-y-6">
-                        <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Precio por unidad</p>
-                            <p className="text-2xl font-black text-charcoal">
-                                ${UNIT_PRICE_CLP.toLocaleString('es-CL')} <span className="text-sm font-bold text-charcoal/40">CLP</span>
-                                <span className="text-base font-bold text-charcoal/30 mx-2">·</span>
-                                <span className="text-base font-bold text-charcoal/50">US${UNIT_PRICE_USD.toFixed(2)}</span>
-                            </p>
-                        </div>
-
-                        {/* Stepper */}
-                        <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-3">Cantidad (mín. 20)</p>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => setReminderQty(q => Math.max(20, q - 10))}
-                                    disabled={reminderQty <= 20}
-                                    className="w-11 h-11 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige disabled:opacity-30 transition-colors"
-                                >
-                                    −
-                                </button>
-                                <input
-                                    type="number"
-                                    min={20}
-                                    step={1}
-                                    value={reminderQty}
-                                    onChange={(e) => {
-                                        const v = parseInt(e.target.value) || 20
-                                        setReminderQty(Math.max(20, v))
-                                    }}
-                                    className="w-24 h-11 text-center text-xl font-black text-charcoal border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
-                                />
-                                <button
-                                    onClick={() => setReminderQty(q => q + 10)}
-                                    className="w-11 h-11 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige transition-colors"
-                                >
-                                    +
-                                </button>
-                                <div className="ml-2 flex gap-1.5">
-                                    {[50, 100, 200].map(preset => (
-                                        <button
-                                            key={preset}
-                                            onClick={() => setReminderQty(preset)}
-                                            className={cn(
-                                                "px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
-                                                reminderQty === preset
-                                                    ? "bg-primary-500 text-white"
-                                                    : "bg-ivory border border-silk-beige text-charcoal/60 hover:text-charcoal"
+                    {/* Packs con descuento */}
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-3 px-1">
+                            Packs — precio por unidad más económico
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {REMINDER_PACKS.map(pack => {
+                                const isPopular = pack.badge === 'Más popular'
+                                const isLoading = packCheckoutLoading === pack.id
+                                const savingPct = pack.unitCLP ? Math.round((1 - pack.unitCLP / UNIT_PRICE_CLP) * 100) : null
+                                return (
+                                    <div
+                                        key={pack.id}
+                                        className={cn(
+                                            "bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col relative",
+                                            isPopular ? "border-primary-400 ring-1 ring-primary-400/30" : "border-silk-beige"
+                                        )}
+                                    >
+                                        {pack.badge && (
+                                            <div className="absolute top-3 right-3 z-10">
+                                                <span className={cn(
+                                                    "text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full",
+                                                    isPopular ? "bg-primary-500 text-white" : "bg-amber-100 text-amber-700"
+                                                )}>
+                                                    {pack.badge}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className={cn(
+                                            "p-4",
+                                            isPopular ? "bg-gradient-to-br from-primary-500 to-primary-700" : "bg-ivory"
+                                        )}>
+                                            <p className={cn(
+                                                "text-[10px] font-black uppercase tracking-widest mb-1",
+                                                isPopular ? "text-primary-200" : "text-charcoal/40"
+                                            )}>
+                                                {pack.name}
+                                            </p>
+                                            <p className={cn(
+                                                "text-4xl font-black",
+                                                isPopular ? "text-white" : "text-charcoal"
+                                            )}>
+                                                {pack.unlimited ? '∞' : pack.qty}
+                                                <span className={cn(
+                                                    "text-sm font-bold ml-1",
+                                                    isPopular ? "text-primary-200" : "text-charcoal/40"
+                                                )}>
+                                                    {pack.unlimited ? '' : 'u'}
+                                                </span>
+                                            </p>
+                                            {pack.unlimited && (
+                                                <p className={cn(
+                                                    "text-xs font-semibold mt-0.5",
+                                                    isPopular ? "text-primary-100" : "text-charcoal/50"
+                                                )}>
+                                                    Sin límite este mes
+                                                </p>
                                             )}
-                                        >
-                                            {preset}
-                                        </button>
-                                    ))}
-                                </div>
+                                        </div>
+                                        <div className="p-4 flex flex-col gap-3 flex-1">
+                                            <div>
+                                                <p className="text-xl font-black text-charcoal">
+                                                    ${pack.totalCLP.toLocaleString('es-CL')}
+                                                    <span className="text-xs font-bold text-charcoal/40 ml-1">CLP</span>
+                                                </p>
+                                                <p className="text-xs text-charcoal/40">US${pack.totalUSD.toFixed(2)}</p>
+                                            </div>
+                                            {pack.unlimited ? (
+                                                <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                                                    <p className="text-xs font-bold text-amber-700">Envíos ilimitados</p>
+                                                    <p className="text-[10px] font-semibold text-amber-600">Sin corte por cupo este mes</p>
+                                                </div>
+                                            ) : (
+                                                <div className={cn(
+                                                    "rounded-xl px-3 py-2 border",
+                                                    isPopular ? "bg-primary-50 border-primary-100" : "bg-emerald-50 border-emerald-100"
+                                                )}>
+                                                    <p className={cn(
+                                                        "text-xs font-bold",
+                                                        isPopular ? "text-primary-700" : "text-emerald-700"
+                                                    )}>
+                                                        ${pack.unitCLP}/u &nbsp;
+                                                        <span className="line-through font-normal text-charcoal/30">${UNIT_PRICE_CLP}</span>
+                                                    </p>
+                                                    <p className={cn(
+                                                        "text-[10px] font-semibold",
+                                                        isPopular ? "text-primary-600" : "text-emerald-600"
+                                                    )}>
+                                                        {savingPct}% más barato por unidad
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => handleBuyPack(pack.id)}
+                                                disabled={isLoading || !!packCheckoutLoading}
+                                                className={cn(
+                                                    "mt-auto w-full py-2.5 font-black text-xs uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5",
+                                                    isPopular
+                                                        ? "bg-primary-500 hover:bg-primary-600 text-white"
+                                                        : "bg-ivory hover:bg-silk-beige text-charcoal border border-silk-beige"
+                                                )}
+                                            >
+                                                {isLoading
+                                                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Procesando...</>
+                                                    : <>Comprar pack</>
+                                                }
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Divisor */}
+                    <div className="flex items-center gap-4 py-1">
+                        <div className="flex-1 h-px bg-silk-beige" />
+                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest whitespace-nowrap">
+                            ¿Necesitas otro número exacto? Compra por unidad
+                        </p>
+                        <div className="flex-1 h-px bg-silk-beige" />
+                    </div>
+
+                    {/* Selector por unidad */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-5 space-y-4">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <p className="text-sm font-bold text-charcoal">Precio por unidad</p>
+                                <p className="text-xs text-charcoal/40 mt-0.5">Sin descuento · Mínimo 20 unidades</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xl font-black text-charcoal">
+                                    ${UNIT_PRICE_CLP} <span className="text-xs text-charcoal/40">CLP</span>
+                                </p>
+                                <p className="text-xs text-charcoal/40">US${UNIT_PRICE_USD.toFixed(2)}/u</p>
                             </div>
                         </div>
 
-                        {/* Total */}
-                        <div className="bg-ivory rounded-xl p-4 flex items-center justify-between">
-                            <p className="text-sm font-bold text-charcoal/60">Total a pagar</p>
-                            <div className="text-right">
-                                <p className="text-xl font-black text-charcoal">
-                                    ${(reminderQty * UNIT_PRICE_CLP).toLocaleString('es-CL')} <span className="text-xs font-bold text-charcoal/40">CLP</span>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setReminderQty(q => Math.max(20, q - 10))}
+                                disabled={reminderQty <= 20}
+                                className="w-10 h-10 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige disabled:opacity-30 transition-colors"
+                            >
+                                −
+                            </button>
+                            <input
+                                type="number"
+                                min={20}
+                                step={1}
+                                value={reminderQty}
+                                onChange={(e) => setReminderQty(Math.max(20, parseInt(e.target.value) || 20))}
+                                className="w-20 h-10 text-center text-lg font-black text-charcoal border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                            />
+                            <button
+                                onClick={() => setReminderQty(q => q + 10)}
+                                className="w-10 h-10 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige transition-colors"
+                            >
+                                +
+                            </button>
+                            <div className="ml-auto text-right">
+                                <p className="text-lg font-black text-charcoal">
+                                    ${(reminderQty * UNIT_PRICE_CLP).toLocaleString('es-CL')} <span className="text-xs text-charcoal/40">CLP</span>
                                 </p>
-                                <p className="text-xs text-charcoal/40">US${(reminderQty * UNIT_PRICE_USD).toFixed(2)} USD</p>
+                                <p className="text-xs text-charcoal/40">US${(reminderQty * UNIT_PRICE_USD).toFixed(2)}</p>
                             </div>
                         </div>
 
                         <button
                             onClick={handleBuyReminders}
-                            disabled={checkoutLoading}
-                            className="w-full py-3.5 bg-primary-500 hover:bg-primary-600 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            disabled={checkoutLoading || !!packCheckoutLoading}
+                            className="w-full py-3 bg-ivory hover:bg-silk-beige border border-silk-beige text-charcoal font-black text-xs uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             {checkoutLoading
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
