@@ -975,16 +975,16 @@ Las 3 citas del lunes ya están en la DB con el orden Talca (12:00) → Linares 
 #### Solución al mínimo $0.50 de LemonSqueezy
 
 LS no permite variantes con precio < $0.50 USD. Para el selector por unidad ($0.15/u):
-- Variante creada a **$1.50 USD por 10 unidades** ("Recordatorios × decenas")
-- La edge function pasa `checkoutData.quantity = roundedUnits / 10` (lo que LS cobra)
+- Variante creada a **$1.50 USD** como product stub (variant ID `1701169`)
+- La edge function usa `custom_price = roundedUnits * 15` (centavos USD) para override del precio
 - `customData.quantity = roundedUnits` (lo que el webhook acredita en DB)
-- El usuario ve el precio correcto en el UI; LS cobra la cantidad de decenas
+- ⚠️ El enfoque "decenas" (`quantity = units/10`) fue descartado en sesión 17 — LS rechaza `quantity` como atributo de checkout
 
 #### Archivos modificados
 
 - **`src/pages/Reminders.tsx`**: rediseño completo del tab Packs — 3 tarjetas con badge, chip de ahorro por unidad, divisor, selector compacto. Fix título blanco. Estado inicial qty=10, mín=10.
 - **`src/lib/lemonsqueezy.ts`**: nueva función `redirectToLemonReminderPackCheckout(clinicId, email, packId)` + tipo `ReminderPackId`.
-- **`supabase/functions/lemonsqueezy-create-checkout/index.ts`** (v16): 4 nuevos variant IDs hardcodeados; lógica `lsQuantity` para packs-de-10; mín 10 unidades.
+- **`supabase/functions/lemonsqueezy-create-checkout/index.ts`** (v16→v22): 4 nuevos variant IDs hardcodeados; mín 10 unidades. Ver sesión 17 para corrección del approach de precios.
 
 #### Variant IDs hardcodeados en la edge function
 
@@ -1044,7 +1044,7 @@ RETURNS TABLE (tag_id UUID, tag_name TEXT, tag_color TEXT, contact_count BIGINT)
 
 **Modelo de precios:** US$0.15 / crédito · mínimo 50 · incrementos de 50 · **sin vencimiento** (a diferencia de `reminders_pack_balance` que se resetea mensualmente).
 
-**Solución al mínimo $0.50 de LemonSqueezy:** mismo patrón "decenas" que recordatorios — variant a $1.50 USD = 10 créditos. `lsQuantity = roundedCredits / 10`; `customData.quantity = roundedCredits` (lo que el webhook acredita).
+**Solución al mínimo $0.50 de LemonSqueezy:** variant a $1.50 USD como product stub; precio real via `custom_price = credits * 15` (centavos USD). `customData.quantity = roundedCredits` (lo que el webhook acredita). El enfoque "decenas" con `quantity` fue descartado en sesión 17 — LS rechaza `quantity` como atributo de checkout.
 
 #### DB
 - **Migración `add_campaign_credits_balance`**: `ALTER TABLE subscriptions ADD COLUMN campaign_credits_balance INTEGER NOT NULL DEFAULT 0`
@@ -1066,6 +1066,38 @@ RETURNS TABLE (tag_id UUID, tag_name TEXT, tag_color TEXT, contact_count BIGINT)
 | Variant | Créditos × decenas |
 | Precio | US$1.50 |
 | Variant ID | **1702308** |
+
+---
+
+### Fix crítico checkout — `custom_price` en lugar de `quantity` — `lemonsqueezy-create-checkout` (v22)
+
+**Síntoma:** al intentar comprar créditos de campaña → "Edge Function returned a non-2xx status code". En consola: la edge function retornaba 500 opaco.
+
+**Diagnóstico:** después de cambiar la edge function a retornar 200 con `{success: false, details}` para errores de LS, el frontend mostró el error real de la API de LemonSqueezy:
+```json
+{"detail":"The field quantity is not a supported attribute.","source":{"pointer":"/data/attributes"},"status":"400"}
+```
+
+**Causa raíz:** la API de checkouts de LS **no acepta `quantity` como atributo** a nivel `data.attributes`. El enfoque "decenas" (variante a $1.50 = 10 unidades, pasar `quantity = credits/10`) era inválido desde el diseño.
+
+**Fix (`lemonsqueezy-create-checkout` v22, deployada):**
+- Renombrado `lsQuantity` → `lsCustomPrice` (precio en centavos USD)
+- Para `campaign_credits`: `lsCustomPrice = roundedCredits * 15` (= $0.15/crédito en centavos)
+- Para `reminders` por unidad: `lsCustomPrice = roundedUnits * 15` (= $0.15/unidad en centavos)
+- `checkoutAttributes.custom_price = lsCustomPrice` (LS override de precio del variant)
+- La variante base (`1702308` a $1.50) actúa como product stub; el precio real se override con `custom_price`
+- `customData.quantity` sigue siendo los créditos reales a acreditar en DB (no cambia el webhook)
+
+**Ejemplo:** 100 créditos × $0.15 = $15.00 → `custom_price: 1500` (centavos)
+
+**Regla permanente:** para products de precio variable en LS, usar `custom_price` (centavos) en `checkoutAttributes`, **nunca** `quantity`. `quantity` no es un atributo válido del checkout endpoint de LS.
+
+### Optimización mobile — banner `Campaigns.tsx`
+
+- Botón "Nueva Campaña" aparece debajo del título en mobile (`sm:hidden` inline) y a la derecha en desktop (`hidden sm:flex`)
+- Ícono reducido: `w-10 h-10` en mobile, `w-12 h-12` en desktop
+- Tarjeta de créditos: fuentes adaptativas (`text-xl sm:text-2xl`), abreviación "disp." en mobile
+- Panel de compra: layout apilado (`flex-col`) — fila 1 stepper+presets, fila 2 precio+botón con `justify-between`
 
 ---
 
