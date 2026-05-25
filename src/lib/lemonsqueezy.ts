@@ -243,6 +243,16 @@ export async function redirectToLemonCampaignCreditsCheckout(
 
     if (error) {
         console.error('Error creating campaign credits checkout:', error)
+        // Extract the actual LemonSqueezy error from the response body
+        try {
+            const body = typeof (error as any).context === 'string'
+                ? JSON.parse((error as any).context)
+                : (error as any).context
+            if (body?.details) throw new Error(`LemonSqueezy: ${body.details}`)
+            if (body?.error) throw new Error(body.error)
+        } catch (parseErr: any) {
+            if (parseErr.message.startsWith('LemonSqueezy:')) throw parseErr
+        }
         throw new Error(error.message || 'Error al conectar con LemonSqueezy')
     }
 
