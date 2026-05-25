@@ -224,7 +224,7 @@ export default function Reminders() {
     const UNIT_PRICE_USD = 0.15
 
     const REMINDER_PACKS = [
-        { id: 'reminders_50' as ReminderPackId,        name: 'Pack Básico',    qty: 50,   unlimited: false, totalUSD: 9.00,  unitUSD: 9.00  / 50,   badge: null },
+        { id: 'reminders_50' as ReminderPackId,        name: 'Pack Básico',    qty: 80,   unlimited: false, totalUSD: 9.00,  unitUSD: 9.00  / 80,   badge: null },
         { id: 'reminders_350' as ReminderPackId,       name: 'Pack Pro',       qty: 350,  unlimited: false, totalUSD: 19.00, unitUSD: 19.00 / 350,  badge: 'Más popular' },
         { id: 'reminders_unlimited' as ReminderPackId, name: 'Pack Ilimitado', qty: 9999, unlimited: true,  totalUSD: 29.00, unitUSD: null,         badge: 'Mejor valor' },
     ]
@@ -361,25 +361,25 @@ export default function Reminders() {
 
             {/* Packs Tab Content */}
             {activeTab === 'packs' && (
-                <div className="max-w-2xl mx-auto space-y-5">
+                <div className="space-y-5">
                     {/* Balance actual */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white">
+                        <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-6 text-white">
                             <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Add-ons</p>
-                            <h3 className="text-lg font-extrabold tracking-tight text-white">Recordatorios adicionales</h3>
-                            <p className="text-sm text-primary-100/80 font-light mt-1">Compra unidades extra para este mes.</p>
+                            <h3 className="text-xl font-extrabold tracking-tight text-white">Recordatorios adicionales</h3>
+                            <p className="text-sm text-primary-100/80 font-light mt-1">Compra unidades extra para este mes — caducan con tu renovación mensual.</p>
                         </div>
-                        <div className="p-5 flex items-center justify-between">
+                        <div className="p-6 flex items-center justify-between">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Balance disponible</p>
-                                <p className="text-3xl font-black text-charcoal">
+                                <p className="text-xs font-bold uppercase tracking-widest text-charcoal/40 mb-1">Pack comprado este mes</p>
+                                <p className="text-4xl font-black text-charcoal">
                                     {reminderUsage?.reminders_pack_balance ?? 0}
-                                    <span className="text-sm font-bold text-charcoal/40 ml-2">unidades</span>
+                                    <span className="text-base font-bold text-charcoal/40 ml-2">unidades disponibles</span>
                                 </p>
-                                <p className="text-xs text-charcoal/40 mt-1">Se reinician con la renovación mensual</p>
+                                <p className="text-xs text-charcoal/40 mt-1">Se descuentan de tu cupo junto con el plan · Caducan al renovar</p>
                             </div>
-                            <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center">
-                                <Package className="w-7 h-7 text-primary-600" />
+                            <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center">
+                                <Package className="w-8 h-8 text-primary-600" />
                             </div>
                         </div>
                     </div>
@@ -387,9 +387,9 @@ export default function Reminders() {
                     {/* Packs con descuento */}
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-3 px-1">
-                            Packs — precio por unidad más económico
+                            Packs — precio por unidad más económico · Válidos 1 mes
                         </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             {REMINDER_PACKS.map(pack => {
                                 const isPopular = pack.badge === 'Más popular'
                                 const isLoading = packCheckoutLoading === pack.id
@@ -415,50 +415,51 @@ export default function Reminders() {
                                             </div>
                                         )}
                                         <div className={cn(
-                                            "p-4",
+                                            "p-5",
                                             isPopular ? "bg-gradient-to-br from-primary-500 to-primary-700" : "bg-ivory"
                                         )}>
                                             <p className={cn(
-                                                "text-[10px] font-black uppercase tracking-widest mb-1",
+                                                "text-[10px] font-black uppercase tracking-widest mb-1.5",
                                                 isPopular ? "text-primary-200" : "text-charcoal/40"
                                             )}>
                                                 {pack.name}
                                             </p>
                                             <p className={cn(
-                                                "text-4xl font-black",
+                                                "text-5xl font-black",
                                                 isPopular ? "text-white" : "text-charcoal"
                                             )}>
                                                 {pack.unlimited ? '∞' : pack.qty}
                                                 <span className={cn(
-                                                    "text-sm font-bold ml-1",
+                                                    "text-base font-bold ml-1.5",
                                                     isPopular ? "text-primary-200" : "text-charcoal/40"
                                                 )}>
-                                                    {pack.unlimited ? '' : 'u'}
+                                                    {pack.unlimited ? '' : 'recordatorios'}
                                                 </span>
                                             </p>
                                             {pack.unlimited && (
                                                 <p className={cn(
-                                                    "text-xs font-semibold mt-0.5",
+                                                    "text-sm font-semibold mt-1",
                                                     isPopular ? "text-primary-100" : "text-charcoal/50"
                                                 )}>
                                                     Sin límite este mes
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="p-4 flex flex-col gap-3 flex-1">
+                                        <div className="p-5 flex flex-col gap-3 flex-1">
                                             <div>
-                                                <p className="text-xl font-black text-charcoal">
+                                                <p className="text-2xl font-black text-charcoal">
                                                     US${pack.totalUSD % 1 === 0 ? pack.totalUSD : pack.totalUSD.toFixed(2)}
                                                 </p>
+                                                <p className="text-xs text-charcoal/40 mt-0.5">Pago único · Válido 1 mes</p>
                                             </div>
                                             {pack.unlimited ? (
-                                                <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                                                    <p className="text-xs font-bold text-amber-700">Envíos ilimitados</p>
-                                                    <p className="text-[10px] font-semibold text-amber-600">Sin corte por cupo este mes</p>
+                                                <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
+                                                    <p className="text-xs font-bold text-amber-700">Sin corte por cupo este mes</p>
+                                                    <p className="text-[11px] font-semibold text-amber-600 mt-0.5">Caduca con la renovación mensual</p>
                                                 </div>
-                                            ) : savingPct ? (
+                                            ) : (
                                                 <div className={cn(
-                                                    "rounded-xl px-3 py-2 border",
+                                                    "rounded-xl px-4 py-2.5 border",
                                                     isPopular ? "bg-primary-50 border-primary-100" : "bg-emerald-50 border-emerald-100"
                                                 )}>
                                                     <p className={cn(
@@ -467,25 +468,21 @@ export default function Reminders() {
                                                     )}>
                                                         US${pack.unitUSD!.toFixed(3)}/u &nbsp;
                                                         <span className="line-through font-normal text-charcoal/30">US${UNIT_PRICE_USD}</span>
+                                                        {savingPct ? <span className="ml-1.5 font-black">{savingPct}% ahorro</span> : null}
                                                     </p>
                                                     <p className={cn(
-                                                        "text-[10px] font-semibold",
+                                                        "text-[11px] font-semibold mt-0.5",
                                                         isPopular ? "text-primary-600" : "text-emerald-600"
                                                     )}>
-                                                        {savingPct}% más barato por unidad
+                                                        Caduca con la renovación mensual
                                                     </p>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-ivory border border-silk-beige rounded-xl px-3 py-2">
-                                                    <p className="text-xs font-bold text-charcoal/60">50 recordatorios fijos</p>
-                                                    <p className="text-[10px] font-semibold text-charcoal/40">Sin vencimiento mensual</p>
                                                 </div>
                                             )}
                                             <button
                                                 onClick={() => handleBuyPack(pack.id)}
                                                 disabled={isLoading || !!packCheckoutLoading}
                                                 className={cn(
-                                                    "mt-auto w-full py-2.5 font-black text-xs uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5",
+                                                    "mt-auto w-full py-3 font-black text-xs uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5",
                                                     isPopular
                                                         ? "bg-primary-500 hover:bg-primary-600 text-white"
                                                         : "bg-ivory hover:bg-silk-beige text-charcoal border border-silk-beige"
@@ -513,62 +510,77 @@ export default function Reminders() {
                     </div>
 
                     {/* Selector por unidad */}
-                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-5 space-y-4">
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <p className="text-sm font-bold text-charcoal">Precio por unidad</p>
-                                <p className="text-xs text-charcoal/40 mt-0.5">Sin descuento · Mínimo 10 unidades</p>
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                            {/* Izquierda: info + stepper */}
+                            <div className="flex-1 space-y-4">
+                                <div>
+                                    <p className="text-base font-bold text-charcoal">Compra por unidad exacta</p>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">
+                                        US${UNIT_PRICE_USD.toFixed(2)}/u · Sin descuento · Mínimo 10 · Caduca con la renovación mensual
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setReminderQty(q => Math.max(10, q - 10))}
+                                        disabled={reminderQty <= 10}
+                                        className="w-11 h-11 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-xl font-bold text-charcoal hover:bg-silk-beige disabled:opacity-30 transition-colors"
+                                    >
+                                        −
+                                    </button>
+                                    <input
+                                        type="number"
+                                        min={10}
+                                        step={10}
+                                        value={reminderQty}
+                                        onChange={(e) => setReminderQty(Math.max(10, parseInt(e.target.value) || 10))}
+                                        className="w-24 h-11 text-center text-xl font-black text-charcoal border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                                    />
+                                    <button
+                                        onClick={() => setReminderQty(q => q + 10)}
+                                        className="w-11 h-11 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-xl font-bold text-charcoal hover:bg-silk-beige transition-colors"
+                                    >
+                                        +
+                                    </button>
+                                    <div className="flex gap-2 ml-2">
+                                        {[50, 100, 200].map(preset => (
+                                            <button
+                                                key={preset}
+                                                onClick={() => setReminderQty(preset)}
+                                                className={cn(
+                                                    "h-11 px-3 rounded-xl border text-xs font-black transition-colors",
+                                                    reminderQty === preset
+                                                        ? "bg-primary-500 text-white border-primary-500"
+                                                        : "bg-ivory text-charcoal/60 border-silk-beige hover:bg-silk-beige"
+                                                )}
+                                            >
+                                                {preset}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-xl font-black text-charcoal">
-                                    US${UNIT_PRICE_USD.toFixed(2)}<span className="text-xs text-charcoal/40 ml-1">/u</span>
-                                </p>
+
+                            {/* Derecha: total + botón */}
+                            <div className="sm:w-52 flex flex-col gap-3">
+                                <div className="text-right">
+                                    <p className="text-3xl font-black text-charcoal">
+                                        US${(reminderQty * UNIT_PRICE_USD).toFixed(2)}
+                                    </p>
+                                    <p className="text-xs text-charcoal/40">{reminderQty} recordatorios</p>
+                                </div>
+                                <button
+                                    onClick={handleBuyReminders}
+                                    disabled={checkoutLoading || !!packCheckoutLoading}
+                                    className="w-full py-3 bg-ivory hover:bg-silk-beige border border-silk-beige text-charcoal font-black text-xs uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {checkoutLoading
+                                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
+                                        : <><Package className="w-4 h-4" /> Comprar</>
+                                    }
+                                </button>
                             </div>
                         </div>
-
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setReminderQty(q => Math.max(10, q - 10))}
-                                disabled={reminderQty <= 10}
-                                className="w-10 h-10 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige disabled:opacity-30 transition-colors"
-                            >
-                                −
-                            </button>
-                            <input
-                                type="number"
-                                min={10}
-                                step={10}
-                                value={reminderQty}
-                                onChange={(e) => setReminderQty(Math.max(10, parseInt(e.target.value) || 10))}
-                                className="w-20 h-10 text-center text-lg font-black text-charcoal border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
-                            />
-                            <button
-                                onClick={() => setReminderQty(q => q + 10)}
-                                className="w-10 h-10 rounded-xl border border-silk-beige bg-ivory flex items-center justify-center text-lg font-bold text-charcoal hover:bg-silk-beige transition-colors"
-                            >
-                                +
-                            </button>
-                            <div className="ml-auto text-right">
-                                <p className="text-lg font-black text-charcoal">
-                                    US${(reminderQty * UNIT_PRICE_USD).toFixed(2)}
-                                </p>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={handleBuyReminders}
-                            disabled={checkoutLoading || !!packCheckoutLoading}
-                            className="w-full py-3 bg-ivory hover:bg-silk-beige border border-silk-beige text-charcoal font-black text-xs uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                            {checkoutLoading
-                                ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
-                                : <><Package className="w-4 h-4" /> Comprar {reminderQty} recordatorios</>
-                            }
-                        </button>
-
-                        <p className="text-xs text-charcoal/40 text-center leading-relaxed">
-                            El pago se procesa en USD vía LemonSqueezy. Los recordatorios se acreditan inmediatamente y se reinician con tu próxima renovación mensual.
-                        </p>
                     </div>
                 </div>
             )}

@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
 
         // Fixed quantities for reminder packs (9999 = effectively unlimited for the month)
         const reminderPackQtyMap: Record<string, number> = {
-            'reminders_50': 50, 'reminders_350': 350, 'reminders_unlimited': 9999,
+            'reminders_50': 80, 'reminders_350': 350, 'reminders_unlimited': 9999,
         };
 
         // lsQuantity: quantity to pass to LS checkout (packs of 10 for individual units)
@@ -196,10 +196,10 @@ Deno.serve(async (req: Request) => {
         });
 
         if (!lsResponse.ok) {
-            const errorData = await lsResponse.json();
-            console.error("LemonSqueezy API error:", JSON.stringify(errorData));
+            const errorText = await lsResponse.text();
+            console.error(`LemonSqueezy API error (${lsResponse.status}):`, errorText);
             return new Response(
-                JSON.stringify({ error: "Failed to create checkout", details: errorData }),
+                JSON.stringify({ error: "Failed to create checkout", details: errorText }),
                 { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
