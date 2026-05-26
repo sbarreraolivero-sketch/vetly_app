@@ -3,8 +3,21 @@ import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import {
     Settings, Shield, Users, Globe, Bell, Loader2, Save, CheckCircle,
-    Building2, Calendar, Database, RefreshCw, AlertTriangle
+    Building2, Calendar, Database, RefreshCw, AlertTriangle,
+    Plug, Copy, Phone, KeyRound, ShoppingCart, LifeBuoy, Eye, EyeOff
 } from 'lucide-react'
+
+const HQ_ID = '00000000-0000-0000-0000-000000000000'
+
+interface HqConfig {
+    ycloud_api_key: string
+    ycloud_webhook_secret: string
+    hq_admin_phones: string[]
+    hq_escalation_phone: string
+    hq_support_agent_enabled: boolean
+    hq_sales_agent_enabled: boolean
+    hq_ycloud_balance_threshold: number
+}
 
 interface PlatformAdmin {
     id: string
@@ -26,10 +39,28 @@ export default function AdminSettings() {
     const [admins, setAdmins] = useState<PlatformAdmin[]>([])
     const [stats, setStats] = useState<PlatformStats | null>(null)
     const [loading, setLoading] = useState(true)
-    const [activeTab, setActiveTab] = useState<'general' | 'admins' | 'platform'>('general')
+    const [activeTab, setActiveTab] = useState<'general' | 'admins' | 'platform' | 'integrations'>('general')
     const [newAdminEmail, setNewAdminEmail] = useState('')
     const [addingAdmin, setAddingAdmin] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+    // HQ integrations config
+    const [hqConfig, setHqConfig] = useState<HqConfig>({
+        ycloud_api_key: '',
+        ycloud_webhook_secret: '',
+        hq_admin_phones: [],
+        hq_escalation_phone: '',
+        hq_support_agent_enabled: true,
+        hq_sales_agent_enabled: true,
+        hq_ycloud_balance_threshold: 5,
+    })
+    const [adminPhonesInput, setAdminPhonesInput] = useState('')
+    const [savingHq, setSavingHq] = useState(false)
+    const [showApiKey, setShowApiKey] = useState(false)
+    const [showSecret, setShowSecret] = useState(false)
+    const [copied, setCopied] = useState(false)
+
+    const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vetly-hq-agent`
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -75,6 +106,28 @@ export default function AdminSettings() {
                 totalAppointments: appointmentsCount || 0,
                 totalMembers: membersCount || 0,
             })
+
+            // Fetch HQ integrations config (cast: clinic_settings has a large Row type
+            // that breaks supabase-js typed select, same pattern as Integrations.tsx)
+            const { data: hq } = await (supabase as any)
+                .from('clinic_settings')
+                .select('ycloud_api_key, ycloud_webhook_secret, hq_admin_phones, hq_escalation_phone, hq_support_agent_enabled, hq_sales_agent_enabled, hq_ycloud_balance_threshold')
+                .eq('id', HQ_ID)
+                .maybeSingle()
+
+            if (hq) {
+                const phones: string[] = Array.isArray(hq.hq_admin_phones) ? hq.hq_admin_phones : []
+                setHqConfig({
+                    ycloud_api_key: hq.ycloud_api_key || '',
+                    ycloud_webhook_secret: hq.ycloud_webhook_secret || '',
+                    hq_admin_phones: phones,
+                    hq_escalation_phone: hq.hq_escalation_phone || '',
+                    hq_support_agent_enabled: hq.hq_support_agent_enabled ?? true,
+                    hq_sales_agent_enabled: hq.hq_sales_agent_enabled ?? true,
+                    hq_ycloud_balance_threshold: Number(hq.hq_ycloud_balance_threshold ?? 5),
+                })
+                setAdminPhonesInput(phones.join(', '))
+            }
         } catch (err) {
             console.error('Error fetching settings data:', err)
         } finally {
@@ -160,9 +213,48 @@ export default function AdminSettings() {
         }
     }
 
+    const saveHqConfig = async () => {
+        setSavingHq(true)
+        setMessage(null)
+        try {
+            const phones = adminPhonesInput
+                .split(/[,\n]/)
+                .map(p => p.trim())
+                .filter(Boolean)
+
+            const { error } = await (supabase as any)
+                .from('clinic_settings')
+                .update({
+                    ycloud_api_key: hqConfig.ycloud_api_key.trim() || null,
+                    ycloud_webhook_secret: hqConfig.ycloud_webhook_secret.trim() || null,
+                    hq_admin_phones: phones,
+                    hq_escalation_phone: hqConfig.hq_escalation_phone.trim() || null,
+                    hq_support_agent_enabled: hqConfig.hq_support_agent_enabled,
+                    hq_sales_agent_enabled: hqConfig.hq_sales_agent_enabled,
+                    hq_ycloud_balance_threshold: hqConfig.hq_ycloud_balance_threshold,
+                })
+                .eq('id', HQ_ID)
+
+            if (error) throw error
+            setHqConfig(prev => ({ ...prev, hq_admin_phones: phones }))
+            setMessage({ type: 'success', text: 'Integraciones guardadas correctamente.' })
+        } catch (err: any) {
+            setMessage({ type: 'error', text: err.message || 'Error al guardar las integraciones.' })
+        } finally {
+            setSavingHq(false)
+        }
+    }
+
+    const copyWebhookUrl = () => {
+        navigator.clipboard.writeText(webhookUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+
     const tabs = [
         { id: 'general' as const, label: 'General', icon: Settings },
         { id: 'admins' as const, label: 'Administradores', icon: Shield },
+        { id: 'integrations' as const, label: 'Integraciones', icon: Plug },
         { id: 'platform' as const, label: 'Plataforma', icon: Database },
     ]
 
@@ -345,6 +437,168 @@ export default function AdminSettings() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Integrations Tab */}
+            {activeTab === 'integrations' && (
+                <div className="space-y-6">
+                    {/* YCloud */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                            <Phone className="w-5 h-5 text-primary-500" />
+                            YCloud — Número oficial de Vetly
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-5">
+                            Conexión WhatsApp para los agentes de soporte y ventas. Número: <span className="font-mono font-medium text-gray-700">+56993089185</span>
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">API Key de YCloud</label>
+                                <div className="relative">
+                                    <input
+                                        type={showApiKey ? 'text' : 'password'}
+                                        value={hqConfig.ycloud_api_key}
+                                        onChange={(e) => setHqConfig(prev => ({ ...prev, ycloud_api_key: e.target.value }))}
+                                        placeholder="Pega aquí la API Key de YCloud"
+                                        className="w-full px-4 py-2.5 pr-11 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    />
+                                    <button type="button" onClick={() => setShowApiKey(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        readOnly
+                                        value={webhookUrl}
+                                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-mono bg-gray-50 text-gray-600 truncate"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={copyWebhookUrl}
+                                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                                    >
+                                        {copied ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                                        {copied ? 'Copiado' : 'Copiar'}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">Pega esta URL en el webhook de tu cuenta YCloud (evento: mensaje entrante).</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                                    <KeyRound className="w-3.5 h-3.5" /> Webhook Secret
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showSecret ? 'text' : 'password'}
+                                        value={hqConfig.ycloud_webhook_secret}
+                                        onChange={(e) => setHqConfig(prev => ({ ...prev, ycloud_webhook_secret: e.target.value }))}
+                                        placeholder="whsec_..."
+                                        className="w-full px-4 py-2.5 pr-11 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    />
+                                    <button type="button" onClick={() => setShowSecret(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">El secret que genera YCloud al crear el webhook. Verifica la firma HMAC de cada mensaje.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sales Agent */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <ShoppingCart className="w-5 h-5 text-violet-500" />
+                                Agente de Ventas
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setHqConfig(prev => ({ ...prev, hq_sales_agent_enabled: !prev.hq_sales_agent_enabled }))}
+                                className={`relative w-12 h-6 rounded-full transition-colors ${hqConfig.hq_sales_agent_enabled ? 'bg-violet-500' : 'bg-gray-300'}`}
+                            >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hqConfig.hq_sales_agent_enabled ? 'translate-x-6' : ''}`} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-500">
+                            Consultor experto que atiende a prospectos por WhatsApp, califica leads y los registra en el CRM. Usa GPT-4o.
+                        </p>
+                    </div>
+
+                    {/* Support Agent */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <LifeBuoy className="w-5 h-5 text-primary-500" />
+                                Agente de Soporte
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setHqConfig(prev => ({ ...prev, hq_support_agent_enabled: !prev.hq_support_agent_enabled }))}
+                                className={`relative w-12 h-6 rounded-full transition-colors ${hqConfig.hq_support_agent_enabled ? 'bg-primary-500' : 'bg-gray-300'}`}
+                            >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hqConfig.hq_support_agent_enabled ? 'translate-x-6' : ''}`} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-5">
+                            Diagnostica problemas de conexión (YCloud, OpenAI, base de datos) y avisa cuando un agente se queda mudo o falta saldo.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Números admin (modo soporte)</label>
+                                <input
+                                    value={adminPhonesInput}
+                                    onChange={(e) => setAdminPhonesInput(e.target.value)}
+                                    placeholder="+56999999999, +56988888888"
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">Teléfonos que activan los comandos de soporte (status, logs, saldo, debug). Separados por coma.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Número de escalación (alertas)</label>
+                                <input
+                                    value={hqConfig.hq_escalation_phone}
+                                    onChange={(e) => setHqConfig(prev => ({ ...prev, hq_escalation_phone: e.target.value }))}
+                                    placeholder="+56929935817"
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">A este WhatsApp llegan las alertas del cron y los leads calientes de ventas.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Umbral alerta saldo YCloud (USD)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={hqConfig.hq_ycloud_balance_threshold}
+                                    onChange={(e) => setHqConfig(prev => ({ ...prev, hq_ycloud_balance_threshold: Number(e.target.value) }))}
+                                    className="w-full max-w-[200px] px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">El cron avisa cuando el saldo de una cuenta YCloud baja de este monto.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Save */}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={saveHqConfig}
+                            disabled={savingHq}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                        >
+                            {savingHq ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            Guardar integraciones
+                        </button>
                     </div>
                 </div>
             )}

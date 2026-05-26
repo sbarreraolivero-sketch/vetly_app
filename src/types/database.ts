@@ -55,6 +55,12 @@ export interface Database {
                     vaccine_reminder_template: string | null
                     template_deworming: string | null
                     contact_phone: string | null
+                    ycloud_webhook_secret: string | null
+                    hq_admin_phones: string[] | null
+                    hq_escalation_phone: string | null
+                    hq_support_agent_enabled: boolean | null
+                    hq_sales_agent_enabled: boolean | null
+                    hq_ycloud_balance_threshold: number | null
                 }
                 Insert: {
                     id?: string
@@ -99,6 +105,12 @@ export interface Database {
                     template_survey?: string | null
                     template_reactivation?: string | null
                     contact_phone?: string | null
+                    ycloud_webhook_secret?: string | null
+                    hq_admin_phones?: string[] | null
+                    hq_escalation_phone?: string | null
+                    hq_support_agent_enabled?: boolean | null
+                    hq_sales_agent_enabled?: boolean | null
+                    hq_ycloud_balance_threshold?: number | null
                 }
                 Update: {
                     id?: string
@@ -143,6 +155,12 @@ export interface Database {
                     template_survey?: string | null
                     template_reactivation?: string | null
                     contact_phone?: string | null
+                    ycloud_webhook_secret?: string | null
+                    hq_admin_phones?: string[] | null
+                    hq_escalation_phone?: string | null
+                    hq_support_agent_enabled?: boolean | null
+                    hq_sales_agent_enabled?: boolean | null
+                    hq_ycloud_balance_threshold?: number | null
                 }
             }
             subscriptions: {

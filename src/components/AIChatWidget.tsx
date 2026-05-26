@@ -103,6 +103,7 @@ export function AIChatWidget({ variant = 'sales', clinicId }: AIChatWidgetProps)
 
             let body: any = {
                 variant: activeTab,
+                clinic_id: clinicId,
                 messages: updatedMessages.map(m => ({
                     sender: m.sender,
                     text: m.text
@@ -232,16 +233,18 @@ export function AIChatWidget({ variant = 'sales', clinicId }: AIChatWidgetProps)
                                     Simulador Chat
                                 </button>
                             )}
-                            <button
-                                onClick={() => setActiveTab('support')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${activeTab === 'support'
-                                    ? 'bg-white text-primary-600 shadow-sm border border-gray-100'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                            >
-                                <Zap className="w-3.5 h-3.5" />
-                                Soporte Vetly AI
-                            </button>
+                            {variant !== 'sales' && (
+                                <button
+                                    onClick={() => setActiveTab('support')}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${activeTab === 'support'
+                                        ? 'bg-white text-primary-600 shadow-sm border border-gray-100'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                        }`}
+                                >
+                                    <Zap className="w-3.5 h-3.5" />
+                                    Soporte Vetly AI
+                                </button>
+                            )}
                         </div>
                     </div>
 
