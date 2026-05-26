@@ -17,6 +17,7 @@ interface HqConfig {
     hq_support_agent_enabled: boolean
     hq_sales_agent_enabled: boolean
     hq_ycloud_balance_threshold: number
+    hq_sales_agent_prompt: string
 }
 
 interface PlatformAdmin {
@@ -53,6 +54,7 @@ export default function AdminSettings() {
         hq_support_agent_enabled: true,
         hq_sales_agent_enabled: true,
         hq_ycloud_balance_threshold: 5,
+        hq_sales_agent_prompt: '',
     })
     const [adminPhonesInput, setAdminPhonesInput] = useState('')
     const [savingHq, setSavingHq] = useState(false)
@@ -111,7 +113,7 @@ export default function AdminSettings() {
             // that breaks supabase-js typed select, same pattern as Integrations.tsx)
             const { data: hq } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ycloud_api_key, ycloud_webhook_secret, hq_admin_phones, hq_escalation_phone, hq_support_agent_enabled, hq_sales_agent_enabled, hq_ycloud_balance_threshold')
+                .select('ycloud_api_key, ycloud_webhook_secret, hq_admin_phones, hq_escalation_phone, hq_support_agent_enabled, hq_sales_agent_enabled, hq_ycloud_balance_threshold, hq_sales_agent_prompt')
                 .eq('id', HQ_ID)
                 .maybeSingle()
 
@@ -125,6 +127,7 @@ export default function AdminSettings() {
                     hq_support_agent_enabled: hq.hq_support_agent_enabled ?? true,
                     hq_sales_agent_enabled: hq.hq_sales_agent_enabled ?? true,
                     hq_ycloud_balance_threshold: Number(hq.hq_ycloud_balance_threshold ?? 5),
+                    hq_sales_agent_prompt: hq.hq_sales_agent_prompt || '',
                 })
                 setAdminPhonesInput(phones.join(', '))
             }
@@ -232,6 +235,7 @@ export default function AdminSettings() {
                     hq_support_agent_enabled: hqConfig.hq_support_agent_enabled,
                     hq_sales_agent_enabled: hqConfig.hq_sales_agent_enabled,
                     hq_ycloud_balance_threshold: hqConfig.hq_ycloud_balance_threshold,
+                    hq_sales_agent_prompt: hqConfig.hq_sales_agent_prompt.trim() || null,
                 })
                 .eq('id', HQ_ID)
 
@@ -527,9 +531,25 @@ export default function AdminSettings() {
                                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hqConfig.hq_sales_agent_enabled ? 'translate-x-6' : ''}`} />
                             </button>
                         </div>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-500 mb-5">
                             Consultor experto que atiende a prospectos por WhatsApp, califica leads y los registra en el CRM. Usa GPT-4o.
                         </p>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Prompt de personalidad y comportamiento
+                            </label>
+                            <textarea
+                                rows={14}
+                                value={hqConfig.hq_sales_agent_prompt}
+                                onChange={(e) => setHqConfig(prev => ({ ...prev, hq_sales_agent_prompt: e.target.value }))}
+                                placeholder="Eres &quot;Andrés&quot;, consultor senior de Vetly..."
+                                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-400 resize-y"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">
+                                Define la personalidad, planes, objeciones y acciones de Andrés. Se carga dinámicamente — no requiere redesploy para aplicar cambios.
+                            </p>
+                        </div>
                     </div>
 
                     {/* Support Agent */}

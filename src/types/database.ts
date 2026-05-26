@@ -61,6 +61,7 @@ export interface Database {
                     hq_support_agent_enabled: boolean | null
                     hq_sales_agent_enabled: boolean | null
                     hq_ycloud_balance_threshold: number | null
+                    hq_sales_agent_prompt: string | null
                 }
                 Insert: {
                     id?: string
@@ -111,6 +112,7 @@ export interface Database {
                     hq_support_agent_enabled?: boolean | null
                     hq_sales_agent_enabled?: boolean | null
                     hq_ycloud_balance_threshold?: number | null
+                    hq_sales_agent_prompt?: string | null
                 }
                 Update: {
                     id?: string
@@ -161,6 +163,7 @@ export interface Database {
                     hq_support_agent_enabled?: boolean | null
                     hq_sales_agent_enabled?: boolean | null
                     hq_ycloud_balance_threshold?: number | null
+                    hq_sales_agent_prompt?: string | null
                 }
             }
             subscriptions: {

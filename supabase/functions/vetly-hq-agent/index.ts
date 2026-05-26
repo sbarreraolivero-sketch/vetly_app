@@ -175,7 +175,7 @@ const handleSales = async (
         .limit(16);
 
     const convo: unknown[] = [
-        { role: "system", content: SALES_PROMPT + `\n\nNombre del contacto en WhatsApp: ${profileName || "(desconocido)"}. Su teléfono: ${fromPhone}.` },
+        { role: "system", content: hq.salesPrompt + `\n\nNombre del contacto en WhatsApp: ${profileName || "(desconocido)"}. Su teléfono: ${fromPhone}.` },
         ...((history || []) as { direction: string; content: string }[]).map((m) => ({
             role: m.direction === "outbound" ? "assistant" : "user",
             content: m.content,
@@ -305,7 +305,7 @@ const HELP_TEXT = `🛠️ *Soporte Vetly — comandos*
 • *debug <clínica>* — diagnóstico completo de una clínica
 • *ayuda* — esta lista`;
 
-const handleSupportCommand = async (sb: Sb, hqApiKey: string, text: string): Promise<string> => {
+const handleSupportCommand = async (sb: Sb, _hqApiKey: string, text: string): Promise<string> => {
     const cmd = text.trim().toLowerCase();
 
     if (cmd === "ayuda" || cmd === "help" || cmd === "comandos") return HELP_TEXT;
@@ -369,6 +369,7 @@ interface HqConfig {
     escalationPhone: string;
     salesEnabled: boolean;
     supportEnabled: boolean;
+    salesPrompt: string;
 }
 
 const storeMessage = async (sb: Sb, phone: string, direction: string, content: string, aiModel?: string) => {
@@ -412,7 +413,7 @@ Deno.serve(async (req) => {
     // Load HQ config.
     const { data: hqRow } = await sb
         .from("clinic_settings")
-        .select("ycloud_api_key, ycloud_webhook_secret, ycloud_phone_number, hq_admin_phones, hq_escalation_phone, hq_sales_agent_enabled, hq_support_agent_enabled")
+        .select("ycloud_api_key, ycloud_webhook_secret, ycloud_phone_number, hq_admin_phones, hq_escalation_phone, hq_sales_agent_enabled, hq_support_agent_enabled, hq_sales_agent_prompt")
         .eq("id", HQ_ID)
         .maybeSingle();
 
@@ -424,6 +425,7 @@ Deno.serve(async (req) => {
         hq_escalation_phone: string | null;
         hq_sales_agent_enabled: boolean | null;
         hq_support_agent_enabled: boolean | null;
+        hq_sales_agent_prompt: string | null;
     } | null;
 
     const hq: HqConfig = {
@@ -434,6 +436,7 @@ Deno.serve(async (req) => {
         escalationPhone: r?.hq_escalation_phone || "",
         salesEnabled: r?.hq_sales_agent_enabled ?? true,
         supportEnabled: r?.hq_support_agent_enabled ?? true,
+        salesPrompt: r?.hq_sales_agent_prompt || SALES_PROMPT,
     };
 
     // Verify HMAC signature.

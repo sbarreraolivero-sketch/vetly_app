@@ -1166,10 +1166,43 @@ Nueva herramienta del consultor Andrés para cerrar demos:
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 20, 2026-05-25)
+
+### Prompt de ventas editable desde DB — `vetly-hq-agent` v3
+
+**Motivación:** el prompt de personalidad y comportamiento de Andrés estaba hardcodeado como constante `SALES_PROMPT` en la edge function. Cualquier ajuste requería editar código y redesplegar. Opción B: mover el prompt a la columna `hq_sales_agent_prompt` en `clinic_settings`, editabl desde AdminSettings.
+
+#### DB
+- **Migración aplicada**: `ALTER TABLE clinic_settings ADD COLUMN IF NOT EXISTS hq_sales_agent_prompt TEXT`
+- **Seed inicial**: el contenido actual del `SALES_PROMPT` hardcodeado fue insertado como valor por defecto en la fila HQ (`id = '00000000-0000-0000-0000-000000000000'`)
+
+#### Edge Function `vetly-hq-agent` (v3, deployada)
+- Interfaz `HqConfig` añade campo `salesPrompt: string`
+- Select query incluye `hq_sales_agent_prompt`
+- `hq.salesPrompt = r?.hq_sales_agent_prompt || SALES_PROMPT` — DB tiene prioridad; la constante hardcodeada actúa como fallback si la columna está vacía
+- `handleSales` usa `hq.salesPrompt` en lugar de la constante directamente
+- `hqApiKey` renombrado a `_hqApiKey` (convención TypeScript para parámetros no usados)
+
+#### `src/types/database.ts`
+- `hq_sales_agent_prompt: string | null` añadido a `clinic_settings` Row, Insert y Update
+
+#### `src/pages/hq/AdminSettings.tsx`
+- `HqConfig` interface: campo `hq_sales_agent_prompt: string`
+- `useState` inicial: `hq_sales_agent_prompt: ''`
+- `fetchHqConfig`: popula `hq_sales_agent_prompt: hq.hq_sales_agent_prompt || ''`
+- `saveHqConfig`: envía `hq_sales_agent_prompt: hqConfig.hq_sales_agent_prompt.trim() || null`
+- Nueva textarea en card "Agente de Ventas": `rows=14`, `font-mono`, `resize-y`, anillo de foco violet
+- Helper text: "Se carga dinámicamente — no requiere redesploy para aplicar cambios."
+
+#### Patrón de carga dinámica (regla permanente)
+El prompt se carga **por cada request** en `vetly-hq-agent`, no en startup. Cambiar el textarea en AdminSettings y hacer Save aplica el nuevo prompt **inmediatamente** en la siguiente conversación de WhatsApp, sin ningún deploy. La constante `SALES_PROMPT` en el código es solo un fallback de emergencia.
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
-- [ ] **Abrir sesión WhatsApp para alertas**: enviar un mensaje desde +56929935817 a +56993089185 para abrir ventana de 24h. Sin esto los mensajes del cron y de Andrés (escalar/agendar) no llegan al número personal.
+- [x] **Abrir sesión WhatsApp para alertas** ✅ — usuario envió mensaje a +56993089185; respuesta recibida confirmando funcionamiento. Recordar re-abrir la ventana cada 24h si no hay tráfico o crear template proactivo en YCloud.
 - [ ] **Configurar webhook YCloud en +56993089185**: en dashboard YCloud para el número Vetly, configurar webhook URL = `https://ehmncwawzdciajvuallg.supabase.co/functions/v1/vetly-hq-agent` y pegar el secret en HQ → Integraciones. Sin esto Andrés no recibe mensajes.
 - [ ] **Reagendar citas lunes 2026-05-25**: ruta Talca (12:00)→Linares (15:30)→Talca (16:30) es inválida. Claudia debe mover una de las dos citas de Talca. El fix del webhook ya previene nuevas rutas inválidas, pero estas citas ya existen en DB.
 - [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
