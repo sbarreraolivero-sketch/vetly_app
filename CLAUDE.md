@@ -1126,9 +1126,51 @@ Recordatorios de citas fallando con `BALANCE_INSUFFICIENT`. La cuenta de YCloud 
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 19, 2026-05-25)
+
+### Agentes HQ — `vetly-hq-agent` v2 + `cron-system-health` v2
+
+#### Tool `agendar_videollamada` en Andrés (vetly-hq-agent v2)
+
+Nueva herramienta del consultor Andrés para cerrar demos:
+- **Trigger**: prospecto confirma día/hora para demo
+- **Acción 1**: inserta cita en tabla `appointments` con `clinic_id = HQ_ID`, `service = "Demo / Videollamada Vetly"`, `duration_minutes = 30`, `status = "confirmed"`
+- **Acción 2**: envía WhatsApp al `hq_escalation_phone` con nombre del prospecto, teléfono, y fecha/hora formateada en zona horaria Chile
+- **Prompt actualizado**: Andrés pregunta día/hora, agenda, y le dice al prospecto que lo contactará Sebastián (el fundador) directamente
+
+**Flujo de ventas actualizado:**
+1. Calificación → 2. Demo o cierre directo → 3. Si demo: `agendar_videollamada` + notificación WA → 4. Si cierre: `escalar_lead_caliente` + link registro
+
+#### Bug causa raíz — WhatsApp de alertas no llega (+56929935817)
+
+**Causa**: WhatsApp Business API solo permite mensajes free-form dentro de una ventana de 24h después de que el destinatario haya enviado un mensaje al número. Como +56929935817 nunca ha enviado mensajes a +56993089185, no hay sesión activa → YCloud acepta el API call (200 → `notified:true`) pero Meta rechaza la entrega silenciosamente.
+
+**Fix inmediato**: enviar un mensaje desde tu número personal (+56929935817) a +56993089185 por WhatsApp. Esto abre la sesión de 24h y los mensajes del cron y de Andrés llegarán.
+
+**Fix robusto (pendiente)**: crear un template en el dashboard de YCloud para +56993089185 (ej: `alerta_sistema_vetly`) que permita mensajes proactivos sin necesidad de sesión activa.
+
+**Logging mejorado**: `sendWhatsApp` ahora retorna `{id, status}` del API de YCloud. `cron-system-health` loguea el `msgId` y lo incluye en el response JSON (`notify_msg_id`) para trazabilidad en el dashboard de YCloud.
+
+#### Configuraciones del HQ registradas
+- `ycloud_phone_number`: +56993089185
+- `hq_escalation_phone`: +56929935817 (número personal del fundador)
+- `hq_admin_phones`: ["+56929935817"] (recibe comandos de soporte)
+- `hq_sales_agent_enabled`: true
+- `hq_support_agent_enabled`: true
+
+### Frontend desplegado (commit 413a9a5)
+- `AIChatWidget.tsx`: landing solo muestra tab Ventas; soporte in-app pasa `clinic_id` para diagnósticos
+- `AdminSettings.tsx`: tab Integraciones HQ completo
+- `database.ts`: 6 nuevas columnas HQ en `clinic_settings` Row/Insert/Update
+- `public/landing.html`: burbuja flotante WhatsApp verde → +56993089185
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
+- [ ] **Abrir sesión WhatsApp para alertas**: enviar un mensaje desde +56929935817 a +56993089185 para abrir ventana de 24h. Sin esto los mensajes del cron y de Andrés (escalar/agendar) no llegan al número personal.
+- [ ] **Configurar webhook YCloud en +56993089185**: en dashboard YCloud para el número Vetly, configurar webhook URL = `https://ehmncwawzdciajvuallg.supabase.co/functions/v1/vetly-hq-agent` y pegar el secret en HQ → Integraciones. Sin esto Andrés no recibe mensajes.
 - [ ] **Reagendar citas lunes 2026-05-25**: ruta Talca (12:00)→Linares (15:30)→Talca (16:30) es inválida. Claudia debe mover una de las dos citas de Talca. El fix del webhook ya previene nuevas rutas inválidas, pero estas citas ya existen en DB.
 - [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
 - [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()` para leer `logisticsConfig.routing_mode` en vez de comparar por ID.
@@ -1147,15 +1189,25 @@ Recordatorios de citas fallando con `BALANCE_INSUFFICIENT`. La cuenta de YCloud 
 
 ---
 
-## Roadmap próximas sesiones
+## Arquitectura de agentes HQ (2026-05-25)
 
-### Agente de Soporte Técnico Autónomo
-- Monitor de salud (cron cada 5 min revisando sistemas críticos)
-- Agente diagnóstico con Claude Sonnet + acceso a logs y DB de Supabase
-- Sistema de fixes automáticos para casos comunes:
-  - Recordatorios no enviados → reintento automático
-  - Errores de WhatsApp → diagnóstico YCloud/OpenAI
-  - Citas mal agendadas → corrección en DB
-  - Errores de pago → diagnóstico MercadoPago
-- Notificaciones al dueño vía WhatsApp cuando algo falla
-- Fixes de código → crea PR en GitHub para aprobación manual
+### `vetly-hq-agent` (WhatsApp +56993089185)
+- **Router**: compara `from` contra `hq_admin_phones` → soporte o ventas
+- **Consultor Andrés** (ventas): GPT-4o, historial de conversación, tools: `registrar_lead`, `escalar_lead_caliente`, `agendar_videollamada`
+- **Comandos de soporte** (admin): `status`, `saldo`, `errores`, `openai`, `debug <clínica>`, `ayuda`
+- **HMAC**: misma implementación que el webhook principal (UTF-8 key, `t.body` payload)
+- **`verify_jwt: false`** — necesario para webhooks YCloud
+
+### `cron-system-health` (jobid 16, cada 6h: `0 */6 * * *`)
+- Chequea OpenAI, saldo YCloud de cada clínica, recordatorios fallidos, agente mudo
+- Envía alerta WhatsApp a `hq_escalation_phone` cuando hay problemas
+- Retorna `notify_msg_id` para trazabilidad en YCloud dashboard
+- **`verify_jwt: false`** — invocado por pg_cron, no por usuarios
+
+### `chat-agent` (widget in-app)
+- Ruta ventas: GPT-4o-mini, prompt con precios correctos CLP
+- Ruta soporte: JWT → `clinic_id`, modelo híbrido (mini por default, 4o para diagnósticos), tools `diagnosticar_sistema` + `escalar_a_soporte`
+- **`verify_jwt: false`** — el widget lo llama desde el browser con su propio JWT
+
+### `_shared/diagnostics.ts`
+Módulo compartido usado por los 3 agentes anteriores. Incluye: `sendWhatsApp` (retorna `{id,status}`), `getYCloudBalance`, `checkOpenAI`, `classifyError`, `getRecentErrors`, `getReminderFailures`, `detectMute`, `runClinicDiagnostics`, `formatHealthReport`.
