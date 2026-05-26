@@ -77,14 +77,28 @@ Atiendes por WhatsApp a dueños/veterinarios interesados en Vetly.
 
 ESTILO: cálido, directo, profesional. Español de Chile. Mensajes cortos (WhatsApp). Una idea por mensaje.
 
-NO empieces con pitch. Primero CALIFICA con preguntas naturales (no como interrogatorio):
+APERTURA: Responde brevemente a la pregunta inicial. Luego, antes de hacer cualquier pregunta de calificación, pide permiso con naturalidad:
+"¿Te puedo hacer unas preguntas para entender mejor tus necesidades y así ayudarte de la mejor manera?"
+
+CALIFICACIÓN (solo cuando el prospecto acepte o dé señales positivas):
 1. ¿Cuántos veterinarios trabajan en la clínica?
 2. ¿Atienden en local, a domicilio o ambas?
 3. ¿Cuántas citas por semana aprox?
 4. ¿Usan WhatsApp Business hoy?
 5. ¿Cuál es su mayor dolor: agenda, seguimiento de pacientes o comunicación con dueños?
 
-Luego recomienda el plan que calce y explica el valor (recuperar ingresos, agendar 24/7, recordatorios que reducen inasistencia).
+DESPUÉS DE MOSTRAR UN PLAN: NO presiones a agendar demo de inmediato. Cierra con:
+"¿Te gustaría saber más detalles sobre el plan? O bien, también puedo ayudarte a agendar una demostración de la plataforma sin compromiso para que conozcas cómo Vetly puede ser un gran aliado en tu clínica."
+
+DEMO — proceso de agendamiento (lunes a viernes, 9:00–18:00 hora Chile):
+Pide los datos EN ORDEN, un mensaje a la vez:
+1. Nombre y apellido
+2. Nombre del negocio / clínica
+3. Correo electrónico
+4. Página web (opcional — si no tiene o no sabe, sigue igual)
+5. Día y hora que le acomoda (usa la fecha actual que viene en el contexto para calcular fechas relativas como "el lunes" o "mañana")
+
+Con todos los datos, llama a "agendar_videollamada". Confirma que Sebastián (el fundador) lo contactará directamente a la hora acordada.
 
 PLANES (CLP/mes, NUNCA inventes otros precios):
 - Core $33.000: gestión completa SIN IA conversacional.
@@ -99,8 +113,7 @@ OBJECIONES comunes y cómo responder:
 
 ACCIONES:
 - En cuanto tengas nombre y algún interés, llama a "registrar_lead" para guardarlo en el CRM.
-- Si el prospecto quiere una demo o muestra alta intención: pregunta qué día y hora le acomoda (lunes a viernes, 9:00–18:00 hora Chile). Cuando confirme, llama a "agendar_videollamada" para registrar la cita. Dile que lo contactará directamente Sebastián (el fundador) a la hora acordada.
-- Si el prospecto dice que quiere contratar ahora mismo (sin demo), llama a "escalar_lead_caliente" y envíalo a https://vetly.pro/register.
+- Si el prospecto quiere contratar ahora mismo (sin demo), llama a "escalar_lead_caliente" y envíalo a https://vetly.pro/register.
 
 Nunca inventes datos. Si no sabes algo puntual, ofrece confirmarlo.`;
 
@@ -141,13 +154,16 @@ const SALES_TOOLS = [
         type: "function",
         function: {
             name: "agendar_videollamada",
-            description: "Agenda una demo por videollamada en el calendario HQ y notifica al fundador. Úsalo cuando el prospecto confirme día y hora para la demo.",
+            description: "Agenda una demo por videollamada en el calendario HQ y notifica al fundador. Úsalo cuando tengas todos los datos del prospecto y confirme día y hora.",
             parameters: {
                 type: "object",
                 properties: {
-                    fecha: { type: "string", description: "Fecha en formato YYYY-MM-DD (ej: 2026-05-27)." },
-                    hora: { type: "string", description: "Hora en formato HH:MM de 24h, hora Chile (ej: 15:30)." },
-                    nombre_prospecto: { type: "string", description: "Nombre del prospecto o de la clínica." },
+                    fecha: { type: "string", description: "Fecha en formato YYYY-MM-DD (ej: 2026-05-27). Usa la fecha actual del contexto para calcular 'el lunes', 'mañana', etc." },
+                    hora: { type: "string", description: "Hora en formato HH:MM de 24h, hora Chile (ej: 10:00)." },
+                    nombre_prospecto: { type: "string", description: "Nombre y apellido del prospecto." },
+                    nombre_negocio: { type: "string", description: "Nombre del negocio o clínica veterinaria." },
+                    email: { type: "string", description: "Correo electrónico del prospecto." },
+                    web: { type: "string", description: "Página web del prospecto (opcional)." },
                     notas: { type: "string", description: "Plan de interés, tamaño de clínica, dolor principal." },
                 },
                 required: ["fecha", "hora", "nombre_prospecto"],
@@ -174,8 +190,15 @@ const handleSales = async (
         .order("created_at", { ascending: true })
         .limit(16);
 
+    const nowChile = new Date().toLocaleDateString("es-CL", {
+        timeZone: "America/Santiago",
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    });
     const convo: unknown[] = [
-        { role: "system", content: hq.salesPrompt + `\n\nNombre del contacto en WhatsApp: ${profileName || "(desconocido)"}. Su teléfono: ${fromPhone}.` },
+        { role: "system", content: hq.salesPrompt + `\n\nFecha actual en Chile: ${nowChile}. Usa esta fecha para calcular "el lunes", "mañana", etc.\nNombre del contacto en WhatsApp: ${profileName || "(desconocido)"}. Su teléfono: ${fromPhone}.` },
         ...((history || []) as { direction: string; content: string }[]).map((m) => ({
             role: m.direction === "outbound" ? "assistant" : "user",
             content: m.content,
@@ -207,20 +230,19 @@ const handleSales = async (
                         .eq("clinic_id", HQ_ID).eq("phone", fromPhone);
                     result = "Equipo humano notificado.";
                 } else if (call.function.name === "agendar_videollamada") {
-                    const appointmentDate = `${args.fecha}T${args.hora}:00`;
-                    await sb.from("appointments").insert({
-                        clinic_id: HQ_ID,
-                        patient_name: args.nombre_prospecto || fromPhone,
-                        phone_number: normalizePhone(fromPhone),
-                        service: "Demo / Videollamada Vetly",
-                        appointment_date: appointmentDate,
-                        duration_minutes: 30,
-                        status: "confirmed",
-                        notes: args.notas || null,
-                        price: 0,
+                    const scheduledAt = `${args.fecha}T${args.hora}:00`;
+                    const needsText = [args.notas, args.web ? `Web: ${args.web}` : null].filter(Boolean).join(" | ") || null;
+                    await sb.from("demo_requests").insert({
+                        name: args.nombre_prospecto || fromPhone,
+                        clinic_name: args.nombre_negocio || null,
+                        phone: normalizePhone(fromPhone),
+                        email: args.email || null,
+                        needs: needsText,
+                        scheduled_at: scheduledAt,
+                        status: "pending",
                     });
                     if (hq.escalationPhone && hq.apiKey) {
-                        const displayDate = new Date(appointmentDate).toLocaleString("es-CL", {
+                        const displayDate = new Date(scheduledAt).toLocaleString("es-CL", {
                             timeZone: "America/Santiago",
                             weekday: "long",
                             day: "numeric",
@@ -228,12 +250,18 @@ const handleSales = async (
                             hour: "2-digit",
                             minute: "2-digit",
                         });
-                        await sendWhatsApp(
-                            hq.apiKey,
-                            hq.phone,
-                            hq.escalationPhone,
-                            `📅 *Demo agendada*\n\n👤 ${args.nombre_prospecto}\n📞 ${fromPhone}\n🕐 ${displayDate}\n${args.notas ? `\n📝 ${args.notas}` : ""}`,
-                        );
+                        const notifLines = [
+                            `📅 *Demo agendada*`,
+                            ``,
+                            `👤 ${args.nombre_prospecto}`,
+                            args.nombre_negocio ? `🏥 ${args.nombre_negocio}` : null,
+                            `📞 ${fromPhone}`,
+                            args.email ? `📧 ${args.email}` : null,
+                            args.web ? `🌐 ${args.web}` : null,
+                            `🕐 ${displayDate}`,
+                            args.notas ? `\n📝 ${args.notas}` : null,
+                        ].filter(Boolean).join("\n");
+                        await sendWhatsApp(hq.apiKey, hq.phone, hq.escalationPhone, notifLines);
                     }
                     result = `Demo agendada el ${args.fecha} a las ${args.hora}h.`;
                 }
