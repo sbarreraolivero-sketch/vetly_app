@@ -1199,6 +1199,29 @@ El prompt se carga **por cada request** en `vetly-hq-agent`, no en startup. Camb
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 21, 2026-05-26)
+
+### `vetly-hq-agent` v4 — mejoras de UX y bugs críticos
+
+#### Bug: demos no aparecían en el calendario HQ
+`agendar_videollamada` insertaba en la tabla `appointments`, pero `AdminCalendar` lee de `demo_requests`. Fix: el handler ahora inserta en `demo_requests` con los campos correctos: `name`, `clinic_name`, `phone`, `email`, `needs`, `scheduled_at`, `status: 'pending'`.
+
+#### Bug: mensajes HQ no aparecían en AdminMessages
+RLS de `messages` usaba `clinic_members` — el admin HQ no tiene entrada en esa tabla para el HQ ID. Fix: migración `platform_admins_can_access_hq_messages` añadió política `FOR ALL` que permite acceso a cualquier usuario en `platform_admins`.
+
+#### Bug: fechas incorrectas al agendar (usaba 2023)
+El AI no conocía la fecha actual → al decir "el lunes" usaba una fecha de 2023. Fix: se inyecta `Fecha actual en Chile: {nowChile}` en el system prompt de cada request vía `new Date().toLocaleDateString("es-CL", { timeZone: "America/Santiago", ... })`.
+
+#### Mejoras de prompt (aplicadas en DB, efectivas de inmediato)
+- **Apertura suave**: responde brevemente a la primera pregunta, luego pide permiso: *"¿Te puedo hacer unas preguntas para entender mejor tus necesidades y así ayudarte de la mejor manera?"*. No lanzar calificación de golpe.
+- **CTA post-plan**: no presionar a demo inmediatamente. Cerrar con: *"¿Te gustaría saber más detalles sobre el plan? O bien, también puedo ayudarte a agendar una demostración sin compromiso..."*
+- **Datos de agenda**: recopila en orden (un mensaje a la vez): 1-Nombre y apellido, 2-Nombre del negocio, 3-Email, 4-Web (opcional), 5-Día y hora.
+
+#### Tool `agendar_videollamada` — nuevos parámetros
+Añadidos: `nombre_negocio`, `email`, `web` (opcional). La notificación WA al fundador incluye todos estos datos con emojis de contexto.
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
