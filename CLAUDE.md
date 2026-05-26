@@ -1203,7 +1203,7 @@ El prompt se carga **por cada request** en `vetly-hq-agent`, no en startup. Camb
 
 ### Alta prioridad
 - [x] **Abrir sesión WhatsApp para alertas** ✅ — usuario envió mensaje a +56993089185; respuesta recibida confirmando funcionamiento. Recordar re-abrir la ventana cada 24h si no hay tráfico o crear template proactivo en YCloud.
-- [ ] **Configurar webhook YCloud en +56993089185**: en dashboard YCloud para el número Vetly, configurar webhook URL = `https://ehmncwawzdciajvuallg.supabase.co/functions/v1/vetly-hq-agent` y pegar el secret en HQ → Integraciones. Sin esto Andrés no recibe mensajes.
+- [x] **Configurar webhook YCloud en +56993089185** ✅ — webhook URL configurada en dashboard YCloud + secret pegado en HQ → Integraciones. Andrés recibe mensajes de prospectos.
 - [ ] **Reagendar citas lunes 2026-05-25**: ruta Talca (12:00)→Linares (15:30)→Talca (16:30) es inválida. Claudia debe mover una de las dos citas de Talca. El fix del webhook ya previene nuevas rutas inválidas, pero estas citas ya existen en DB.
 - [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
 - [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()` para leer `logisticsConfig.routing_mode` en vez de comparar por ID.
