@@ -644,6 +644,17 @@ El banner pasó de `from-accent-500 to-accent-700` (gold) a `from-violet-500 to-
 - `get_estimated_audience(clinic_id, inclusion_tags UUID[], exclusion_tags UUID[])` cuenta tutores únicos con teléfono
 - `send-whatsapp-campaign` lee `campaign.inclusion_tags` / `campaign.exclusion_tags` (JSONB con UUIDs)
 
+### `logistics_config.routing_mode` — configuración sin deploy (sesión 24)
+Para agregar una nueva clínica de veterinaria móvil con lógica de sectores (tipo Animalgrace):
+1. Agregar en su `clinic_settings.logistics_config`: `{"routing_mode": "mobile_sectors"}`
+2. Si usa zonas RM Santiago: agregar `{"routing_zone": "rm_santiago", "fallback_lat": lat, "fallback_lng": lng}`
+3. No se requiere deploy — el webhook lee estos valores en cada request
+
+`CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` siguen definidas como constantes en el webhook pero **ya no se usan en lógica** — solo como referencia documentaria.
+
+### `_shared/cors.ts` — `*` es intencional
+El CORS de `_shared/cors.ts` usa `Access-Control-Allow-Origin: '*'` por diseño. Lo usan funciones llamadas desde el **browser** (`chat-agent`, `ai-simulator`). Los webhooks externos (YCloud, MercadoPago, LemonSqueezy) definen sus propios headers CORS restrictivos en cada función. No "corregir" este `*`.
+
 ### Créditos IA — fuente única de verdad (sesión 23)
 - **Tabla `messages`** es la fuente de verdad para calcular créditos consumidos en `AISettings.tsx`:
   ```
@@ -1520,17 +1531,11 @@ Resultado: Animalgrace Linares 12.000 → **30.000**, Animalgrace Santiago 0 →
 
 ## Tareas pendientes
 
-### Alta prioridad
-- [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()`.
+✅ **Sin pendientes técnicos activos.** Todos los ítems fueron cerrados en sesiones 23-24.
 
-### Media prioridad
-- [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase. Candidato a `Promise.all` donde no haya dependencia.
-- [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja. Las nuevas citas creadas vía AI agent sí quedan vinculadas correctamente.
-
-### Baja prioridad
-- [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa `*` (browser widget, no webhook). Documentar explícitamente para que nadie lo "corrija" innecesariamente.
-- [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados, no forman parte del proyecto.
-- [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — algunos usuarios tienen `clinic_id = NULL`. No bloquea el flujo actual (la RLS usa `clinic_members`).
+Los únicos ítems que quedaron intencionalmente sin modificar:
+- **`check_*.js` en raíz** — 0 archivos encontrados. Ya estaba limpio.
+- **`user_profiles.clinic_id NULL`** — 3 cuentas dev/test (`claubarreraolivero@gmail.com`, `seba.barreraolivero.070493@gmail.com`, `vetflow.cl@gmail.com`) sin `clinic_members`. `clinic_id = NULL` es el estado correcto para cuentas sin clínica asignada. No bloquea nada (RLS usa `clinic_members`).
 
 ---
 
