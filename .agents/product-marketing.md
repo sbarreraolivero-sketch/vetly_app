@@ -327,8 +327,46 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Presencia orgánica: prácticamente nula (sin blog, sin contenido SEO)
 
 **Hoja de ruta de marketing (prioridades):**
-1. Fix SEO técnico en landing (meta tags, OG, canonical, imágenes rotas)
-2. Keywords sin competencia: "recepcionista virtual veterinaria", "chatbot para veterinaria", "whatsapp bot veterinario"
-3. Caso de estudio Claudia como pieza central de contenido
-4. Outreach directo a comunidades veterinarias (VEPA Colombia 19 capítulos, Colmevet Chile)
-5. Ads solo cuando haya al menos 5 casos de éxito documentados
+1. ~~Fix SEO técnico en landing~~ ✅ Completado 2026-05-28
+2. ~~Crear product-marketing.md~~ ✅ Completado 2026-05-28
+3. **ART-13 — Caso de estudio Claudia** ← PRÓXIMO (sesión siguiente)
+4. ART-02 — "Recepcionista virtual veterinaria" (keyword sin competencia, prioridad #1 SEO)
+5. ART-01 — "WhatsApp clínica veterinaria"
+6. ART-06 — "Ruta clínica veterinaria móvil"
+7. Outreach directo a comunidades veterinarias (VEPA Colombia 19 capítulos, Colmevet Chile)
+8. Ads solo cuando haya al menos 5 casos de éxito documentados
+
+---
+
+## Progreso de Marketing — Sesión 2026-05-28
+
+### Completado
+
+**Investigación y estrategia:**
+- Auditoría SEO completa de `vetly.pro`
+- Análisis de TAM: ~13.000–15.000 clínicas en LATAM (MX+CO+CL+AR)
+- Subniche móvil: ~400–750 clínicas — demasiado pequeño para ads, usar como diferenciador creativo
+- Mapa de keywords: 0 competidores en "recepcionista virtual veterinaria", "agente IA veterinaria", "chatbot para veterinaria"
+- Comunidades Facebook veterinarias identificadas: Colmevet Chile (33.955 seg.), VEPA Colombia (13.658 + 19 capítulos)
+- Plan de contenido SEO: 15 artículos priorizados en 4 pilares, calendario 4 meses
+- 41 marketing skills instalados globalmente en `~/.claude/skills/`
+
+**SEO técnico aplicado (`public/landing.html`):**
+- `<title>` con keywords: "Software veterinario con IA | Recepcionista digital 24/7 por WhatsApp"
+- `<meta name="description">` (155 chars)
+- `<link rel="canonical">`
+- Open Graph completo (6 tags: type, url, title, description, image, locale)
+- Twitter Cards (4 tags)
+- `preconnect` Google Fonts
+- 3 imágenes rotas corregidas: `.png` → `.webp` (lia, goldi, imagen-vet-claudia)
+
+**Archivos creados:**
+- `public/robots.txt`
+- `public/sitemap.xml` (URLs: `/` y `/demo`)
+- `public/og-image.png` (1200×630px, 163KB — WhatsApp compatible)
+- `.agents/product-marketing.md` (este archivo)
+
+### Pendiente próxima sesión
+- **ART-13**: Redactar caso de estudio Claudia (historia completa — el artículo más importante del blog)
+- Crear sección `/blog` en la web antes de publicar artículos
+- Imagen OG: verificar que el ícono del logo generado por ChatGPT corresponde al logo real (ajustar en Canva si no)

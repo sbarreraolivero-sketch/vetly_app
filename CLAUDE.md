@@ -1645,6 +1645,31 @@ Las constantes `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` permanecen en el c
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 26, 2026-05-28)
+
+### SEO técnico y marketing — `public/landing.html`
+
+- **`<title>`** actualizado con keywords SEO: "Software veterinario con IA | Recepcionista digital 24/7 por WhatsApp"
+- **`<meta name="description">`** agregado (155 chars)
+- **`<link rel="canonical">`** apuntando a `https://vetly.pro/`
+- **Open Graph completo**: `og:type`, `og:url`, `og:title`, `og:description`, `og:image`, `og:locale`, `og:site_name`
+- **Twitter Cards**: `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`
+- **`preconnect`** para Google Fonts (reduce latencia de carga de fuente Outfit)
+- **Imágenes rotas corregidas**: `lia.png` → `lia.webp`, `goldi.png` → `goldi.webp`, `imagen-vet-claudia.png` → `imagen-vet-claudia.webp`
+
+### Archivos nuevos en `public/`
+- **`robots.txt`**: `Allow: /` + referencia a sitemap
+- **`sitemap.xml`**: URLs `/` (priority 1.0) y `/demo` (priority 0.8)
+- **`og-image.png`**: imagen OG 1200×630px, 163KB (compatible con WhatsApp <600KB)
+
+### Sistema de marketing (`/`)
+- **`.agents/product-marketing.md`**: contexto de marketing de Vetly creado. Todos los marketing skills lo leen automáticamente. Contiene: 3 segmentos target, personas, dolores, competidores, TAM LATAM, historia de Claudia, historia del fundador (Movilvets), plan de contenido SEO 15 artículos.
+- **41 marketing skills** instalados globalmente en `~/.claude/skills/` — disponibles en cualquier proyecto.
+
+**Regla permanente:** cualquier cambio de copy, precios, posicionamiento o segmentos → actualizar `.agents/product-marketing.md`. Los cambios de código/arquitectura → este CLAUDE.md.
+
+---
+
 ## Tareas pendientes
 
 ✅ **Sin pendientes técnicos activos.** Todos los ítems fueron cerrados en sesiones 23-25.
