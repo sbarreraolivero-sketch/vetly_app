@@ -1222,6 +1222,54 @@ Añadidos: `nombre_negocio`, `email`, `web` (opcional). La notificación WA al f
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 22, 2026-05-27)
+
+### Fix: rango horario no informado al agendar — ambas sucursales
+
+**Problema:** El agente confirmaba citas indicando la hora exacta ("quedaste agendado a las 10:00") sin aclarar que el móvil trabaja por rangos horarios y puede haber retrasos en la ruta.
+
+**Fix en `ai_behavior_rules` de Linares y Santiago (efectivo de inmediato, sin deploy):**
+Nueva regla agregada justo después del PROTOCOLO DE AGENDAMIENTO en ambas sucursales:
+
+> `AVISO DE RANGO HORARIO (OBLIGATORIO)`: Al confirmar cada cita agendada (ya sea al agendar o al confirmar un recordatorio), SIEMPRE añade al final del mensaje: *"Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible al menos 2 horas después de la hora asignada, por si ocurre algún retraso en la ruta."*
+
+---
+
+### Fix: "No hay citas pendientes" al confirmar por botón de template
+
+**Síntoma:** Clientes recibían el template de recordatorio con botones (Si, Confirmo / Cancelar Cita / Quiero Reagendar). Al hacer clic en "Si, Confirmo" en algunos casos, el agente respondía "No hay citas pendientes." en vez de confirmar.
+
+**Causa raíz:** `confirmAppt()` buscaba exclusivamente citas con `status = "pending"`. Si la cita ya había sido confirmada por un clic previo (ej: el cliente hacía clic en una copia duplicada del template enviada por el bug de idempotencia anterior, ya corregido en v16), la función no encontraba ninguna `pending` y retornaba ese mensaje erróneo sin más.
+
+**Fix en código (`confirmAppt`, webhook v214):**
+```typescript
+// Antes: si no había pending → "No hay citas pendientes."
+// Después: si no hay pending, verificar si hay una confirmed futura
+if (!appt) {
+  if (response === "yes") {
+    const { data: confirmedAppt } = await sb.from("appointments").select("id")
+      .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone)
+      .eq("status", "confirmed").gte("appointment_date", now)
+      .limit(1).maybeSingle();
+    if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda estar disponible al menos 2 horas después de la hora asignada..." };
+  }
+  return { message: "No hay citas pendientes." };
+}
+```
+
+**Mensaje de confirmación exitosa actualizado:** ahora incluye también el aviso de rango horario:
+> `"¡Cita confirmada! 😊 Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible al menos 2 horas después de la hora asignada, por si hay algún retraso en la ruta."`
+
+**Webhook deployado:** v214.
+
+---
+
+### Nota: botones duplicados en WhatsApp (no es un bug)
+
+Los botones del template de recordatorio (Cancelar Cita / Quiero Reagendar) aparecen tanto dentro de la burbuja del mensaje como flotantes al fondo de la pantalla. Esto es **comportamiento nativo de WhatsApp** para templates con quick reply buttons — no es controlable desde nuestro código ni desde YCloud.
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad

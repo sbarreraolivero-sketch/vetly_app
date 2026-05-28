@@ -1864,7 +1864,22 @@ const confirmAppt = async (
     "appointment_date",
     new Date().toISOString(),
   ).order("appointment_date", { ascending: true }).limit(1).single();
-  if (!appt) return { message: "No hay citas pendientes." };
+
+  if (!appt) {
+    // Si el cliente ya confirmó antes (otro clic en template duplicado), responder con gracia
+    if (response === "yes") {
+      const { data: confirmedAppt } = await sb.from("appointments").select("id")
+        .eq("clinic_id", clinicId)
+        .eq("phone_number", normalizedPhone)
+        .eq("status", "confirmed")
+        .gte("appointment_date", new Date().toISOString())
+        .order("appointment_date", { ascending: true })
+        .limit(1).maybeSingle();
+      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda estar disponible al menos 2 horas después de la hora asignada, ya que el móvil trabaja por rangos horarios." };
+    }
+    return { message: "No hay citas pendientes." };
+  }
+
   const status = response === "yes" ? "confirmed" : "cancelled";
   await sb.from("appointments").update({
     status,
@@ -1872,7 +1887,7 @@ const confirmAppt = async (
     confirmation_response: response,
   }).eq("id", appt.id);
   return status === "confirmed"
-    ? { message: "¡Cita confirmada! 😊" }
+    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible al menos 2 horas después de la hora asignada, por si hay algún retraso en la ruta." }
     : { message: "Cita cancelada. ¿Reagendar?" };
 };
 
