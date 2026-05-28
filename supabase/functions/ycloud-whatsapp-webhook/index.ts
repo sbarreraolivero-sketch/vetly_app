@@ -881,29 +881,36 @@ const checkAvail = async (
     }
   }
 
-  const { data: clinic } = await sb.from("clinic_settings").select(
-    "business_model, latitude, longitude, logistics_config",
-  ).eq("id", clinicId).single();
+  // Paralelizar: clinic_settings + serviceDetails + existingAppts son independientes
+  const [{ data: clinic }, serviceDetails, { data: existingAppts, error: errAppts }] = await Promise.all([
+    sb.from("clinic_settings").select("business_model, latitude, longitude, logistics_config, is_mobile_vet").eq("id", clinicId).single(),
+    getServiceDetails(sb, clinicId, serviceName || ""),
+    sb.from("appointments")
+      .select("id, appointment_date, duration_minutes, duration, professional_id, latitude, longitude, address")
+      .eq("clinic_id", clinicId)
+      .neq("status", "cancelled"),
+  ]);
+
   const isMobile = clinic?.business_model !== "physical";
 
   // Use the provided config, or the one from the DB, or a default
   const finalLogistics = logisticsConfig || clinic?.logistics_config || {};
-  
+
   // SUPPORT MULTIPLE LOCATIONS: Find the nearest base if multiple exist
   let clinicBase = null;
   if (tutorCoords) {
     const lowerService = serviceName?.toLowerCase() || "";
     // Detect if this is a surgery request
-    const isSurgery = lowerService.includes("cirug") || 
-                     lowerService.includes("esterili") || 
+    const isSurgery = lowerService.includes("cirug") ||
+                     lowerService.includes("esterili") ||
                      lowerService.includes("castra");
 
     if (finalLogistics.locations && finalLogistics.locations.length > 0) {
       let minDistance = Infinity;
       let nearestLoc = null;
-      
+
       // Filter locations based on service type
-      const relevantLocations = finalLogistics.locations.filter((l: any) => 
+      const relevantLocations = finalLogistics.locations.filter((l: any) =>
         isSurgery ? l.type === 'surgical_hub' : l.type === 'operational'
       );
 
@@ -917,7 +924,7 @@ const checkAvail = async (
           nearestLoc = loc;
         }
       }
-      
+
       if (nearestLoc) {
         clinicBase = { ...nearestLoc };
         console.log(`[checkAvail] Nearest ${isSurgery ? 'Hub' : 'Base'} found: ${nearestLoc.name} (${minDistance.toFixed(2)}km away)`);
@@ -928,18 +935,10 @@ const checkAvail = async (
         ? { lat: Number(clinic.latitude), lng: Number(clinic.longitude) }
         : null);
       if (clinicBase) {
-        // Ensure it has a name for logging
         clinicBase = { ...clinicBase, name: clinicBase.name || "Clinic Base" };
       }
     }
   }
-
-  // FEAT: Use Fuzzy/Multiple Service Matching
-  const serviceDetails = await getServiceDetails(
-    sb,
-    clinicId,
-    serviceName || "",
-  );
   const duration = serviceDetails.duration;
   const serviceId = serviceDetails.service_ids[0] || null;
   let professionalId: string | null = null;
@@ -1101,7 +1100,8 @@ const checkAvail = async (
   );
   const nowLocalMinutes = currentH * 60 + currentM;
 
-  const isAnimalGrace = clinicId === CLINIC_ANIMALGRACE_ID;
+  // Configurable desde DB — no requiere comparar UUID hardcodeado
+  const isAnimalGrace = (clinic?.logistics_config as any)?.routing_mode === 'mobile_sectors';
 
   if (date === localDate) {
     // Determine buffer based on address/zone
@@ -1128,12 +1128,7 @@ const checkAvail = async (
   }
 
   // --- SAFETY NET: Manual Booked Slots Filter ---
-  // appointment_date stores full UTC timestamps
-  const { data: existingAppts, error: errAppts } = await sb.from("appointments")
-    .select("appointment_date, duration_minutes, professional_id")
-    .eq("clinic_id", clinicId)
-    .neq("status", "cancelled");
-
+  // existingAppts ya fue cargado en paralelo al inicio de checkAvail
   if (errAppts) console.error("[checkAvail] Error fetching existing appts:", errAppts);
 
   const blockedSlots: string[] = [];
@@ -1220,14 +1215,16 @@ const checkAvail = async (
 
   // 6. IF MOBILE CLINIC: Filter slots based on Travel Time (Travel Block)
   if (isMobile && tutorCoords && filteredSlots.length > 0) {
-    // Fetch ALL appointments for the day (including those without coords for capacity count)
-    const { data: allDayAppts } = await sb.from("appointments")
-      .select("id, latitude, longitude, appointment_date, duration, address")
-      .eq("clinic_id", clinicId)
-      .gte("appointment_date", `${date}T00:00:00`)
-      .lte("appointment_date", `${date}T23:59:59`)
-      .neq("status", "cancelled")
-      .order("appointment_date", { ascending: true });
+    // Derivar allDayAppts de existingAppts ya cargado en memoria (sin query adicional)
+    const allDayAppts = (existingAppts || [])
+      .filter((a: any) => {
+        if (!a.appointment_date) return false;
+        const localDateStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+        }).format(new Date(a.appointment_date));
+        return localDateStr === date;
+      })
+      .sort((a: any, b: any) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
 
     // --- ANIMALGRACE SECTOR HELPER (única fuente de verdad de sectorización) ---
     // Clasifica una dirección/cita en sector "Linares" o "Talca". Las comunas de
@@ -1265,8 +1262,8 @@ const checkAvail = async (
       if (a.latitude !== null) return a;
       const norm = (a.address || "").toLowerCase();
       
-      // SANTIAGO BRANCH: Commune detection from text address
-      if (clinicId === CLINIC_SANTIAGO_ID) {
+      // SANTIAGO RM: Commune detection from text address (configurable via logistics_config)
+      if ((clinic?.logistics_config as any)?.routing_zone === 'rm_santiago') {
         const rmCommunes = ["santiago", "ñuñoa", "providencia", "las condes", "vitacura", "maipu", "maipú", "puente alto", "la florida", "san miguel", "la cisterna", "la reina", "peñalolen", "peñalolén", "quilicura", "pudahuel", "macul", "san joaquin", "san joaquín", "estacion central", "estación central", "recoleta", "independencia", "conchali", "conchalí", "huechuraba", "lo prado", "cerro navia", "renca"];
         if (rmCommunes.some(c => norm.includes(c))) {
           return { ...a, latitude: -33.4975, longitude: -70.6558 }; // Fallback to San Miguel for routing
