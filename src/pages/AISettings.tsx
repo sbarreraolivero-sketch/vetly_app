@@ -1,35 +1,89 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { useNavigate } from 'react-router-dom'
 import {
     SlidersHorizontal, Sparkles, Zap, RefreshCw, Cpu, Save, Loader2,
-    CreditCard, Plus, Check, ChevronRight, History, Info
+    CreditCard, Plus, Check, Info, AlertTriangle, Clock,
+    ArrowDownCircle, ArrowUpCircle, Calendar, TrendingDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
 import { LS_CREDIT_PACKS, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
+import { es } from 'date-fns/locale'
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Transaction {
+    id: string
+    created_at: string
+    type: 'monthly_refill' | 'purchase' | 'consumption' | 'adjustment'
+    amount: number
+    description: string
+    balance_after: number
+    metadata?: { model?: string } | null
+}
+
+interface HistorySummary {
+    consumed: number
+    messages: number
+    recharged: number
+    total: number
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function generateMonthOptions(count = 6): Date[] {
+    return Array.from({ length: count }, (_, i) => subMonths(startOfMonth(new Date()), i))
+}
+
+const txTypeConfig = {
+    monthly_refill: { label: 'Recarga Mensual', icon: Zap, color: 'text-sky-500', bg: 'bg-sky-50' },
+    purchase:       { label: 'Compra Extra',    icon: ArrowUpCircle, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+    consumption:    { label: 'Consumo IA',      icon: ArrowDownCircle, color: 'text-amber-500', bg: 'bg-amber-50' },
+    adjustment:     { label: 'Ajuste',          icon: AlertTriangle, color: 'text-slate-500', bg: 'bg-slate-50' },
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function AISettings() {
     const { profile, user } = useAuth()
-    const navigate = useNavigate()
 
+    // ── AI config
     const [aiAutoRespond, setAiAutoRespond] = useState(true)
     const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [savingModel, setSavingModel] = useState(false)
 
+    // ── Credits
+    const [aiCreditsUnlimited, setAiCreditsUnlimited] = useState(false)
     const [aiCreditsMonthlyLimit, setAiCreditsMonthlyLimit] = useState(500)
     const [aiCreditsExtraBalance, setAiCreditsExtraBalance] = useState(0)
     const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
-    const [aiMessagesUsed, setAiMessagesUsed] = useState(0)
-    const [aiMessagesUsedStandard, setAiMessagesUsedStandard] = useState(0)
-    const [aiMessagesUsedPro, setAiMessagesUsedPro] = useState(0)
-    const [aiMessagesUsedLegacy4o, setAiMessagesUsedLegacy4o] = useState(0)
+    const [aiCreditsExtraExpiresAt, setAiCreditsExtraExpiresAt] = useState<string | null>(null)
 
+    // ── Counters (direct from clinic_settings)
+    const [miniUsed, setMiniUsed] = useState(0)
+    const [fourOUsed, setFourOUsed] = useState(0)
+
+    // ── Model breakdown (from messages)
+    const [miniMessages, setMiniMessages] = useState(0)
+    const [standardMessages, setStandardMessages] = useState(0)
+    const [proMessages, setProMessages] = useState(0)
+
+    // ── Payment
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
-    const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini')
+
+    // ── History
+    const [monthOptions] = useState<Date[]>(generateMonthOptions)
+    const [selectedMonth, setSelectedMonth] = useState<Date>(monthOptions[0])
+    const [historyTxs, setHistoryTxs] = useState<Transaction[]>([])
+    const [historySummary, setHistorySummary] = useState<HistorySummary>({ consumed: 0, messages: 0, recharged: 0, total: 0 })
+    const [historyLoading, setHistoryLoading] = useState(false)
+
     const [isLoading, setIsLoading] = useState(true)
+
+    // ─── Load credits & counters ──────────────────────────────────────────────
 
     useEffect(() => {
         if (!profile?.clinic_id) return
@@ -38,7 +92,7 @@ export default function AISettings() {
             try {
                 const { data: cs } = await (supabase as any)
                     .from('clinic_settings')
-                    .select('ai_active_model,ai_auto_respond,ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,parent_clinic_id,payment_provider')
+                    .select('ai_active_model,ai_auto_respond,ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_credits_extra_expires_at,ai_credits_unlimited,ai_credits_monthly_mini_used,ai_credits_monthly_4o_used,parent_clinic_id,payment_provider')
                     .eq('id', profile.clinic_id)
                     .single()
 
@@ -47,46 +101,56 @@ export default function AISettings() {
                     setAiAutoRespond(cs.ai_auto_respond !== false)
                     setPaymentRegion(cs.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
 
+                    let unlimited = cs.ai_credits_unlimited || false
                     let monthlyLimit = cs.ai_credits_monthly_limit || 500
                     let extraBalance = cs.ai_credits_extra_balance || 0
                     let extra4o = cs.ai_credits_extra_4o || 0
+                    let expiresAt = cs.ai_credits_extra_expires_at || null
+                    let miniUsedVal = cs.ai_credits_monthly_mini_used || 0
+                    let fourOUsedVal = cs.ai_credits_monthly_4o_used || 0
 
                     if (cs.parent_clinic_id) {
                         const { data: parentData } = await (supabase as any)
                             .from('clinic_settings')
-                            .select('ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o')
+                            .select('ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_credits_extra_expires_at,ai_credits_unlimited,ai_credits_monthly_mini_used,ai_credits_monthly_4o_used')
                             .eq('id', cs.parent_clinic_id)
                             .single()
                         if (parentData) {
+                            unlimited = parentData.ai_credits_unlimited || false
                             monthlyLimit = parentData.ai_credits_monthly_limit || 500
                             extraBalance = parentData.ai_credits_extra_balance || 0
                             extra4o = parentData.ai_credits_extra_4o || 0
+                            expiresAt = parentData.ai_credits_extra_expires_at || null
+                            miniUsedVal = parentData.ai_credits_monthly_mini_used || 0
+                            fourOUsedVal = parentData.ai_credits_monthly_4o_used || 0
                         }
                     }
+
+                    setAiCreditsUnlimited(unlimited)
                     setAiCreditsMonthlyLimit(monthlyLimit)
                     setAiCreditsExtraBalance(extraBalance)
                     setAiCreditsExtra4o(extra4o)
+                    setAiCreditsExtraExpiresAt(expiresAt)
+                    setMiniUsed(miniUsedVal)
+                    setFourOUsed(fourOUsedVal)
                 }
 
-                const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-                let poolClinicIds = [profile.clinic_id]
+                // Model breakdown from messages (current month)
+                const startOfMonthStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+                let poolIds = [profile.clinic_id]
                 try {
                     const { data: poolData } = await (supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: profile.clinic_id })
-                    if (poolData && poolData.length > 0) poolClinicIds = poolData.map((r: any) => r)
+                    if (poolData && poolData.length > 0) poolIds = poolData
                 } catch {}
 
-                const [
-                    { count: cStd }, { count: cPro }, { count: cLeg }, { count: cMini }
-                ] = await Promise.all([
-                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o_standard').gte('created_at', startOfMonth),
-                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o_pro').gte('created_at', startOfMonth),
-                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o').gte('created_at', startOfMonth),
-                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).or('ai_model.eq.mini,ai_model.is.null').gte('created_at', startOfMonth),
+                const [{ count: cMini }, { count: cStd }, { count: cPro }] = await Promise.all([
+                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).or('ai_model.eq.mini,ai_model.is.null').gte('created_at', startOfMonthStr),
+                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).or('ai_model.eq.4o_standard,ai_model.eq.4o').gte('created_at', startOfMonthStr),
+                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).eq('ai_model', '4o_pro').gte('created_at', startOfMonthStr),
                 ])
-                setAiMessagesUsedStandard(cStd || 0)
-                setAiMessagesUsedPro(cPro || 0)
-                setAiMessagesUsedLegacy4o(cLeg || 0)
-                setAiMessagesUsed(cMini || 0)
+                setMiniMessages(cMini || 0)
+                setStandardMessages(cStd || 0)
+                setProMessages(cPro || 0)
             } catch (err) {
                 console.error('Error loading AI settings:', err)
             } finally {
@@ -95,6 +159,58 @@ export default function AISettings() {
         }
         load()
     }, [profile?.clinic_id])
+
+    // ─── Load history ─────────────────────────────────────────────────────────
+
+    const fetchHistory = useCallback(async (month: Date) => {
+        if (!profile?.clinic_id) return
+        setHistoryLoading(true)
+        try {
+            const monthStart = startOfMonth(month).toISOString()
+            const monthEnd = endOfMonth(month).toISOString()
+
+            let poolIds = [profile.clinic_id]
+            try {
+                const { data: poolData } = await (supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: profile.clinic_id })
+                if (poolData && poolData.length > 0) poolIds = poolData
+            } catch {}
+
+            // Query 1: all txs for summary (no limit)
+            const { data: allTxs } = await (supabase as any)
+                .from('ai_credit_transactions')
+                .select('type, amount')
+                .in('clinic_id', poolIds)
+                .gte('created_at', monthStart)
+                .lte('created_at', monthEnd)
+
+            const summary: HistorySummary = { consumed: 0, messages: 0, recharged: 0, total: (allTxs || []).length }
+            for (const tx of (allTxs || [])) {
+                if (tx.type === 'consumption') { summary.consumed += Math.abs(tx.amount); summary.messages++ }
+                else if (['monthly_refill', 'purchase'].includes(tx.type)) summary.recharged += tx.amount
+            }
+            setHistorySummary(summary)
+
+            // Query 2: display rows (200 limit)
+            const { data: tableTxs } = await (supabase as any)
+                .from('ai_credit_transactions')
+                .select('*')
+                .in('clinic_id', poolIds)
+                .gte('created_at', monthStart)
+                .lte('created_at', monthEnd)
+                .order('created_at', { ascending: false })
+                .limit(200)
+
+            setHistoryTxs(tableTxs || [])
+        } catch (err) {
+            console.error('Error loading history:', err)
+        } finally {
+            setHistoryLoading(false)
+        }
+    }, [profile?.clinic_id])
+
+    useEffect(() => { fetchHistory(selectedMonth) }, [selectedMonth, fetchHistory])
+
+    // ─── Handlers ────────────────────────────────────────────────────────────
 
     const handleSaveAI = async () => {
         if (!profile?.clinic_id) { toast.error('No se encontró el ID de la clínica'); return }
@@ -107,7 +223,6 @@ export default function AISettings() {
             if (error) { toast.error(`Error (${error.code}): ${error.message}`); return }
             if (!data || data.length === 0) { toast.error('No se pudo actualizar. Verifica tus permisos.'); return }
             toast.success('Configuración de IA guardada exitosamente')
-            setSelectedAiModel(aiActiveModel === 'pro' ? '4o' : 'mini')
         } catch (err: any) {
             toast.error('Error inesperado: ' + err.message)
         } finally {
@@ -119,48 +234,50 @@ export default function AISettings() {
         if (!profile?.clinic_id || !user?.email) return
         try {
             if (paymentRegion === 'international') {
-                await redirectToLemonCreditsCheckout(profile.clinic_id, user.email, packId, selectedAiModel)
+                await redirectToLemonCreditsCheckout(profile.clinic_id, user.email, packId, 'mini')
             } else {
-                await redirectToCreditsCheckout(profile.clinic_id, user.email, packId, selectedAiModel)
+                await redirectToCreditsCheckout(profile.clinic_id, user.email, packId, 'mini')
             }
         } catch (error: any) {
             alert(error.message || 'Error al procesar el pago.')
         }
     }
 
-    const totalCredits = aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o
-    const totalUsed = aiMessagesUsed + (aiMessagesUsedStandard * 8) + (aiMessagesUsedPro * 60) + (aiMessagesUsedLegacy4o * 60)
-    const usagePct = Math.min(100, (totalUsed / (totalCredits || 1)) * 100)
+    // ─── Computed values ──────────────────────────────────────────────────────
 
-    const mpPacks = { ...CREDIT_PACKS }
-    const lsPacks = { ...LS_CREDIT_PACKS }
-    const currentPacks = paymentRegion === 'international' ? lsPacks : mpPacks
+    const totalUsed = miniUsed + (fourOUsed * 8)
+    const extraExpired = aiCreditsExtraExpiresAt ? new Date(aiCreditsExtraExpiresAt) < new Date() : false
+    const extraAvailable = extraExpired ? 0 : (aiCreditsExtraBalance + aiCreditsExtra4o)
+    const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
+    const usagePct = Math.min(100, (totalUsed / (totalAvailable || 1)) * 100)
+
+    const currentPacks = paymentRegion === 'international' ? LS_CREDIT_PACKS : CREDIT_PACKS
     const currencySymbol = paymentRegion === 'international' ? 'US$' : '$'
-    const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP'
+
+    // ─── Render ───────────────────────────────────────────────────────────────
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto pb-20 animate-fade-in">
-            {/* Banner */}
+
+            {/* ── Banner ─────────────────────────────────────────────────── */}
             <div className="bg-gradient-to-br from-sky-500 to-sky-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-2">Agente IA</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Ajustes de IA</h1>
-                            <p className="text-sm text-sky-100/80 font-light mt-1">Motor de ruteo inteligente, créditos y estrategia del agente.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleSaveAI}
-                                disabled={savingModel || isLoading}
-                                className="flex items-center gap-2 bg-white text-sky-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm disabled:opacity-50"
-                            >
-                                {savingModel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                Guardar
-                            </button>
-                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
-                                <SlidersHorizontal className="w-6 h-6 text-white" />
-                            </div>
+                <div className="p-6 sm:p-8 flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-2">Agente IA</p>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Ajustes de IA</h1>
+                        <p className="text-sm text-sky-100/80 font-light mt-1">Motor de ruteo inteligente, créditos y estrategia del agente.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleSaveAI}
+                            disabled={savingModel || isLoading}
+                            className="flex items-center gap-2 bg-white text-sky-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                            {savingModel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            Guardar
+                        </button>
+                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <SlidersHorizontal className="w-6 h-6 text-white" />
                         </div>
                     </div>
                 </div>
@@ -170,282 +287,447 @@ export default function AISettings() {
                 <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-sky-500" /></div>
             ) : (
                 <>
-                    {/* Hybrid Intelligence — model selector */}
-                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="p-5 sm:p-6 border-b border-silk-beige bg-sky-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-11 h-11 bg-charcoal rounded-xl flex items-center justify-center">
-                                    <Sparkles className="w-5 h-5 text-sky-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-base font-black text-charcoal">Vetly Hybrid Intelligence</h2>
-                                    <p className="text-xs text-charcoal/50 mt-0.5 uppercase tracking-widest font-bold">Motor de ruteo de modelos IA</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-2xl border border-silk-beige shadow-sm self-start sm:self-auto">
-                                <div className="text-right">
-                                    <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Estado</p>
-                                    <p className={cn("text-sm font-black uppercase", aiAutoRespond ? "text-emerald-500" : "text-amber-500")}>
-                                        {aiAutoRespond ? 'En Línea' : 'Desconectado'}
-                                    </p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" className="sr-only peer" checked={aiAutoRespond} onChange={(e) => setAiAutoRespond(e.target.checked)} />
-                                    <div className="w-12 h-6 bg-charcoal/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-sky-500 after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
-                                </label>
+                    {/* ── Agente IA activo ────────────────────────────────── */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <div>
+                                <p className="text-sm font-black text-charcoal">Agente IA activo</p>
+                                <p className="text-xs text-charcoal/50 mt-0.5">Responde automáticamente a los mensajes de WhatsApp</p>
                             </div>
                         </div>
-
-                        <div className="p-5 sm:p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Mini */}
-                                <button
-                                    onClick={() => setAiActiveModel('mini')}
-                                    className={cn(
-                                        "flex flex-col p-5 rounded-2xl border-2 transition-all duration-300 text-left",
-                                        aiActiveModel === 'mini' ? "bg-white border-sky-500 shadow-md ring-4 ring-sky-500/10" : "bg-ivory border-silk-beige hover:border-sky-300 hover:bg-white"
-                                    )}
-                                >
-                                    <div className={cn("w-10 h-10 rounded-xl mb-4 flex items-center justify-center transition-all", aiActiveModel === 'mini' ? "bg-emerald-500 text-white" : "bg-silk-beige text-charcoal/40")}>
-                                        <Zap className="w-5 h-5" />
-                                    </div>
-                                    <h3 className="text-base font-black text-charcoal mb-1">Ahorro Máximo</h3>
-                                    <p className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest mb-3">GPT-4o Mini</p>
-                                    <p className="text-xs font-medium text-charcoal/60 leading-relaxed">Ideal para saludos y agendamientos rápidos.</p>
-                                    <div className={cn("mt-4 py-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest text-center", aiActiveModel === 'mini' ? "bg-emerald-100 text-emerald-700" : "bg-silk-beige/50 text-charcoal/30")}>
-                                        {aiActiveModel === 'mini' ? '✓ Seleccionado' : 'Activar'}
-                                    </div>
-                                </button>
-
-                                {/* Hybrid */}
-                                <button
-                                    onClick={() => setAiActiveModel('hybrid')}
-                                    className={cn(
-                                        "flex flex-col p-5 rounded-2xl border-2 transition-all duration-300 text-left relative",
-                                        aiActiveModel === 'hybrid' ? "bg-white border-sky-500 shadow-md ring-4 ring-sky-500/10 scale-[1.02] z-10" : "bg-ivory border-silk-beige hover:border-sky-300 hover:bg-white"
-                                    )}
-                                >
-                                    {aiActiveModel === 'hybrid' && (
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-sky-600 text-white text-[9px] font-black px-3 py-1 rounded-full shadow whitespace-nowrap uppercase tracking-widest">
-                                            Recomendado
-                                        </div>
-                                    )}
-                                    <div className={cn("w-10 h-10 rounded-xl mb-4 flex items-center justify-center transition-all", aiActiveModel === 'hybrid' ? "bg-sky-500 text-white" : "bg-silk-beige text-charcoal/40")}>
-                                        <RefreshCw className="w-5 h-5" />
-                                    </div>
-                                    <h3 className="text-base font-black text-sky-700 mb-1">Híbrido Automático</h3>
-                                    <p className="text-[10px] font-bold text-sky-400 uppercase tracking-widest mb-3">IA Router (N1/N2/N3)</p>
-                                    <p className="text-xs font-medium text-charcoal/60 leading-relaxed">Elige el mejor modelo según la complejidad del mensaje.</p>
-                                    <div className={cn("mt-4 py-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest text-center", aiActiveModel === 'hybrid' ? "bg-sky-500 text-white shadow" : "bg-silk-beige/50 text-charcoal/30")}>
-                                        {aiActiveModel === 'hybrid' ? 'Motor Activo' : 'Activar IA Router'}
-                                    </div>
-                                </button>
-
-                                {/* Pro */}
-                                <button
-                                    onClick={() => setAiActiveModel('pro')}
-                                    className={cn(
-                                        "flex flex-col p-5 rounded-2xl border-2 transition-all duration-300 text-left",
-                                        aiActiveModel === 'pro' ? "bg-white border-charcoal shadow-md ring-4 ring-charcoal/10" : "bg-ivory border-silk-beige hover:border-sky-300 hover:bg-white"
-                                    )}
-                                >
-                                    <div className={cn("w-10 h-10 rounded-xl mb-4 flex items-center justify-center transition-all", aiActiveModel === 'pro' ? "bg-charcoal text-white" : "bg-silk-beige text-charcoal/40")}>
-                                        <Cpu className="w-5 h-5" />
-                                    </div>
-                                    <h3 className="text-base font-black text-charcoal mb-1">Máximo Poder</h3>
-                                    <p className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest mb-3">GPT-4o Exclusivo</p>
-                                    <p className="text-xs font-medium text-charcoal/60 leading-relaxed">GPT-4o para todos los casos clínicos complejos.</p>
-                                    <div className={cn("mt-4 py-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-widest text-center", aiActiveModel === 'pro' ? "bg-charcoal text-white" : "bg-silk-beige/50 text-charcoal/30")}>
-                                        {aiActiveModel === 'pro' ? '✓ Modo Pro' : 'Activar Pro'}
-                                    </div>
-                                </button>
-                            </div>
-
-                            <div className="mt-5 pt-5 border-t border-silk-beige flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                    <p className="text-xs font-bold text-charcoal/50">Sincronización en tiempo real con YCloud</p>
-                                </div>
-                                <button
-                                    onClick={handleSaveAI}
-                                    disabled={savingModel}
-                                    className="flex items-center gap-2 bg-sky-500 text-white font-black text-sm px-6 py-2.5 rounded-xl hover:bg-sky-600 shadow-sm disabled:opacity-50 transition-colors"
-                                >
-                                    {savingModel ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</> : <><Save className="w-4 h-4" /> Confirmar Configuración</>}
-                                </button>
-                            </div>
-                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={aiAutoRespond} onChange={(e) => setAiAutoRespond(e.target.checked)} />
+                            <div className="w-14 h-7 bg-charcoal/10 rounded-full peer peer-checked:after:translate-x-7 peer-checked:bg-sky-500 after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all after:shadow" />
+                        </label>
                     </div>
 
-                    {/* Credits Dashboard */}
+                    {/* ── Motor de IA ──────────────────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="p-5 sm:p-6 border-b border-silk-beige bg-sky-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-11 h-11 bg-gradient-to-br from-sky-500 to-sky-700 rounded-xl flex items-center justify-center relative">
-                                    <Zap className="w-5 h-5 text-white" />
-                                    <div className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">LIVE</div>
-                                </div>
+                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige">
+                            <div className="flex items-center gap-3">
+                                <Sparkles className="w-5 h-5 text-sky-500" />
                                 <div>
-                                    <h2 className="text-base font-black text-charcoal">Vetly Credits</h2>
-                                    <p className="text-xs text-charcoal/40 uppercase tracking-widest font-bold mt-0.5">Créditos unificados de inteligencia</p>
+                                    <h2 className="text-sm font-black text-charcoal">Motor de IA</h2>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">Selecciona cómo el agente usa los modelos de lenguaje</p>
                                 </div>
-                            </div>
-                            <div className="bg-charcoal text-white px-6 py-3 rounded-2xl shadow-lg min-w-[180px] text-center">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-0.5">Total Disponibles</p>
-                                <p className="text-3xl font-black">{totalCredits.toLocaleString()}</p>
-                                <p className="text-[9px] font-bold text-white/40 uppercase mt-0.5">Créditos Globales</p>
                             </div>
                         </div>
-
-                        <div className="p-5 sm:p-6 space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="bg-silk-beige/20 p-5 rounded-2xl border border-silk-beige/50">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Plan Base</p>
-                                        <CreditCard className="w-4 h-4 text-charcoal/30" />
-                                    </div>
-                                    <p className="text-2xl font-black text-charcoal">{aiCreditsMonthlyLimit.toLocaleString()}</p>
-                                    <p className="text-[10px] font-bold text-charcoal/40 uppercase mt-1">Recarga Mensual</p>
+                        <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Mini */}
+                            <button
+                                onClick={() => setAiActiveModel('mini')}
+                                className={cn(
+                                    "flex flex-col p-5 rounded-2xl border-2 transition-all duration-200 text-left",
+                                    aiActiveModel === 'mini'
+                                        ? "bg-emerald-50 border-emerald-400 shadow-sm"
+                                        : "bg-ivory border-silk-beige hover:border-charcoal/20"
+                                )}
+                            >
+                                <div className={cn("w-10 h-10 rounded-xl mb-4 flex items-center justify-center", aiActiveModel === 'mini' ? "bg-emerald-500" : "bg-silk-beige")}>
+                                    <Zap className={cn("w-5 h-5", aiActiveModel === 'mini' ? "text-white" : "text-charcoal/40")} />
                                 </div>
-                                <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <p className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest">Cargas Extra</p>
-                                        <Plus className="w-4 h-4 text-emerald-500" />
-                                    </div>
-                                    <p className="text-2xl font-black text-emerald-600">{(aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
-                                    <p className="text-[10px] font-bold text-emerald-400 uppercase mt-1">Saldo Acumulado</p>
-                                </div>
-                                <div className="bg-red-50/30 p-5 rounded-2xl border border-red-100">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <p className="text-[10px] font-black text-red-600/60 uppercase tracking-widest">Consumo Mes</p>
-                                        <Zap className="w-4 h-4 text-red-500" />
-                                    </div>
-                                    <p className="text-2xl font-black text-red-600">{totalUsed.toLocaleString()}</p>
-                                    <p className="text-[10px] font-bold text-red-400 uppercase mt-1">Créditos Usados</p>
-                                </div>
-                            </div>
-
-                            {/* Usage bar */}
-                            <div className="bg-ivory rounded-2xl p-4 border border-silk-beige">
-                                <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs font-black text-charcoal/50 uppercase tracking-widest">Uso del mes</p>
-                                    <p className="text-xs font-black text-charcoal">{usagePct.toFixed(1)}%</p>
-                                </div>
-                                <div className="w-full h-2.5 bg-silk-beige rounded-full overflow-hidden">
-                                    <div
-                                        className={cn("h-full rounded-full transition-all duration-1000", usagePct >= 90 ? "bg-red-500" : usagePct >= 70 ? "bg-amber-500" : "bg-sky-500")}
-                                        style={{ width: `${usagePct}%` }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Historial link */}
-                            <button onClick={() => navigate('/app/ai-credits')} className="w-full flex items-center justify-between p-4 rounded-2xl border border-silk-beige bg-white hover:shadow-sm hover:border-sky-200 transition-all group">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center border border-sky-100 group-hover:bg-sky-500 transition-all">
-                                        <History className="w-5 h-5 text-sky-500 group-hover:text-white transition-colors" />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-sm font-black text-charcoal">Historial de Transacciones IA</p>
-                                        <p className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest mt-0.5">Recargas, consumos y bonos</p>
-                                    </div>
-                                </div>
-                                <ChevronRight className="w-5 h-5 text-charcoal/30 group-hover:text-sky-500 transition-colors" />
+                                <h3 className="text-sm font-black text-charcoal mb-0.5">Ahorro Máximo</h3>
+                                <p className={cn("text-[10px] font-black uppercase tracking-widest mb-3", aiActiveModel === 'mini' ? "text-emerald-500" : "text-charcoal/30")}>
+                                    GPT-4O MINI
+                                </p>
+                                <p className="text-xs text-charcoal/50 leading-relaxed flex-1">Ideal para agendamientos simples. Más créditos por el mismo precio.</p>
+                                {aiActiveModel === 'mini' && (
+                                    <p className="text-[10px] font-black text-emerald-600 mt-3">✓ ACTIVO</p>
+                                )}
                             </button>
 
-                            {/* Cost table */}
-                            <div className="bg-ivory/50 rounded-2xl border border-silk-beige p-5">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Info className="w-4 h-4 text-charcoal/30" />
-                                    <h3 className="text-xs font-black text-charcoal uppercase tracking-widest">Tabla de Costos Híbridos</h3>
+                            {/* Hybrid */}
+                            <button
+                                onClick={() => setAiActiveModel('hybrid')}
+                                className={cn(
+                                    "flex flex-col p-5 rounded-2xl border-2 transition-all duration-200 text-left relative",
+                                    aiActiveModel === 'hybrid'
+                                        ? "bg-sky-50 border-sky-400 shadow-sm"
+                                        : "bg-ivory border-silk-beige hover:border-charcoal/20"
+                                )}
+                            >
+                                <div className={cn("w-10 h-10 rounded-xl mb-4 flex items-center justify-center", aiActiveModel === 'hybrid' ? "bg-sky-500" : "bg-silk-beige")}>
+                                    <RefreshCw className={cn("w-5 h-5", aiActiveModel === 'hybrid' ? "text-white" : "text-charcoal/40")} />
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                                    {[
-                                        { mult: '1x', color: 'bg-emerald-100 text-emerald-700', label: 'N1: Flash Mini — GPT-4o Mini', desc: 'Velocidad y costo mínimo.' },
-                                        { mult: '8x', color: 'bg-blue-100 text-blue-700', label: 'N2: Standard — GPT-4o', desc: 'Razonamiento para ventas y logística.' },
-                                        { mult: '60x', color: 'bg-charcoal text-white', label: 'N3: Sovereign Pro — GPT-4o', desc: 'Inteligencia clínica y quirúrgica.' },
-                                    ].map(item => (
-                                        <div key={item.mult} className="flex items-start gap-3">
-                                            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shadow-inner flex-shrink-0", item.color)}>{item.mult}</div>
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal">{item.label}</p>
-                                                <p className="text-[10px] text-charcoal/40 font-bold mt-0.5 leading-relaxed">{item.desc}</p>
-                                            </div>
+                                <h3 className="text-sm font-black text-charcoal mb-0.5">Híbrido Automático</h3>
+                                <p className={cn("text-[10px] font-black uppercase tracking-widest mb-3", aiActiveModel === 'hybrid' ? "text-sky-500" : "text-charcoal/30")}>
+                                    IA ROUTER
+                                </p>
+                                <p className="text-xs text-charcoal/50 leading-relaxed flex-1">Elige el modelo ideal según la complejidad del mensaje.</p>
+                                {aiActiveModel === 'hybrid' && (
+                                    <p className="text-[10px] font-black text-sky-600 mt-3">✓ ACTIVO</p>
+                                )}
+                            </button>
+
+                            {/* Pro */}
+                            <button
+                                onClick={() => setAiActiveModel('pro')}
+                                className={cn(
+                                    "flex flex-col p-5 rounded-2xl border-2 transition-all duration-200 text-left",
+                                    aiActiveModel === 'pro'
+                                        ? "bg-violet-50 border-violet-400 shadow-sm"
+                                        : "bg-ivory border-silk-beige hover:border-charcoal/20"
+                                )}
+                            >
+                                <div className={cn("w-10 h-10 rounded-xl mb-4 flex items-center justify-center", aiActiveModel === 'pro' ? "bg-violet-600" : "bg-silk-beige")}>
+                                    <Cpu className={cn("w-5 h-5", aiActiveModel === 'pro' ? "text-white" : "text-charcoal/40")} />
+                                </div>
+                                <h3 className="text-sm font-black text-charcoal mb-0.5">Máximo Poder</h3>
+                                <p className={cn("text-[10px] font-black uppercase tracking-widest mb-3", aiActiveModel === 'pro' ? "text-violet-500" : "text-charcoal/30")}>
+                                    GPT-4O EXCLUSIVO
+                                </p>
+                                <p className="text-xs text-charcoal/50 leading-relaxed flex-1">GPT-4o completo para casos complejos y alta precisión.</p>
+                                {aiActiveModel === 'pro' && (
+                                    <p className="text-[10px] font-black text-violet-600 mt-3">✓ ACTIVO</p>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ── Créditos de IA ───────────────────────────────────── */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <CreditCard className="w-5 h-5 text-sky-500" />
+                                <div>
+                                    <h2 className="text-sm font-black text-charcoal">Créditos de IA</h2>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">Uso del ciclo actual</p>
+                                </div>
+                            </div>
+                            {aiCreditsUnlimited && (
+                                <span className="inline-flex items-center gap-1.5 bg-sky-50 text-sky-600 text-[10px] font-black px-3 py-1.5 rounded-full border border-sky-200 uppercase tracking-widest">
+                                    ∞ ILIMITADO
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                            {aiCreditsUnlimited ? (
+                                <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-sky-500 rounded-xl flex items-center justify-center shrink-0">
+                                        <Sparkles className="w-4 h-4 text-white" />
+                                    </div>
+                                    <p className="text-sm font-bold text-sky-700">
+                                        Tu agente IA tiene créditos ilimitados. Nunca se silenciará por falta de créditos.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Expiry warning */}
+                                    {extraAvailable > 0 && aiCreditsExtraExpiresAt && !extraExpired && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+                                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                                            <p className="text-xs font-bold text-amber-700">
+                                                {extraAvailable.toLocaleString()} créditos extra vencen el{' '}
+                                                {new Date(aiCreditsExtraExpiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}
+                                            </p>
                                         </div>
-                                    ))}
+                                    )}
+                                </>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-ivory rounded-2xl p-4 border border-silk-beige">
+                                    <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-1">Usados este ciclo</p>
+                                    <p className="text-3xl font-black text-charcoal tabular-nums">{totalUsed.toLocaleString()}</p>
                                 </div>
+                                <div className={cn("rounded-2xl p-4 border", aiCreditsUnlimited ? "bg-sky-50 border-sky-200" : "bg-ivory border-silk-beige")}>
+                                    <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1", aiCreditsUnlimited ? "text-sky-500" : "text-charcoal/40")}>Disponibles</p>
+                                    {aiCreditsUnlimited ? (
+                                        <p className="text-3xl font-black text-sky-500">∞</p>
+                                    ) : (
+                                        <p className="text-3xl font-black text-charcoal tabular-nums">{(totalAvailable - totalUsed).toLocaleString()}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {!aiCreditsUnlimited && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Uso del ciclo</p>
+                                        <p className="text-[10px] font-black text-charcoal">{usagePct.toFixed(1)}%</p>
+                                    </div>
+                                    <div className="w-full h-2 bg-silk-beige rounded-full overflow-hidden">
+                                        <div
+                                            className={cn("h-full rounded-full transition-all duration-1000", usagePct >= 90 ? "bg-red-500" : usagePct >= 70 ? "bg-amber-500" : "bg-sky-500")}
+                                            style={{ width: `${usagePct}%` }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between mt-1.5">
+                                        <p className="text-[10px] text-charcoal/30">Plan base: {aiCreditsMonthlyLimit.toLocaleString()}</p>
+                                        {extraAvailable > 0 && <p className="text-[10px] text-emerald-500">+{extraAvailable.toLocaleString()} extra</p>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── Consumo por Modelo ───────────────────────────────── */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige">
+                            <div className="flex items-center gap-3">
+                                <TrendingDown className="w-5 h-5 text-sky-500" />
+                                <div>
+                                    <h2 className="text-sm font-black text-charcoal">Consumo por Modelo</h2>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">Mensajes enviados y créditos gastados por tipo de IA este ciclo</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Mini */}
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center">
+                                        <Zap className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-charcoal">GPT-4o Mini</p>
+                                        <p className="text-[10px] font-bold text-emerald-600">×1 crédito / msg</p>
+                                    </div>
+                                </div>
+                                <p className="text-3xl font-black text-charcoal tabular-nums">{miniMessages.toLocaleString()}</p>
+                                <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
+                                <div className="mt-3 pt-3 border-t border-emerald-200 flex items-center justify-between">
+                                    <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
+                                    <p className="text-sm font-black text-emerald-600 tabular-nums">{(miniUsed).toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            {/* Standard */}
+                            <div className="bg-sky-50 border border-sky-100 rounded-2xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-7 h-7 bg-sky-500 rounded-lg flex items-center justify-center">
+                                        <RefreshCw className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-charcoal">GPT-4o Standard</p>
+                                        <p className="text-[10px] font-bold text-sky-600">×8 créditos / msg</p>
+                                    </div>
+                                </div>
+                                <p className="text-3xl font-black text-charcoal tabular-nums">{standardMessages.toLocaleString()}</p>
+                                <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
+                                <div className="mt-3 pt-3 border-t border-sky-200 flex items-center justify-between">
+                                    <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
+                                    <p className="text-sm font-black text-sky-600 tabular-nums">{(standardMessages * 8).toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            {/* Pro */}
+                            <div className="bg-violet-50 border border-violet-100 rounded-2xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-7 h-7 bg-violet-600 rounded-lg flex items-center justify-center">
+                                        <Cpu className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-charcoal">GPT-4o Pro</p>
+                                        <p className="text-[10px] font-bold text-violet-600">×60 créditos / msg</p>
+                                    </div>
+                                </div>
+                                <p className="text-3xl font-black text-charcoal tabular-nums">{proMessages.toLocaleString()}</p>
+                                <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
+                                <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
+                                    <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
+                                    <p className="text-sm font-black text-violet-600 tabular-nums">{(proMessages * 60).toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-5 pb-5">
+                            <div className="flex items-center gap-2 bg-ivory rounded-xl p-3 border border-silk-beige">
+                                <Info className="w-3.5 h-3.5 text-charcoal/30 shrink-0" />
+                                <p className="text-[10px] text-charcoal/40 font-bold leading-relaxed">
+                                    El agente elige el modelo según la complejidad del mensaje. Mini para respuestas simples. Standard para conversaciones con contexto. Pro para casos que requieren máxima precisión.
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Credit Packs */}
+                    {/* ── Comprar Créditos Extra ───────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="p-5 sm:p-6 border-b border-silk-beige bg-sky-50/40 flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-11 h-11 bg-emerald-500 rounded-xl flex items-center justify-center">
-                                    <Plus className="w-5 h-5 text-white" />
-                                </div>
+                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <Plus className="w-5 h-5 text-sky-500" />
                                 <div>
-                                    <h2 className="text-base font-black text-charcoal">Recarga de Créditos IA</h2>
-                                    <p className="text-xs text-charcoal/40 uppercase tracking-widest font-bold mt-0.5">Saldo que nunca vence • Activación inmediata</p>
+                                    <h2 className="text-sm font-black text-charcoal">Comprar Créditos Extra</h2>
+                                    <p className="text-[10px] font-bold text-amber-500 mt-0.5">Válidos 30 días desde la fecha de compra · Expiran automáticamente</p>
                                 </div>
                             </div>
                             {/* Region toggle */}
-                            <div className="flex items-center gap-1 bg-silk-beige p-1 rounded-xl border border-silk-beige shadow-sm">
+                            <div className="flex items-center gap-1 bg-silk-beige p-1 rounded-xl border border-silk-beige shadow-sm shrink-0">
                                 <button
                                     onClick={() => setPaymentRegion('chile')}
-                                    className={cn("px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", paymentRegion === 'chile' ? "bg-white text-charcoal shadow-sm" : "text-charcoal/40 hover:text-charcoal")}
+                                    className={cn("px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1", paymentRegion === 'chile' ? "bg-white text-charcoal shadow-sm" : "text-charcoal/40 hover:text-charcoal")}
                                 >
                                     🇨🇱 CLP
                                 </button>
                                 <button
                                     onClick={() => setPaymentRegion('international')}
-                                    className={cn("px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", paymentRegion === 'international' ? "bg-white text-charcoal shadow-sm" : "text-charcoal/40 hover:text-charcoal")}
+                                    className={cn("px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1", paymentRegion === 'international' ? "bg-white text-charcoal shadow-sm" : "text-charcoal/40 hover:text-charcoal")}
                                 >
                                     🌎 USD
                                 </button>
                             </div>
                         </div>
-                        <div className="p-5 sm:p-6">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                                {Object.keys(currentPacks).map((packId) => {
-                                    const pack = (currentPacks as any)[packId]
-                                    return (
-                                        <div key={packId} className={cn("p-6 bg-white border border-silk-beige rounded-2xl hover:shadow-lg hover:border-sky-300 transition-all flex flex-col relative overflow-hidden group", packId === 'heavy' && "border-sky-200")}>
-                                            {packId === 'heavy' && (
-                                                <div className="absolute top-0 right-0 bg-sky-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest">Sugerido</div>
-                                            )}
-                                            <h3 className="text-base font-black text-charcoal group-hover:text-sky-600 transition-colors uppercase tracking-tight">{pack.name}</h3>
-                                            <div className="flex items-baseline gap-2 mt-2 mb-5">
-                                                <span className="text-2xl font-black text-sky-600">{currencySymbol}{pack.price.toLocaleString()}</span>
-                                                <span className="text-xs font-black text-charcoal/30 uppercase">{currencyCode}</span>
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {Object.values(currentPacks).map((pack) => (
+                                <div key={pack.id} className="border border-silk-beige rounded-2xl overflow-hidden flex flex-col">
+                                    <div className="px-5 pt-5 pb-4 flex items-center justify-between">
+                                        <h3 className="text-sm font-black text-charcoal">{pack.name}</h3>
+                                        <span className="text-[10px] font-black text-sky-600 bg-sky-50 border border-sky-200 px-2 py-1 rounded-full">
+                                            {pack.credits.toLocaleString()} msgs
+                                        </span>
+                                    </div>
+                                    <div className="px-5 pb-4">
+                                        <p className="text-2xl font-black text-charcoal">{currencySymbol}{pack.price.toLocaleString()}</p>
+                                        <div className="mt-3 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                                                <span className="text-xs text-charcoal/60">{pack.credits.toLocaleString()} mensajes de IA</span>
                                             </div>
-                                            <div className="space-y-3 mb-5 flex-grow">
-                                                <div className="bg-silk-beige/20 p-3 rounded-xl border border-silk-beige/30">
-                                                    <p className="text-sm font-black text-charcoal flex items-center gap-2">
-                                                        <Zap className="w-4 h-4 text-sky-500" />
-                                                        {pack.credits.toLocaleString()} Créditos
-                                                    </p>
-                                                </div>
-                                                <ul className="space-y-2">
-                                                    <li className="flex items-center gap-2 text-xs font-bold text-charcoal/50"><Check className="w-4 h-4 text-emerald-500" />Uso Universal (N1/N2/N3)</li>
-                                                    <li className="flex items-center gap-2 text-xs font-bold text-charcoal/50"><Check className="w-4 h-4 text-emerald-500" />Sin fecha de vencimiento</li>
-                                                </ul>
+                                            <div className="flex items-center gap-2">
+                                                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                                                <span className="text-xs text-charcoal/60">Activación instantánea</span>
                                             </div>
-                                            <button
-                                                onClick={() => handleBuyCredits(packId)}
-                                                className="w-full py-3 bg-charcoal text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-600 shadow-sm hover:shadow-sky-500/20 transition-all"
-                                            >
-                                                Comprar Pack
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                                                <span className="text-xs text-amber-600 font-bold">Válidos 30 días</span>
+                                            </div>
                                         </div>
-                                    )
-                                })}
-                            </div>
-                            <p className="text-[10px] text-charcoal/40 font-bold italic text-center mt-5 leading-relaxed">
-                                * Los créditos actúan como monedero virtual. Se consumen cuando agotes los gratuitos de tu plan y permanecen activos para siempre.
-                            </p>
+                                    </div>
+                                    <div className="px-5 pb-5 mt-auto">
+                                        <button
+                                            onClick={() => handleBuyCredits(pack.id)}
+                                            className="w-full py-3 bg-sky-500 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-600 transition-colors"
+                                        >
+                                            Comprar Pack
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
+                    </div>
+
+                    {/* ── Historial de Transacciones ───────────────────────── */}
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center border border-sky-100">
+                                    <Clock className="w-4 h-4 text-sky-500" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xs font-black text-charcoal uppercase tracking-widest">Historial de Transacciones</h2>
+                                    <p className="text-[10px] font-bold text-charcoal/30 uppercase tracking-widest mt-0.5">Transparencia total en el consumo de tu IA</p>
+                                </div>
+                            </div>
+                            {/* Month selector */}
+                            <select
+                                value={selectedMonth.toISOString()}
+                                onChange={(e) => setSelectedMonth(new Date(e.target.value))}
+                                className="text-xs font-black text-charcoal bg-silk-beige border border-silk-beige rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500/30 uppercase tracking-widest"
+                            >
+                                {monthOptions.map((m) => (
+                                    <option key={m.toISOString()} value={m.toISOString()}>
+                                        {format(m, 'MMMM yyyy', { locale: es }).toUpperCase()}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Summary cards */}
+                        <div className="p-5 grid grid-cols-3 gap-4">
+                            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
+                                <p className="text-2xl font-black text-charcoal tabular-nums">{historySummary.consumed.toLocaleString()}</p>
+                                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-1">Créditos Usados</p>
+                            </div>
+                            <div className="bg-silk-beige/30 border border-silk-beige rounded-2xl p-4 text-center">
+                                <p className="text-2xl font-black text-charcoal tabular-nums">{historySummary.messages.toLocaleString()}</p>
+                                <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mt-1">Mensajes IA</p>
+                            </div>
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
+                                <p className="text-2xl font-black text-emerald-600 tabular-nums">{historySummary.recharged.toLocaleString()}</p>
+                                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">Recargado</p>
+                            </div>
+                        </div>
+
+                        {/* Table */}
+                        {historyLoading ? (
+                            <div className="py-12 flex justify-center">
+                                <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
+                            </div>
+                        ) : historyTxs.length === 0 ? (
+                            <div className="py-12 flex flex-col items-center gap-3 text-center">
+                                <div className="w-12 h-12 bg-silk-beige/30 rounded-2xl flex items-center justify-center">
+                                    <Clock className="w-6 h-6 text-charcoal/20" />
+                                </div>
+                                <p className="text-sm font-black text-charcoal/40">Sin transacciones en {format(selectedMonth, 'MMMM yyyy', { locale: es })}</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-t border-b border-silk-beige bg-silk-beige/20">
+                                            <th className="px-5 py-3.5 text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Fecha</th>
+                                            <th className="px-5 py-3.5 text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Concepto</th>
+                                            <th className="px-5 py-3.5 text-[10px] font-black text-charcoal/40 uppercase tracking-widest text-right">Cantidad</th>
+                                            <th className="px-5 py-3.5 text-[10px] font-black text-charcoal/40 uppercase tracking-widest text-right">Saldo</th>
+                                            <th className="px-5 py-3.5 text-[10px] font-black text-charcoal/40 uppercase tracking-widest text-center">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-silk-beige/40">
+                                        {historyTxs.map((tx) => {
+                                            const cfg = txTypeConfig[tx.type] || txTypeConfig.adjustment
+                                            const Icon = cfg.icon
+                                            return (
+                                                <tr key={tx.id} className="hover:bg-ivory/40 transition-colors">
+                                                    <td className="px-5 py-3.5 whitespace-nowrap">
+                                                        <p className="text-sm font-black text-charcoal">{format(new Date(tx.created_at), 'dd MMM, yyyy', { locale: es })}</p>
+                                                        <p className="text-[10px] font-bold text-charcoal/30">{format(new Date(tx.created_at), 'HH:mm')}</p>
+                                                    </td>
+                                                    <td className="px-5 py-3.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", cfg.bg)}>
+                                                                <Icon className={cn("w-3.5 h-3.5", cfg.color)} />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-medium text-charcoal leading-tight">{tx.description}</p>
+                                                                <p className={cn("text-[10px] font-black uppercase tracking-widest", cfg.color)}>{cfg.label}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                                                        <span className={cn(
+                                                            "inline-block px-2.5 py-1 rounded-full text-sm font-black tabular-nums",
+                                                            tx.amount > 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
+                                                        )}>
+                                                            {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                                                        <p className="text-sm font-black text-charcoal tabular-nums">{tx.balance_after?.toLocaleString() ?? '—'}</p>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                                                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                                                            Confirmado
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                                {/* Footer */}
+                                <div className="px-5 py-4 border-t border-silk-beige bg-ivory/10 flex items-center justify-between">
+                                    <p className="text-[10px] font-bold text-charcoal/30 italic">
+                                        Mostrando {historyTxs.length} de {historySummary.total} transacciones de {format(selectedMonth, 'MMMM yyyy', { locale: es })}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 text-[10px] font-black text-charcoal/30 uppercase">
+                                        <Calendar className="w-3 h-3" />
+                                        {format(selectedMonth, 'MMMM yyyy', { locale: es }).toUpperCase()}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </>
             )}

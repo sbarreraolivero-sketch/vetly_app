@@ -630,11 +630,61 @@ const saveMsg = async (
     if (direction === "outbound" && insertPayload.ai_generated) {
       try {
         const model = insertPayload.ai_model;
+        const creditCost = model === "mini" ? 1 : 8;
+
+        // Resolve credit pool (parent clinic if this is a branch)
+        const creditPoolId: string = await (async () => {
+          const { data: poolRow } = await sb.from("clinic_settings")
+            .select("parent_clinic_id")
+            .eq("id", clinicId)
+            .single();
+          return poolRow?.parent_clinic_id || clinicId;
+        })();
+
+        // Credit check — skip if unlimited
+        const { data: pool } = await sb.from("clinic_settings")
+          .select("ai_credits_unlimited,ai_credits_monthly_mini_used,ai_credits_monthly_4o_used,ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_credits_extra_expires_at")
+          .eq("id", creditPoolId)
+          .single();
+
+        if (pool && !pool.ai_credits_unlimited) {
+          const miniUsed = pool.ai_credits_monthly_mini_used || 0;
+          const oUsed = pool.ai_credits_monthly_4o_used || 0;
+          const totalUsed = miniUsed + (oUsed * 8);
+          const monthlyLimit = pool.ai_credits_monthly_limit || 500;
+
+          const extrasExpired = pool.ai_credits_extra_expires_at
+            ? new Date(pool.ai_credits_extra_expires_at) < new Date()
+            : false;
+          const extraBalance = extrasExpired ? 0 : ((pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0));
+
+          if (extrasExpired && ((pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0)) > 0) {
+            sb.from("clinic_settings")
+              .update({ ai_credits_extra_balance: 0, ai_credits_extra_4o: 0, ai_credits_extra_expires_at: null })
+              .eq("id", creditPoolId);
+          }
+
+          if (totalUsed >= monthlyLimit + extraBalance) {
+            console.warn(`[saveMsg] Clinic ${creditPoolId} has insufficient credits (used=${totalUsed}, limit=${monthlyLimit + extraBalance}) — message saved but not counted`);
+          }
+        }
+
+        // Increment counters
         if (model === "mini") {
           await sb.rpc('increment_clinic_mini_usage', { p_clinic_id: clinicId });
         } else if (["4o", "4o_standard", "4o_pro"].includes(model)) {
           await sb.rpc('increment_clinic_4o_usage', { p_clinic_id: clinicId });
         }
+
+        // Register consumption transaction
+        await sb.from("ai_credit_transactions").insert({
+          clinic_id: creditPoolId,
+          type: 'consumption',
+          amount: -creditCost,
+          balance_after: 0,
+          description: `Consumo IA: ${model}${creditPoolId !== clinicId ? ` (sucursal)` : ''}`,
+          metadata: { model, source_clinic_id: clinicId }
+        });
       } catch (countErr) {
         console.warn("[saveMsg] Failed to increment usage counters:", countErr);
       }

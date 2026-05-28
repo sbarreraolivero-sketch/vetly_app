@@ -21,3 +21,15 @@ verify_jwt = false
 
 [functions.ai-simulator]
 verify_jwt = false
+
+[functions.cron-expire-extra-credits]
+verify_jwt = false
+
+[functions.vetly-hq-agent]
+verify_jwt = false
+
+[functions.cron-system-health]
+verify_jwt = false
+
+[functions.lemonsqueezy-webhook]
+verify_jwt = false

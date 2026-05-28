@@ -110,13 +110,29 @@ export default function AdminClinics() {
         try {
             const clinic = clinics.find(c => c.id === clinicId)
             const currentVal = clinic?.ai_credits_extra_balance || 0
+            const newBalance = currentVal + amount
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
             const { error } = await (supabase.from('clinic_settings') as any)
-                .update({ ai_credits_extra_balance: currentVal + amount })
+                .update({
+                    ai_credits_extra_balance: newBalance,
+                    ai_credits_extra_expires_at: expiresAt,
+                })
                 .eq('id', clinicId)
 
             if (error) throw error
-            alert('✅ Créditos cargados.')
+
+            await (supabase as any).from('ai_credit_transactions').insert({
+                clinic_id: clinicId,
+                type: 'purchase',
+                amount,
+                balance_after: newBalance,
+                description: 'Carga manual de créditos IA (HQ)',
+                metadata: { expires_at: expiresAt, source: 'hq_manual' }
+            })
+
+            const expiryDate = new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
+            alert(`✅ ${amount} créditos cargados. Vencen el ${expiryDate}.`)
             fetchClinics()
         } catch (err: any) {
             alert('Error: ' + err.message)

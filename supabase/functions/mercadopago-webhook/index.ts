@@ -98,17 +98,31 @@ Deno.serve(async (req: Request) => {
 
                 const currentBalance = (settings as any)?.[balanceField] || 0;
                 const newBalance = currentBalance + creditsToAdd;
+                const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-                // Update balance
+                // Update balance + set expiry
                 const { error: updateError } = await supabase
                     .from('clinic_settings')
-                    .update({ [balanceField]: newBalance })
+                    .update({
+                        [balanceField]: newBalance,
+                        ai_credits_extra_expires_at: expiresAt,
+                    })
                     .eq('id', clinicId);
 
                 if (updateError) {
                     console.error(`Error updating credits (${balanceField}):`, updateError);
                     return new Response("Error updating credits", { status: 500 });
                 }
+
+                // Register transaction
+                await supabase.from('ai_credit_transactions').insert({
+                    clinic_id: clinicId,
+                    type: 'purchase',
+                    amount: creditsToAdd,
+                    balance_after: newBalance,
+                    description: `Compra créditos extra (${model}) vía MercadoPago`,
+                    metadata: { model, expires_at: expiresAt }
+                });
 
                 console.log(`AI Credits (${model}) updated for ${clinicId}: +${creditsToAdd} -> Total Extra: ${newBalance}`);
                 return new Response(`AI Credits (${model}) OK`, { status: 200 });

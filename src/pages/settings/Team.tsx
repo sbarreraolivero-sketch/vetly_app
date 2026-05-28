@@ -1,36 +1,39 @@
 
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Mail, Shield, User, Clock, Copy } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Trash2, Mail, Shield, User, Clock, Copy, Loader2 } from 'lucide-react'
 import { teamService, type ClinicMember } from '@/services/teamService'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
+
+// Plans where max_users can be trusted from clinic_settings.max_users directly.
+// These bypass the subscriptions table derivation.
+const MANUALLY_TRUSTED_PLANS = new Set(['prestige', 'enterprise'])
+
+// Centralized PLAN_LIMITS — single source of truth for frontend display.
+const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
+    core:       { maxUsers: 1,      maxAgendas: 1 },
+    starter:    { maxUsers: 2,      maxAgendas: 1 },
+    pro:        { maxUsers: 5,      maxAgendas: 5 },
+    enterprise: { maxUsers: 999999, maxAgendas: 999999 },
+    essence:    { maxUsers: 2,      maxAgendas: 1 },
+    radiance:   { maxUsers: 5,      maxAgendas: 5 },
+    prestige:   { maxUsers: 999999, maxAgendas: 999999 },
+}
 
 export default function Team() {
     const { member, profile } = useAuth()
     const [members, setMembers] = useState<ClinicMember[]>([])
     const [loading, setLoading] = useState(true)
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+    const [isInviting, setIsInviting] = useState(false)
     const [inviteEmail, setInviteEmail] = useState('')
     const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist' | 'vet_assistant'>('professional')
     const [inviteName, setInviteName] = useState('')
-    const [maxUsers, setMaxUsers] = useState(2) // Default to Essence minimum
-    const [maxAgendas, setMaxAgendas] = useState(1) // Default to Essence minimum
-    const [planName, setPlanName] = useState('freemium')
+    const [maxUsers, setMaxUsers] = useState(2)
+    const [maxAgendas, setMaxAgendas] = useState(1)
+    const [_planName, setPlanName] = useState('freemium')
 
-    // Centralized plan limits — SINGLE SOURCE OF TRUTH
-    const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
-        core:       { maxUsers: 1,      maxAgendas: 1 },
-        starter:    { maxUsers: 2,      maxAgendas: 1 },
-        pro:        { maxUsers: 5,      maxAgendas: 5 },
-        enterprise: { maxUsers: 999999, maxAgendas: 999999 },
-        // legacy IDs kept for backward compat
-        essence:    { maxUsers: 2,      maxAgendas: 1 },
-        radiance:   { maxUsers: 5,      maxAgendas: 5 },
-        prestige:   { maxUsers: 999999, maxAgendas: 999999 },
-    }
-
-    // Fallback to profile check if member context is missing
     const isOwner = member?.role === 'owner' || profile?.role === 'owner'
     const isAdmin = isOwner || member?.role === 'admin' || profile?.role === 'admin'
     const clinicId = member?.clinic_id || profile?.clinic_id
@@ -39,128 +42,119 @@ export default function Team() {
     const currentUsers = activeMembers.length
     const currentAgendas = activeMembers.filter(m => m.role === 'professional').length
 
-    const canInvite = isAdmin && (maxUsers === -1 || currentUsers < maxUsers)
-    const canAddAgenda = isAdmin && (maxAgendas === -1 || currentAgendas < maxAgendas)
+    const canInvite = isAdmin && (maxUsers >= 999999 || currentUsers < maxUsers)
+    const canAddAgenda = isAdmin && (maxAgendas >= 999999 || currentAgendas < maxAgendas)
 
-    useEffect(() => {
-        console.log('Team Page - Clinic ID Changed:', clinicId)
-        if (clinicId) loadData()
-    }, [clinicId])
+    const loadData = useCallback(async () => {
+        if (!clinicId) { setLoading(false); return }
 
-    const loadData = async () => {
-        if (!clinicId) {
-            setLoading(false)
-            return
-        }
+        // Clear state immediately — fast visual feedback when switching branches
+        setLoading(true)
+        setMembers([])
 
         try {
-            console.log('Loading team data for clinic:', clinicId)
+            // ── Parallel: members + settings + subscription ───────────────
+            const [membersResult, settingsResult, subResult] = await Promise.all([
+                teamService.getMembers(clinicId).catch(() => [] as ClinicMember[]),
+                (supabase as any).from('clinic_settings')
+                    .select('id,max_users,subscription_plan,parent_clinic_id')
+                    .eq('id', clinicId)
+                    .single(),
+                (supabase as any).from('subscriptions')
+                    .select('plan,status,max_agendas,manually_active')
+                    .eq('clinic_id', clinicId)
+                    .single(),
+            ])
 
-            // 1. Get Members (Try RPC, fallback to direct)
-            let membersData: ClinicMember[] = []
-            try {
-                membersData = await teamService.getMembers(clinicId)
-            } catch (rpcError) {
-                console.warn('RPC check failed, fetching directly:', rpcError)
-            }
-
-            // If RPC returned empty or failed, try direct fetch (Safety Net)
+            // Fallback: direct fetch if RPC returned empty
+            let membersData = membersResult
             if (!membersData || membersData.length === 0) {
-                const { data: directMembers, error: directError } = await supabase
+                const { data: direct } = await supabase
                     .from('clinic_members')
                     .select('*')
                     .eq('clinic_id', clinicId)
-
-                if (!directError && directMembers) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    membersData = directMembers as any[]
-                }
+                membersData = (direct ?? []) as ClinicMember[]
             }
 
-            console.log('Final Members List:', membersData)
+            // Sort: owner first
+            setMembers(
+                (membersData ?? []).sort((a, b) =>
+                    a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0
+                )
+            )
 
-            // Sort: Owner first, then by date
-            const sortedMembers = (membersData || []).sort((a, b) => {
-                if (a.role === 'owner' && b.role !== 'owner') return -1
-                if (a.role !== 'owner' && b.role === 'owner') return 1
-                return 0
-            })
-            setMembers(sortedMembers)
+            const settingsData = settingsResult.data
+            let subData = subResult.data
 
-            // 2. Get Settings & Subscription (Source of Truth)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let settingsData: any = null
-            try {
-                settingsData = await teamService.getClinicSettings(clinicId)
-            } catch (e) {
-                console.warn('getClinicSettings RPC failed:', e)
+            // If this is a branch, fetch the pool-root subscription for accurate limits
+            const parentId = settingsData?.parent_clinic_id
+            if (parentId && !subData) {
+                const { data: parentSub } = await supabase
+                    .from('subscriptions')
+                    .select('plan,status,max_agendas,manually_active')
+                    .eq('clinic_id', parentId)
+                    .single()
+                subData = parentSub
             }
 
-            if (!settingsData) {
-                const { data: directSettings } = await supabase.from('clinic_settings').select('*').eq('id', clinicId).single()
-                if (directSettings) settingsData = directSettings
-            }
+            // ── Derive limits ─────────────────────────────────────────────
+            const resolvedMaxUsers = settingsData?.max_users ?? 2
+            const subscriptionPlan = settingsData?.subscription_plan ?? 'freemium'
+            const manuallyActive = subData?.manually_active ?? false
+            const subPlan = subData?.plan
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: subData, error: subError } = await supabase
-                .from('subscriptions')
-                .select('*')
-                .eq('clinic_id', clinicId)
-                .single() as any
-
-            console.log('Settings:', settingsData, 'Sub:', subData, 'SubError:', subError)
-
-            if (subData) {
-                // Subscription table is the ultimate authority
-                const plan = subData.plan || 'starter'
-                setPlanName(plan)
-
-                // Use centralized PLAN_LIMITS as source of truth
-                const limits = PLAN_LIMITS[plan]
+            if (manuallyActive || MANUALLY_TRUSTED_PLANS.has(subscriptionPlan)) {
+                // Trust clinic_settings.max_users directly — manually managed account
+                setPlanName(subscriptionPlan)
+                setMaxUsers(resolvedMaxUsers)
+                setMaxAgendas(resolvedMaxUsers >= 999999 ? 999999 : (subData?.max_agendas ?? 1))
+            } else if (subData && subPlan) {
+                // Active MercadoPago / LemonSqueezy subscription
+                setPlanName(subPlan)
+                const limits = PLAN_LIMITS[subPlan]
                 if (limits) {
                     setMaxUsers(limits.maxUsers)
                     setMaxAgendas(limits.maxAgendas)
                 } else {
-                    // Unknown plan — fallback to DB values or safe defaults
-                    setMaxUsers(settingsData?.max_users || 2)
-                    setMaxAgendas(subData.max_agendas || 1)
+                    setMaxUsers(resolvedMaxUsers)
+                    setMaxAgendas(subData?.max_agendas ?? 1)
                 }
             } else if (settingsData) {
-                // No subscription row — use clinic_settings as fallback
-                const plan = settingsData.subscription_plan || 'freemium'
-                setPlanName(plan)
-                const limits = PLAN_LIMITS[plan]
+                // No active subscription — use clinic_settings as fallback
+                setPlanName(subscriptionPlan)
+                const limits = PLAN_LIMITS[subscriptionPlan]
                 if (limits) {
                     setMaxUsers(limits.maxUsers)
                     setMaxAgendas(limits.maxAgendas)
                 } else {
-                    setMaxUsers(settingsData.max_users || 2)
+                    setMaxUsers(resolvedMaxUsers)
                     setMaxAgendas(1)
                 }
             }
-
         } catch (error) {
             console.error('Error loading team data:', error)
             toast.error('Error al cargar el equipo')
         } finally {
             setLoading(false)
         }
-    }
+    }, [clinicId])
+
+    useEffect(() => { loadData() }, [loadData])
 
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!clinicId) return
+        if (!clinicId || isInviting) return  // prevent double-submit
 
         if (!canInvite) {
-            toast.error(`Has alcanzado el límite de ${maxUsers} usuarios de tu plan ${planName}.`)
+            toast.error(`Has alcanzado el límite de ${maxUsers} usuarios de tu plan.`)
             return
         }
-
         if (inviteRole === 'professional' && !canAddAgenda) {
-            toast.error(`Has alcanzado el límite de ${maxAgendas} agendas (profesionales) de tu plan ${planName}.`)
+            toast.error(`Has alcanzado el límite de ${maxAgendas} agendas de tu plan.`)
             return
         }
 
+        setIsInviting(true)
         try {
             await teamService.inviteMember(clinicId, inviteEmail, inviteRole, inviteName)
             toast.success('Invitación creada correctamente')
@@ -169,13 +163,9 @@ export default function Team() {
             setInviteName('')
             loadData()
         } catch (error: unknown) {
-            console.error('Error inviting member:', error)
-            // Supabase RPC errors are objects with .message, not Error instances
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const errMsg = (error as any)?.message || (error instanceof Error ? error.message : JSON.stringify(error))
-            // Show real error from RPC if available
             if (errMsg.includes('Plan limit')) {
-                toast.error(`Has alcanzado el límite de usuarios de tu plan.`)
+                toast.error('Has alcanzado el límite de usuarios de tu plan.')
             } else if (errMsg.includes('ya tiene una invitación') || errMsg.includes('miembro activo')) {
                 toast.error('Este correo ya fue invitado o es miembro activo.')
             } else if (errMsg.includes('Access denied')) {
@@ -183,25 +173,26 @@ export default function Team() {
             } else {
                 toast.error(`Error al enviar invitación: ${errMsg}`)
             }
+        } finally {
+            setIsInviting(false)
         }
     }
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.preventDefault()
         e.stopPropagation()
-
         if (!confirm('¿Estás seguro de eliminar este miembro?')) return
         try {
             await teamService.deleteMember(id)
             toast.success('Miembro eliminado')
             loadData()
         } catch (error: unknown) {
-            console.error('Error deleting member:', error)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const errMsg = (error as any)?.message || (error instanceof Error ? error.message : JSON.stringify(error))
             toast.error(`Error al eliminar miembro: ${errMsg}`)
         }
     }
+
+    const usersLabel = maxUsers >= 999999 ? 'Ilimitados' : String(maxUsers)
 
     return (
         <div className="p-6 max-w-6xl mx-auto">
@@ -211,7 +202,7 @@ export default function Team() {
                     <p className="text-charcoal/50">Administra los miembros de tu clínica y sus permisos.</p>
                     {!loading && (
                         <p className="text-sm mt-2 font-medium text-purple-600 bg-purple-50 inline-block px-3 py-1 rounded-full">
-                            {members.filter(m => m.status !== 'disabled').length} / {maxUsers === -1 || maxUsers >= 999 ? 'Ilimitados' : maxUsers} usuarios activos
+                            {currentUsers} / {usersLabel} usuarios activos
                         </p>
                     )}
                 </div>
@@ -223,7 +214,6 @@ export default function Team() {
                                 toast.success('Enlace de registro copiado al portapapeles')
                             }}
                             className="px-4 py-2 bg-white border border-silk-beige text-charcoal rounded-lg hover:bg-ivory flex items-center gap-2 transition-colors"
-                            title="Copiar enlace para que los miembros se registren ellos mismos"
                         >
                             <Copy size={20} />
                             Copiar Enlace
@@ -231,10 +221,11 @@ export default function Team() {
                         <button
                             onClick={() => setIsInviteModalOpen(true)}
                             disabled={!canInvite}
-                            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${canInvite
-                                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                : 'bg-silk-beige text-charcoal/40 cursor-not-allowed'
-                                }`}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                                canInvite
+                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                    : 'bg-silk-beige text-charcoal/40 cursor-not-allowed'
+                            }`}
                             title={!canInvite ? 'Límite de usuarios alcanzado' : ''}
                         >
                             <Plus size={20} />
@@ -257,7 +248,11 @@ export default function Team() {
                     </thead>
                     <tbody className="divide-y divide-silk-beige/50">
                         {loading ? (
-                            <tr><td colSpan={5} className="text-center py-8">Cargando...</td></tr>
+                            <tr>
+                                <td colSpan={5} className="text-center py-12">
+                                    <Loader2 className="w-6 h-6 animate-spin text-purple-400 mx-auto" />
+                                </td>
+                            </tr>
                         ) : members.length === 0 ? (
                             <tr><td colSpan={5} className="text-center py-8 text-charcoal/50">No hay miembros en el equipo.</td></tr>
                         ) : (
@@ -275,22 +270,27 @@ export default function Team() {
                                         </div>
                                     </td>
                                     <td className="py-4 px-6">
-                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
-                                            ${m.role === 'owner' ? 'bg-indigo-100 text-indigo-700' :
-                                                m.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                                                    m.role === 'professional' ? 'bg-blue-100 text-blue-700' :
-                                                        'bg-green-100 text-green-700'}`}>
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                            m.role === 'owner'        ? 'bg-indigo-100 text-indigo-700' :
+                                            m.role === 'admin'        ? 'bg-purple-100 text-purple-700' :
+                                            m.role === 'professional' ? 'bg-blue-100 text-blue-700' :
+                                            'bg-green-100 text-green-700'
+                                        }`}>
                                             {(m.role === 'owner' || m.role === 'admin') && <Shield size={12} />}
                                             {m.role === 'professional' && <User size={12} />}
                                             {m.role === 'receptionist' && <Clock size={12} />}
-                                            {m.role === 'owner' ? 'Dueño' : m.role === 'admin' ? 'Administrador' : m.role === 'professional' ? 'Profesional' : m.role === 'vet_assistant' ? 'Asistente' : 'Recepción'}
+                                            {m.role === 'owner' ? 'Dueño' :
+                                             m.role === 'admin' ? 'Administrador' :
+                                             m.role === 'professional' ? 'Profesional' :
+                                             m.role === 'vet_assistant' ? 'Asistente' : 'Recepción'}
                                         </span>
                                     </td>
                                     <td className="py-4 px-6">
-                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
-                                            ${m.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                                                m.status === 'invited' ? 'bg-amber-100 text-amber-700' :
-                                                    'bg-ivory text-charcoal/60'}`}>
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                            m.status === 'active'  ? 'bg-emerald-100 text-emerald-700' :
+                                            m.status === 'invited' ? 'bg-amber-100 text-amber-700' :
+                                            'bg-ivory text-charcoal/60'
+                                        }`}>
                                             {m.status === 'active' ? 'Activo' : m.status === 'invited' ? 'Invitado' : 'Desactivado'}
                                         </span>
                                     </td>
@@ -303,7 +303,6 @@ export default function Team() {
                                                 <button
                                                     onClick={(e) => handleDelete(e, m.id)}
                                                     className="text-charcoal/40 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
-                                                    title="Eliminar miembro"
                                                 >
                                                     <Trash2 size={18} />
                                                 </button>
@@ -351,36 +350,24 @@ export default function Team() {
                                 <label className="block text-sm font-medium text-charcoal mb-1">Rol</label>
                                 <div className="grid grid-cols-2 gap-3">
                                     {isOwner && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setInviteRole('admin')}
-                                            className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'admin' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}
-                                        >
+                                        <button type="button" onClick={() => setInviteRole('admin')}
+                                            className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'admin' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}>
                                             <div className="font-medium text-charcoal mb-1">Admin</div>
-                                            <div className="text-xs text-charcoal/50">Gestiona equipo y calendarios. Máx 2.</div>
+                                            <div className="text-xs text-charcoal/50">Gestiona equipo y calendarios.</div>
                                         </button>
                                     )}
-                                    <button
-                                        type="button"
-                                        onClick={() => setInviteRole('professional')}
-                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'professional' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}
-                                    >
+                                    <button type="button" onClick={() => setInviteRole('professional')}
+                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'professional' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}>
                                         <div className="font-medium text-charcoal mb-1">Profesional</div>
                                         <div className="text-xs text-charcoal/50">Maneja su agenda y pacientes.</div>
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setInviteRole('receptionist')}
-                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'receptionist' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}
-                                    >
+                                    <button type="button" onClick={() => setInviteRole('receptionist')}
+                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'receptionist' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}>
                                         <div className="font-medium text-charcoal mb-1">Recepción</div>
                                         <div className="text-xs text-charcoal/50">Gestiona citas de todo el equipo.</div>
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setInviteRole('vet_assistant')}
-                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'vet_assistant' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}
-                                    >
+                                    <button type="button" onClick={() => setInviteRole('vet_assistant')}
+                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'vet_assistant' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}>
                                         <div className="font-medium text-charcoal mb-1">Asistente</div>
                                         <div className="text-xs text-charcoal/50">Agendas, pacientes y finanzas.</div>
                                     </button>
@@ -391,22 +378,27 @@ export default function Team() {
                                 <button
                                     type="button"
                                     onClick={() => setIsInviteModalOpen(false)}
-                                    className="flex-1 px-4 py-2 text-charcoal bg-ivory rounded-lg hover:bg-silk-beige/50 transition-colors font-medium"
+                                    disabled={isInviting}
+                                    className="flex-1 px-4 py-2 text-charcoal bg-ivory rounded-lg hover:bg-silk-beige/50 transition-colors font-medium disabled:opacity-50"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                                    disabled={isInviting}
+                                    className="flex-1 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-70 flex items-center justify-center gap-2"
                                 >
-                                    Enviar Invitación
+                                    {isInviting ? (
+                                        <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                                    ) : (
+                                        'Enviar Invitación'
+                                    )}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-
         </div>
     )
 }
