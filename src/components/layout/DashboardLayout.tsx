@@ -33,6 +33,8 @@ import { cn, getInitials } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import BranchSwitcher from './BranchSwitcher'
+import { usePermissions } from '@/hooks/usePermissions'
+import type { PageKey } from '@/lib/permissions'
 
 interface Notification {
     id: string
@@ -48,45 +50,45 @@ const navigationSections = [
         label: 'Principal',
         accent: { label: 'text-sky-400/70', active: 'bg-sky-500/[0.18]', dot: 'bg-sky-400', icon: 'text-sky-300' },
         items: [
-            { name: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
-            { name: 'Mensajes', href: '/app/messages', icon: MessageSquare },
-            { name: 'Plantillas', href: '/app/templates', icon: FileText },
+            { name: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard, pageKey: 'dashboard' as PageKey },
+            { name: 'Mensajes', href: '/app/messages', icon: MessageSquare, pageKey: 'messages' as PageKey },
+            { name: 'Plantillas', href: '/app/templates', icon: FileText, pageKey: 'templates' as PageKey },
         ]
     },
     {
         label: 'Clínica',
         accent: { label: 'text-primary-400/70', active: 'bg-primary-500/[0.18]', dot: 'bg-primary-400', icon: 'text-primary-300' },
         items: [
-            { name: 'Tutores', href: '/app/tutors', icon: Users },
-            { name: 'Pacientes', href: '/app/patients', icon: Heart },
-            { name: 'CRM', href: '/app/crm', icon: Target },
-            { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar },
-            { name: 'Recordatorios', href: '/app/reminders', icon: Clock },
-            { name: 'Finanzas', href: '/app/finance', icon: DollarSign },
+            { name: 'Tutores', href: '/app/tutors', icon: Users, pageKey: 'tutors' as PageKey },
+            { name: 'Pacientes', href: '/app/patients', icon: Heart, pageKey: 'patients' as PageKey },
+            { name: 'CRM', href: '/app/crm', icon: Target, pageKey: 'crm' as PageKey },
+            { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar, pageKey: 'appointments' as PageKey },
+            { name: 'Recordatorios', href: '/app/reminders', icon: Clock, pageKey: 'reminders' as PageKey },
+            { name: 'Finanzas', href: '/app/finance', icon: DollarSign, pageKey: 'finance' as PageKey },
         ]
     },
     {
         label: 'Marketing',
         accent: { label: 'text-violet-400/70', active: 'bg-violet-500/[0.18]', dot: 'bg-violet-400', icon: 'text-violet-300' },
         items: [
-            { name: 'Campañas', href: '/app/campaigns', icon: Megaphone },
-            { name: 'Fidelización', href: '/app/loyalty', icon: Star },
+            { name: 'Campañas', href: '/app/campaigns', icon: Megaphone, pageKey: 'campaigns' as PageKey },
+            { name: 'Fidelización', href: '/app/loyalty', icon: Star, pageKey: 'loyalty' as PageKey },
         ]
     },
     {
         label: 'Agente IA',
         accent: { label: 'text-sky-400/70', active: 'bg-sky-500/[0.18]', dot: 'bg-sky-400', icon: 'text-sky-300' },
         items: [
-            { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen },
-            { name: 'Integraciones', href: '/app/integrations', icon: Plug },
-            { name: 'Ajustes IA', href: '/app/ai-settings', icon: SlidersHorizontal },
+            { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen, pageKey: 'knowledge_base' as PageKey },
+            { name: 'Integraciones', href: '/app/integrations', icon: Plug, pageKey: 'integrations' as PageKey },
+            { name: 'Ajustes IA', href: '/app/ai-settings', icon: SlidersHorizontal, pageKey: 'ai_settings' as PageKey },
         ]
     },
     {
         label: 'Configuración',
         accent: { label: 'text-amber-400/70', active: 'bg-amber-500/[0.18]', dot: 'bg-amber-400', icon: 'text-amber-300' },
         items: [
-            { name: 'Configuración', href: '/app/settings', icon: Settings },
+            { name: 'Configuración', href: '/app/settings', icon: Settings, pageKey: 'settings' as PageKey },
         ]
     },
 ]
@@ -119,6 +121,8 @@ export default function DashboardLayout() {
     const location = useLocation()
     const navigate = useNavigate()
     const { user, profile, member, signOut } = useAuth()
+
+    const { canAccess } = usePermissions()
 
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
@@ -361,21 +365,7 @@ export default function DashboardLayout() {
                 {/* Navigation */}
                 <nav className="flex-1 py-3 overflow-y-auto scrollbar-soft">
                     {navigationSections.map((section) => {
-                        const userRole = member?.role || (profile as any)?.role
-                        const ownerEmails = ['claubarreraolivero@gmail.com', 'sebabarreraolivero@gmail.com', 'sebabarrera@gmail.com']
-                        const isNuclearOwner = user?.email && ownerEmails.includes(user.email.toLowerCase().trim())
-                        const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin' || isNuclearOwner
-                        const isVetAssistant = userRole === 'vet_assistant'
-
-                        const visibleItems = section.items.filter(item => {
-                            if (isVetAssistant) {
-                                return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
-                            }
-                            if (['Finanzas', 'CRM', 'Campañas', 'Referidos', 'Fidelización'].includes(item.name)) {
-                                return isOwnerOrAdmin
-                            }
-                            return true
-                        })
+                        const visibleItems = section.items.filter(item => canAccess(item.pageKey))
 
                         if (visibleItems.length === 0) return null
 
@@ -458,14 +448,7 @@ export default function DashboardLayout() {
                 </div>
                 <nav className="flex-1 py-3 overflow-y-auto scrollbar-soft">
                     {navigationSections.map((section) => {
-                        const userRole = member?.role || (profile as any)?.role
-                        const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
-                        const isVetAssistant = userRole === 'vet_assistant'
-                        const visibleItems = section.items.filter(item => {
-                            if (isVetAssistant) return ['Dashboard', 'Tutores', 'Pacientes', 'Citas Médicas', 'Recordatorios', 'Finanzas'].includes(item.name)
-                            if (['Finanzas', 'CRM', 'Campañas', 'Referidos', 'Fidelización'].includes(item.name)) return isOwnerOrAdmin
-                            return true
-                        })
+                        const visibleItems = section.items.filter(item => canAccess(item.pageKey))
                         if (visibleItems.length === 0) return null
                         return (
                             <div key={section.label} className="mb-1">

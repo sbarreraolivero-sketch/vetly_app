@@ -1,16 +1,22 @@
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Mail, Shield, User, Clock, Copy, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Mail, Shield, User, Clock, Copy, Loader2, RotateCcw, X, Lock } from 'lucide-react'
 import { teamService, type ClinicMember } from '@/services/teamService'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
+import {
+    ROLE_DEFAULTS,
+    getEffectivePermissions,
+    type MemberPermissions,
+    type PageKey,
+    type ActionKey,
+    type UserRole,
+} from '@/lib/permissions'
 
 // Plans where max_users can be trusted from clinic_settings.max_users directly.
-// These bypass the subscriptions table derivation.
 const MANUALLY_TRUSTED_PLANS = new Set(['prestige', 'enterprise'])
 
-// Centralized PLAN_LIMITS — single source of truth for frontend display.
 const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
     core:       { maxUsers: 1,      maxAgendas: 1 },
     starter:    { maxUsers: 2,      maxAgendas: 1 },
@@ -20,6 +26,120 @@ const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
     radiance:   { maxUsers: 5,      maxAgendas: 5 },
     prestige:   { maxUsers: 999999, maxAgendas: 999999 },
 }
+
+// ─── Secciones para el modal de permisos ────────────────────────────────────
+
+const PAGE_SECTIONS: { label: string; items: { key: PageKey; label: string }[] }[] = [
+    {
+        label: 'Principal',
+        items: [
+            { key: 'dashboard', label: 'Dashboard' },
+            { key: 'messages', label: 'Mensajes' },
+            { key: 'templates', label: 'Plantillas' },
+        ],
+    },
+    {
+        label: 'Clínica',
+        items: [
+            { key: 'tutors', label: 'Tutores' },
+            { key: 'patients', label: 'Pacientes' },
+            { key: 'crm', label: 'CRM' },
+            { key: 'appointments', label: 'Citas Médicas' },
+            { key: 'reminders', label: 'Recordatorios' },
+            { key: 'finance', label: 'Finanzas' },
+        ],
+    },
+    {
+        label: 'Marketing',
+        items: [
+            { key: 'campaigns', label: 'Campañas' },
+            { key: 'loyalty', label: 'Fidelización' },
+        ],
+    },
+    {
+        label: 'Agente IA',
+        items: [
+            { key: 'knowledge_base', label: 'Base de Conocimiento' },
+            { key: 'integrations', label: 'Integraciones' },
+            { key: 'ai_settings', label: 'Ajustes IA' },
+        ],
+    },
+    {
+        label: 'Configuración',
+        items: [{ key: 'settings', label: 'Configuración' }],
+    },
+]
+
+const ACTION_SECTIONS: { label: string; items: { key: ActionKey; label: string }[] }[] = [
+    {
+        label: 'Dashboard',
+        items: [{ key: 'dashboard_metrics', label: 'Ver métricas financieras' }],
+    },
+    {
+        label: 'Pacientes',
+        items: [
+            { key: 'patients_create', label: 'Crear pacientes' },
+            { key: 'patients_edit', label: 'Editar pacientes' },
+            { key: 'patients_delete', label: 'Eliminar pacientes' },
+        ],
+    },
+    {
+        label: 'Tutores',
+        items: [
+            { key: 'tutors_create', label: 'Crear tutores' },
+            { key: 'tutors_edit', label: 'Editar tutores' },
+            { key: 'tutors_delete', label: 'Eliminar tutores' },
+        ],
+    },
+    {
+        label: 'Citas Médicas',
+        items: [
+            { key: 'appointments_create', label: 'Crear citas' },
+            { key: 'appointments_edit', label: 'Editar citas' },
+            { key: 'appointments_delete', label: 'Eliminar citas' },
+        ],
+    },
+    {
+        label: 'Datos',
+        items: [{ key: 'export_data', label: 'Exportar datos' }],
+    },
+]
+
+// ─── Toggle component ────────────────────────────────────────────────────────
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onChange}
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+                checked ? 'bg-primary-600' : 'bg-charcoal/20'
+            }`}
+        >
+            <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                    checked ? 'translate-x-4' : 'translate-x-1'
+                }`}
+            />
+        </button>
+    )
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<string, string> = {
+    owner: 'Dueño',
+    admin: 'Administrador',
+    professional: 'Profesional',
+    receptionist: 'Recepción',
+    vet_assistant: 'Asistente',
+}
+
+function hasCustomPermissions(m: ClinicMember): boolean {
+    return m.permissions != null
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Team() {
     const { member, profile } = useAuth()
@@ -33,6 +153,11 @@ export default function Team() {
     const [maxUsers, setMaxUsers] = useState(2)
     const [maxAgendas, setMaxAgendas] = useState(1)
     const [_planName, setPlanName] = useState('freemium')
+
+    // ── Permissions modal state ──────────────────────────────────────────────
+    const [permissionsMember, setPermissionsMember] = useState<ClinicMember | null>(null)
+    const [editingPerms, setEditingPerms] = useState<MemberPermissions | null>(null)
+    const [savingPerms, setSavingPerms] = useState(false)
 
     const isOwner = member?.role === 'owner' || profile?.role === 'owner'
     const isAdmin = isOwner || member?.role === 'admin' || profile?.role === 'admin'
@@ -48,12 +173,10 @@ export default function Team() {
     const loadData = useCallback(async () => {
         if (!clinicId) { setLoading(false); return }
 
-        // Clear state immediately — fast visual feedback when switching branches
         setLoading(true)
         setMembers([])
 
         try {
-            // ── Parallel: members + settings + subscription ───────────────
             const [membersResult, settingsResult, subResult] = await Promise.all([
                 teamService.getMembers(clinicId).catch(() => [] as ClinicMember[]),
                 (supabase as any).from('clinic_settings')
@@ -66,7 +189,6 @@ export default function Team() {
                     .single(),
             ])
 
-            // Fallback: direct fetch if RPC returned empty
             let membersData = membersResult
             if (!membersData || membersData.length === 0) {
                 const { data: direct } = await supabase
@@ -76,7 +198,6 @@ export default function Team() {
                 membersData = (direct ?? []) as ClinicMember[]
             }
 
-            // Sort: owner first
             setMembers(
                 (membersData ?? []).sort((a, b) =>
                     a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0
@@ -86,7 +207,6 @@ export default function Team() {
             const settingsData = settingsResult.data
             let subData = subResult.data
 
-            // If this is a branch, fetch the pool-root subscription for accurate limits
             const parentId = settingsData?.parent_clinic_id
             if (parentId && !subData) {
                 const { data: parentSub } = await supabase
@@ -97,19 +217,16 @@ export default function Team() {
                 subData = parentSub
             }
 
-            // ── Derive limits ─────────────────────────────────────────────
             const resolvedMaxUsers = settingsData?.max_users ?? 2
             const subscriptionPlan = settingsData?.subscription_plan ?? 'freemium'
             const manuallyActive = subData?.manually_active ?? false
             const subPlan = subData?.plan
 
             if (manuallyActive || MANUALLY_TRUSTED_PLANS.has(subscriptionPlan)) {
-                // Trust clinic_settings.max_users directly — manually managed account
                 setPlanName(subscriptionPlan)
                 setMaxUsers(resolvedMaxUsers)
                 setMaxAgendas(resolvedMaxUsers >= 999999 ? 999999 : (subData?.max_agendas ?? 1))
             } else if (subData && subPlan) {
-                // Active MercadoPago / LemonSqueezy subscription
                 setPlanName(subPlan)
                 const limits = PLAN_LIMITS[subPlan]
                 if (limits) {
@@ -120,7 +237,6 @@ export default function Team() {
                     setMaxAgendas(subData?.max_agendas ?? 1)
                 }
             } else if (settingsData) {
-                // No active subscription — use clinic_settings as fallback
                 setPlanName(subscriptionPlan)
                 const limits = PLAN_LIMITS[subscriptionPlan]
                 if (limits) {
@@ -141,9 +257,11 @@ export default function Team() {
 
     useEffect(() => { loadData() }, [loadData])
 
+    // ── Invite ───────────────────────────────────────────────────────────────
+
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!clinicId || isInviting) return  // prevent double-submit
+        if (!clinicId || isInviting) return
 
         if (!canInvite) {
             toast.error(`Has alcanzado el límite de ${maxUsers} usuarios de tu plan.`)
@@ -178,6 +296,8 @@ export default function Team() {
         }
     }
 
+    // ── Delete ───────────────────────────────────────────────────────────────
+
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.preventDefault()
         e.stopPropagation()
@@ -191,6 +311,62 @@ export default function Team() {
             toast.error(`Error al eliminar miembro: ${errMsg}`)
         }
     }
+
+    // ── Permissions modal ────────────────────────────────────────────────────
+
+    const openPermissionsModal = (m: ClinicMember) => {
+        const effective = getEffectivePermissions(m.role as UserRole, m.permissions ?? null)
+        setEditingPerms(effective)
+        setPermissionsMember(m)
+    }
+
+    const closePermissionsModal = () => {
+        setPermissionsMember(null)
+        setEditingPerms(null)
+    }
+
+    const togglePage = (key: PageKey) => {
+        if (!editingPerms) return
+        setEditingPerms(prev => prev ? {
+            ...prev,
+            pages: { ...prev.pages, [key]: !prev.pages[key] },
+        } : null)
+    }
+
+    const toggleAction = (key: ActionKey) => {
+        if (!editingPerms) return
+        setEditingPerms(prev => prev ? {
+            ...prev,
+            actions: { ...prev.actions, [key]: !prev.actions[key] },
+        } : null)
+    }
+
+    const handleRestoreDefaults = () => {
+        if (!permissionsMember) return
+        const defaults = ROLE_DEFAULTS[permissionsMember.role as UserRole]
+        if (defaults) setEditingPerms(defaults)
+    }
+
+    const handleSavePermissions = async () => {
+        if (!permissionsMember || !editingPerms) return
+        setSavingPerms(true)
+        try {
+            await teamService.updateMemberPermissions(permissionsMember.id, editingPerms)
+            // Update local state immediately
+            setMembers(prev => prev.map(m =>
+                m.id === permissionsMember.id ? { ...m, permissions: editingPerms } : m
+            ))
+            toast.success(`Permisos de ${permissionsMember.first_name || permissionsMember.email} guardados`)
+            closePermissionsModal()
+        } catch (error: unknown) {
+            const errMsg = (error as any)?.message || (error instanceof Error ? error.message : JSON.stringify(error))
+            toast.error(`Error al guardar permisos: ${errMsg}`)
+        } finally {
+            setSavingPerms(false)
+        }
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
 
     const usersLabel = maxUsers >= 999999 ? 'Ilimitados' : String(maxUsers)
 
@@ -236,14 +412,14 @@ export default function Team() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-silk-beige overflow-x-auto">
-                <table className="w-full min-w-[600px]">
+                <table className="w-full min-w-[640px]">
                     <thead className="bg-ivory border-b border-silk-beige">
                         <tr>
                             <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/50">Miembro</th>
                             <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/50">Rol</th>
                             <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/50">Estado</th>
                             <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/50">Fecha Ingreso</th>
-                            {isOwner && <th className="text-right py-4 px-6 text-sm font-medium text-charcoal/50">Acciones</th>}
+                            {isAdmin && <th className="text-right py-4 px-6 text-sm font-medium text-charcoal/50">Acciones</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-silk-beige/50">
@@ -264,7 +440,14 @@ export default function Team() {
                                                 {(m.first_name?.[0] || m.email[0]).toUpperCase()}
                                             </div>
                                             <div>
-                                                <p className="font-medium text-charcoal">{m.first_name || 'Sin nombre'}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-charcoal">{m.first_name || 'Sin nombre'}</p>
+                                                    {hasCustomPermissions(m) && m.role !== 'owner' && m.role !== 'admin' && (
+                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">
+                                                            Personalizado
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-charcoal/50">{m.email}</p>
                                             </div>
                                         </div>
@@ -279,10 +462,7 @@ export default function Team() {
                                             {(m.role === 'owner' || m.role === 'admin') && <Shield size={12} />}
                                             {m.role === 'professional' && <User size={12} />}
                                             {m.role === 'receptionist' && <Clock size={12} />}
-                                            {m.role === 'owner' ? 'Dueño' :
-                                             m.role === 'admin' ? 'Administrador' :
-                                             m.role === 'professional' ? 'Profesional' :
-                                             m.role === 'vet_assistant' ? 'Asistente' : 'Recepción'}
+                                            {ROLE_LABELS[m.role] ?? m.role}
                                         </span>
                                     </td>
                                     <td className="py-4 px-6">
@@ -297,16 +477,31 @@ export default function Team() {
                                     <td className="py-4 px-6 text-sm text-charcoal/50">
                                         {new Date(m.created_at).toLocaleDateString()}
                                     </td>
-                                    {isOwner && (
+                                    {isAdmin && (
                                         <td className="py-4 px-6 text-right">
-                                            {m.role !== 'owner' && (
-                                                <button
-                                                    onClick={(e) => handleDelete(e, m.id)}
-                                                    className="text-charcoal/40 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            )}
+                                            <div className="flex items-center justify-end gap-1">
+                                                {/* Permissions button: only for non-owner/admin roles */}
+                                                {m.role !== 'owner' && m.role !== 'admin' && (
+                                                    <button
+                                                        onClick={() => openPermissionsModal(m)}
+                                                        title="Editar permisos"
+                                                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                                                    >
+                                                        <Lock size={13} />
+                                                        Permisos
+                                                    </button>
+                                                )}
+                                                {/* Delete button: only owner can delete */}
+                                                {isOwner && m.role !== 'owner' && (
+                                                    <button
+                                                        onClick={(e) => handleDelete(e, m.id)}
+                                                        title="Eliminar miembro"
+                                                        className="text-charcoal/40 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     )}
                                 </tr>
@@ -316,7 +511,7 @@ export default function Team() {
                 </table>
             </div>
 
-            {/* Invite Modal */}
+            {/* ── Invite Modal ──────────────────────────────────────────────── */}
             {isInviteModalOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
@@ -396,6 +591,131 @@ export default function Team() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Permissions Modal ─────────────────────────────────────────── */}
+            {permissionsMember && editingPerms && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+
+                        {/* Header */}
+                        <div className="flex items-start justify-between px-6 py-5 border-b border-silk-beige shrink-0">
+                            <div>
+                                <h2 className="text-lg font-bold text-charcoal">
+                                    Permisos — {permissionsMember.first_name || permissionsMember.email}
+                                </h2>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        permissionsMember.role === 'professional' ? 'bg-blue-100 text-blue-700' :
+                                        permissionsMember.role === 'receptionist' ? 'bg-green-100 text-green-700' :
+                                        'bg-amber-100 text-amber-700'
+                                    }`}>
+                                        {ROLE_LABELS[permissionsMember.role] ?? permissionsMember.role}
+                                    </span>
+                                    <span className="text-xs text-charcoal/40">{permissionsMember.email}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleRestoreDefaults}
+                                    title="Restaurar permisos predeterminados del rol"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-charcoal/60 hover:text-charcoal bg-ivory hover:bg-silk-beige rounded-lg transition-colors"
+                                >
+                                    <RotateCcw size={13} />
+                                    Restaurar defaults
+                                </button>
+                                <button onClick={closePermissionsModal} className="p-1.5 text-charcoal/40 hover:text-charcoal transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Scrollable body */}
+                        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-8">
+
+                            {/* Secciones de la app */}
+                            <div>
+                                <h3 className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-4">
+                                    Acceso a secciones
+                                </h3>
+                                <div className="space-y-5">
+                                    {PAGE_SECTIONS.map(section => (
+                                        <div key={section.label}>
+                                            <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wide mb-2">
+                                                {section.label}
+                                            </p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                                                {section.items.map(item => (
+                                                    <div key={item.key} className="flex items-center justify-between py-1">
+                                                        <span className="text-sm text-charcoal">{item.label}</span>
+                                                        <Toggle
+                                                            checked={editingPerms.pages[item.key]}
+                                                            onChange={() => togglePage(item.key)}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Divisor */}
+                            <div className="border-t border-silk-beige" />
+
+                            {/* Acciones específicas */}
+                            <div>
+                                <h3 className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-4">
+                                    Acciones permitidas
+                                </h3>
+                                <div className="space-y-5">
+                                    {ACTION_SECTIONS.map(section => (
+                                        <div key={section.label}>
+                                            <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wide mb-2">
+                                                {section.label}
+                                            </p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                                                {section.items.map(item => (
+                                                    <div key={item.key} className="flex items-center justify-between py-1">
+                                                        <span className="text-sm text-charcoal">{item.label}</span>
+                                                        <Toggle
+                                                            checked={editingPerms.actions[item.key]}
+                                                            onChange={() => toggleAction(item.key)}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex gap-3 px-6 py-4 border-t border-silk-beige shrink-0">
+                            <button
+                                type="button"
+                                onClick={closePermissionsModal}
+                                disabled={savingPerms}
+                                className="flex-1 px-4 py-2 text-charcoal bg-ivory rounded-lg hover:bg-silk-beige/50 transition-colors font-medium disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSavePermissions}
+                                disabled={savingPerms}
+                                className="flex-1 px-4 py-2 text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-70 flex items-center justify-center gap-2"
+                            >
+                                {savingPerms ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                ) : (
+                                    'Guardar cambios'
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

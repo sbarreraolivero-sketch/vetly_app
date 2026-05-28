@@ -1,5 +1,6 @@
 
 import { supabase } from '@/lib/supabase'
+import type { MemberPermissions } from '@/lib/permissions'
 
 export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant'
 export type MemberStatus = 'active' | 'invited' | 'disabled'
@@ -17,6 +18,7 @@ export interface ClinicMember {
     color?: string
     job_title?: string
     working_hours?: Record<string, { enabled: boolean; start: string; end: string }>
+    permissions?: MemberPermissions | null
     created_at: string
 }
 
@@ -183,5 +185,14 @@ export const teamService = {
 
         if (error) throw error
         return data as ClinicMember
-    }
+    },
+
+    async updateMemberPermissions(memberId: string, permissions: MemberPermissions) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).rpc('update_member_permissions', {
+            p_member_id: memberId,
+            p_permissions: permissions,
+        })
+        if (error) throw error
+    },
 }
