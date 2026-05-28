@@ -255,9 +255,10 @@ Deno.serve(async (req: Request) => {
                 const status = payload.data.attributes.status;
                 const renewsAt = payload.data.attributes.renews_at;
 
-                const maxUsers = plan === "essence" ? 2 : (plan === "radiance" ? 5 : 999999);
-                const maxAgendas = plan === "essence" ? 1 : (plan === "radiance" ? 5 : 999999);
+                const maxUsers = ['core'].includes(plan) ? 1 : ['starter', 'essence'].includes(plan) ? 2 : ['pro', 'radiance'].includes(plan) ? 5 : 999999;
+                const maxAgendas = ['core'].includes(plan) ? 1 : ['starter', 'essence'].includes(plan) ? 1 : ['pro', 'radiance'].includes(plan) ? 5 : 999999;
                 const remindersLimit = reminderLimitForPlan(plan);
+                const aiCreditsLimit = ['enterprise', 'prestige'].includes(plan) ? 30000 : ['pro', 'radiance'].includes(plan) ? 10000 : ['starter', 'essence'].includes(plan) ? 5000 : 0;
 
                 await supabase.from("subscriptions").upsert({
                     clinic_id: clinicId,
@@ -274,14 +275,15 @@ Deno.serve(async (req: Request) => {
                     monthly_reminders_used: 0,
                 }, { onConflict: "clinic_id" });
 
-                // Update clinic settings
+                // Update clinic settings with correct credit limit
                 await supabase
                     .from('clinic_settings')
-                    .update({ 
+                    .update({
                         subscription_plan: plan,
                         payment_provider: 'lemonsqueezy',
                         lemonsqueezy_customer_id: String(payload.data.attributes.customer_id || ''),
                         max_users: maxUsers,
+                        ai_credits_monthly_limit: aiCreditsLimit,
                     })
                     .eq('id', clinicId);
 
