@@ -100,8 +100,8 @@ Deno.serve(async (req: Request) => {
 
         // Determine credits metadata for credit packs
         const creditsMap: Record<string, number> = {
-            'pack_500': 500, 'pack_1500': 1500, 'pack_4000': 4000,
-            'pack_500_4o': 500, 'pack_1500_4o': 1500, 'pack_4000_4o': 4000,
+            'pack_500': 4000, 'pack_1500': 8000, 'pack_4000': 20000,
+            'pack_500_4o': 4000, 'pack_1500_4o': 8000, 'pack_4000_4o': 20000,
         };
 
         // Build custom_data for webhook processing

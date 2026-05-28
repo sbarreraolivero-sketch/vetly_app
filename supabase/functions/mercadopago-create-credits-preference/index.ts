@@ -5,20 +5,20 @@ const MERCADOPAGO_ACCESS_TOKEN = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 
 const CREDIT_PACKS_MINI: Record<string, { credits: number, prices: Record<string, number>, description: string }> = {
-    'pack_500': { 
-        credits: 500, 
-        prices: { CLP: 5000, ARS: 5000, MXN: 100, COP: 20000, PEN: 20, USD: 5 },
-        description: "Pack Inicial - 500 Créditos de IA (GPT-4o-mini)" 
+    'pack_500': {
+        credits: 4000,
+        prices: { CLP: 8000, ARS: 8000, MXN: 150, COP: 35000, PEN: 35, USD: 9 },
+        description: "Pack Inicial - 4.000 Créditos de IA"
     },
-    'pack_1500': { 
-        credits: 1500, 
-        prices: { CLP: 12000, ARS: 12000, MXN: 250, COP: 50000, PEN: 50, USD: 12 },
-        description: "Pack Pro - 1500 Créditos de IA (GPT-4o-mini)" 
+    'pack_1500': {
+        credits: 8000,
+        prices: { CLP: 13000, ARS: 13000, MXN: 270, COP: 55000, PEN: 55, USD: 15 },
+        description: "Pack Pro - 8.000 Créditos de IA"
     },
-    'pack_4000': { 
-        credits: 4000, 
-        prices: { CLP: 25000, ARS: 25000, MXN: 500, COP: 100000, PEN: 100, USD: 25 },
-        description: "Pack Enterprise - 4000 Créditos de IA (GPT-4o-mini)" 
+    'pack_4000': {
+        credits: 20000,
+        prices: { CLP: 25000, ARS: 25000, MXN: 550, COP: 110000, PEN: 110, USD: 29 },
+        description: "Pack Enterprise - 20.000 Créditos de IA"
     },
 };
 

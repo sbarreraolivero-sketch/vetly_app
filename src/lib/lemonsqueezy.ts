@@ -106,9 +106,9 @@ export type LSPlanId = keyof typeof LS_PLANS
  * USD Credit Packs — GPT-4o-mini
  */
 export const LS_CREDIT_PACKS = {
-    'pack_500':  { id: 'pack_500',  name: 'Pack Inicial',   credits: 500,  price: 9,  description: '500 Créditos de IA' },
-    'pack_1500': { id: 'pack_1500', name: 'Pack Pro',       credits: 1500, price: 15, description: '1500 Créditos de IA' },
-    'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 4000, price: 29, description: '4000 Créditos de IA' },
+    'pack_500':  { id: 'pack_500',  name: 'Pack Inicial',    credits: 4000,  price: 9,  description: '4.000 Créditos de IA' },
+    'pack_1500': { id: 'pack_1500', name: 'Pack Pro',        credits: 8000,  price: 15, description: '8.000 Créditos de IA' },
+    'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 20000, price: 29, description: '20.000 Créditos de IA' },
 } as const
 
 /**

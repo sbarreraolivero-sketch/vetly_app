@@ -210,9 +210,9 @@ export function normalizePlanId(planId: string): PlanId {
  * CLP Credit Packs — GPT-4o-mini (económico)
  */
 export const CREDIT_PACKS = {
-    'pack_500': { id: 'pack_500', name: 'Pack Inicial', credits: 500, price: 8000, description: '500 Créditos de IA' },
-    'pack_1500': { id: 'pack_1500', name: 'Pack Pro', credits: 1500, price: 13000, description: '1500 Créditos de IA' },
-    'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 4000, price: 25000, description: '4000 Créditos de IA' },
+    'pack_500':  { id: 'pack_500',  name: 'Pack Inicial',    credits: 4000,  price: 8000,  description: '4.000 Créditos de IA' },
+    'pack_1500': { id: 'pack_1500', name: 'Pack Pro',        credits: 8000,  price: 13000, description: '8.000 Créditos de IA' },
+    'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 20000, price: 25000, description: '20.000 Créditos de IA' },
 } as const
 
 /**

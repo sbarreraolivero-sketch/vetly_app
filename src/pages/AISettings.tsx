@@ -383,7 +383,7 @@ export default function AISettings() {
                                 <CreditCard className="w-5 h-5 text-sky-500" />
                                 <div>
                                     <h2 className="text-sm font-black text-charcoal">Créditos de IA</h2>
-                                    <p className="text-xs text-charcoal/40 mt-0.5">Uso del ciclo actual</p>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">Uso del ciclo mensual actual</p>
                                 </div>
                             </div>
                             {aiCreditsUnlimited && (
@@ -420,7 +420,7 @@ export default function AISettings() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-ivory rounded-2xl p-4 border border-silk-beige">
-                                    <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-1">Usados este ciclo</p>
+                                    <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-1">Usados este ciclo mensual</p>
                                     <p className="text-3xl font-black text-charcoal tabular-nums">{totalUsed.toLocaleString()}</p>
                                 </div>
                                 <div className={cn("rounded-2xl p-4 border", aiCreditsUnlimited ? "bg-sky-50 border-sky-200" : "bg-ivory border-silk-beige")}>
@@ -436,7 +436,7 @@ export default function AISettings() {
                             {!aiCreditsUnlimited && (
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Uso del ciclo</p>
+                                        <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Uso del ciclo mensual</p>
                                         <p className="text-[10px] font-black text-charcoal">{usagePct.toFixed(1)}%</p>
                                     </div>
                                     <div className="w-full h-2 bg-silk-beige rounded-full overflow-hidden">
@@ -461,7 +461,7 @@ export default function AISettings() {
                                 <TrendingDown className="w-5 h-5 text-sky-500" />
                                 <div>
                                     <h2 className="text-sm font-black text-charcoal">Consumo por Modelo</h2>
-                                    <p className="text-xs text-charcoal/40 mt-0.5">Mensajes enviados y créditos gastados por tipo de IA este ciclo</p>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">Mensajes enviados y créditos gastados por tipo de IA este ciclo mensual</p>
                                 </div>
                             </div>
                         </div>
@@ -565,7 +565,7 @@ export default function AISettings() {
                                     <div className="px-5 pt-5 pb-4 flex items-center justify-between">
                                         <h3 className="text-sm font-black text-charcoal">{pack.name}</h3>
                                         <span className="text-[10px] font-black text-sky-600 bg-sky-50 border border-sky-200 px-2 py-1 rounded-full">
-                                            {pack.credits.toLocaleString()} msgs
+                                            {pack.credits.toLocaleString()} créditos
                                         </span>
                                     </div>
                                     <div className="px-5 pb-4">
@@ -573,7 +573,7 @@ export default function AISettings() {
                                         <div className="mt-3 space-y-2">
                                             <div className="flex items-center gap-2">
                                                 <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                                                <span className="text-xs text-charcoal/60">{pack.credits.toLocaleString()} mensajes de IA</span>
+                                                <span className="text-xs text-charcoal/60">{pack.credits.toLocaleString()} créditos de IA</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Check className="w-4 h-4 text-emerald-500 shrink-0" />
