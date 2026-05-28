@@ -644,6 +644,26 @@ El banner pasó de `from-accent-500 to-accent-700` (gold) a `from-violet-500 to-
 - `get_estimated_audience(clinic_id, inclusion_tags UUID[], exclusion_tags UUID[])` cuenta tutores únicos con teléfono
 - `send-whatsapp-campaign` lee `campaign.inclusion_tags` / `campaign.exclusion_tags` (JSONB con UUIDs)
 
+### Créditos IA — fuente única de verdad (sesión 23)
+- **Tabla `messages`** es la fuente de verdad para calcular créditos consumidos en `AISettings.tsx`:
+  ```
+  totalUsed = miniMessages×1 + standardMessages×8 + proMessages×60
+  ```
+- **`clinic_settings.ai_credits_monthly_mini_used` / `ai_credits_monthly_4o_used`** son contadores auxiliares para el credit check en el webhook. No son retroactivos (empezaron en 0 al deployarse). **No usarlos para mostrar créditos usados en la UI.**
+- **`ai_credit_transactions`** es la fuente de verdad para el historial y los resúmenes de recarga/consumo. Se rellena automáticamente por cada mensaje (via webhook v215) y cada compra de pack.
+
+### Límites de plan y sucursales — reglas permanentes
+- Los **créditos mensuales** por plan son: Core=0, Starter=5.000, Pro=10.000, Enterprise=30.000
+- El plan **Enterprise** permite hasta **3 sucursales totales** (raíz + 2 adicionales). El RPC `create_clinic_branch` bloquea con excepción si `count(owner clinics) >= 3`
+- Para cambiar precios o créditos, actualizar en **5 lugares**: `lemonsqueezy.ts`, `mercadopago.ts`, `lemonsqueezy-webhook` (subscription_created), `mercadopago-webhook` (subscription sync), `public/landing.html`
+- Las cuentas `manually_active = true` se rigen por `clinic_settings.max_users` (no por el plan derivado de `subscriptions.plan`). El RPC `invite_member_v2` respeta este flag.
+
+### Packs de créditos extra — reglas permanentes
+- Los packs expiran a los **30 días** de la compra (`ai_credits_extra_expires_at`)
+- El cron `cron-expire-extra-credits` corre diariamente a las 02:00 UTC y zeroes los balances vencidos
+- Los créditos del plan base (`ai_credits_monthly_limit`) se renuevan mensualmente en la fecha de creación de la clínica (función `process_monthly_recharge`)
+- Al comprar pack: siempre setear `ai_credits_extra_expires_at = NOW() + 30 días` e insertar transacción `type: 'purchase'`
+
 ---
 
 ## Cambios realizados — mayo 2026 (sesión 12, 2026-05-23)
@@ -1270,26 +1290,205 @@ Los botones del template de recordatorio (Cancelar Cita / Quiero Reagendar) apar
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 23, 2026-05-28)
+
+### Sistema de créditos IA — implementación completa
+
+#### Migración DB (`20260528000001_ai_credits_unlimited_and_expiry.sql`)
+- `clinic_settings.ai_credits_unlimited BOOLEAN DEFAULT false` — activa créditos ilimitados para una cuenta sin necesidad de tocar suscripciones
+- `clinic_settings.ai_credits_extra_expires_at TIMESTAMPTZ DEFAULT NULL` — fecha de vencimiento de los créditos extra comprados
+- `ai_credit_transactions.metadata JSONB DEFAULT NULL` — campo para almacenar modelo, source_clinic_id, expires_at, etc.
+
+**Para activar créditos ilimitados en una cuenta:**
+```sql
+UPDATE clinic_settings SET ai_credits_unlimited = true WHERE id = '<clinic_id>';
+```
+
+#### Nueva edge function `cron-expire-extra-credits` (v1, `verify_jwt: false`)
+- Se ejecuta diariamente a las **02:00 UTC** vía pg_cron (job schedule 17)
+- Detecta clínicas con `ai_credits_extra_expires_at < NOW()` y saldo extra > 0
+- Zeroes `ai_credits_extra_balance` y `ai_credits_extra_4o`, inserta transacción de tipo `adjustment` con `metadata.expired_at`
+- Configurada en `supabase/config.toml` como `[functions.cron-expire-extra-credits]`
+
+#### Webhook principal (`ycloud-whatsapp-webhook` v215)
+**Credit check antes de responder:**
+```typescript
+// Resuelve pool root via parent_clinic_id
+const creditPoolId = pool.parent_clinic_id || clinic.id;
+// Si ai_credits_unlimited → skip check
+// Si extrasExpired → zeroes balance sin await (fire-and-forget)
+// Si totalUsed >= monthlyLimit + extraBalance → return 200 silencioso
+```
+**Insert de consumo** en `ai_credit_transactions` tras cada mensaje generado:
+- `amount: -1` para mini, `-8` para 4o_standard/4o_legacy, `-8` para 4o_pro (sin distinción de tier aún — los tiers se distinguen vía metadata.model)
+- `description: "Consumo IA: {model}"`
+- `metadata: { model, source_clinic_id }` — source_clinic_id permite auditar desde qué sucursal vino el mensaje
+
+#### Webhooks de pago
+**`mercadopago-webhook` y `lemonsqueezy-webhook`:** al comprar créditos extra:
+- Setean `ai_credits_extra_expires_at = NOW() + 30 días`
+- Insertan transacción `type: 'purchase'` con `metadata: { model, expires_at }`
+
+**`lemonsqueezy-webhook` `subscription_created`:** ahora sincroniza `ai_credits_monthly_limit` con los valores correctos por plan:
+```typescript
+const aiCreditsLimit = enterprise/prestige → 30000, pro/radiance → 10000, starter/essence → 5000, core → 0
+await supabase.from('clinic_settings').update({ ai_credits_monthly_limit: aiCreditsLimit })
+```
+
+#### `AdminClinics.tsx` — carga manual de créditos
+`handleManualCharge` ahora también:
+- Setea `ai_credits_extra_expires_at = NOW() + 30 días`
+- Inserta transacción `type: 'purchase'` con `metadata.source: 'hq_manual'`
+- Alert de confirmación muestra la fecha de vencimiento
+
+#### Historial mayo 2026 — backfill DB (Animalgrace pool)
+4 transacciones insertadas directamente en `ai_credit_transactions` para transparencia:
+- `monthly_refill` 12.000 créditos — 2026-05-01
+- Consumo Mini: −1.123 créditos (1.123 msgs × 1) — 2026-05-28 23:59:00
+- Consumo Standard: −2.976 créditos (372 msgs × 8) — 2026-05-28 23:59:30
+- Consumo Pro: −25.140 créditos (419 msgs × 60) — 2026-05-28 23:59:59
+
+---
+
+### AISettings.tsx — rediseño completo (estilo Citenly + colores sky Vetly)
+
+**Nueva estructura de página (una sola ruta `/app/settings?tab=ai`):**
+
+1. **Agente IA activo** — card independiente con toggle grande (antes estaba dentro del panel del motor)
+2. **Motor de IA** — 3 cards planas sin bordes pesados:
+   - Ahorro Máximo (GPT-4o Mini) → emerald cuando activo
+   - Híbrido Automático (IA Router) → sky cuando activo
+   - Máximo Poder (GPT-4o Exclusivo) → violet cuando activo
+   - Indicador `✓ ACTIVO` bajo la card seleccionada
+3. **Créditos de IA** — badge `∞ ILIMITADO` cuando `ai_credits_unlimited = true`; warning amber si `ai_credits_extra_expires_at` próximo; 2 cols (Usados / Disponibles); barra de uso
+4. **Consumo por Modelo** — 3 cards (Mini=emerald, Standard=sky, Pro=violet) con `mensajes` + `créditos` reales
+5. **Comprar Créditos Extra** — cards simples estilo Citenly con botón `Comprar Pack` en sky-500; "Válidos 30 días" en amber
+6. **Historial de Transacciones** — **embebido en la misma página** (eliminado el link a `/app/ai-credits`):
+   - Selector de mes (últimos 6 meses)
+   - 3 cards de resumen sin límite de filas (Créditos Usados / Mensajes IA / Recargado)
+   - Tabla con 200 filas (las más recientes)
+   - Footer: "Mostrando N de M transacciones de {mes}"
+
+**Patrón de datos — fuente única de verdad:**
+- `totalUsed = miniMessages×1 + standardMessages×8 + proMessages×60` — tabla `messages`, cubre historial completo
+- Se eliminaron `miniUsed`/`fourOUsed` de `clinic_settings` del cálculo (esos contadores no son retroactivos)
+- `Disponibles = Math.max(0, totalAvailable - totalUsed)` — nunca negativo
+- Textos: "ciclo" → "**ciclo mensual**" en todos los textos relevantes
+
+---
+
+### Fix Gestión de Equipo — 3 bugs corregidos
+
+#### Bug 1 — Duplicados al invitar
+**Causa:** botón "Enviar Invitación" sin estado de carga → múltiples clics = múltiples inserts.
+**Fix (`Team.tsx`):**
+- Estado `isInviting` que se activa al hacer submit y bloquea re-envíos con `if (isInviting) return`
+- Botón deshabilitado + spinner "Enviando..." mientras procesa
+- Cancelar también deshabilitado durante el proceso
+
+#### Bug 2 — Límite incorrecto para sucursales (Santiago mostraba máx 2)
+**Causa raíz (3 capas):**
+1. Santiago tenía `clinic_settings.max_users = 5` (debería ser 999999)
+2. RPC `invite_member_v2` leía `subscriptions WHERE clinic_id = p_clinic_id` sin considerar `parent_clinic_id` → encontraba `plan = 'essence'` → cap de 2 usuarios
+3. Frontend usaba `sub.plan = 'essence'` de MercadoPago (legacy) sin respetar `manually_active = true`
+
+**Fix — migración `fix_team_invite_limits_and_rpc`:**
+- `UPDATE clinic_settings SET max_users = 999999 WHERE id = '13472ea4-...'` (Santiago)
+- **RPC `invite_member_v2` reescrito:**
+  - Resuelve pool root con `COALESCE(parent_clinic_id, id)`
+  - Lee `manually_active` del pool root — si `true`, confía en `clinic_settings.max_users` directamente
+  - Si `NOT manually_active`, deriva `max_users` del plan de subscriptions con CASE expandido a todos los IDs nuevos (`enterprise`, `pro`, `starter`, `core`) y legacy
+  - `>= 999` = ilimitado, skip del count check
+- **Frontend `Team.tsx`:** cuando `manually_active = true` OR `subscription_plan IN ('prestige', 'enterprise')` → usa `max_users` de `clinic_settings` sin overridear con el plan de MercadoPago; fetch del sub del parent si la sucursal no tiene el suyo
+
+#### Bug 3 — Demora al cambiar de sucursal
+**Causa:** `loadData()` hacía queries secuenciales y dejaba el estado anterior hasta que todo cargaba.
+**Fix:**
+- `setMembers([])` al inicio → tabla muestra spinner inmediatamente (sin datos obsoletos)
+- `Promise.all` para 3 queries paralelas (miembros + settings + subscription)
+
+---
+
+### Packs de créditos IA — nuevas cantidades
+
+| Pack | Créditos antes | Créditos ahora | Precio USD | Precio CLP |
+|---|---|---|---|---|
+| Pack Inicial | 500 | **4.000** | US$9 | $8.000 |
+| Pack Pro | 1.500 | **8.000** | US$15 | $13.000 |
+| Pack Enterprise | 4.000 | **20.000** | US$29 | $25.000 |
+
+Actualizado en: `lemonsqueezy.ts` (LS_CREDIT_PACKS), `mercadopago.ts` (CREDIT_PACKS), `lemonsqueezy-create-checkout` (creditsMap), `mercadopago-create-credits-preference` (CREDIT_PACKS_MINI). Todas las edge functions deployadas.
+
+**Los créditos extra expiran a los 30 días** de la compra. Los créditos del plan se renuevan mensualmente.
+
+---
+
+### Planes y precios — actualización completa
+
+| Plan | USD | CLP | Créditos IA/mes |
+|---|---|---|---|
+| Core | **$39** (antes $33) | $33.000 | 0 |
+| Starter | **$99** (antes $89) | $89.000 | **5.000** (antes 1.000) |
+| Pro | **$169** (antes $149) | $149.000 | **10.000** (antes 4.000) |
+| Enterprise | $349 | **$333.000** (antes $349.000) | **30.000** (antes 12.000) |
+
+Actualizado en: `lemonsqueezy.ts` (LS_PLANS), `mercadopago.ts` (PLANS), `public/landing.html`, `lemonsqueezy-webhook` (subscription_created credit sync), `mercadopago-webhook` (subscription sync).
+
+**Regla permanente:** cuando se cambien precios o créditos por plan, actualizar en: `lemonsqueezy.ts`, `mercadopago.ts`, `lemonsqueezy-webhook` (bloque subscription_created), `mercadopago-webhook` (bloque active sync), `public/landing.html`. Son 5 lugares.
+
+---
+
+### Enterprise — límite de 3 sucursales
+
+**RPC `create_clinic_branch` reescrito (migración `enterprise_branch_limit_and_credits_update`):**
+- Cuenta clínicas donde el usuario es owner y status = 'active'
+- Si `v_branch_count >= 3` → `RAISE EXCEPTION 'Has alcanzado el límite de 3 sucursales del plan Enterprise...'`
+- Default timezone: `America/Santiago` (antes `America/Mexico_City`)
+- Default subscription_plan: `'enterprise'` (antes `'prestige'`)
+
+**Nueva función helper `get_plan_credit_limit(p_plan TEXT) RETURNS INTEGER`** — mapea plan → créditos. Inmutable, reutilizable por futuros crons/webhooks.
+
+---
+
+### Landing `public/landing.html` — actualizaciones
+
+1. **Precios actualizados** en los 4 planes (USD)
+2. **Créditos IA** actualizados por plan: Starter 5.000 / Pro 10.000 / Enterprise 30.000
+3. **Enterprise**: "Multi-sucursal unificado" → "Hasta **3 sucursales** unificadas"
+4. **Sección "¿Qué son los créditos IA?"** expandida: tabla explicativa de N1/N2/N3 con descripción de cada nivel (1x/8x/60x), precio packs desde $9 USD
+5. **Nueva sección "🔒 GARANTÍA — Prueba Vetly sin riesgo"** debajo de los planes:
+   - 7 días para probar el sistema completo
+   - Implementación llave en mano por el equipo
+   - Puedes cancelar si no ayuda
+   - Botón verde "0 RIESGO COMPROMETIDO" → `/demo`
+6. Referencias de `$33 USD/mes` → `$39 USD/mes` en textos libres
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
 - [x] **Abrir sesión WhatsApp para alertas** ✅ — usuario envió mensaje a +56993089185; respuesta recibida confirmando funcionamiento. Recordar re-abrir la ventana cada 24h si no hay tráfico o crear template proactivo en YCloud.
 - [x] **Configurar webhook YCloud en +56993089185** ✅ — webhook URL configurada en dashboard YCloud + secret pegado en HQ → Integraciones. Andrés recibe mensajes de prospectos.
+- [x] **Fix duplicados al invitar miembros** ✅ — estado `isInviting` + guard en submit (sesión 23)
+- [x] **Fix límite incorrecto de usuarios en Santiago** ✅ — RPC `invite_member_v2` reescrito, `max_users` corregido en DB (sesión 23)
 - [ ] **Reagendar citas lunes 2026-05-25**: ruta Talca (12:00)→Linares (15:30)→Talca (16:30) es inválida. Claudia debe mover una de las dos citas de Talca. El fix del webhook ya previene nuevas rutas inválidas, pero estas citas ya existen en DB.
 - [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
-- [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()` para leer `logisticsConfig.routing_mode` en vez de comparar por ID.
+- [ ] **`ai_credit_transactions` — balance_after real**: los inserts de consumo por mensaje actualmente usan `balance_after: 0` (no se calcula el saldo real en tiempo real). Para reportería futura se debería calcular el saldo real. Impacto actual: la columna Saldo en el historial muestra 0 para consumos individuales.
+- [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy.
 
 ### Media prioridad
-- [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase (servicios, profesionales, slots, citas del día). Candidato a `Promise.all` donde no haya dependencia.
-- [ ] **`getKnowledge` en el simulador** — usa filtrado por `ilike` directo en DB en vez del scoring en memoria del webhook. Considerar unificar el approach.
+- [ ] **Configurar `LS_VARIANT_REMINDERS` en Supabase Secrets** — la edge function `lemonsqueezy-create-checkout` tiene el variant ID de recordatorios como placeholder. Crear producto en LS dashboard y configurar el secret.
+- [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase. Candidato a `Promise.all`.
 - [ ] **Templates médicos de Santiago**: configurar `vaccine_reminder_template`, `deworming_reminder_template`, `checkup_reminder_template` en `clinic_settings` de Santiago para que PART 4 del cron pueda enviar recordatorios médicos.
-- [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja. Las nuevas citas creadas vía AI agent sí quedan vinculadas.
+- [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja.
 
 ### Baja prioridad
-- [x] **Banner de sección en todas las páginas** ✅ completado sesión 11 — Patients, CRM, Appointments, Reminders, Finance, KnowledgeBase, Campaigns, Templates, Settings, Loyalty. Messages omitida (chat full-height, banner reduciría el área útil).
-- [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa este archivo (`*`). Documentar explícitamente por qué es `*` (browser widget, no webhook) para que nadie lo "corrija" innecesariamente.
-- [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados, no forman parte del proyecto, pueden eliminarse.
-- [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — `claubarreraolivero@gmail.com` y otros tienen `clinic_id = NULL`. No bloquea el flujo actual (la RLS de `reminder_logs` usa `clinic_members`), pero es inconsistente.
+- [x] **Banner de sección en todas las páginas** ✅ completado sesión 11
+- [x] **AISettings.tsx rediseño + historial embebido** ✅ completado sesión 23
+- [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa `*` (browser widget, no webhook). Documentar para que nadie lo "corrija" innecesariamente.
+- [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados.
+- [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — `claubarreraolivero@gmail.com` y otros tienen `clinic_id = NULL`. No bloquea el flujo actual.
 
 ---
 
