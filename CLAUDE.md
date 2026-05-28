@@ -1529,6 +1529,55 @@ Resultado: Animalgrace Linares 12.000 → **30.000**, Animalgrace Santiago 0 →
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 24, 2026-05-28)
+
+### Cierre completo de deuda técnica — todos los pendientes
+
+#### `_shared/cors.ts` — comentario explicativo
+Se agregó comentario documenta por qué el CORS usa `*`: es para funciones llamadas desde el browser (`chat-agent`, `ai-simulator`). Los webhooks externos (YCloud, MercadoPago, LS) tienen sus propios headers CORS restrictivos en cada función. No hay que "corregir" el `*`.
+
+#### `appointments.patient_id` — reconciliación retroactiva (migración `reconcile_appointments_patient_id`)
+162 citas sin `patient_id` → 31 vinculadas en 3 capas:
+- **Capa 1** (riesgo cero): `pet_id IS NOT NULL → patient_id = pet_id` — 3 filas
+- **Capa 2** (muy seguro): `tutor_id + LOWER(patient_name) → patients` — 1 fila
+- **Capa 3** (phone normalizado): últimos 8 dígitos de phone → tutors → patients por nombre — 27 filas
+- **131 sin match** — citas históricas manuales sin datos suficientes para match seguro. No se fuerza el match para evitar asignaciones incorrectas.
+
+Impacto en etiquetas automáticas: tags `Cirugía` y `Vacunado` ahora tienen mejor cobertura para las citas recién vinculadas.
+
+#### N+1 en `checkAvail` — paralelización (`ycloud-whatsapp-webhook` v217)
+Antes: 3 queries seriales al inicio de `checkAvail`. Ahora: `Promise.all` con las 3 queries independientes:
+```typescript
+const [{ data: clinic }, serviceDetails, { data: existingAppts }] = await Promise.all([
+    sb.from("clinic_settings").select(...),
+    getServiceDetails(sb, clinicId, serviceName),
+    sb.from("appointments").select(...).eq("clinic_id", clinicId).neq("status", "cancelled"),
+]);
+```
+`allDayAppts` derivado en memoria filtrando `existingAppts` por fecha — sin query adicional.
+**Ahorra ~3 round-trips por cada llamada a `check_availability`** (1 round-trip en paralelo en vez de 3 seriales).
+
+#### `logistics_config.routing_mode` — elimina UUIDs hardcodeados (`ycloud-whatsapp-webhook` v217)
+**DB actualizada:**
+- Animalgrace Linares: `logistics_config.routing_mode = 'mobile_sectors'`
+- Animalgrace Santiago: `logistics_config.routing_zone = 'rm_santiago'`, `fallback_lat/lng` = San Miguel coords
+
+**Webhook:**
+```typescript
+// Antes (UUID hardcodeado):
+const isAnimalGrace = clinicId === CLINIC_ANIMALGRACE_ID;
+
+// Ahora (configurable desde DB):
+const isAnimalGrace = (clinic?.logistics_config as any)?.routing_mode === 'mobile_sectors';
+```
+Lo mismo para el bloque de Santiago: `clinic.logistics_config.routing_zone === 'rm_santiago'` en vez de `clinicId === CLINIC_SANTIAGO_ID`.
+
+**Para agregar nueva clínica móvil:** solo hacer `UPDATE clinic_settings SET logistics_config = logistics_config || '{"routing_mode":"mobile_sectors"}'` — sin deploy.
+
+Las constantes `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` permanecen en el código como referencia documentaria pero **ya no tienen uso en lógica**.
+
+---
+
 ## Tareas pendientes
 
 ✅ **Sin pendientes técnicos activos.** Todos los ítems fueron cerrados en sesiones 23-24.
