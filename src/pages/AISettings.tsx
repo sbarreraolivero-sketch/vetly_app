@@ -165,22 +165,23 @@ export default function AISettings() {
                 if (poolData && poolData.length > 0) poolIds = poolData
             } catch {}
 
-            // Query 1: all txs for summary (no limit)
-            const { data: allTxs } = await (supabase as any)
-                .from('ai_credit_transactions')
-                .select('type, amount')
-                .in('clinic_id', poolIds)
-                .gte('created_at', monthStart)
-                .lte('created_at', monthEnd)
+            // Query 1: agregación server-side via RPC (sin límite de 1000 filas de PostgREST)
+            const { data: rpcSummary } = await (supabase as any)
+                .rpc('get_credit_history_summary', {
+                    p_clinic_ids: poolIds,
+                    p_month_start: monthStart,
+                    p_month_end: monthEnd,
+                })
 
-            const summary: HistorySummary = { consumed: 0, messages: 0, recharged: 0, total: (allTxs || []).length }
-            for (const tx of (allTxs || [])) {
-                if (tx.type === 'consumption') { summary.consumed += Math.abs(tx.amount); summary.messages++ }
-                else if (['monthly_refill', 'purchase'].includes(tx.type)) summary.recharged += tx.amount
-            }
-            setHistorySummary(summary)
+            const s = rpcSummary?.[0] || rpcSummary
+            setHistorySummary({
+                consumed:  Number(s?.consumed  ?? 0),
+                messages:  Number(s?.messages  ?? 0),
+                recharged: Number(s?.recharged ?? 0),
+                total:     Number(s?.total     ?? 0),
+            })
 
-            // Query 2: display rows (200 limit)
+            // Query 2: 200 filas más recientes para la tabla
             const { data: tableTxs } = await (supabase as any)
                 .from('ai_credit_transactions')
                 .select('*')
