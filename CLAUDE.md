@@ -1578,9 +1578,76 @@ Las constantes `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` permanecen en el c
 
 ---
 
+## Cambios realizados — mayo 2026 (sesión 25, 2026-05-28)
+
+### Sistema de permisos por miembro — RBAC configurable desde Gestión de Equipo
+
+**Motivación:** los permisos de navegación estaban hardcodeados en `DashboardLayout.tsx` (`vet_assistant` veía un menú fijo; el resto veía todo). No había forma de personalizar accesos sin deploy.
+
+#### Arquitectura
+
+**DB — migración `member_permissions`:**
+- `clinic_members.permissions JSONB DEFAULT NULL` — `null` = usar defaults del rol; el valor almacenado sobreescribe completamente
+- RPC `update_member_permissions(p_member_id, p_permissions)` con `SECURITY DEFINER`:
+  - Solo `owner` o `admin` pueden llamarla
+  - Bloquea modificación de permisos de `owner` / `admin`
+  - No requiere cambios de RLS
+
+**`src/lib/permissions.ts` (nuevo):**
+- Tipos `PageKey` (15 páginas), `ActionKey` (11 acciones), `MemberPermissions`
+- `FULL_PERMISSIONS` — acceso total para owner/admin
+- `ROLE_DEFAULTS` — defaults por rol: `professional`, `receptionist`, `vet_assistant`
+- `getEffectivePermissions(role, storedPermissions)` — owner/admin → full; stored null → role defaults; stored value → stored
+
+**`src/hooks/usePermissions.ts` (nuevo):**
+- `canAccess(page: PageKey)` — ¿puede ver esta sección?
+- `can(action: ActionKey)` — ¿puede ejecutar esta acción?
+- Fail-open mientras `member` carga (devuelve `true`) para evitar flash de contenido bloqueado
+- Lee `member.permissions` del contexto de auth
+
+**`DashboardLayout.tsx`:**
+- Cada ítem de `navigationSections` tiene ahora un campo `pageKey: PageKey`
+- Filtrado de nav reemplazado por `canAccess(item.pageKey)` en ambos sidebars (desktop + mobile)
+- Eliminado el switch hardcodeado que tenía `vet_assistant` con lista fija y `isOwnerOrAdmin` para finanzas/CRM/campañas
+
+**`teamService.ts`:**
+- Campo `permissions?: MemberPermissions | null` agregado a `ClinicMember`
+- Método `updateMemberPermissions(memberId, permissions)` — llama al RPC
+
+**`Team.tsx`:**
+- Botón **Permisos** por fila (visible para `isAdmin`, solo en roles `professional`/`receptionist`/`vet_assistant`)
+- Badge **Personalizado** en la fila si `member.permissions != null`
+- Modal de edición con:
+  - Header: nombre + badge de rol + botón "Restaurar defaults del rol"
+  - Sección "Acceso a secciones": toggles agrupados (Principal / Clínica / Marketing / Agente IA / Configuración)
+  - Sección "Acciones permitidas": toggles agrupados (Dashboard / Pacientes / Tutores / Citas / Datos)
+  - Footer: Cancelar + Guardar cambios (actualiza DB y estado local inmediatamente)
+
+#### Defaults por rol
+
+| Permiso | Professional | Receptionist | Vet Assistant |
+|---|:---:|:---:|:---:|
+| Dashboard | ✅ | ✅ | ✅ |
+| Citas, Pacientes, Tutores | ✅ | ✅ | ✅ |
+| Mensajes, Recordatorios | ✅ | ✅ | ❌/✅ |
+| CRM | ❌ | ✅ | ❌ |
+| Plantillas | ✅ | ✅ | ❌ |
+| Campañas, Finanzas, Settings, IA | ❌ | ❌ | ❌ |
+| Ver métricas financieras | ❌ | ❌ | ❌ |
+| Crear/editar pacientes y tutores | ✅ | ✅ | ❌ |
+| Eliminar pacientes/tutores/citas | ❌ | citas ✅ | ❌ |
+
+#### Regla permanente — permisos
+- `owner` y `admin` siempre tienen acceso total. El hook lo fuerza en frontend; el RPC lo bloquea en el servidor.
+- Para guardar permisos custom de un miembro: usar `teamService.updateMemberPermissions()` — nunca un UPDATE directo (no pasaría RLS).
+- Para verificar si un usuario puede hacer algo en cualquier página: `const { canAccess, can } = usePermissions()`.
+- Al agregar una nueva sección al nav, agregar su `pageKey` al ítem en `navigationSections` y su default en `ROLE_DEFAULTS` en `src/lib/permissions.ts`.
+
+---
+
 ## Tareas pendientes
 
-✅ **Sin pendientes técnicos activos.** Todos los ítems fueron cerrados en sesiones 23-24.
+✅ **Sin pendientes técnicos activos.** Todos los ítems fueron cerrados en sesiones 23-25.
 
 Los únicos ítems que quedaron intencionalmente sin modificar:
 - **`check_*.js` en raíz** — 0 archivos encontrados. Ya estaba limpio.
