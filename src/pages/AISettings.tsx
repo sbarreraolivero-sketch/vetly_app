@@ -62,11 +62,7 @@ export default function AISettings() {
     const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
     const [aiCreditsExtraExpiresAt, setAiCreditsExtraExpiresAt] = useState<string | null>(null)
 
-    // ── Counters (direct from clinic_settings)
-    const [miniUsed, setMiniUsed] = useState(0)
-    const [fourOUsed, setFourOUsed] = useState(0)
-
-    // ── Model breakdown (from messages)
+    // ── Model breakdown (from messages — single source of truth for credits)
     const [miniMessages, setMiniMessages] = useState(0)
     const [standardMessages, setStandardMessages] = useState(0)
     const [proMessages, setProMessages] = useState(0)
@@ -106,13 +102,11 @@ export default function AISettings() {
                     let extraBalance = cs.ai_credits_extra_balance || 0
                     let extra4o = cs.ai_credits_extra_4o || 0
                     let expiresAt = cs.ai_credits_extra_expires_at || null
-                    let miniUsedVal = cs.ai_credits_monthly_mini_used || 0
-                    let fourOUsedVal = cs.ai_credits_monthly_4o_used || 0
 
                     if (cs.parent_clinic_id) {
                         const { data: parentData } = await (supabase as any)
                             .from('clinic_settings')
-                            .select('ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_credits_extra_expires_at,ai_credits_unlimited,ai_credits_monthly_mini_used,ai_credits_monthly_4o_used')
+                            .select('ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_credits_extra_expires_at,ai_credits_unlimited')
                             .eq('id', cs.parent_clinic_id)
                             .single()
                         if (parentData) {
@@ -121,8 +115,6 @@ export default function AISettings() {
                             extraBalance = parentData.ai_credits_extra_balance || 0
                             extra4o = parentData.ai_credits_extra_4o || 0
                             expiresAt = parentData.ai_credits_extra_expires_at || null
-                            miniUsedVal = parentData.ai_credits_monthly_mini_used || 0
-                            fourOUsedVal = parentData.ai_credits_monthly_4o_used || 0
                         }
                     }
 
@@ -131,8 +123,6 @@ export default function AISettings() {
                     setAiCreditsExtraBalance(extraBalance)
                     setAiCreditsExtra4o(extra4o)
                     setAiCreditsExtraExpiresAt(expiresAt)
-                    setMiniUsed(miniUsedVal)
-                    setFourOUsed(fourOUsedVal)
                 }
 
                 // Model breakdown from messages (current month)
@@ -245,7 +235,8 @@ export default function AISettings() {
 
     // ─── Computed values ──────────────────────────────────────────────────────
 
-    const totalUsed = miniUsed + (fourOUsed * 8)
+    // Fuente de verdad: tabla messages (cubre todo el historial, separa costos reales por modelo)
+    const totalUsed = (miniMessages * 1) + (standardMessages * 8) + (proMessages * 60)
     const extraExpired = aiCreditsExtraExpiresAt ? new Date(aiCreditsExtraExpiresAt) < new Date() : false
     const extraAvailable = extraExpired ? 0 : (aiCreditsExtraBalance + aiCreditsExtra4o)
     const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
@@ -437,7 +428,7 @@ export default function AISettings() {
                                     {aiCreditsUnlimited ? (
                                         <p className="text-3xl font-black text-sky-500">∞</p>
                                     ) : (
-                                        <p className="text-3xl font-black text-charcoal tabular-nums">{(totalAvailable - totalUsed).toLocaleString()}</p>
+                                        <p className="text-3xl font-black text-charcoal tabular-nums">{Math.max(0, totalAvailable - totalUsed).toLocaleString()}</p>
                                     )}
                                 </div>
                             </div>
@@ -490,7 +481,7 @@ export default function AISettings() {
                                 <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
                                 <div className="mt-3 pt-3 border-t border-emerald-200 flex items-center justify-between">
                                     <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-emerald-600 tabular-nums">{(miniUsed).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-emerald-600 tabular-nums">{miniMessages.toLocaleString()}</p>
                                 </div>
                             </div>
 
