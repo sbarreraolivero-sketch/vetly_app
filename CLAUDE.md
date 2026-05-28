@@ -650,7 +650,8 @@ El banner pasó de `from-accent-500 to-accent-700` (gold) a `from-violet-500 to-
   totalUsed = miniMessages×1 + standardMessages×8 + proMessages×60
   ```
 - **`clinic_settings.ai_credits_monthly_mini_used` / `ai_credits_monthly_4o_used`** son contadores auxiliares para el credit check en el webhook. No son retroactivos (empezaron en 0 al deployarse). **No usarlos para mostrar créditos usados en la UI.**
-- **`ai_credit_transactions`** es la fuente de verdad para el historial y los resúmenes de recarga/consumo. Se rellena automáticamente por cada mensaje (via webhook v215) y cada compra de pack.
+- **`ai_credit_transactions`** es la fuente de verdad para el historial y los resúmenes de recarga/consumo. Se rellena automáticamente por cada mensaje (webhook v216+) y cada compra de pack.
+- **RPC `get_credit_history_summary(p_clinic_ids, p_month_start, p_month_end)`** — agrega totales server-side. Usar siempre para calcular resúmenes de historial; nunca fetchear filas individuales en el cliente y sumar (PostgREST limita a 1.000 filas en silencio).
 
 ### Límites de plan y sucursales — reglas permanentes
 - Los **créditos mensuales** por plan son: Core=0, Starter=5.000, Pro=10.000, Enterprise=30.000
@@ -1465,30 +1466,71 @@ Actualizado en: `lemonsqueezy.ts` (LS_PLANS), `mercadopago.ts` (PLANS), `public/
 
 ---
 
+### Fixes adicionales — mayo 2026 (sesión 23 continuación, 2026-05-28)
+
+#### `balance_after` real en consumos del webhook (`ycloud-whatsapp-webhook` v216)
+**Problema:** los inserts de consumo usaban `balance_after: 0` hardcodeado.
+**Fix:** se calcula con los datos de `pool` ya en memoria (sin query adicional):
+```typescript
+balanceAfter = Math.max(0, monthlyLimit + extraBalance - totalUsedAhora)
+```
+Impacto: cero overhead — los datos del pool ya estaban cargados desde el credit check.
+
+#### Backfill historial mayo 2026 — 1.914 filas individuales
+Los 3 registros de consumo bulk (resúmenes de Mini/Standard/Pro) se reemplazaron por **1.914 filas individuales** generadas desde la tabla `messages`, con timestamp y modelo real de cada mensaje. El historial de mayo quedó con:
+- 1 `monthly_refill` — 12.000 créditos (2026-05-01)
+- 1.914 `consumption` — total 29.239 créditos
+- Footer: "Mostrando 200 de 1.915 transacciones de mayo 2026"
+
+#### Bug PostgREST límite 1.000 filas — RPC `get_credit_history_summary()`
+**Problema raíz:** Supabase PostgREST aplica un límite default de **1.000 filas** aunque el código no especifique `.limit()`. Las queries "sin límite" para el resumen retornaban máximo 1.000 filas → totales incorrectos (2.425 créditos en vez de 29.239).
+**Fix — migración `fix_credit_limits_and_history_summary_rpc`:**
+```sql
+CREATE FUNCTION get_credit_history_summary(p_clinic_ids UUID[], p_month_start, p_month_end)
+RETURNS TABLE (consumed, messages, recharged, total)
+-- Agrega server-side con SQL puro, sin límite de PostgREST
+```
+`AISettings.tsx` usa este RPC para los 3 cards de resumen del historial. La tabla de 200 filas sigue siendo un query cliente con `.limit(200)`.
+
+**Regla permanente:** cualquier query que necesite contar o sumar más de 1.000 filas debe hacerse via RPC server-side. El límite de PostgREST es silencioso — no devuelve error, solo trunca.
+
+#### `ai_credits_monthly_limit` actualizado globalmente
+**Migración `fix_credit_limits_and_history_summary_rpc`** ejecutó:
+```sql
+UPDATE clinic_settings SET ai_credits_monthly_limit =
+    CASE
+        WHEN subscription_plan IN ('enterprise','prestige') THEN 30000
+        WHEN subscription_plan IN ('pro','radiance')        THEN 10000
+        WHEN subscription_plan IN ('starter','essence')     THEN 5000
+        WHEN subscription_plan = 'core'                     THEN 0
+    END
+WHERE id != HQ_ID;
+```
+Resultado: Animalgrace Linares 12.000 → **30.000**, Animalgrace Santiago 0 → **30.000**.
+
+#### `process_monthly_recharge()` — valores corregidos
+**Problema:** la función que corre mensualmente y resetea créditos tenía hardcodeados los valores del sistema legacy (prestige=5.000, radiance=1.500, resto=500). Hubiera sobreescrito el 30.000 de vuelta a 5.000 el primer día del ciclo.
+**Fix — migración `fix_process_monthly_recharge_credit_limits`:**
+- CASE actualizado: enterprise/prestige→30.000, pro/radiance→10.000, starter/essence→5.000, core→0
+- Remanente calculado correctamente: `limit - miniUsed - (4oUsed × 8)` (antes solo usaba `miniUsed`)
+- Sucursales (`parent_clinic_id IS NOT NULL`) excluidas — solo recarga la clínica raíz del pool
+- `metadata` agregado a la transacción `monthly_refill`: `{plan, allowance, remanente}`
+
+---
+
 ## Tareas pendientes
 
 ### Alta prioridad
-- [x] **Abrir sesión WhatsApp para alertas** ✅ — usuario envió mensaje a +56993089185; respuesta recibida confirmando funcionamiento. Recordar re-abrir la ventana cada 24h si no hay tráfico o crear template proactivo en YCloud.
-- [x] **Configurar webhook YCloud en +56993089185** ✅ — webhook URL configurada en dashboard YCloud + secret pegado en HQ → Integraciones. Andrés recibe mensajes de prospectos.
-- [x] **Fix duplicados al invitar miembros** ✅ — estado `isInviting` + guard en submit (sesión 23)
-- [x] **Fix límite incorrecto de usuarios en Santiago** ✅ — RPC `invite_member_v2` reescrito, `max_users` corregido en DB (sesión 23)
-- [ ] **Reagendar citas lunes 2026-05-25**: ruta Talca (12:00)→Linares (15:30)→Talca (16:30) es inválida. Claudia debe mover una de las dos citas de Talca. El fix del webhook ya previene nuevas rutas inválidas, pero estas citas ya existen en DB.
-- [ ] **Animalgrace Santiago — templates de recordatorios**: recordatorios desactivados hasta que se creen los templates en YCloud dashboard de Santiago (`confirmacion_visita` o `24hrs_recordatorio_cita`). Una vez creados, reactivar desde Settings → Recordatorios.
-- [ ] **`ai_credit_transactions` — balance_after real**: los inserts de consumo por mensaje actualmente usan `balance_after: 0` (no se calcula el saldo real en tiempo real). Para reportería futura se debería calcular el saldo real. Impacto actual: la columna Saldo en el historial muestra 0 para consumos individuales.
-- [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy.
+- [ ] **`logistics_config.routing_mode`** — mover la lógica de `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` a un campo en `clinic_settings` para que sea configurable sin deploy. Requiere migración de datos y actualizar `checkAvail()`.
 
 ### Media prioridad
-- [ ] **Configurar `LS_VARIANT_REMINDERS` en Supabase Secrets** — la edge function `lemonsqueezy-create-checkout` tiene el variant ID de recordatorios como placeholder. Crear producto en LS dashboard y configurar el secret.
-- [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase. Candidato a `Promise.all`.
-- [ ] **Templates médicos de Santiago**: configurar `vaccine_reminder_template`, `deworming_reminder_template`, `checkup_reminder_template` en `clinic_settings` de Santiago para que PART 4 del cron pueda enviar recordatorios médicos.
-- [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja.
+- [ ] **N+1 en `processFunc`** — `check_availability` hace múltiples queries seriales a Supabase. Candidato a `Promise.all` donde no haya dependencia.
+- [ ] **`appointments.patient_id`/`pet_id` sin FK consistente** — las citas históricas no vinculan correctamente a `patients.id`, por lo que tags `Cirugía` y `Vacunado` tienen cobertura baja. Las nuevas citas creadas vía AI agent sí quedan vinculadas correctamente.
 
 ### Baja prioridad
-- [x] **Banner de sección en todas las páginas** ✅ completado sesión 11
-- [x] **AISettings.tsx rediseño + historial embebido** ✅ completado sesión 23
-- [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa `*` (browser widget, no webhook). Documentar para que nadie lo "corrija" innecesariamente.
-- [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados.
-- [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — `claubarreraolivero@gmail.com` y otros tienen `clinic_id = NULL`. No bloquea el flujo actual.
+- [ ] **`_shared/cors.ts`** — el CORS de `chat-agent` usa `*` (browser widget, no webhook). Documentar explícitamente para que nadie lo "corrija" innecesariamente.
+- [ ] **Cleanup de archivos `check_*.js`** en la raíz — 50+ scripts de debugging acumulados, no forman parte del proyecto.
+- [ ] **`user_profiles.clinic_id` de usuarios sin clínica** — algunos usuarios tienen `clinic_id = NULL`. No bloquea el flujo actual (la RLS usa `clinic_members`).
 
 ---
 
