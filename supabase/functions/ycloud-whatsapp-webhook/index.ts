@@ -676,12 +676,25 @@ const saveMsg = async (
           await sb.rpc('increment_clinic_4o_usage', { p_clinic_id: clinicId });
         }
 
+        // Calcular balance_after con los datos ya en memoria (sin query extra)
+        let balanceAfter = 0;
+        if (pool) {
+          const miniUsed = (pool.ai_credits_monthly_mini_used || 0) + (model === "mini" ? 1 : 0);
+          const oUsed = (pool.ai_credits_monthly_4o_used || 0) + (model !== "mini" ? 1 : 0);
+          const totalUsedNow = miniUsed + (oUsed * 8);
+          const extrasExpired = pool.ai_credits_extra_expires_at
+            ? new Date(pool.ai_credits_extra_expires_at) < new Date()
+            : false;
+          const extraBalance = extrasExpired ? 0 : ((pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0));
+          balanceAfter = Math.max(0, (pool.ai_credits_monthly_limit || 0) + extraBalance - totalUsedNow);
+        }
+
         // Register consumption transaction
         await sb.from("ai_credit_transactions").insert({
           clinic_id: creditPoolId,
           type: 'consumption',
           amount: -creditCost,
-          balance_after: 0,
+          balance_after: balanceAfter,
           description: `Consumo IA: ${model}${creditPoolId !== clinicId ? ` (sucursal)` : ''}`,
           metadata: { model, source_clinic_id: clinicId }
         });
