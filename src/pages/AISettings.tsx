@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import {
     SlidersHorizontal, Sparkles, Zap, RefreshCw, Cpu, Save, Loader2,
     CreditCard, Plus, Check, Info, AlertTriangle, Clock,
-    ArrowDownCircle, ArrowUpCircle, Calendar, TrendingDown,
+    ArrowDownCircle, ArrowUpCircle, Calendar, TrendingDown, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
@@ -69,6 +69,10 @@ export default function AISettings() {
 
     // ── Payment
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
+
+    // ── Secciones desplegables (motor/creditos/consumo abiertos por defecto, packs/historial cerrados)
+    const [open, setOpen] = useState({ motor: true, creditos: true, consumo: true, packs: false, historial: false })
+    const toggle = (k: keyof typeof open) => setOpen(prev => ({ ...prev, [k]: !prev[k] }))
 
     // ── History
     const [monthOptions] = useState<Date[]>(generateMonthOptions)
@@ -296,7 +300,7 @@ export default function AISettings() {
 
                     {/* ── Motor de IA ──────────────────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige">
+                        <button onClick={() => toggle('motor')} className="w-full px-5 pt-5 pb-4 flex items-center justify-between gap-3 text-left">
                             <div className="flex items-center gap-3">
                                 <Sparkles className="w-5 h-5 text-sky-500" />
                                 <div>
@@ -304,7 +308,10 @@ export default function AISettings() {
                                     <p className="text-xs text-charcoal/40 mt-0.5">Selecciona cómo el agente usa los modelos de lenguaje</p>
                                 </div>
                             </div>
-                        </div>
+                            <ChevronDown className={cn("w-4 h-4 text-charcoal/30 transition-transform duration-200 shrink-0", open.motor && "rotate-180")} />
+                        </button>
+                        <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", open.motor ? "max-h-[1000px]" : "max-h-0")}>
+                        <div className={cn("border-t border-silk-beige")} />
                         <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
                             {/* Mini */}
                             <button
@@ -375,11 +382,12 @@ export default function AISettings() {
                                 )}
                             </button>
                         </div>
+                        </div> {/* cierre collapsible motor */}
                     </div>
 
                     {/* ── Créditos de IA ───────────────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige flex items-center justify-between">
+                        <button onClick={() => toggle('creditos')} className="w-full px-5 pt-5 pb-4 flex items-center justify-between gap-3 text-left">
                             <div className="flex items-center gap-3">
                                 <CreditCard className="w-5 h-5 text-sky-500" />
                                 <div>
@@ -387,13 +395,17 @@ export default function AISettings() {
                                     <p className="text-xs text-charcoal/40 mt-0.5">Uso del ciclo mensual actual</p>
                                 </div>
                             </div>
-                            {aiCreditsUnlimited && (
-                                <span className="inline-flex items-center gap-1.5 bg-sky-50 text-sky-600 text-[10px] font-black px-3 py-1.5 rounded-full border border-sky-200 uppercase tracking-widest">
-                                    ∞ ILIMITADO
-                                </span>
-                            )}
-                        </div>
-
+                            <div className="flex items-center gap-2 shrink-0">
+                                {aiCreditsUnlimited && (
+                                    <span className="inline-flex items-center gap-1.5 bg-sky-50 text-sky-600 text-[10px] font-black px-3 py-1.5 rounded-full border border-sky-200 uppercase tracking-widest">
+                                        ∞ ILIMITADO
+                                    </span>
+                                )}
+                                <ChevronDown className={cn("w-4 h-4 text-charcoal/30 transition-transform duration-200", open.creditos && "rotate-180")} />
+                            </div>
+                        </button>
+                        <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", open.creditos ? "max-h-[600px]" : "max-h-0")}>
+                        <div className="border-t border-silk-beige" />
                         <div className="p-5 space-y-4">
                             {aiCreditsUnlimited ? (
                                 <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 flex items-center gap-3">
@@ -453,11 +465,12 @@ export default function AISettings() {
                                 </div>
                             )}
                         </div>
+                        </div> {/* cierre collapsible creditos */}
                     </div>
 
                     {/* ── Consumo por Modelo ───────────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige">
+                        <button onClick={() => toggle('consumo')} className="w-full px-5 pt-5 pb-4 flex items-center justify-between gap-3 text-left">
                             <div className="flex items-center gap-3">
                                 <TrendingDown className="w-5 h-5 text-sky-500" />
                                 <div>
@@ -465,7 +478,10 @@ export default function AISettings() {
                                     <p className="text-xs text-charcoal/40 mt-0.5">Mensajes enviados y créditos gastados por tipo de IA este ciclo mensual</p>
                                 </div>
                             </div>
-                        </div>
+                            <ChevronDown className={cn("w-4 h-4 text-charcoal/30 transition-transform duration-200 shrink-0", open.consumo && "rotate-180")} />
+                        </button>
+                        <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", open.consumo ? "max-h-[900px]" : "max-h-0")}>
+                        <div className="border-t border-silk-beige" />
                         <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
                             {/* Mini */}
                             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
@@ -532,19 +548,21 @@ export default function AISettings() {
                                 </p>
                             </div>
                         </div>
+                        </div> {/* cierre collapsible consumo */}
                     </div>
 
                     {/* ── Comprar Créditos Extra ───────────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <Plus className="w-5 h-5 text-sky-500" />
-                                <div>
+                        <div className="px-5 pt-5 pb-4 flex items-center justify-between gap-4">
+                            <button onClick={() => toggle('packs')} className="flex items-center gap-3 flex-1 text-left min-w-0">
+                                <Plus className="w-5 h-5 text-sky-500 shrink-0" />
+                                <div className="min-w-0">
                                     <h2 className="text-sm font-black text-charcoal">Comprar Créditos Extra</h2>
-                                    <p className="text-[10px] font-bold text-amber-500 mt-0.5">Válidos 30 días desde la fecha de compra · Expiran automáticamente</p>
+                                    <p className="text-[10px] font-bold text-amber-500 mt-0.5 truncate">Válidos 30 días · Expiran automáticamente</p>
                                 </div>
-                            </div>
-                            {/* Region toggle */}
+                                <ChevronDown className={cn("w-4 h-4 text-charcoal/30 transition-transform duration-200 shrink-0", open.packs && "rotate-180")} />
+                            </button>
+                            {/* Region toggle — independiente del collapse */}
                             <div className="flex items-center gap-1 bg-silk-beige p-1 rounded-xl border border-silk-beige shadow-sm shrink-0">
                                 <button
                                     onClick={() => setPaymentRegion('chile')}
@@ -560,6 +578,8 @@ export default function AISettings() {
                                 </button>
                             </div>
                         </div>
+                        <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", open.packs ? "max-h-[1200px]" : "max-h-0")}>
+                        <div className="border-t border-silk-beige" />
                         <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
                             {Object.values(currentPacks).map((pack) => (
                                 <div key={pack.id} className="border border-silk-beige rounded-2xl overflow-hidden flex flex-col">
@@ -597,25 +617,27 @@ export default function AISettings() {
                                 </div>
                             ))}
                         </div>
+                        </div> {/* cierre collapsible packs */}
                     </div>
 
                     {/* ── Historial de Transacciones ───────────────────────── */}
                     <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-                        <div className="px-5 pt-5 pb-4 border-b border-silk-beige flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center border border-sky-100">
+                        <div className="px-5 pt-5 pb-4 flex items-center justify-between gap-3">
+                            <button onClick={() => toggle('historial')} className="flex items-center gap-3 flex-1 text-left min-w-0">
+                                <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center border border-sky-100 shrink-0">
                                     <Clock className="w-4 h-4 text-sky-500" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <h2 className="text-xs font-black text-charcoal uppercase tracking-widest">Historial de Transacciones</h2>
                                     <p className="text-[10px] font-bold text-charcoal/30 uppercase tracking-widest mt-0.5">Transparencia total en el consumo de tu IA</p>
                                 </div>
-                            </div>
-                            {/* Month selector */}
+                                <ChevronDown className={cn("w-4 h-4 text-charcoal/30 transition-transform duration-200 shrink-0", open.historial && "rotate-180")} />
+                            </button>
+                            {/* Month selector — independiente del collapse */}
                             <select
                                 value={selectedMonth.toISOString()}
                                 onChange={(e) => setSelectedMonth(new Date(e.target.value))}
-                                className="text-xs font-black text-charcoal bg-silk-beige border border-silk-beige rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500/30 uppercase tracking-widest"
+                                className="text-[10px] font-black text-charcoal bg-silk-beige border border-silk-beige rounded-xl px-2 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500/30 uppercase tracking-widest shrink-0"
                             >
                                 {monthOptions.map((m) => (
                                     <option key={m.toISOString()} value={m.toISOString()}>
@@ -624,6 +646,8 @@ export default function AISettings() {
                                 ))}
                             </select>
                         </div>
+                        <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", open.historial ? "max-h-[3000px]" : "max-h-0")}>
+                        <div className="border-t border-silk-beige" />
 
                         {/* Summary cards */}
                         <div className="p-5 grid grid-cols-3 gap-4">
@@ -720,6 +744,7 @@ export default function AISettings() {
                                 </div>
                             </div>
                         )}
+                        </div> {/* cierre collapsible historial */}
                     </div>
                 </>
             )}
