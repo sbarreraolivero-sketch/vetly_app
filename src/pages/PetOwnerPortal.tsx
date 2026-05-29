@@ -8,7 +8,7 @@ const publicClient = createClient(
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
 )
 
-interface Vaccine { type: string; brand: string | null; application_date: string; next_dose_date: string | null }
+interface Vaccine { name: string; application_date: string; next_dose_date: string | null }
 interface Deworming { type: string; brand: string | null; application_date: string; next_dose_date: string | null }
 interface MedicalEvent { event_date: string; event_type: string; diagnosis: string | null; procedure_notes: string | null; weight: number | null }
 interface Patient {
@@ -218,11 +218,8 @@ export default function PetOwnerPortal() {
                                                     return (
                                                         <div key={i} className="flex items-center justify-between gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
                                                             <div className="min-w-0">
-                                                                <p className="text-xs font-bold text-charcoal truncate">{v.type}</p>
-                                                                <p className="text-[10px] text-charcoal/40">
-                                                                    Aplicada: {fmt(v.application_date)}
-                                                                    {v.brand ? ` · ${v.brand}` : ''}
-                                                                </p>
+                                                                <p className="text-xs font-bold text-charcoal truncate">{v.name}</p>
+                                                                <p className="text-[10px] text-charcoal/40">Aplicada: {fmt(v.application_date)}</p>
                                                             </div>
                                                             {badge && (
                                                                 <div className="flex-shrink-0 text-right">
