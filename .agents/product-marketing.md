@@ -369,15 +369,36 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 
 ### Completado sesión 2026-05-29
 
-**ART-13 — Caso de estudio Claudia:**
-- `/blog/como-animalgrace-ahorra-84-horas-al-mes.html` publicado
-- Estructura: TL;DR extractable, stats strip, hero image, historia completa, results grid, 5 FAQs
+**ART-13 — Caso de estudio Claudia** → publicado en producción:
+- URL: `vetly.pro/blog/como-animalgrace-ahorra-84-horas-al-mes`
+- Redirect 301 desde slug anterior (`50-horas` → `84-horas`)
+- Estructura: TL;DR extractable (AI SEO), stats strip con datos reales, hero image (claudia.jpeg), historia completa, results grid, sección gestión clínica con 4 screenshots, 5 FAQs, CTA, author bio
 - Schema: `Article` + `FAQPage` + `BreadcrumbList`
 - Route en `vercel.json`, entrada en `sitemap.xml`
 - Skills utilizados: `copywriting`, `content-strategy`, `ai-seo`
 
+**6 imágenes del dashboard integradas:**
+- `claudia.jpeg` — hero image (van Animalgrace, Claudia con paciente)
+- `Dashboard.png` — datos reales mayo 2026 (debajo del stats strip como prueba)
+- `motivo-visita.png` — IA captura motivo de visita antes de la consulta
+- `historia-clinica.png` — ficha completa de Kovu post-atención
+- `registro-recordatorios.png` — 89 recordatorios enviados, 0 fallidos
+- `envio-campaña.png` — segmentación por etiquetas, 43 contactos estimados
+
+**Datos reales de mayo 2026 integrados (Animalgrace Linares):**
+- 66 citas agendadas por IA (↑67%)
+- 84h 22m ahorradas
+- 1.528 mensajes de IA procesados
+- 89 recordatorios enviados (15 médicos + 74 de citas)
+- 0 citas canceladas
+
+**Correcciones editoriales aplicadas:**
+- FAQ "¿Los clientes se dan cuenta?" → reescrito honestamente: sí lo perciben por la velocidad, pero lo agradecen
+- CTA "¿Tu clínica también necesita descansar?" → "¿Y tú, también necesitas descansar el domingo?"
+- Meta description y todos los títulos corregidos de 50h a 84h
+
 ### Pendiente próxima sesión
 - **ART-02**: "Recepcionista virtual veterinaria" — keyword sin competidores en LATAM, prioridad #1 SEO
-- Crear página `/blog` index (listado de artículos publicados)
+- **Página `/blog` index** — listado de artículos publicados (necesaria antes de ART-02)
+- Agregar enlace "Blog" en header de `landing.html` (actualmente solo en páginas del blog)
 - Verificar imagen OG del logo (ajustar en Canva si el ícono no coincide con logo real)
-- Agregar enlace al blog en header de `landing.html`
