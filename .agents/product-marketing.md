@@ -327,14 +327,15 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Presencia orgánica: prácticamente nula (sin blog, sin contenido SEO)
 
 **Hoja de ruta de marketing (prioridades):**
-1. ~~Fix SEO técnico en landing~~ ✅ Completado 2026-05-28
-2. ~~Crear product-marketing.md~~ ✅ Completado 2026-05-28
-3. ~~ART-13 — Caso de estudio Claudia~~ ✅ Completado 2026-05-29 → `/blog/como-animalgrace-ahorra-84-horas-al-mes`
-4. **ART-02 — "Recepcionista virtual veterinaria"** ← PRÓXIMO (keyword sin competencia, prioridad #1 SEO)
-5. ART-01 — "WhatsApp clínica veterinaria"
-6. ART-06 — "Ruta clínica veterinaria móvil"
-7. Página `/blog` index con listado de artículos
-8. Outreach directo a comunidades veterinarias (VEPA Colombia 19 capítulos, Colmevet Chile)
+1. ~~Fix SEO técnico en landing~~ ✅ 2026-05-28
+2. ~~Crear product-marketing.md~~ ✅ 2026-05-28
+3. ~~ART-13 — Caso de estudio Claudia~~ ✅ 2026-05-29
+4. ~~ART-02 — Recepcionista virtual veterinaria~~ ✅ 2026-05-29
+5. ~~ART-01 — WhatsApp clínica veterinaria~~ ✅ 2026-05-29
+6. ~~ART-06 — Ruta clínica veterinaria móvil~~ ✅ 2026-05-29 (reescrito con ángulo incertidumbre del cliente)
+7. ~~Página `/blog` index~~ ✅ 2026-05-29 (10 artículos publicados)
+8. ~~Enlace Blog en navbar landing~~ ✅ 2026-05-29
+8. **Outreach comunidades veterinarias** ← PRÓXIMO (VEPA Colombia 19 capítulos, Colmevet Chile 33.955 seg.)
 9. Ads solo cuando haya al menos 5 casos de éxito documentados
 
 ---
@@ -421,10 +422,78 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Enlace "Blog" agregado en navbar de `landing.html` (desktop y mobile) — commit `ab9bac8`
 - Imagen OG verificada — se ve bien, no requiere ajuste
 
-**ART-01 — WhatsApp para clínicas veterinarias** → publicado:
-- URL: `vetly.pro/blog/whatsapp-clinica-veterinaria`
-- Blog index actualizado (3 artículos publicados), "Próximamente" actualizado con ART-06 y 2 nuevas ideas
+**ART-06 — Ruta clínica veterinaria móvil** → publicado (reescrito):
+- URL: `vetly.pro/blog/ruta-clinica-veterinaria-movil`
+- Ángulo corregido por el usuario: el problema real no era la ruta sino la **incertidumbre del cliente** que espera todo el día sin horario + el ritual nocturno de Claudia organizando rutas cansada
+- Elementos: escena nocturna WhatsApp, comparativa antes/después, preview del mensaje con ventana horaria + aviso de retrasos
+- Lección permanente: siempre validar el ángulo con el usuario antes de escribir artículos sobre operaciones reales del cliente
 
-### Pendiente próxima sesión
-- **ART-06** — "Ruta óptima clínica veterinaria móvil" ← PRÓXIMO
-- Hoja de ruta: ~~ART-13~~ ✅ ~~ART-02~~ ✅ ~~ART-01~~ ✅ → ART-06 → outreach comunidades
+**Recordatorios de citas veterinarias** → publicado:
+- URL: `vetly.pro/blog/recordatorios-citas-veterinarias`
+- Dos tipos: recordatorio de cita (reactivo) vs. recordatorio médico (proactivo — vacunas, desparasitación, **control de seguimiento**)
+- Datos reales: 89 recordatorios enviados, 0 inasistencias, 0 llamadas manuales
+- Precios en USD (regla aplicada desde esta sesión)
+- Fix posterior: "recordatorio médico" expandido para incluir seguimiento/control médico
+
+**Gestionar dos clínicas veterinarias** → publicado:
+- URL: `vetly.pro/blog/gestionar-dos-clinicas-veterinarias`
+- Historia de Claudia abriendo Santiago, 3 problemas del multi-sucursal, dashboard preview simulado, tabla sin/con sistema
+
+**Software de gestión veterinaria** → publicado:
+- URL: `vetly.pro/blog/software-gestion-veterinaria`
+- Guía de compra 2026: 5 criterios, tabla comparativa Vetly/Sami/GVET/Okvet/AgendaPro/Excel
+- Posiciona a Vetly en contexto competitivo con Vetly como fila destacada
+
+**Agente IA para veterinarias** → publicado:
+- URL: `vetly.pro/blog/agente-ia-veterinaria`
+- Responde la objeción "¿va a sonar robótico?", grid puede/no puede, conversación real con Lía, diferencia chatbot vs agente IA
+
+**Agenda veterinaria online** → publicado:
+- URL: `vetly.pro/blog/agenda-veterinaria-online`
+- 3 niveles de agenda, tabla calendario vs agendamiento real, checklist de migración sin trauma, criterio específico para clínicas móviles
+
+**Fidelización de clientes veterinaria** → publicado:
+- URL: `vetly.pro/blog/fidelizacion-clientes-veterinaria`
+- 3 pilares: puntos automáticos, referidos con cálculo de costo vs ads, campañas de reactivación genérica vs contextual
+- Hero image: tutora recomendando clínica por WhatsApp (el referido en acción, capturado en la imagen)
+
+### Estado del blog — 2026-05-29
+
+| # | Artículo | URL | Tag |
+|---|----------|-----|-----|
+| 1 | Cómo Animalgrace ahorra 84h/mes | `/blog/como-animalgrace-ahorra-84-horas-al-mes` | Caso de estudio |
+| 2 | Recepcionista virtual veterinaria | `/blog/recepcionista-virtual-veterinaria` | Guía |
+| 3 | WhatsApp para clínicas veterinarias | `/blog/whatsapp-clinica-veterinaria` | Guía |
+| 4 | Ruta clínica veterinaria móvil | `/blog/ruta-clinica-veterinaria-movil` | Logística |
+| 5 | Recordatorios citas veterinarias | `/blog/recordatorios-citas-veterinarias` | Guía |
+| 6 | Gestionar dos clínicas veterinarias | `/blog/gestionar-dos-clinicas-veterinarias` | Gestión |
+| 7 | Software de gestión veterinaria | `/blog/software-gestion-veterinaria` | Guía de compra |
+| 8 | Agente IA para veterinarias | `/blog/agente-ia-veterinaria` | Guía |
+| 9 | Agenda veterinaria online | `/blog/agenda-veterinaria-online` | Guía práctica |
+| 10 | Fidelización clientes veterinaria | `/blog/fidelizacion-clientes-veterinaria` | Marketing |
+
+**Reglas de estilo fijadas en esta sesión:**
+- Todos los valores monetarios en artículos del blog: **USD** (no CLP ni otras monedas locales)
+- Recordatorio médico incluye: vacunas, desparasitación **y control de seguimiento**
+- Siempre pedir imagen al usuario antes de escribir el artículo; dar prompt del siguiente artículo en el mismo mensaje
+- Validar ángulo editorial con el usuario cuando el artículo toca operaciones reales del cliente
+
+### Pendiente — Próxima sesión: Outreach a comunidades
+
+**Objetivo:** publicar los primeros posts de contenido en comunidades veterinarias de LATAM para generar tráfico orgánico hacia el blog y el demo.
+
+**Comunidades identificadas:**
+- **Colmevet Chile** — Facebook 33.955 seguidores
+- **VEPA Colombia** — Facebook 13.658 seguidores + 19 capítulos regionales
+- Grupos veterinarios de México (identificar)
+
+**Formato recomendado para outreach:**
+- No vender directamente — compartir el artículo más útil para el grupo (ej: WhatsApp, rutas, recordatorios)
+- Comentar con valor antes de postear
+- Crear versión "post de comunidad" de cada artículo: más corto, conversacional, termina con pregunta abierta
+- Test: 1 post en Colmevet Chile, medir clics a vetly.pro/blog antes de escalar
+
+**También pendiente:**
+- Segundo caso de estudio (nueva clínica cliente)
+- Optimización del blog index para mostrar más de 10 artículos (paginación o "cargar más")
+- Google Search Console: verificar indexación de los 10 artículos
