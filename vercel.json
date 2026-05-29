@@ -14,6 +14,7 @@
     { "src": "/blog/software-gestion-veterinaria", "dest": "/blog/software-gestion-veterinaria.html" },
     { "src": "/blog/agente-ia-veterinaria", "dest": "/blog/agente-ia-veterinaria.html" },
     { "src": "/blog/agenda-veterinaria-online", "dest": "/blog/agenda-veterinaria-online.html" },
+    { "src": "/blog/fidelizacion-clientes-veterinaria", "dest": "/blog/fidelizacion-clientes-veterinaria.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
