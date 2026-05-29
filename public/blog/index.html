@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Blog — Vetly · Software veterinario con IA</title>
+    <meta name="description" content="Casos de estudio, guías y recursos para veterinarios independientes y clínicas móviles en LATAM. Aprende cómo automatizar tu clínica con IA.">
+    <link rel="canonical" href="https://vetly.pro/blog">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://vetly.pro/blog">
+    <meta property="og:title" content="Blog — Vetly · Software veterinario con IA">
+    <meta property="og:description" content="Casos de estudio, guías y recursos para veterinarios en LATAM.">
+    <meta property="og:image" content="https://vetly.pro/og-image.png">
+    <meta property="og:locale" content="es_CL">
+    <meta property="og:site_name" content="Vetly">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      "name": "Blog de Vetly",
+      "url": "https://vetly.pro/blog",
+      "description": "Casos de estudio, guías y recursos para veterinarios independientes y clínicas móviles en LATAM.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Vetly",
+        "url": "https://vetly.pro"
+      }
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { font-family: 'Outfit', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #fff; color: #18181b; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+        .site-header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(250,250,250,0.97); backdrop-filter: blur(8px);
+            border-bottom: 1px solid #e4e4e7;
+            height: 64px; display: flex; align-items: center;
+            padding: 0 2rem; gap: 1.5rem;
+        }
+        .logo-link { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+        .logo-link img { height: 28px; }
+        .header-nav { display: flex; align-items: center; gap: 0.125rem; flex: 1; justify-content: center; }
+        .header-nav a { font-size: 0.875rem; font-weight: 500; color: #71717a; text-decoration: none; padding: 0.375rem 0.875rem; border-radius: 0.5rem; transition: color 0.15s; }
+        .header-nav a:hover, .header-nav a[aria-current] { color: #0d9488; }
+        .header-cta {
+            display: inline-flex; align-items: center;
+            background: #0d9488; color: #fff;
+            font-size: 0.8125rem; font-weight: 700; padding: 0.5rem 1rem;
+            border-radius: 0.5rem; text-decoration: none; transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
+        }
+        .header-cta:hover { background: #0f766e; }
+
+        .container { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
+
+        /* Hero del blog */
+        .blog-hero { padding: 3.5rem 0 2.5rem; border-bottom: 1px solid #f4f4f5; }
+        .blog-tag {
+            display: inline-flex; align-items: center; gap: 0.375rem;
+            background: #f0fdfa; border: 1px solid #99f6e4;
+            color: #0d9488; font-size: 0.75rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            padding: 0.3rem 0.875rem; border-radius: 100px; margin-bottom: 1rem;
+        }
+        .blog-title { font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; letter-spacing: -0.03em; color: #18181b; margin-bottom: 0.75rem; }
+        .blog-subtitle { font-size: 1.0625rem; color: #52525b; line-height: 1.6; max-width: 560px; }
+
+        /* Grid de artículos */
+        .articles-grid { padding: 3rem 0; }
+        .articles-grid h2 { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #a1a1aa; margin-bottom: 1.5rem; }
+
+        .article-card {
+            display: grid; grid-template-columns: 280px 1fr;
+            gap: 0; border: 1px solid #e4e4e7; border-radius: 1rem;
+            overflow: hidden; text-decoration: none; color: inherit;
+            transition: box-shadow 0.2s, transform 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        .article-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.1); transform: translateY(-2px); }
+
+        .card-img { height: 100%; min-height: 200px; overflow: hidden; flex-shrink: 0; }
+        .card-img img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; transition: transform 0.3s; }
+        .article-card:hover .card-img img { transform: scale(1.03); }
+
+        .card-body { padding: 1.75rem 2rem; display: flex; flex-direction: column; justify-content: space-between; }
+        .card-tag {
+            display: inline-flex; align-items: center; gap: 0.375rem;
+            background: #f0fdfa; border: 1px solid #99f6e4;
+            color: #0d9488; font-size: 0.6875rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            padding: 0.2rem 0.625rem; border-radius: 100px;
+            width: fit-content; margin-bottom: 0.875rem;
+        }
+        .card-title { font-size: 1.25rem; font-weight: 800; color: #18181b; line-height: 1.3; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+        .card-excerpt { font-size: 0.9rem; color: #52525b; line-height: 1.6; margin-bottom: 1.25rem; flex: 1; }
+        .card-meta { display: flex; align-items: center; gap: 1rem; font-size: 0.8rem; color: #a1a1aa; }
+        .card-meta-sep { color: #e4e4e7; }
+        .card-read-more { font-size: 0.8rem; font-weight: 700; color: #0d9488; margin-left: auto; }
+
+        /* Próximamente */
+        .coming-soon { padding: 2rem 0 4rem; }
+        .coming-soon h2 { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #a1a1aa; margin-bottom: 1.25rem; }
+        .coming-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .coming-card {
+            border: 1px dashed #e4e4e7; border-radius: 0.875rem; padding: 1.25rem;
+            background: #fafafa;
+        }
+        .coming-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-bottom: 0.5rem; }
+        .coming-title { font-size: 0.9375rem; font-weight: 700; color: #71717a; line-height: 1.4; }
+
+        /* Footer */
+        .site-footer { border-top: 1px solid #e4e4e7; padding: 2rem 1.5rem; text-align: center; font-size: 0.8125rem; color: #a1a1aa; margin-top: 2rem; }
+        .site-footer a { color: #71717a; text-decoration: none; margin: 0 0.75rem; }
+        .site-footer a:hover { color: #0d9488; }
+
+        @media (max-width: 640px) {
+            .article-card { grid-template-columns: 1fr; }
+            .card-img { min-height: 180px; max-height: 220px; }
+            .card-body { padding: 1.25rem; }
+            .header-nav { display: none; }
+            .coming-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="site-header">
+    <a href="https://vetly.pro/" class="logo-link" aria-label="Vetly inicio">
+        <img src="/logo.webp" alt="Vetly">
+    </a>
+    <nav class="header-nav">
+        <a href="https://vetly.pro/">Inicio</a>
+        <a href="/blog" aria-current="page">Blog</a>
+        <a href="https://vetly.pro/#precios">Precios</a>
+    </nav>
+    <a href="/demo" class="header-cta">Agendar demo →</a>
+</header>
+
+<main>
+<div class="container">
+
+    <div class="blog-hero">
+        <div class="blog-tag">
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#0d9488"/></svg>
+            Recursos para veterinarios
+        </div>
+        <h1 class="blog-title">Blog de Vetly</h1>
+        <p class="blog-subtitle">Casos de estudio, guías prácticas y reflexiones sobre cómo las clínicas veterinarias modernas están creciendo sin contratar más personal.</p>
+    </div>
+
+    <div class="articles-grid">
+        <h2>Publicado</h2>
+
+        <a href="/blog/recepcionista-virtual-veterinaria" class="article-card">
+            <div class="card-img" style="background: linear-gradient(135deg, #0d9488, #0891b2); display:flex; align-items:center; justify-content:center; min-height:200px;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+            </div>
+            <div class="card-body">
+                <div>
+                    <div class="card-tag">Guía</div>
+                    <div class="card-title">Recepcionista virtual para veterinarias: qué es, cómo funciona y cuánto cuesta</div>
+                    <p class="card-excerpt">Una recepcionista humana cuesta $500.000 CLP al mes y no trabaja de noche. Existe una tercera opción. Comparativa completa de costos, funcionalidades y casos de uso.</p>
+                </div>
+                <div class="card-meta">
+                    <span>29 de mayo de 2026</span>
+                    <span class="card-meta-sep">·</span>
+                    <span>7 min de lectura</span>
+                    <span class="card-read-more">Leer →</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/como-animalgrace-ahorra-84-horas-al-mes" class="article-card">
+            <div class="card-img">
+                <img src="/claudia.jpeg" alt="Dra. Claudia Barrera junto al van de Animalgrace">
+            </div>
+            <div class="card-body">
+                <div>
+                    <div class="card-tag">Caso de estudio</div>
+                    <div class="card-title">Cómo Animalgrace ahorra más de 84 horas al mes eliminando el WhatsApp manual con IA</div>
+                    <p class="card-excerpt">La Dra. Claudia Barrera gestionaba dos ciudades, dos números de WhatsApp y una ruta caótica, sola. Datos reales de mayo 2026: 66 citas por IA, 84h ahorradas, 0 canceladas.</p>
+                </div>
+                <div class="card-meta">
+                    <span>29 de mayo de 2026</span>
+                    <span class="card-meta-sep">·</span>
+                    <span>8 min de lectura</span>
+                    <span class="card-read-more">Leer →</span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="coming-soon">
+        <h2>Próximamente</h2>
+        <div class="coming-grid">
+            <div class="coming-card">
+                <div class="coming-tag">Guía</div>
+                <div class="coming-title">Cómo automatizar WhatsApp en tu clínica veterinaria sin perder el trato personal</div>
+            </div>
+            <div class="coming-card">
+                <div class="coming-tag">Guía</div>
+                <div class="coming-title">Cómo automatizar WhatsApp en tu clínica veterinaria sin perder el trato personal</div>
+            </div>
+            <div class="coming-card">
+                <div class="coming-tag">Logística</div>
+                <div class="coming-title">Ruta óptima para clínicas veterinarias móviles: cómo reducir kilómetros y ganar horas</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</main>
+
+<footer class="site-footer">
+    <div>
+        <a href="https://vetly.pro/">Inicio</a>
+        <a href="/blog">Blog</a>
+        <a href="https://vetly.pro/#precios">Precios</a>
+        <a href="/demo">Demo</a>
+    </div>
+    <p style="margin-top:1rem;">© 2026 Vetly · Software veterinario con IA para LATAM</p>
+</footer>
+
+</body>
+</html>

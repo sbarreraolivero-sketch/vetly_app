@@ -16,7 +16,21 @@
   </url>
 
   <url>
+    <loc>https://vetly.pro/blog</loc>
+    <lastmod>2026-05-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
     <loc>https://vetly.pro/blog/como-animalgrace-ahorra-84-horas-al-mes</loc>
+    <lastmod>2026-05-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://vetly.pro/blog/recepcionista-virtual-veterinaria</loc>
     <lastmod>2026-05-29</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
