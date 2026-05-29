@@ -27,6 +27,7 @@ import {
     Target,
     Plug,
     SlidersHorizontal,
+    Package,
 } from 'lucide-react'
 import { AIChatWidget } from '../AIChatWidget'
 import { cn, getInitials } from '@/lib/utils'
@@ -65,6 +66,7 @@ const navigationSections = [
             { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar, pageKey: 'appointments' as PageKey },
             { name: 'Recordatorios', href: '/app/reminders', icon: Clock, pageKey: 'reminders' as PageKey },
             { name: 'Finanzas', href: '/app/finance', icon: DollarSign, pageKey: 'finance' as PageKey },
+            { name: 'Inventario', href: '/app/inventory', icon: Package, pageKey: 'inventory' as PageKey },
         ]
     },
     {

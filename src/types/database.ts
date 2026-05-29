@@ -624,6 +624,118 @@ export interface Database {
                     tag_id?: string
                 }
             }
+            inventory_products: {
+                Row: {
+                    id: string
+                    clinic_id: string
+                    name: string
+                    sku: string | null
+                    category: 'medication' | 'vaccine' | 'food' | 'accessory' | 'supply' | 'other'
+                    description: string | null
+                    unit: 'ml' | 'mg' | 'unit' | 'tablet' | 'box' | 'vial' | 'kg' | 'g' | 'dose'
+                    purchase_price: number
+                    sale_price: number
+                    stock_quantity: number
+                    min_stock_alert: number
+                    batch_number: string | null
+                    expiry_date: string | null
+                    is_active: boolean
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    clinic_id: string
+                    name: string
+                    sku?: string | null
+                    category?: 'medication' | 'vaccine' | 'food' | 'accessory' | 'supply' | 'other'
+                    description?: string | null
+                    unit?: 'ml' | 'mg' | 'unit' | 'tablet' | 'box' | 'vial' | 'kg' | 'g' | 'dose'
+                    purchase_price?: number
+                    sale_price?: number
+                    stock_quantity?: number
+                    min_stock_alert?: number
+                    batch_number?: string | null
+                    expiry_date?: string | null
+                    is_active?: boolean
+                }
+                Update: {
+                    name?: string
+                    sku?: string | null
+                    category?: 'medication' | 'vaccine' | 'food' | 'accessory' | 'supply' | 'other'
+                    description?: string | null
+                    unit?: 'ml' | 'mg' | 'unit' | 'tablet' | 'box' | 'vial' | 'kg' | 'g' | 'dose'
+                    purchase_price?: number
+                    sale_price?: number
+                    stock_quantity?: number
+                    min_stock_alert?: number
+                    batch_number?: string | null
+                    expiry_date?: string | null
+                    is_active?: boolean
+                }
+            }
+            inventory_movements: {
+                Row: {
+                    id: string
+                    clinic_id: string
+                    product_id: string
+                    type: 'purchase' | 'sale' | 'adjustment' | 'waste' | 'return'
+                    quantity: number
+                    unit_cost: number | null
+                    unit_price: number | null
+                    appointment_id: string | null
+                    tutor_id: string | null
+                    notes: string | null
+                    created_by: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    clinic_id: string
+                    product_id: string
+                    type: 'purchase' | 'sale' | 'adjustment' | 'waste' | 'return'
+                    quantity: number
+                    unit_cost?: number | null
+                    unit_price?: number | null
+                    appointment_id?: string | null
+                    tutor_id?: string | null
+                    notes?: string | null
+                    created_by?: string | null
+                }
+                Update: {
+                    notes?: string | null
+                }
+            }
+            appointment_items: {
+                Row: {
+                    id: string
+                    appointment_id: string
+                    clinic_id: string
+                    item_type: 'service' | 'product'
+                    name: string
+                    quantity: number
+                    unit_price: number
+                    subtotal: number
+                    product_id: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    appointment_id: string
+                    clinic_id: string
+                    item_type: 'service' | 'product'
+                    name: string
+                    quantity?: number
+                    unit_price?: number
+                    subtotal?: number
+                    product_id?: string | null
+                }
+                Update: {
+                    quantity?: number
+                    unit_price?: number
+                    subtotal?: number
+                }
+            }
         }
         Views: {
             [_ in never]: never
@@ -647,6 +759,9 @@ export type ClinicalRecord = Database['public']['Tables']['clinical_records']['R
 export type Vaccination = Database['public']['Tables']['vaccinations']['Row']
 export type Deworming = Database['public']['Tables']['dewormings']['Row']
 export type Tag = Database['public']['Tables']['tags']['Row']
+export type InventoryProduct = Database['public']['Tables']['inventory_products']['Row']
+export type InventoryMovement = Database['public']['Tables']['inventory_movements']['Row']
+export type AppointmentItem = Database['public']['Tables']['appointment_items']['Row']
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
 

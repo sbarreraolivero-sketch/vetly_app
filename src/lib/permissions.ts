@@ -10,6 +10,7 @@ export type PageKey =
   | 'reminders'
   | 'knowledge_base'
   | 'finance'
+  | 'inventory'
   | 'ai_settings'
   | 'settings'
   | 'loyalty'
@@ -47,6 +48,7 @@ const ALL_PAGES: Record<PageKey, boolean> = {
   reminders: true,
   knowledge_base: true,
   finance: true,
+  inventory: true,
   ai_settings: true,
   settings: true,
   loyalty: true,
@@ -88,6 +90,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       reminders: true,
       knowledge_base: false,
       finance: false,
+      inventory: false,
       ai_settings: false,
       settings: false,
       loyalty: false,
@@ -120,6 +123,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       reminders: true,
       knowledge_base: false,
       finance: false,
+      inventory: false,
       ai_settings: false,
       settings: false,
       loyalty: false,
@@ -152,6 +156,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       reminders: true,
       knowledge_base: false,
       finance: false,
+      inventory: false,
       ai_settings: false,
       settings: false,
       loyalty: false,

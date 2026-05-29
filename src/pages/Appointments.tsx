@@ -32,6 +32,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { GuideBox } from '@/components/ui/GuideBox'
+import VisitClosureModal from '@/components/appointments/VisitClosureModal'
 
 interface Appointment {
     id: string
@@ -98,6 +99,7 @@ export default function Appointments() {
     // Modal state
     const [showModal, setShowModal] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [visitClosureAppointment, setVisitClosureAppointment] = useState<any | null>(null)
     const [editingId, setEditingId] = useState<string | null>(null)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [googleEvents] = useState<CalendarEvent[]>([])
@@ -389,11 +391,16 @@ export default function Appointments() {
 
     // Update appointment status
     const updateAppointmentStatus = async (id: string, newStatus: 'confirmed' | 'cancelled' | 'completed') => {
-        try {
-            // Optimistic update
-            const appointment = appointments.find(a => a.id === id)
-            if (!appointment) return
+        const appointment = appointments.find(a => a.id === id)
+        if (!appointment) return
 
+        // Completar → abrir modal de cierre de visita en lugar de actualizar directamente
+        if (newStatus === 'completed') {
+            setVisitClosureAppointment(appointment)
+            return
+        }
+
+        try {
             setAppointments(appointments.map(a =>
                 a.id === id ? { ...a, status: newStatus } : a
             ))
@@ -412,21 +419,13 @@ export default function Appointments() {
 
             console.log('Status updated successfully:', data)
 
-            // Handle "Completed" status - CRM Integration
-            if (newStatus === 'completed') {
-                alert('¡Cita completada con éxito!')
-            }
-            // Sync with Google Calendar
-            if (newStatus === 'cancelled') {
-                if (appointment?.google_event_id) {
-                    console.log('Cancelling Google Event:', appointment.google_event_id)
-                    supabase.functions.invoke('delete-google-event', {
-                        body: { google_event_id: appointment.google_event_id }
-                    }).then(({ error }) => {
-                        if (error) console.error('Error deleting Google event:', error)
-                        else console.log('Google event deleted successfully')
-                    }).catch(err => console.error('Error deleting Google event:', err))
-                }
+            // Sync with Google Calendar on cancel
+            if (newStatus === 'cancelled' && appointment?.google_event_id) {
+                supabase.functions.invoke('delete-google-event', {
+                    body: { google_event_id: appointment.google_event_id }
+                }).then(({ error }) => {
+                    if (error) console.error('Error deleting Google event:', error)
+                }).catch(err => console.error('Error deleting Google event:', err))
             }
 
         } catch (error: any) {
@@ -439,6 +438,13 @@ export default function Appointments() {
             }
             fetchAllData()
         }
+    }
+
+    const handleVisitClosed = (appointmentId: string) => {
+        setVisitClosureAppointment(null)
+        setAppointments(prev => prev.map(a =>
+            a.id === appointmentId ? { ...a, status: 'completed', payment_status: 'paid' } : a
+        ))
     }
 
     // Send WhatsApp Reminder
@@ -804,6 +810,7 @@ export default function Appointments() {
 
 
     return (
+        <>
         <div className="space-y-6 animate-fade-in pb-20">
             {/* Banner */}
             <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
@@ -2133,5 +2140,16 @@ export default function Appointments() {
                 document.body
             )}
         </div >
+
+        {/* Modal de cierre de visita */}
+        {visitClosureAppointment && (
+            <VisitClosureModal
+                appointment={visitClosureAppointment}
+                clinicId={profile?.clinic_id || member?.clinic_id || ''}
+                onSaved={handleVisitClosed}
+                onCancel={() => setVisitClosureAppointment(null)}
+            />
+        )}
+        </>
     )
 }

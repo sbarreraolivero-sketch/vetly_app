@@ -1,0 +1,374 @@
+import { useState, useEffect, useRef } from 'react'
+import {
+    X, Plus, Trash2, Search, Package, ShoppingCart,
+    CreditCard, Banknote, Smartphone, CheckCircle2,
+} from 'lucide-react'
+import { inventoryService, type InventoryProduct, type VisitItem } from '@/services/inventoryService'
+import { cn } from '@/lib/utils'
+import { toast } from 'react-hot-toast'
+
+interface VisitClosureModalProps {
+    appointment: {
+        id: string
+        patient_name?: string
+        tutor_name?: string
+        phone_number?: string
+        service?: string
+        price?: number
+        tutor_id?: string | null
+    }
+    clinicId: string
+    onSaved: (appointmentId: string) => void
+    onCancel: () => void
+}
+
+const formatCLP = (n: number) =>
+    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
+
+const PAYMENT_METHODS = [
+    { value: 'efectivo', label: 'Efectivo', icon: Banknote },
+    { value: 'transferencia', label: 'Transferencia', icon: Smartphone },
+    { value: 'tarjeta', label: 'Tarjeta', icon: CreditCard },
+    { value: 'debito', label: 'Débito', icon: CreditCard },
+]
+
+const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitClosureModalProps) => {
+    const [items, setItems] = useState<VisitItem[]>([])
+    const [products, setProducts] = useState<InventoryProduct[]>([])
+    const [paymentMethod, setPaymentMethod] = useState('efectivo')
+    const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid')
+    const [showProductSearch, setShowProductSearch] = useState(false)
+    const [productSearch, setProductSearch] = useState('')
+    const [saving, setSaving] = useState(false)
+    const searchRef = useRef<HTMLDivElement>(null)
+
+    // Load products + pre-fill service
+    useEffect(() => {
+        inventoryService.getProducts(clinicId).then(setProducts).catch(() => {})
+
+        // Pre-fill with the appointment service
+        if (appointment.service) {
+            setItems([{
+                id: crypto.randomUUID(),
+                item_type: 'service',
+                name: appointment.service,
+                quantity: 1,
+                unit_price: appointment.price ?? 0,
+                subtotal: appointment.price ?? 0,
+            }])
+        }
+    }, [clinicId, appointment.service, appointment.price])
+
+    // Close product search dropdown on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+                setShowProductSearch(false)
+            }
+        }
+        if (showProductSearch) document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [showProductSearch])
+
+    const total = items.reduce((sum, i) => sum + i.subtotal, 0)
+
+    // ── Item handlers ──────────────────────────────────────────────────
+
+    const updateItem = (id: string, field: keyof VisitItem, value: any) => {
+        setItems(prev => prev.map(item => {
+            if (item.id !== id) return item
+            const updated = { ...item, [field]: value }
+            if (field === 'quantity' || field === 'unit_price') {
+                updated.subtotal = Number(updated.quantity) * Number(updated.unit_price)
+            }
+            return updated
+        }))
+    }
+
+    const removeItem = (id: string) => {
+        setItems(prev => prev.filter(i => i.id !== id))
+    }
+
+    const addProduct = (product: InventoryProduct) => {
+        const existing = items.find(i => i.product_id === product.id)
+        if (existing) {
+            updateItem(existing.id, 'quantity', existing.quantity + 1)
+        } else {
+            setItems(prev => [...prev, {
+                id: crypto.randomUUID(),
+                item_type: 'product',
+                name: product.name,
+                quantity: 1,
+                unit_price: product.sale_price,
+                subtotal: product.sale_price,
+                product_id: product.id,
+            }])
+        }
+        setProductSearch('')
+        setShowProductSearch(false)
+    }
+
+    // ── Save ───────────────────────────────────────────────────────────
+
+    const handleSave = async () => {
+        if (items.length === 0) {
+            toast.error('Agrega al menos un servicio o producto')
+            return
+        }
+        setSaving(true)
+        try {
+            await inventoryService.closeVisit({
+                appointmentId: appointment.id,
+                clinicId,
+                items,
+                paymentMethod,
+                paymentStatus,
+                tutorId: appointment.tutor_id ?? null,
+            })
+            toast.success(paymentStatus === 'paid' ? '¡Visita cerrada y cobro registrado!' : 'Visita cerrada — pago pendiente')
+            onSaved(appointment.id)
+        } catch (e: any) {
+            toast.error(e.message ?? 'Error al guardar')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const filteredProducts = products.filter(p =>
+        !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase())
+    ).slice(0, 8)
+
+    // ── Render ─────────────────────────────────────────────────────────
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+
+                {/* Header */}
+                <div className="flex items-center justify-between p-5 border-b border-silk-beige shrink-0">
+                    <div>
+                        <h2 className="text-lg font-bold text-charcoal">Cierre de visita</h2>
+                        <p className="text-sm text-charcoal/50 mt-0.5">
+                            {appointment.patient_name}
+                            {appointment.tutor_name && <span> — {appointment.tutor_name}</span>}
+                        </p>
+                    </div>
+                    <button onClick={onCancel} className="p-1.5 hover:bg-silk-beige rounded-lg transition-colors">
+                        <X className="w-5 h-5 text-charcoal/60" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+                    {/* Items */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider">
+                                Servicios y productos
+                            </h3>
+                            <div ref={searchRef} className="relative">
+                                <button
+                                    onClick={() => setShowProductSearch(v => !v)}
+                                    className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    Agregar producto
+                                </button>
+                                {showProductSearch && (
+                                    <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-silk-beige rounded-xl shadow-xl z-50">
+                                        <div className="p-2 border-b border-silk-beige">
+                                            <div className="relative">
+                                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-charcoal/40" />
+                                                <input
+                                                    autoFocus
+                                                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-ivory border border-silk-beige rounded-lg focus:outline-none"
+                                                    placeholder="Buscar producto..."
+                                                    value={productSearch}
+                                                    onChange={e => setProductSearch(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto">
+                                            {filteredProducts.length === 0 ? (
+                                                <p className="text-xs text-charcoal/40 text-center py-4">Sin productos</p>
+                                            ) : filteredProducts.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => addProduct(p)}
+                                                    className="w-full flex items-center justify-between px-3 py-2 hover:bg-ivory text-left transition-colors"
+                                                >
+                                                    <div>
+                                                        <p className="text-sm font-medium text-charcoal">{p.name}</p>
+                                                        <p className="text-xs text-charcoal/40">
+                                                            Stock: {p.stock_quantity}
+                                                            {p.stock_quantity <= p.min_stock_alert && (
+                                                                <span className="ml-1 text-amber-500">⚠ bajo</span>
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-primary-600">{formatCLP(p.sale_price)}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            {items.length === 0 && (
+                                <div className="text-center py-8 border-2 border-dashed border-silk-beige rounded-xl">
+                                    <ShoppingCart className="w-8 h-8 text-charcoal/20 mx-auto mb-2" />
+                                    <p className="text-sm text-charcoal/40">No hay ítems. Agrega el servicio realizado.</p>
+                                </div>
+                            )}
+                            {items.map(item => (
+                                <div
+                                    key={item.id}
+                                    className={cn(
+                                        "flex items-center gap-3 p-3 rounded-xl border",
+                                        item.item_type === 'service'
+                                            ? "bg-primary-50/50 border-primary-100"
+                                            : "bg-violet-50/50 border-violet-100"
+                                    )}
+                                >
+                                    <div className={cn(
+                                        "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                                        item.item_type === 'service' ? "bg-primary-100" : "bg-violet-100"
+                                    )}>
+                                        {item.item_type === 'service'
+                                            ? <CheckCircle2 className="w-4 h-4 text-primary-600" />
+                                            : <Package className="w-4 h-4 text-violet-600" />
+                                        }
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-charcoal truncate">{item.name}</p>
+                                        <span className={cn(
+                                            "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                                            item.item_type === 'service' ? "bg-primary-100 text-primary-600" : "bg-violet-100 text-violet-600"
+                                        )}>
+                                            {item.item_type === 'service' ? 'Servicio' : 'Producto'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-xs text-charcoal/40">Cant.</span>
+                                            <input
+                                                type="number" min="1"
+                                                className="w-14 text-center text-sm border border-silk-beige rounded-lg px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                                                value={item.quantity}
+                                                onChange={e => updateItem(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-xs text-charcoal/40">$</span>
+                                            <input
+                                                type="number" min="0"
+                                                className="w-24 text-right text-sm border border-silk-beige rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                                                value={item.unit_price}
+                                                onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))}
+                                            />
+                                        </div>
+                                        <span className="text-sm font-bold text-charcoal w-20 text-right">{formatCLP(item.subtotal)}</span>
+                                        <button
+                                            onClick={() => removeItem(item.id)}
+                                            className="p-1 hover:bg-red-50 text-charcoal/30 hover:text-red-400 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Total */}
+                        <div className="flex justify-end mt-3 pt-3 border-t border-silk-beige">
+                            <div className="text-right">
+                                <p className="text-xs text-charcoal/40 uppercase tracking-wider">Total</p>
+                                <p className="text-2xl font-extrabold text-charcoal">{formatCLP(total)}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pago */}
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider">Pago</h3>
+                        <div>
+                            <p className="text-xs text-charcoal/60 mb-2">Método de pago</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {PAYMENT_METHODS.map(m => (
+                                    <button
+                                        key={m.value}
+                                        onClick={() => setPaymentMethod(m.value)}
+                                        className={cn(
+                                            "flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-semibold transition-all",
+                                            paymentMethod === m.value
+                                                ? "border-primary-400 bg-primary-50 text-primary-700"
+                                                : "border-silk-beige bg-white text-charcoal/50 hover:border-charcoal/20"
+                                        )}
+                                    >
+                                        <m.icon className="w-4 h-4" />
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-xs text-charcoal/60 mb-2">Estado del cobro</p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setPaymentStatus('paid')}
+                                    className={cn(
+                                        "flex-1 py-2.5 rounded-xl border text-sm font-semibold transition-all",
+                                        paymentStatus === 'paid'
+                                            ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                            : "border-silk-beige text-charcoal/50 hover:border-charcoal/20"
+                                    )}
+                                >
+                                    ✓ Cobrado
+                                </button>
+                                <button
+                                    onClick={() => setPaymentStatus('pending')}
+                                    className={cn(
+                                        "flex-1 py-2.5 rounded-xl border text-sm font-semibold transition-all",
+                                        paymentStatus === 'pending'
+                                            ? "border-amber-400 bg-amber-50 text-amber-700"
+                                            : "border-silk-beige text-charcoal/50 hover:border-charcoal/20"
+                                    )}
+                                >
+                                    ⏳ Pendiente
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between p-5 border-t border-silk-beige shrink-0 gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2.5 text-sm font-semibold text-charcoal/60 hover:text-charcoal border border-silk-beige rounded-xl transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={saving || items.length === 0}
+                        className={cn(
+                            "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all",
+                            paymentStatus === 'paid'
+                                ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+                                : "bg-amber-500 hover:bg-amber-600 text-white",
+                            "disabled:opacity-50"
+                        )}
+                    >
+                        {saving ? 'Guardando...' : paymentStatus === 'paid' ? `Cerrar y cobrar ${formatCLP(total)}` : 'Cerrar sin cobrar'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default VisitClosureModal

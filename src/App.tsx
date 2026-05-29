@@ -41,6 +41,7 @@ const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const CRM = lazy(() => import('./pages/CRM'))
 const Campaigns = lazy(() => import('./pages/Campaigns'))
 const Finance = lazy(() => import('./pages/Finance'))
+const Inventory = lazy(() => import('./pages/Inventory'))
 // const RetentionEngine = lazy(() => import('./pages/RetentionEngine'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Loyalty = lazy(() => import('./pages/Loyalty'))
@@ -224,6 +225,13 @@ function MainRoutes() {
                             <SubscriptionGuard>
                                 <RoleGuard allowedRoles={['owner', 'admin', 'vet_assistant']}>
                                     <Finance />
+                                </RoleGuard>
+                            </SubscriptionGuard>
+                        } />
+                        <Route path="inventory" element={
+                            <SubscriptionGuard>
+                                <RoleGuard allowedRoles={['owner', 'admin']}>
+                                    <Inventory />
                                 </RoleGuard>
                             </SubscriptionGuard>
                         } />

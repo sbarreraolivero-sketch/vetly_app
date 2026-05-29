@@ -172,5 +172,35 @@ export const financeService = {
 
         if (error) throw error
         return data?.[0]
-    }
+    },
+
+    // ── Appointment items ──────────────────────────────────────────────
+    async getTransactionItems(appointmentId: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .rpc('get_appointment_items', { p_appointment_id: appointmentId })
+        if (error) throw error
+        return (data ?? []) as Array<{
+            id: string; item_type: string; name: string
+            quantity: number; unit_price: number; subtotal: number; product_id: string | null
+        }>
+    },
+
+    // ── Métricas avanzadas con appointment_items ───────────────────────
+    async getItemMetrics(clinicId: string, startDate: Date, endDate: Date) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .rpc('get_finance_item_metrics', {
+                p_clinic_id: clinicId,
+                p_start: startDate.toISOString(),
+                p_end: endDate.toISOString(),
+            })
+        if (error) throw error
+        return data as {
+            by_type: Array<{ item_type: string; item_count: number; total_revenue: number; total_units: number }> | null
+            top_services: Array<{ name: string; revenue: number; units: number }> | null
+            top_products: Array<{ name: string; revenue: number; units: number }> | null
+            appt_metrics: { total_appts: number; appts_with_products: number; avg_ticket: number } | null
+        } | null
+    },
 }

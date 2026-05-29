@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
     DollarSign,
     TrendingUp,
@@ -10,13 +10,25 @@ import {
     X,
     FileText,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
     Trash2,
     Calendar,
+    CalendarRange,
     Lightbulb
 } from 'lucide-react'
+import {
+    startOfDay, endOfDay,
+    startOfMonth, endOfMonth,
+    getDay, addDays, addMonths, subMonths,
+    isSameDay, isBefore, isAfter,
+    format as dateFnsFormat,
+} from 'date-fns'
+import { es as esLocale } from 'date-fns/locale'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { financeService, type FinanceStats, type Expense, type Income } from '@/services/financeService'
+import VisitReceipt from '@/components/finance/VisitReceipt'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
@@ -71,13 +83,19 @@ const Finance = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [transactions, setTransactions] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'expenses' | 'incomes'>('dashboard')
+    const [itemMetrics, setItemMetrics] = useState<any>(null)
+    const [expandedTx, setExpandedTx] = useState<string | null>(null)
+    const [txItems, setTxItems] = useState<Record<string, any[]>>({})
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'expenses' | 'incomes' | 'analysis'>('dashboard')
     const [showExpenseModal, setShowExpenseModal] = useState(false)
     const [showIncomeModal, setShowIncomeModal] = useState(false)
-    const [filterType, setFilterType] = useState<'day' | 'week' | 'month' | 'year'>('month')
+    const [filterType, setFilterType] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
+    const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
+    const [showDatePicker, setShowDatePicker] = useState(false)
     const [showExportMenu, setShowExportMenu] = useState(false)
 
     const exportMenuRef = useRef<HTMLDivElement>(null)
+    const datePickerRef = useRef<HTMLDivElement>(null)
 
     // ── Close export dropdown on click-outside ──
     useEffect(() => {
@@ -86,47 +104,90 @@ const Finance = () => {
                 setShowExportMenu(false)
             }
         }
-        if (showExportMenu) {
-            document.addEventListener('mousedown', handler)
-        }
+        if (showExportMenu) document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
     }, [showExportMenu])
 
+    // ── Close date picker on click-outside ──
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+                setShowDatePicker(false)
+            }
+        }
+        if (showDatePicker) document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [showDatePicker])
+
     const getFilterLabel = () => {
+        if (filterType === 'custom' && customRange) {
+            return `${dateFnsFormat(customRange.start, 'd MMM', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM', { locale: esLocale })}`
+        }
         switch (filterType) {
             case 'day': return 'Hoy'
             case 'week': return 'Semana'
             case 'month': return 'Mes'
             case 'year': return 'Año'
+            default: return 'Período'
         }
     }
 
     // ── Data loading ──
     useEffect(() => {
+        if (filterType === 'custom' && !customRange) return
         loadData()
-    }, [clinicId, filterType, timezone])
+    }, [clinicId, filterType, customRange, timezone])
 
     const loadData = async () => {
         if (!clinicId) return
         setLoading(true)
         try {
-            const { start, end } = getDateRange(filterType)
+            let start: Date, end: Date
+            if (filterType === 'custom' && customRange) {
+                start = startOfDay(customRange.start)
+                end   = endOfDay(customRange.end)
+            } else {
+                const range = getDateRange(filterType as 'day' | 'week' | 'month' | 'year')
+                start = range.start
+                end   = range.end
+            }
 
-            const [statsData, expensesData, incomesData, transactionsData] = await Promise.all([
+            const [statsData, expensesData, incomesData, transactionsData, metricsData] = await Promise.all([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
-                financeService.getTransactions(clinicId, start, end)
+                financeService.getTransactions(clinicId, start, end),
+                financeService.getItemMetrics(clinicId, start, end).catch(() => null),
             ])
 
             setStats(statsData)
             setExpenses(expensesData)
             setIncomes(incomesData)
             setTransactions(transactionsData || [])
+            setItemMetrics(metricsData)
+            setExpandedTx(null)
+            setTxItems({})
         } catch (error) {
             console.error('Error loading finance data:', error)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const [receiptTx, setReceiptTx] = useState<any | null>(null)
+
+    const loadTxItems = async (appointmentId: string) => {
+        if (txItems[appointmentId]) {
+            setExpandedTx(prev => prev === appointmentId ? null : appointmentId)
+            return
+        }
+        try {
+            const items = await financeService.getTransactionItems(appointmentId)
+            setTxItems(prev => ({ ...prev, [appointmentId]: items }))
+            setExpandedTx(appointmentId)
+        } catch {
+            // silently ignore — appointment_items may not exist yet
+            setExpandedTx(appointmentId)
         }
     }
 
@@ -152,7 +213,9 @@ const Finance = () => {
 
     const handleExport = (type: 'csv' | 'json') => {
         try {
-            const periodLabel = getDateRangeLabel(filterType)
+            const periodLabel = filterType === 'custom' && customRange
+                ? `${dateFnsFormat(customRange.start, 'd MMM yyyy', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM yyyy', { locale: esLocale })}`
+                : getDateRangeLabel(filterType as 'day' | 'week' | 'month' | 'year')
             const dateStamp = formatInTz(new Date(), 'yyyy-MM-dd')
 
             if (type === 'json') {
@@ -399,6 +462,100 @@ const Finance = () => {
         }
     }
 
+    // ── Mini calendario de rango ──────────────────────────────────────────
+    function MiniCalendar() {
+        const [calMonth, setCalMonth] = useState(() => customRange?.start ?? new Date())
+        const [selecting, setSelecting] = useState<Date | null>(customRange?.start ?? null)
+        const [hovered, setHovered] = useState<Date | null>(null)
+
+        const days = useMemo(() => {
+            const first = startOfMonth(calMonth)
+            const last  = endOfMonth(calMonth)
+            const pad   = (getDay(first) + 6) % 7
+            const grid: (Date | null)[] = Array(pad).fill(null)
+            let d = new Date(first)
+            while (d <= last) { grid.push(new Date(d)); d = addDays(d, 1) }
+            while (grid.length % 7 !== 0) grid.push(null)
+            return grid
+        }, [calMonth])
+
+        const rangeEnd = selecting ? (hovered ?? null) : null
+        const inRange = (d: Date) => {
+            if (!selecting || !rangeEnd) return false
+            const [a, b] = isBefore(selecting, rangeEnd) ? [selecting, rangeEnd] : [rangeEnd, selecting]
+            return !isBefore(d, a) && !isAfter(d, b)
+        }
+        const isStart = (d: Date) => !!selecting && isSameDay(d, selecting)
+        const isEnd   = (d: Date) => !!rangeEnd && isSameDay(d, rangeEnd)
+        const isToday = (d: Date) => isSameDay(d, new Date())
+
+        const handleDay = (d: Date) => {
+            if (!selecting) {
+                setSelecting(d)
+            } else {
+                const [s, e] = isBefore(d, selecting) ? [d, selecting] : [selecting, d]
+                setCustomRange({ start: s, end: e })
+                setFilterType('custom')
+                setShowDatePicker(false)
+            }
+        }
+
+        const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+
+        return (
+            <div className="p-3 w-72">
+                <div className="flex items-center justify-between mb-3">
+                    <button onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 hover:bg-silk-beige rounded-lg transition-colors">
+                        <ChevronLeft className="w-4 h-4 text-charcoal/60" />
+                    </button>
+                    <span className="text-sm font-bold text-charcoal capitalize">
+                        {dateFnsFormat(calMonth, 'MMMM yyyy', { locale: esLocale })}
+                    </span>
+                    <button onClick={() => setCalMonth(m => addMonths(m, 1))} className="p-1 hover:bg-silk-beige rounded-lg transition-colors">
+                        <ChevronRight className="w-4 h-4 text-charcoal/60" />
+                    </button>
+                </div>
+                <div className="grid grid-cols-7 mb-1">
+                    {weekDays.map((w, i) => (
+                        <div key={i} className="text-center text-[10px] font-bold text-charcoal/30 py-1">{w}</div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7">
+                    {days.map((d, i) => {
+                        if (!d) return <div key={i} />
+                        const start = isStart(d)
+                        const end   = isEnd(d)
+                        const range = inRange(d)
+                        const today = isToday(d)
+                        return (
+                            <button
+                                key={i}
+                                onMouseEnter={() => selecting && setHovered(d)}
+                                onMouseLeave={() => setHovered(null)}
+                                onClick={() => handleDay(d)}
+                                className={`
+                                    relative h-8 text-xs font-medium transition-colors
+                                    ${start || end ? 'bg-primary-500 text-white rounded-lg z-10' : ''}
+                                    ${range && !start && !end ? 'bg-primary-100 text-primary-700' : ''}
+                                    ${!start && !end && !range ? 'hover:bg-silk-beige text-charcoal rounded-lg' : ''}
+                                    ${today && !start && !end ? 'font-extrabold' : ''}
+                                `}
+                            >
+                                {today && !start && !end && (
+                                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary-400 rounded-full" />
+                                )}
+                                {d.getDate()}
+                            </button>
+                        )
+                    })}
+                </div>
+                <p className="text-center text-[10px] text-charcoal/30 mt-3">
+                    {selecting ? 'Selecciona la fecha de fin' : 'Selecciona la fecha de inicio'}
+                </p>
+            </div>
+        )
+    }
+
     // ── Render ──
     return (
         <div className="space-y-6">
@@ -501,24 +658,64 @@ const Finance = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="text-sm text-charcoal/50 capitalize font-medium flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-silk-beige w-fit">
                     <Calendar className="w-4 h-4 text-primary-500" />
-                    {getDateRangeLabel(filterType)}
+                    {getFilterLabel()}
                 </div>
-                
-                <div className="flex bg-silk-beige/20 rounded-lg border border-silk-beige p-1 w-fit">
-                    {(['day', 'week', 'month', 'year'] as const).map(f => (
+
+                <div className="flex items-center gap-2">
+                    <div className="bg-white border border-silk-beige p-1 rounded-xl flex gap-1">
+                        {([
+                            { id: 'day',   label: 'Hoy' },
+                            { id: 'week',  label: 'Sem.' },
+                            { id: 'month', label: 'Mes' },
+                            { id: 'year',  label: 'Año' },
+                        ] as const).map((r) => (
+                            <button
+                                key={r.id}
+                                onClick={() => { setFilterType(r.id); setShowDatePicker(false) }}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200",
+                                    filterType === r.id
+                                        ? "bg-primary-500 text-white shadow-sm"
+                                        : "text-charcoal/50 hover:text-charcoal hover:bg-zinc-50"
+                                )}
+                            >
+                                {r.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Selector de rango personalizado */}
+                    <div className="relative" ref={datePickerRef}>
                         <button
-                            key={f}
-                            onClick={() => setFilterType(f)}
+                            onClick={() => setShowDatePicker(v => !v)}
                             className={cn(
-                                "px-4 py-1.5 text-xs font-bold rounded-md transition-all",
-                                filterType === f
-                                    ? "bg-white text-primary-600 shadow-sm border border-silk-beige/50"
-                                    : "text-charcoal/40 hover:text-charcoal"
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all duration-200",
+                                filterType === 'custom'
+                                    ? "bg-primary-500 text-white border-primary-500 shadow-sm"
+                                    : "bg-white border-silk-beige text-charcoal/50 hover:text-charcoal"
                             )}
                         >
-                            {f === 'day' ? 'Día' : f === 'week' ? 'Semana' : f === 'month' ? 'Mes' : 'Año'}
+                            <CalendarRange className="w-3.5 h-3.5" />
+                            {filterType === 'custom' && customRange
+                                ? `${dateFnsFormat(customRange.start, 'd MMM', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM', { locale: esLocale })}`
+                                : 'Rango'
+                            }
+                            {filterType === 'custom' && customRange && (
+                                <span
+                                    onClick={(e) => { e.stopPropagation(); setFilterType('month'); setCustomRange(null) }}
+                                    className="ml-0.5 hover:opacity-70"
+                                >
+                                    <X className="w-3 h-3" />
+                                </span>
+                            )}
                         </button>
-                    ))}
+
+                        {showDatePicker && (
+                            <div className="absolute right-0 top-full mt-2 bg-white border border-silk-beige rounded-2xl shadow-xl z-50">
+                                <MiniCalendar />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -629,6 +826,17 @@ const Finance = () => {
                     >
                         Otros Ingresos
                     </button>
+                    <button
+                        onClick={() => setActiveTab('analysis')}
+                        className={cn(
+                            "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                            activeTab === 'analysis'
+                                ? "border-emerald-500 text-emerald-600"
+                                : "border-transparent text-charcoal/60 hover:text-charcoal"
+                        )}
+                    >
+                        Análisis
+                    </button>
                 </div>
             </div>
 
@@ -683,7 +891,7 @@ const Finance = () => {
                                     <tr>
                                         <th className="px-6 py-3 font-medium">Fecha</th>
                                         <th className="px-6 py-3 font-medium">Paciente</th>
-                                        <th className="px-6 py-3 font-medium">Servicio</th>
+                                        <th className="px-6 py-3 font-medium">Servicio / Ítems</th>
                                         <th className="px-6 py-3 font-medium">Monto</th>
                                         <th className="px-6 py-3 font-medium">Estado</th>
                                         <th className="px-6 py-3 font-medium text-right">Acciones</th>
@@ -691,6 +899,7 @@ const Finance = () => {
                                 </thead>
                                 <tbody className="divide-y divide-silk-beige">
                                     {transactions.map((tx) => (
+                                        <>
                                         <tr key={tx.id} className="hover:bg-ivory/50">
                                             <td className="px-6 py-3 text-charcoal/80">
                                                 {formatInTz(tx.appointment_date, 'dd/MM/yyyy HH:mm')}
@@ -699,7 +908,13 @@ const Finance = () => {
                                                 {tx.patient_name}
                                             </td>
                                             <td className="px-6 py-3 text-charcoal/60">
-                                                {tx.service || '-'}
+                                                <button
+                                                    onClick={() => loadTxItems(tx.id)}
+                                                    className="flex items-center gap-1 hover:text-primary-600 transition-colors"
+                                                >
+                                                    <span>{tx.service || '-'}</span>
+                                                    <ChevronDown className={cn("w-3 h-3 transition-transform", expandedTx === tx.id && "rotate-180")} />
+                                                </button>
                                             </td>
                                             <td className="px-6 py-3 font-medium text-charcoal">
                                                 {formatCurrency(tx.price || 0)}
@@ -715,8 +930,15 @@ const Finance = () => {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-3 text-right">
-                                                {tx.payment_status === 'pending' && (
-                                                    <div className="flex flex-col items-end gap-1">
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <button
+                                                        onClick={() => setReceiptTx(tx)}
+                                                        className="text-xs text-primary-600 font-medium hover:underline flex items-center gap-1"
+                                                    >
+                                                        <FileText className="w-3 h-3" /> Comprobante
+                                                    </button>
+                                                    {tx.payment_status === 'pending' && (
+                                                        <>
                                                         <button
                                                             className="text-xs text-emerald-600 font-medium hover:underline"
                                                             onClick={() => handleRegisterPayment(tx.id)}
@@ -729,19 +951,47 @@ const Finance = () => {
                                                         >
                                                             Eliminar
                                                         </button>
-                                                    </div>
-                                                )}
-                                                {tx.payment_status === 'paid' && (
-                                                    <button
-                                                        className="text-xs text-red-600 font-medium hover:underline flex items-center gap-1 justify-end w-full"
-                                                        onClick={() => handleDeletePayment(tx.id)}
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                        Eliminar Pago
-                                                    </button>
-                                                )}
+                                                        </>
+                                                    )}
+                                                    {tx.payment_status === 'paid' && (
+                                                        <button
+                                                            className="text-xs text-red-600 font-medium hover:underline flex items-center gap-1"
+                                                            onClick={() => handleDeletePayment(tx.id)}
+                                                        >
+                                                            <Trash2 className="w-3 h-3" /> Eliminar Pago
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
+                                        {expandedTx === tx.id && (
+                                            <tr key={`${tx.id}-items`} className="bg-primary-50/30">
+                                                <td colSpan={6} className="px-8 py-3">
+                                                    {(txItems[tx.id] ?? []).length === 0 ? (
+                                                        <p className="text-xs text-charcoal/40 italic">Sin desglose de ítems (cita anterior al sistema de inventario)</p>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            {(txItems[tx.id] ?? []).map((item: any) => (
+                                                                <div key={item.id} className="flex items-center justify-between text-xs py-0.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={cn(
+                                                                            "px-1.5 py-0.5 rounded text-[10px] font-semibold",
+                                                                            item.item_type === 'service' ? "bg-primary-100 text-primary-600" : "bg-violet-100 text-violet-600"
+                                                                        )}>
+                                                                            {item.item_type === 'service' ? 'Servicio' : 'Producto'}
+                                                                        </span>
+                                                                        <span className="text-charcoal/80">{item.name}</span>
+                                                                        <span className="text-charcoal/40">×{item.quantity}</span>
+                                                                    </div>
+                                                                    <span className="font-semibold text-charcoal">{formatCurrency(item.subtotal)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </>
                                     ))}
                                     {transactions.length === 0 && (
                                         <tr>
@@ -863,7 +1113,133 @@ const Finance = () => {
                         </div>
                     </div>
                 )}
+
+                {/* ── TAB ANÁLISIS ── */}
+                {activeTab === 'analysis' && (
+                    <div className="space-y-6">
+                        {/* Métricas avanzadas */}
+                        {itemMetrics?.appt_metrics && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="card-soft p-4">
+                                    <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Ticket promedio</p>
+                                    <p className="text-2xl font-extrabold text-charcoal mt-1">
+                                        {formatCurrency(itemMetrics.appt_metrics.avg_ticket ?? 0)}
+                                    </p>
+                                </div>
+                                <div className="card-soft p-4">
+                                    <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Citas con productos</p>
+                                    <p className="text-2xl font-extrabold text-charcoal mt-1">
+                                        {itemMetrics.appt_metrics.appts_with_products ?? 0}
+                                        <span className="text-sm font-normal text-charcoal/40 ml-1">
+                                            / {itemMetrics.appt_metrics.total_appts ?? 0}
+                                        </span>
+                                    </p>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">
+                                        {itemMetrics.appt_metrics.total_appts
+                                            ? Math.round((itemMetrics.appt_metrics.appts_with_products / itemMetrics.appt_metrics.total_appts) * 100)
+                                            : 0}% de las visitas
+                                    </p>
+                                </div>
+                                <div className="card-soft p-4">
+                                    <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Ingresos por tipo</p>
+                                    {(itemMetrics.by_type ?? []).map((t: any) => (
+                                        <div key={t.item_type} className="flex justify-between items-center mt-1.5">
+                                            <span className={cn(
+                                                "text-xs px-2 py-0.5 rounded-full font-semibold",
+                                                t.item_type === 'service' ? "bg-primary-100 text-primary-600" : "bg-violet-100 text-violet-600"
+                                            )}>
+                                                {t.item_type === 'service' ? 'Servicios' : 'Productos'}
+                                            </span>
+                                            <span className="text-sm font-bold text-charcoal">{formatCurrency(t.total_revenue)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Top servicios y productos */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Top servicios */}
+                            <div className="card-soft overflow-hidden">
+                                <div className="p-5 border-b border-silk-beige">
+                                    <h3 className="font-bold text-charcoal">Top Servicios</h3>
+                                    <p className="text-xs text-charcoal/50">Por ingresos en el período</p>
+                                </div>
+                                {(itemMetrics?.top_services ?? []).length === 0 ? (
+                                    <div className="py-8 text-center text-charcoal/40 text-sm">Sin datos aún</div>
+                                ) : (
+                                    <div className="divide-y divide-silk-beige/40">
+                                        {(itemMetrics?.top_services ?? []).map((s: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between px-5 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-6 h-6 rounded-full bg-primary-100 text-primary-600 text-xs font-black flex items-center justify-center">{i + 1}</span>
+                                                    <span className="text-sm font-medium text-charcoal">{s.name}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-bold text-charcoal">{formatCurrency(s.revenue)}</p>
+                                                    <p className="text-xs text-charcoal/40">{s.units} unid.</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Top productos */}
+                            <div className="card-soft overflow-hidden">
+                                <div className="p-5 border-b border-silk-beige">
+                                    <h3 className="font-bold text-charcoal">Top Productos</h3>
+                                    <p className="text-xs text-charcoal/50">Por ingresos en el período</p>
+                                </div>
+                                {(itemMetrics?.top_products ?? []).length === 0 ? (
+                                    <div className="py-8 text-center text-charcoal/40 text-sm">Sin ventas de productos en el período</div>
+                                ) : (
+                                    <div className="divide-y divide-silk-beige/40">
+                                        {(itemMetrics?.top_products ?? []).map((p: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between px-5 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 text-xs font-black flex items-center justify-center">{i + 1}</span>
+                                                    <span className="text-sm font-medium text-charcoal">{p.name}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-bold text-charcoal">{formatCurrency(p.revenue)}</p>
+                                                    <p className="text-xs text-charcoal/40">{p.units} unid.</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {loading && (
+                            <div className="text-center py-8 text-charcoal/40 text-sm">Cargando métricas...</div>
+                        )}
+                        {!loading && !itemMetrics && (
+                            <div className="text-center py-8 text-charcoal/40 text-sm">
+                                Las métricas por ítem estarán disponibles cuando registres ventas usando el modal de cierre de visita.
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
+
+            {/* Comprobante modal */}
+            {receiptTx && (
+                <VisitReceipt
+                    transaction={receiptTx}
+                    items={txItems[receiptTx.id] ?? []}
+                    clinicName={clinicName}
+                    clinicId={clinicId ?? ''}
+                    onLoadItems={async () => {
+                        if (!txItems[receiptTx.id]) {
+                            const items = await financeService.getTransactionItems(receiptTx.id).catch(() => [])
+                            setTxItems(prev => ({ ...prev, [receiptTx.id]: items }))
+                        }
+                    }}
+                    onClose={() => setReceiptTx(null)}
+                />
+            )}
 
             {/* Modal de Gastos */}
             {showExpenseModal && (
