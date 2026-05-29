@@ -3,6 +3,7 @@
     { "src": "/", "dest": "/landing.html" },
     { "src": "/landing", "dest": "/landing.html" },
     { "src": "/demo", "dest": "/demo.html" },
+    { "src": "/blog/como-animalgrace-ahorro-50-horas-al-mes", "dest": "/blog/como-animalgrace-ahorro-50-horas-al-mes.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }

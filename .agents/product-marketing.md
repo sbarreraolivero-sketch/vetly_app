@@ -329,12 +329,13 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 **Hoja de ruta de marketing (prioridades):**
 1. ~~Fix SEO técnico en landing~~ ✅ Completado 2026-05-28
 2. ~~Crear product-marketing.md~~ ✅ Completado 2026-05-28
-3. **ART-13 — Caso de estudio Claudia** ← PRÓXIMO (sesión siguiente)
-4. ART-02 — "Recepcionista virtual veterinaria" (keyword sin competencia, prioridad #1 SEO)
+3. ~~ART-13 — Caso de estudio Claudia~~ ✅ Completado 2026-05-29 → `/blog/como-animalgrace-ahorro-50-horas-al-mes`
+4. **ART-02 — "Recepcionista virtual veterinaria"** ← PRÓXIMO (keyword sin competencia, prioridad #1 SEO)
 5. ART-01 — "WhatsApp clínica veterinaria"
 6. ART-06 — "Ruta clínica veterinaria móvil"
-7. Outreach directo a comunidades veterinarias (VEPA Colombia 19 capítulos, Colmevet Chile)
-8. Ads solo cuando haya al menos 5 casos de éxito documentados
+7. Página `/blog` index con listado de artículos
+8. Outreach directo a comunidades veterinarias (VEPA Colombia 19 capítulos, Colmevet Chile)
+9. Ads solo cuando haya al menos 5 casos de éxito documentados
 
 ---
 
@@ -366,7 +367,17 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - `public/og-image.png` (1200×630px, 163KB — WhatsApp compatible)
 - `.agents/product-marketing.md` (este archivo)
 
+### Completado sesión 2026-05-29
+
+**ART-13 — Caso de estudio Claudia:**
+- `/blog/como-animalgrace-ahorro-50-horas-al-mes.html` publicado
+- Estructura: TL;DR extractable, stats strip, hero image, historia completa, results grid, 5 FAQs
+- Schema: `Article` + `FAQPage` + `BreadcrumbList`
+- Route en `vercel.json`, entrada en `sitemap.xml`
+- Skills utilizados: `copywriting`, `content-strategy`, `ai-seo`
+
 ### Pendiente próxima sesión
-- **ART-13**: Redactar caso de estudio Claudia (historia completa — el artículo más importante del blog)
-- Crear sección `/blog` en la web antes de publicar artículos
-- Imagen OG: verificar que el ícono del logo generado por ChatGPT corresponde al logo real (ajustar en Canva si no)
+- **ART-02**: "Recepcionista virtual veterinaria" — keyword sin competidores en LATAM, prioridad #1 SEO
+- Crear página `/blog` index (listado de artículos publicados)
+- Verificar imagen OG del logo (ajustar en Canva si el ícono no coincide con logo real)
+- Agregar enlace al blog en header de `landing.html`
