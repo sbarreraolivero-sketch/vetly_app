@@ -1784,3 +1784,89 @@ const publicClient = createClient(url, anonKey, {
 ### Botón "Portal" en Fidelización
 
 En la lista de tutores de `Loyalty.tsx`, junto al botón "Referido" aparece un botón **Portal** que abre `vetly.pro/p/{referral_code}` en nueva pestaña — permite verificar el portal del tutor directamente desde el dashboard.
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 28, 2026-05-29)
+
+### Dashboard `src/pages/Dashboard.tsx` — auditoría completa y mejoras
+
+#### Cálculo de "Tiempo Ahorrado" — reescrito
+**Problema:** `appointments × 15 min` no reflejaba el trabajo real del agente.
+**Nuevo cálculo:**
+```typescript
+minutosAhorrados = (aiMessages × 3) + (appointments × 5) + (reminders × 2)
+```
+- **3 min/mensaje IA**: leer el entrante + pensar + escribir respuesta (lo que haría un humano)
+- **5 min/cita**: flujo completo de agendamiento + coordinación en agenda
+- **2 min/recordatorio**: buscar contacto + redactar + enviar manualmente
+
+#### Bug 1 — "Citas Canceladas" siempre mostraba 0
+**Causa raíz:** la query filtraba por `appointments.updated_at` que **no existe** en la tabla. PostgREST lo silenciaba y devolvía 0.
+**Fix:** `updated_at` → `created_at` en el query actual y en el query del período anterior.
+
+#### Bug 2 — Top Servicios y Tasa de Conversión ignoraban el filtro
+**Causa raíz:** las queries #5 (service ranking) y #6 (conversion rate) usaban `startOfMonth` hardcodeado sin importar qué filtro estaba activo.
+**Fix:** ahora usan `startOfStats / endOfStats` del filtro seleccionado. Labels del header ("Este mes", "contactos que agendaron cita este mes") también se actualizan dinámicamente.
+
+#### Bug 3 — Badges mostraban "100% ↑" cuando el período anterior tenía 0 datos
+**Causa raíz:** `calculatePercentage` retornaba `100` cuando `previous === 0 && current > 0`, lo que era visualmente idéntico a un verdadero crecimiento del 100%.
+**Fix:** retorna `null` cuando `previous === 0 && current > 0`. El `ChangeBadge` muestra "–" en gris.
+
+#### Badges de comparación — etiqueta contextual
+Cada badge ahora muestra dos líneas: el porcentaje y el período comparado.
+```
+↑ 47%
+vs. mes ant.
+```
+Labels dinámicos: `vs. ayer` / `vs. sem. ant.` / `vs. mes ant.` / `vs. año ant.` / `vs. Xd ant.` (para rango personalizado).
+
+#### "NUEVOS PROSPECTOS" → "CONVERSACIONES ÚNICAS"
+La métrica cuenta teléfonos inbound únicos en el período (incluye clientes existentes que escribieron de nuevo). El nombre anterior era incorrecto. Verificado: de 396 "prospectos" en mayo, solo 10 eran clientes existentes — 97% son genuinamente nuevos, pero el label correcto es "conversaciones únicas".
+
+#### Selector de rango de fechas con mini calendario
+**Reemplaza** los 4 botones fijos `Hoy/Semana/Mes/Año` con un diseño más flexible:
+- Botones de preset: `Hoy / Sem. / Mes / Año` (ahora abreviados)
+- Botón **Rango** con ícono de calendario → abre un popover con mini calendario
+- El mini calendario se construyó **sin dependencias nuevas**, usando `date-fns` ya instalado
+- Dos clicks: primer clic = fecha inicio (con resaltado hover del rango), segundo clic = fecha fin
+- Al confirmar: botón muestra `"15 may – 28 may"` con `×` para limpiar
+- El período anterior para los badges se calcula automáticamente: misma duración, shifted back
+- Cierra al hacer clic fuera (listener `mousedown` con `useRef`)
+
+**Estado nuevo en Dashboard:**
+```typescript
+const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
+const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
+const [showDatePicker, setShowDatePicker] = useState(false)
+```
+
+**Cálculo del período anterior para rango custom:**
+```typescript
+const days = differenceInCalendarDays(customRange.end, customRange.start) + 1
+startOfPrev = toUTC(startOfDay(subDays(customRange.start, days)))
+endOfPrev   = toUTC(endOfDay(subDays(customRange.end, days)))
+```
+
+#### Race condition en cambio de filtros — fix con `cancelled` flag
+**Síntoma:** al cambiar filtros rápido, los datos retroactivaban mostrando resultados del filtro anterior antes de estabilizarse en el correcto.
+**Causa raíz (dos bugs combinados):**
+1. Sin cancelación de fetches en vuelo: si "Mes" resolvía después de "Año", pisaba el estado con datos incorrectos
+2. `setLoading(true)` solo corría en el mount inicial — al cambiar filtro, `loading` era `false` y el usuario veía datos viejos sin spinner
+
+**Fix — patrón estándar de React:**
+```typescript
+useEffect(() => {
+    let cancelled = false
+    const fetch = async () => {
+        setLoading(true)                    // spinner inmediato
+        // ... await Promise.all(queries)
+        if (cancelled) return               // ignorar resultados stale
+        // ... setState(...)
+    }
+    fetch()
+    return () => { cancelled = true }       // cleanup cancela el fetch anterior
+}, [user, profile?.clinic_id, timeRange, customRange])
+```
+
+**Resultado:** cada cambio de filtro muestra el spinner de inmediato y solo el fetch más reciente actualiza el estado. Sin retroactividad, sin flickering.
