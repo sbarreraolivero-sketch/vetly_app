@@ -16,6 +16,7 @@ export interface Income {
     clinic_id: string
     description: string
     amount: number
+    discount?: number
     category: 'service' | 'product' | 'adjustment' | 'other'
     date: string
     tutor_id?: string | null
@@ -119,7 +120,17 @@ export const financeService = {
         })
 
         if (error) throw error
-        return data?.[0] as Income
+        const created = data?.[0] as Income
+
+        // Guardar descuento si existe
+        if (created?.id && income.discount && income.discount > 0) {
+            await (supabase as any)
+                .from('incomes')
+                .update({ discount: income.discount })
+                .eq('id', created.id)
+        }
+
+        return created
     },
 
     async deleteIncome(id: string) {

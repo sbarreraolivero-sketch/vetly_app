@@ -17,8 +17,19 @@ import { es } from 'date-fns/locale'
 // ── Helpers ─────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = {
-    medication: 'Medicamento', vaccine: 'Vacuna', food: 'Alimento',
-    accessory: 'Accesorio', supply: 'Insumo', other: 'Otro',
+    medication:       'Medicamento',
+    vaccine:          'Vacuna',
+    antiparasitic:    'Antiparasitario',
+    anesthetic:       'Anestésico',
+    antibiotic:       'Antibiótico',
+    anti_inflammatory:'Antiinflamatorio',
+    vitamin:          'Vitamina / Suplemento',
+    disinfectant:     'Desinfectante',
+    surgical:         'Material quirúrgico',
+    food:             'Alimento',
+    accessory:        'Accesorio',
+    supply:           'Insumo',
+    other:            'Otro',
 }
 const UNIT_LABELS: Record<string, string> = {
     ml: 'ml', mg: 'mg', unit: 'unidad', tablet: 'comprimido',
@@ -41,8 +52,19 @@ const ABC_COLORS: Record<string, string> = {
     C: 'bg-red-100 text-red-600',
 }
 const CATEGORY_ICONS: Record<string, any> = {
-    medication: FlaskConical, vaccine: Syringe, food: Apple,
-    accessory: Tag, supply: Wrench, other: Package,
+    medication:        FlaskConical,
+    vaccine:           Syringe,
+    antiparasitic:     FlaskConical,
+    anesthetic:        Syringe,
+    antibiotic:        FlaskConical,
+    anti_inflammatory: FlaskConical,
+    vitamin:           Apple,
+    disinfectant:      Wrench,
+    surgical:          Wrench,
+    food:              Apple,
+    accessory:         Tag,
+    supply:            Wrench,
+    other:             Package,
 }
 
 const formatCLP = (n: number) =>
@@ -722,8 +744,9 @@ const Inventory = () => {
                                     <input
                                         type="number" min="0"
                                         className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                        value={productForm.purchase_price}
-                                        onChange={e => setProductForm(f => ({ ...f, purchase_price: Number(e.target.value) }))}
+                                        value={productForm.purchase_price || ''}
+                                        placeholder="0"
+                                        onChange={e => setProductForm(f => ({ ...f, purchase_price: Number(e.target.value) || 0 }))}
                                     />
                                 </div>
                                 <div>
@@ -731,8 +754,9 @@ const Inventory = () => {
                                     <input
                                         type="number" min="0"
                                         className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                        value={productForm.sale_price}
-                                        onChange={e => setProductForm(f => ({ ...f, sale_price: Number(e.target.value) }))}
+                                        value={productForm.sale_price || ''}
+                                        placeholder="0"
+                                        onChange={e => setProductForm(f => ({ ...f, sale_price: Number(e.target.value) || 0 }))}
                                     />
                                 </div>
                                 <div>
@@ -740,8 +764,9 @@ const Inventory = () => {
                                     <input
                                         type="number" min="0"
                                         className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                        value={productForm.stock_quantity}
-                                        onChange={e => setProductForm(f => ({ ...f, stock_quantity: Number(e.target.value) }))}
+                                        value={productForm.stock_quantity || ''}
+                                        placeholder="0"
+                                        onChange={e => setProductForm(f => ({ ...f, stock_quantity: Number(e.target.value) || 0 }))}
                                     />
                                 </div>
                                 <div>
@@ -749,8 +774,9 @@ const Inventory = () => {
                                     <input
                                         type="number" min="0"
                                         className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                        value={productForm.min_stock_alert}
-                                        onChange={e => setProductForm(f => ({ ...f, min_stock_alert: Number(e.target.value) }))}
+                                        value={productForm.min_stock_alert || ''}
+                                        placeholder="5"
+                                        onChange={e => setProductForm(f => ({ ...f, min_stock_alert: Number(e.target.value) || 0 }))}
                                     />
                                 </div>
                                 <div>
@@ -810,8 +836,9 @@ const Inventory = () => {
                                 <input
                                     type="number" min="1"
                                     className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                    value={restockQty}
-                                    onChange={e => setRestockQty(Number(e.target.value))}
+                                    value={restockQty || ''}
+                                    placeholder="1"
+                                    onChange={e => setRestockQty(Number(e.target.value) || 1)}
                                 />
                             </div>
                             <div>
@@ -819,8 +846,9 @@ const Inventory = () => {
                                 <input
                                     type="number" min="0"
                                     className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                    value={restockCost}
-                                    onChange={e => setRestockCost(Number(e.target.value))}
+                                    value={restockCost || ''}
+                                    placeholder="0"
+                                    onChange={e => setRestockCost(Number(e.target.value) || 0)}
                                 />
                             </div>
                             <div>

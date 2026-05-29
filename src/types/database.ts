@@ -630,7 +630,7 @@ export interface Database {
                     clinic_id: string
                     name: string
                     sku: string | null
-                    category: 'medication' | 'vaccine' | 'food' | 'accessory' | 'supply' | 'other'
+                    category: 'medication' | 'vaccine' | 'food' | 'accessory' | 'supply' | 'antiparasitic' | 'anesthetic' | 'antibiotic' | 'anti_inflammatory' | 'vitamin' | 'disinfectant' | 'surgical' | 'other'
                     description: string | null
                     unit: 'ml' | 'mg' | 'unit' | 'tablet' | 'box' | 'vial' | 'kg' | 'g' | 'dose'
                     purchase_price: number

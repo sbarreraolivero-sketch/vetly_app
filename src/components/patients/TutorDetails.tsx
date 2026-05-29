@@ -90,51 +90,93 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
     const fetchFinances = async () => {
         setLoadingFinances(true)
         try {
-            const { data: patientDataRaw } = await supabase.from('patients').select('id, name').eq('tutor_id', tutor.id)
-            const patientData = patientDataRaw as any[] | null
-            const patientIds = (patientData || []).map(p => p.id)
+            // Citas por tutor_id (directo) — también fallback por patient_id para citas antiguas
+            const [apptByTutor, patientDataRaw] = await Promise.all([
+                (supabase as any)
+                    .from('appointments')
+                    .select('id, appointment_date, service, price, discount, payment_status, payment_method, patient_name, tutor_name')
+                    .eq('tutor_id', tutor.id)
+                    .in('payment_status', ['paid', 'partial', 'pending'])
+                    .order('appointment_date', { ascending: false }),
+                (supabase as any)
+                    .from('patients')
+                    .select('id, name')
+                    .eq('tutor_id', tutor.id),
+            ])
 
-            let appts: any[] = []
+            const apptByTutorIds = new Set((apptByTutor.data || []).map((a: any) => a.id))
+
+            // Fallback: citas vinculadas via patient_id que no estén ya incluidas
+            let fallbackAppts: any[] = []
+            const patientIds = ((patientDataRaw.data as any[]) || []).map((p: any) => p.id)
             if (patientIds.length > 0) {
-                const { data: apptData } = await supabase.from('appointments')
-                    .select('id, appointment_date, service, price, payment_status, patient_id')
+                const { data: apptByPatient } = await (supabase as any)
+                    .from('appointments')
+                    .select('id, appointment_date, service, price, discount, payment_status, payment_method, patient_name, tutor_name')
                     .in('patient_id', patientIds)
                     .in('payment_status', ['paid', 'partial', 'pending'])
                     .order('appointment_date', { ascending: false })
-                
-                if (apptData) {
-                    appts = apptData.map((a: any) => ({
-                        id: a.id,
-                        date: a.appointment_date,
-                        description: `Visita ${patientData?.find(p => p.id === a.patient_id)?.name || 'Mascota'} - ${a.service || 'Servicio General'}`,
-                        amount: a.price || 0,
-                        type: 'visita',
-                        status: a.payment_status,
-                        services: [{ name: a.service || 'Servicio', price: a.price || 0 }]
-                    }))
-                }
+                fallbackAppts = (apptByPatient || []).filter((a: any) => !apptByTutorIds.has(a.id))
             }
 
-            const { data: incomeData } = await supabase.from('incomes')
+            const allAppts: any[] = [...(apptByTutor.data || []), ...fallbackAppts]
+
+            // Cargar appointment_items para todas las citas en una sola query
+            let itemsByAppt: Record<string, any[]> = {}
+            if (allAppts.length > 0) {
+                const apptIds = allAppts.map((a: any) => a.id)
+                const { data: itemsData } = await (supabase as any)
+                    .from('appointment_items')
+                    .select('appointment_id, item_type, name, quantity, unit_price, subtotal')
+                    .in('appointment_id', apptIds)
+                    .order('item_type', { ascending: false }) // services first
+                ;(itemsData || []).forEach((item: any) => {
+                    if (!itemsByAppt[item.appointment_id]) itemsByAppt[item.appointment_id] = []
+                    itemsByAppt[item.appointment_id].push(item)
+                })
+            }
+
+            const appts = allAppts.map((a: any) => {
+                const items = itemsByAppt[a.id] ?? []
+                const hasItems = items.length > 0
+                return {
+                    id: a.id,
+                    date: a.appointment_date,
+                    description: `Visita: ${a.patient_name || 'Mascota'} — ${a.service || 'Servicio General'}`,
+                    amount: a.price || 0,
+                    discount: a.discount || 0,
+                    type: 'visita',
+                    status: a.payment_status,
+                    payment_method: a.payment_method,
+                    // Si hay items detallados los usamos; si no, caemos back al servicio principal
+                    services: hasItems
+                        ? items.map((i: any) => ({ name: i.name, price: i.subtotal, quantity: i.quantity, type: i.item_type }))
+                        : [{ name: a.service || 'Servicio General', price: a.price || 0, quantity: 1, type: 'service' }],
+                }
+            })
+
+            // Ingresos manuales
+            const { data: incomeData } = await (supabase as any)
+                .from('incomes')
                 .select('*')
                 .eq('tutor_id', tutor.id)
                 .order('date', { ascending: false })
 
-            const incomes = (incomeData || []).map((inc: any) => ({
+            const incomes = ((incomeData as any[]) || []).map((inc: any) => ({
                 id: inc.id,
                 date: inc.date,
                 description: inc.description,
                 amount: inc.amount,
+                discount: inc.discount || 0,
                 type: 'ingreso_manual',
                 status: 'paid',
-                services: Array.isArray(inc.services) ? inc.services : []
+                payment_method: null,
+                services: Array.isArray(inc.services) ? inc.services : [],
             }))
 
-            const merged = [...appts, ...incomes].sort((a, b) => {
-                const dateA = a.date ? new Date(a.date).getTime() : 0;
-                const dateB = b.date ? new Date(b.date).getTime() : 0;
-                return dateB - dateA;
-            })
+            const merged = [...appts, ...incomes].sort((a, b) =>
+                (b.date ? new Date(b.date).getTime() : 0) - (a.date ? new Date(a.date).getTime() : 0)
+            )
             setFinances(merged)
         } catch (error) {
             console.error('Error fetching finances:', error)
@@ -462,34 +504,50 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                                         <div key={i} className="p-4 sm:p-6 hover:bg-silk-beige/20 transition-colors">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                                 <div>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <h4 className="font-bold text-charcoal">{f.description}</h4>
                                                         {f.status === 'paid' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase">Pagado</span>}
                                                         {f.status === 'pending' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 uppercase">Pendiente</span>}
+                                                        {f.type === 'visita' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-50 text-primary-600 uppercase">Visita</span>}
+                                                        {f.type === 'ingreso_manual' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-600 uppercase">Ingreso</span>}
                                                     </div>
                                                     <p className="text-xs text-charcoal/50 mt-1">
-                                                        {new Date(f.date).toLocaleDateString()} • {f.type === 'visita' ? 'Consulta Médica' : 'Ingreso Externo'}
+                                                        {new Date(f.date).toLocaleDateString('es-CL')}
+                                                        {f.payment_method && <span> • {f.payment_method.charAt(0).toUpperCase() + f.payment_method.slice(1)}</span>}
                                                     </p>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="font-bold text-charcoal text-lg">{formatCurrency(f.amount)}</p>
-                                                    {f.services && f.services.length > 0 && (
-                                                        <p className="text-xs text-charcoal/40 mt-1">
-                                                            {f.services.length} servicio(s)
-                                                        </p>
+                                                <div className="text-right shrink-0">
+                                                    {f.discount > 0 && (
+                                                        <p className="text-xs text-emerald-600 font-semibold">Desc. {formatCurrency(f.discount)}</p>
                                                     )}
+                                                    <p className="font-bold text-charcoal text-lg">{formatCurrency(f.amount)}</p>
                                                 </div>
                                             </div>
                                             {f.services && f.services.length > 0 && (
-                                                <div className="mt-4 pt-4 border-t border-silk-beige/30 ml-4 pl-4 border-l-2 border-primary-100">
-                                                    <p className="text-xs font-medium text-charcoal/60 uppercase mb-2">Detalle de items</p>
+                                                <div className="mt-3 pt-3 border-t border-silk-beige/30 ml-4 pl-4 border-l-2 border-primary-100">
+                                                    <p className="text-xs font-medium text-charcoal/60 uppercase mb-2">Detalle</p>
                                                     <div className="space-y-1">
                                                         {f.services.map((svc: any, idx: number) => (
-                                                            <div key={idx} className="flex justify-between text-sm">
-                                                                <span className="text-charcoal/70">{svc.name}</span>
-                                                                <span className="text-charcoal font-medium">{formatCurrency(svc.price)}</span>
+                                                            <div key={idx} className="flex items-center justify-between text-sm gap-2">
+                                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <span className={cn(
+                                                                        "text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0",
+                                                                        svc.type === 'service' ? "bg-primary-100 text-primary-600" : "bg-violet-100 text-violet-600"
+                                                                    )}>
+                                                                        {svc.type === 'service' ? 'Serv.' : 'Prod.'}
+                                                                    </span>
+                                                                    <span className="text-charcoal/70 truncate">{svc.name}</span>
+                                                                    {svc.quantity > 1 && <span className="text-charcoal/40 shrink-0">×{svc.quantity}</span>}
+                                                                </div>
+                                                                <span className="text-charcoal font-medium shrink-0">{formatCurrency(svc.price)}</span>
                                                             </div>
                                                         ))}
+                                                        {f.discount > 0 && (
+                                                            <div className="flex justify-between text-sm pt-1 border-t border-silk-beige/30">
+                                                                <span className="text-emerald-600">Descuento aplicado</span>
+                                                                <span className="text-emerald-600 font-semibold">−{formatCurrency(f.discount)}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}

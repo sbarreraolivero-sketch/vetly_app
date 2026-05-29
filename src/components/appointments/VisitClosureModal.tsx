@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
     X, Plus, Trash2, Search, Package, ShoppingCart,
-    CreditCard, Banknote, Smartphone, CheckCircle2,
+    CreditCard, Banknote, Smartphone, CheckCircle2, Percent, Tag,
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { inventoryService, type InventoryProduct, type VisitItem } from '@/services/inventoryService'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
@@ -22,9 +23,6 @@ interface VisitClosureModalProps {
     onCancel: () => void
 }
 
-const formatCLP = (n: number) =>
-    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
-
 const PAYMENT_METHODS = [
     { value: 'efectivo', label: 'Efectivo', icon: Banknote },
     { value: 'transferencia', label: 'Transferencia', icon: Smartphone },
@@ -40,13 +38,31 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
     const [showProductSearch, setShowProductSearch] = useState(false)
     const [productSearch, setProductSearch] = useState('')
     const [saving, setSaving] = useState(false)
+    const [currency, setCurrency] = useState('CLP')
+    // Descuento
+    const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
+    const [discountValue, setDiscountValue] = useState<number>(0)
     const searchRef = useRef<HTMLDivElement>(null)
 
-    // Load products + pre-fill service
-    useEffect(() => {
-        inventoryService.getProducts(clinicId).then(setProducts).catch(() => {})
+    const formatMoney = (n: number) =>
+        new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency,
+            maximumFractionDigits: currency === 'CLP' ? 0 : 2,
+        }).format(n)
 
-        // Pre-fill with the appointment service
+    // Carga productos, servicio pre-cargado y moneda de la clínica
+    useEffect(() => {
+        inventoryService.getProducts(clinicId).catch(() => {}).then(p => { if (p) setProducts(p) })
+
+        // Moneda de la clínica
+        ;(supabase as any)
+            .from('clinic_settings')
+            .select('currency')
+            .eq('id', clinicId)
+            .single()
+            .then(({ data }: any) => { if (data?.currency) setCurrency(data.currency) })
+
         if (appointment.service) {
             setItems([{
                 id: crypto.randomUUID(),
@@ -59,7 +75,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
         }
     }, [clinicId, appointment.service, appointment.price])
 
-    // Close product search dropdown on outside click
+    // Cierra el buscador al hacer clic fuera
     useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -70,7 +86,11 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
         return () => document.removeEventListener('mousedown', handler)
     }, [showProductSearch])
 
-    const total = items.reduce((sum, i) => sum + i.subtotal, 0)
+    const subtotal = items.reduce((sum, i) => sum + i.subtotal, 0)
+    const discountAmount = discountType === 'percentage'
+        ? Math.round(subtotal * discountValue / 100)
+        : discountValue
+    const finalTotal = Math.max(0, subtotal - discountAmount)
 
     // ── Item handlers ──────────────────────────────────────────────────
 
@@ -85,9 +105,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
         }))
     }
 
-    const removeItem = (id: string) => {
-        setItems(prev => prev.filter(i => i.id !== id))
-    }
+    const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id))
 
     const addProduct = (product: InventoryProduct) => {
         const existing = items.find(i => i.product_id === product.id)
@@ -121,6 +139,8 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                 appointmentId: appointment.id,
                 clinicId,
                 items,
+                discount: discountAmount,
+                finalTotal,
                 paymentMethod,
                 paymentStatus,
                 tutorId: appointment.tutor_id ?? null,
@@ -164,16 +184,13 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                     {/* Items */}
                     <div>
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider">
-                                Servicios y productos
-                            </h3>
+                            <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider">Servicios y productos</h3>
                             <div ref={searchRef} className="relative">
                                 <button
                                     onClick={() => setShowProductSearch(v => !v)}
                                     className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
                                 >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    Agregar producto
+                                    <Plus className="w-3.5 h-3.5" /> Agregar producto
                                 </button>
                                 {showProductSearch && (
                                     <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-silk-beige rounded-xl shadow-xl z-50">
@@ -191,7 +208,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                                         </div>
                                         <div className="max-h-48 overflow-y-auto">
                                             {filteredProducts.length === 0 ? (
-                                                <p className="text-xs text-charcoal/40 text-center py-4">Sin productos</p>
+                                                <p className="text-xs text-charcoal/40 text-center py-4">Sin productos en el catálogo</p>
                                             ) : filteredProducts.map(p => (
                                                 <button
                                                     key={p.id}
@@ -207,7 +224,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                                                             )}
                                                         </p>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-primary-600">{formatCLP(p.sale_price)}</span>
+                                                    <span className="text-sm font-semibold text-primary-600">{formatMoney(p.sale_price)}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -270,7 +287,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                                                 onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))}
                                             />
                                         </div>
-                                        <span className="text-sm font-bold text-charcoal w-20 text-right">{formatCLP(item.subtotal)}</span>
+                                        <span className="text-sm font-bold text-charcoal w-20 text-right">{formatMoney(item.subtotal)}</span>
                                         <button
                                             onClick={() => removeItem(item.id)}
                                             className="p-1 hover:bg-red-50 text-charcoal/30 hover:text-red-400 rounded-lg transition-colors"
@@ -282,11 +299,64 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                             ))}
                         </div>
 
-                        {/* Total */}
-                        <div className="flex justify-end mt-3 pt-3 border-t border-silk-beige">
-                            <div className="text-right">
-                                <p className="text-xs text-charcoal/40 uppercase tracking-wider">Total</p>
-                                <p className="text-2xl font-extrabold text-charcoal">{formatCLP(total)}</p>
+                        {/* Subtotal + descuento + total */}
+                        <div className="mt-3 pt-3 border-t border-silk-beige space-y-2">
+                            {/* Fila subtotal */}
+                            <div className="flex justify-between items-center text-sm text-charcoal/60">
+                                <span>Subtotal</span>
+                                <span className="font-medium">{formatMoney(subtotal)}</span>
+                            </div>
+
+                            {/* Fila descuento */}
+                            <div className="flex items-center gap-2">
+                                <Tag className="w-4 h-4 text-charcoal/40 shrink-0" />
+                                <span className="text-sm text-charcoal/60 w-24 shrink-0">Descuento</span>
+                                {/* Toggle fijo / porcentaje */}
+                                <div className="flex bg-silk-beige/40 rounded-lg p-0.5 text-xs">
+                                    <button
+                                        onClick={() => { setDiscountType('fixed'); setDiscountValue(0) }}
+                                        className={cn(
+                                            "px-2 py-1 rounded-md font-semibold transition-all",
+                                            discountType === 'fixed'
+                                                ? "bg-white text-primary-600 shadow-sm"
+                                                : "text-charcoal/40 hover:text-charcoal"
+                                        )}
+                                    >
+                                        {currency}
+                                    </button>
+                                    <button
+                                        onClick={() => { setDiscountType('percentage'); setDiscountValue(0) }}
+                                        className={cn(
+                                            "px-2 py-1 rounded-md font-semibold transition-all flex items-center gap-0.5",
+                                            discountType === 'percentage'
+                                                ? "bg-white text-primary-600 shadow-sm"
+                                                : "text-charcoal/40 hover:text-charcoal"
+                                        )}
+                                    >
+                                        <Percent className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max={discountType === 'percentage' ? 100 : undefined}
+                                    step={discountType === 'percentage' ? 1 : 100}
+                                    className="flex-1 text-right text-sm border border-silk-beige rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                                    placeholder="0"
+                                    value={discountValue || ''}
+                                    onChange={e => setDiscountValue(Math.max(0, Number(e.target.value)))}
+                                />
+                                {discountAmount > 0 && (
+                                    <span className="text-sm font-semibold text-emerald-600 w-20 text-right shrink-0">
+                                        −{formatMoney(discountAmount)}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Total final */}
+                            <div className="flex justify-between items-center pt-1 border-t border-silk-beige">
+                                <span className="font-bold text-charcoal">Total a cobrar</span>
+                                <p className="text-2xl font-extrabold text-charcoal">{formatMoney(finalTotal)}</p>
                             </div>
                         </div>
                     </div>
@@ -356,14 +426,17 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                         onClick={handleSave}
                         disabled={saving || items.length === 0}
                         className={cn(
-                            "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all",
+                            "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50",
                             paymentStatus === 'paid'
                                 ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                                : "bg-amber-500 hover:bg-amber-600 text-white",
-                            "disabled:opacity-50"
+                                : "bg-amber-500 hover:bg-amber-600 text-white"
                         )}
                     >
-                        {saving ? 'Guardando...' : paymentStatus === 'paid' ? `Cerrar y cobrar ${formatCLP(total)}` : 'Cerrar sin cobrar'}
+                        {saving
+                            ? 'Guardando...'
+                            : paymentStatus === 'paid'
+                                ? `Cerrar y cobrar ${formatMoney(finalTotal)}`
+                                : 'Cerrar sin cobrar'}
                     </button>
                 </div>
             </div>

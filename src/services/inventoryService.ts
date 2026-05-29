@@ -139,11 +139,15 @@ export const inventoryService = {
         appointmentId: string
         clinicId: string
         items: VisitItem[]
+        discount?: number
+        finalTotal?: number
         paymentMethod: string
         paymentStatus: 'paid' | 'pending'
         tutorId?: string | null
     }): Promise<void> {
-        const totalPrice = params.items.reduce((sum, i) => sum + i.subtotal, 0)
+        const subtotal = params.items.reduce((sum, i) => sum + i.subtotal, 0)
+        const discount = params.discount ?? 0
+        const totalPrice = params.finalTotal ?? Math.max(0, subtotal - discount)
 
         // 1. Actualizar appointment
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,6 +156,7 @@ export const inventoryService = {
             .update({
                 status: 'completed',
                 price: totalPrice,
+                discount,
                 payment_method: params.paymentMethod,
                 payment_status: params.paymentStatus,
             })
