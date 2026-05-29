@@ -397,8 +397,19 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - CTA "¿Tu clínica también necesita descansar?" → "¿Y tú, también necesitas descansar el domingo?"
 - Meta description y todos los títulos corregidos de 50h a 84h
 
+**ART-02 — Recepcionista virtual veterinaria** → publicado en producción:
+- URL: `vetly.pro/blog/recepcionista-virtual-veterinaria`
+- Estructura: definición extractable (AI SEO), tabla comparativa humana vs. IA, pasos de implementación, 5 FAQs, artículo relacionado, CTA
+- Schema: `Article` + `FAQPage` + `BreadcrumbList`
+- Precios en USD como moneda principal (audiencia LATAM) — IA conversacional desde $89 USD/mes (Starter)
+
+**Página `/blog` index** → publicada:
+- URL: `vetly.pro/blog`
+- 2 artículos publicados + 2 próximamente (ART-01 y ART-06)
+- Se actualiza manualmente al publicar cada nuevo artículo
+
 ### Pendiente próxima sesión
-- **ART-02**: "Recepcionista virtual veterinaria" — keyword sin competidores en LATAM, prioridad #1 SEO
-- **Página `/blog` index** — listado de artículos publicados (necesaria antes de ART-02)
-- Agregar enlace "Blog" en header de `landing.html` (actualmente solo en páginas del blog)
-- Verificar imagen OG del logo (ajustar en Canva si el ícono no coincide con logo real)
+- **ART-01** — "WhatsApp clínica veterinaria" ← PRÓXIMO
+- **ART-06** — "Ruta clínica veterinaria móvil"
+- Agregar enlace "Blog" en el header de `landing.html` (actualmente solo aparece dentro de las páginas del blog)
+- Verificar imagen OG (ajustar en Canva si el ícono del logo no coincide con el logo real)
