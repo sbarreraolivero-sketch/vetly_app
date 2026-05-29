@@ -126,9 +126,13 @@ export default function Dashboard() {
     }, [])
 
     useEffect(() => {
+        let cancelled = false
+
         const fetchDashboardData = async () => {
             if (!user || !profile?.clinic_id) return
             if (timeRange === 'custom' && !customRange) return
+
+            setLoading(true)
 
             try {
                 // Use clinic timezone for all date boundaries
@@ -271,6 +275,9 @@ export default function Dashboard() {
                         .eq('status', 'cancelled').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                 ])
 
+                // Si el filtro cambió mientras esperábamos, descartar estos resultados
+                if (cancelled) return
+
                 // Process results
                 const appointments = appointmentsRes.data
                 const messages = messagesRes.data
@@ -358,13 +365,14 @@ export default function Dashboard() {
                 }
 
             } catch (error) {
-                console.error('Error fetching dashboard data:', error)
+                if (!cancelled) console.error('Error fetching dashboard data:', error)
             } finally {
-                setLoading(false)
+                if (!cancelled) setLoading(false)
             }
         }
 
         fetchDashboardData()
+        return () => { cancelled = true }
     }, [user, profile?.clinic_id, timeRange, customRange])
 
     if (loading) {
