@@ -12,6 +12,7 @@
     { "src": "/blog/recordatorios-citas-veterinarias", "dest": "/blog/recordatorios-citas-veterinarias.html" },
     { "src": "/blog/gestionar-dos-clinicas-veterinarias", "dest": "/blog/gestionar-dos-clinicas-veterinarias.html" },
     { "src": "/blog/software-gestion-veterinaria", "dest": "/blog/software-gestion-veterinaria.html" },
+    { "src": "/blog/agente-ia-veterinaria", "dest": "/blog/agente-ia-veterinaria.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
