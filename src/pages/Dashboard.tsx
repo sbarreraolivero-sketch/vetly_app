@@ -337,9 +337,16 @@ export default function Dashboard() {
         )
     }
 
-    // Calculamos el tiempo ahorrado: 15 min por cita
-    const horasAhorradas = Math.floor((stats.appointmentsToday * 15) / 60);
-    const minutosAhorrados = (stats.appointmentsToday * 15) % 60;
+    // Tiempo ahorrado: basado en lo que tardaría un humano en hacer cada tarea
+    // 3 min/mensaje IA (leer entrante + pensar + escribir respuesta)
+    // 5 min/cita agendada (flujo de agendamiento + coordinación en agenda)
+    // 2 min/recordatorio (buscar contacto + redactar + enviar manualmente)
+    const minutosAhorradosTotal =
+        (extraStats.aiMessages * 3) +
+        (stats.appointmentsToday * 5) +
+        (extraStats.remindersSent * 2);
+    const horasAhorradas = Math.floor(minutosAhorradosTotal / 60);
+    const minutosAhorrados = minutosAhorradosTotal % 60;
     const tiempoAhorradoStr = horasAhorradas > 0 ? `${horasAhorradas}h ${minutosAhorrados}m` : `${minutosAhorrados}m`;
 
     // Percentage calculation helper
