@@ -1702,3 +1702,85 @@ Los únicos ítems que quedaron intencionalmente sin modificar:
 
 ### `_shared/diagnostics.ts`
 Módulo compartido usado por los 3 agentes anteriores. Incluye: `sendWhatsApp` (retorna `{id,status}`), `getYCloudBalance`, `checkOpenAI`, `classifyError`, `getRecentErrors`, `getReminderFailures`, `detectMute`, `runClinicDiagnostics`, `formatHealthReport`.
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 27, 2026-05-29)
+
+### Fix `update_member_permissions` — columna `updated_at` inexistente
+
+El RPC intentaba `SET permissions = p_permissions, updated_at = NOW()` pero `clinic_members` no tiene columna `updated_at`. Fix: eliminado `updated_at = NOW()` del UPDATE. Migración: `fix_update_member_permissions_no_updated_at`.
+
+### Trigger auto-creación de tutor + paciente al completar cita
+
+Trigger `tr_auto_create_contacts_on_complete` (AFTER UPDATE OF status ON appointments):
+- Se activa solo al transicionar a `'completed'` por primera vez
+- Normaliza teléfono con `regexp_replace(phone, '[^0-9]', '', 'g')`
+- Upsert de tutor por `(clinic_id, phone_number)` — crea si no existe, completa campos vacíos si ya existe
+- Crea paciente si no existe para ese tutor (match por nombre case-insensitive, solo mascotas vivas)
+- Actualiza `appointments.tutor_id` y `appointments.pet_id`
+- Luego otorga puntos de lealtad si `loyalty_enabled = true` (ver Sistema de referidos abajo)
+- Fix de iteración: `patients_status_check` acepta `'alive'`/`'deceased'`, no `'active'`
+
+### Sistema de referidos completo
+
+#### Texto corregido
+`copyReferralLink` en `Loyalty.tsx`: "agendar una consulta" → "agendar una cita"
+
+#### URL corta `/r/:code`
+- Botón "Magic Link" en Fidelización ahora copia `vetly.pro/r/{code}` (antes era la URL wa.me larga con encoding)
+- `ReferralRedirect.tsx` (nueva página): lee el código, llama `get_referral_link_data(code)`, construye la URL wa.me y redirige
+- Ruta pública `/r/:code` en `App.tsx`
+
+#### Webhook — detección de código de referido
+- Selección agregada: `referred_by` al query inicial de tutors
+- Después del bloque de `tutorContext`, antes del API key check: regex `\b([A-Za-z0-9]{6})\b` sobre el `text` del mensaje
+- Si código encontrado y tutor sin `referred_by`: lookup en `tutors.referral_code` para esa clínica → si hay match, `UPDATE tutors SET referred_by = referrer.id` (o upsert del tutor con `referred_by` si es nuevo)
+- Variable `referralContext` inyectada al final del system prompt: "Este cliente llegó REFERIDO por {name}…"
+- Deploy: webhook v218
+
+#### Puntos de lealtad automáticos (en el trigger de completar cita)
+Solo en la **primera** cita completada del tutor:
+- `loyalty_welcome_bonus` pts → nuevo cliente (INSERT en `loyalty_transactions` tipo `welcome_bonus`)
+- `loyalty_referral_bonus` pts → referidor (`UPDATE tutors.loyalty_points` + `referral_count++` + INSERT tipo `referral_reward`)
+- Migración: `referral_system_rpc_and_loyalty_trigger`
+
+#### RPCs públicos (anon + authenticated)
+- `get_referral_link_data(p_code TEXT)` → `TABLE(clinic_phone, tutor_name)` — para `ReferralRedirect`
+- `get_pet_owner_portal(p_code TEXT)` → `JSONB` — para `PetOwnerPortal` (ver abajo)
+
+### Portal del tutor — `vetly.pro/p/:code`
+
+Página pública accesible sin login, identificada por el `referral_code` del tutor.
+
+**Datos que muestra:**
+- Banner con gradiente teal/cyan, nombre del tutor centrado, clínica
+- Saldo de puntos + contador de referidos + botón para copiar enlace corto
+- Cards por mascota (colapsables, la primera abre por defecto):
+  - Especie, sexo, fecha de nacimiento
+  - Historial de vacunas con nombre, fecha aplicada, badge de próxima dosis (rojo/ámbar/verde)
+  - Historial de desparasitaciones con tipo, marca, fecha aplicada, badge de próxima dosis
+  - Historial médico: tipo de evento, diagnóstico, peso, fecha
+- Citas recientes (hasta 6) con estado coloreado
+- Botón "Agendar por WhatsApp" → `wa.me/{clinic_phone}`
+
+**Rutas y archivos:**
+- `PetOwnerPortal.tsx` — nueva página
+- Ruta `/p/:code` en `App.tsx`
+- RPC `get_pet_owner_portal` v3 (migración `pet_owner_portal_rpc_v3_fix_columns`):
+  - `vaccines`: columna `name` (no `type`), sin `brand` — así está la tabla real
+  - `deworming`: columna `type`, `brand` — correcto
+  - Aliases explícitos (`pat`, `vac`, `dew`, `mh`, `appt`) para evitar colisiones con variables PL/pgSQL
+
+**Regla permanente — páginas públicas y Supabase:**
+`ReferralRedirect.tsx` y `PetOwnerPortal.tsx` usan su propio `publicClient` (NO el cliente global):
+```typescript
+const publicClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+})
+```
+**Por qué:** el cliente global usa la Web Locks API para sincronizar sesiones entre pestañas. Cuando una página pública (sin auth) se abre en el mismo browser que el dashboard autenticado, el nuevo lock "roba" (`steal`) el existente → `AbortError: Lock broken by another request with the 'steal' option` → la request se cancela silenciosamente → `data = null` → "Portal no encontrado". El cliente sin sesión no usa locks.
+
+### Botón "Portal" en Fidelización
+
+En la lista de tutores de `Loyalty.tsx`, junto al botón "Referido" aparece un botón **Portal** que abre `vetly.pro/p/{referral_code}` en nueva pestaña — permite verificar el portal del tutor directamente desde el dashboard.
