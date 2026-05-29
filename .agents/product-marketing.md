@@ -478,22 +478,21 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Siempre pedir imagen al usuario antes de escribir el artículo; dar prompt del siguiente artículo en el mismo mensaje
 - Validar ángulo editorial con el usuario cuando el artículo toca operaciones reales del cliente
 
-### Pendiente — Próxima sesión: Outreach a comunidades
+### Pendiente — Próxima sesión
 
-**Objetivo:** publicar los primeros posts de contenido en comunidades veterinarias de LATAM para generar tráfico orgánico hacia el blog y el demo.
+**1. ART-11 — "Cómo saber si tu clínica veterinaria es rentable: las métricas que importan"** ← PRIMERO
+- Pedir imagen antes de escribir (prompt al inicio de sesión)
+- Ángulo: las métricas que un veterinario dueño debería mirar cada semana — sin ser contador
+- Keywords: "métricas clínica veterinaria", "finanzas clínica veterinaria", "rentabilidad veterinaria"
+- Datos concretos del dashboard de Vetly que se pueden capturar en pantalla
 
-**Comunidades identificadas:**
+**2. Outreach a comunidades veterinarias** ← DESPUÉS de completar artículos
 - **Colmevet Chile** — Facebook 33.955 seguidores
 - **VEPA Colombia** — Facebook 13.658 seguidores + 19 capítulos regionales
-- Grupos veterinarios de México (identificar)
+- Formato: versión "post de comunidad" de cada artículo — más corto, conversacional, pregunta abierta al final
+- No vender directamente; compartir el artículo más útil para el grupo
 
-**Formato recomendado para outreach:**
-- No vender directamente — compartir el artículo más útil para el grupo (ej: WhatsApp, rutas, recordatorios)
-- Comentar con valor antes de postear
-- Crear versión "post de comunidad" de cada artículo: más corto, conversacional, termina con pregunta abierta
-- Test: 1 post en Colmevet Chile, medir clics a vetly.pro/blog antes de escalar
-
-**También pendiente:**
+**3. También pendiente (sin orden fijo):**
 - Segundo caso de estudio (nueva clínica cliente)
-- Optimización del blog index para mostrar más de 10 artículos (paginación o "cargar más")
-- Google Search Console: verificar indexación de los 10 artículos
+- Paginación del blog index cuando supere 12 artículos
+- Google Search Console: verificar indexación de los 10 artículos publicados
