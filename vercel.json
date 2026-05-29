@@ -3,7 +3,8 @@
     { "src": "/", "dest": "/landing.html" },
     { "src": "/landing", "dest": "/landing.html" },
     { "src": "/demo", "dest": "/demo.html" },
-    { "src": "/blog/como-animalgrace-ahorro-50-horas-al-mes", "dest": "/blog/como-animalgrace-ahorro-50-horas-al-mes.html" },
+    { "src": "/blog/como-animalgrace-ahorro-50-horas-al-mes", "status": 301, "headers": { "Location": "/blog/como-animalgrace-ahorra-84-horas-al-mes" } },
+    { "src": "/blog/como-animalgrace-ahorra-84-horas-al-mes", "dest": "/blog/como-animalgrace-ahorra-84-horas-al-mes.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }

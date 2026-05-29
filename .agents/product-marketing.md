@@ -329,7 +329,7 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 **Hoja de ruta de marketing (prioridades):**
 1. ~~Fix SEO técnico en landing~~ ✅ Completado 2026-05-28
 2. ~~Crear product-marketing.md~~ ✅ Completado 2026-05-28
-3. ~~ART-13 — Caso de estudio Claudia~~ ✅ Completado 2026-05-29 → `/blog/como-animalgrace-ahorro-50-horas-al-mes`
+3. ~~ART-13 — Caso de estudio Claudia~~ ✅ Completado 2026-05-29 → `/blog/como-animalgrace-ahorra-84-horas-al-mes`
 4. **ART-02 — "Recepcionista virtual veterinaria"** ← PRÓXIMO (keyword sin competencia, prioridad #1 SEO)
 5. ART-01 — "WhatsApp clínica veterinaria"
 6. ART-06 — "Ruta clínica veterinaria móvil"
@@ -370,7 +370,7 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 ### Completado sesión 2026-05-29
 
 **ART-13 — Caso de estudio Claudia:**
-- `/blog/como-animalgrace-ahorro-50-horas-al-mes.html` publicado
+- `/blog/como-animalgrace-ahorra-84-horas-al-mes.html` publicado
 - Estructura: TL;DR extractable, stats strip, hero image, historia completa, results grid, 5 FAQs
 - Schema: `Article` + `FAQPage` + `BreadcrumbList`
 - Route en `vercel.json`, entrada en `sitemap.xml`
