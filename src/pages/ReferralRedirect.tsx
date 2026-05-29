@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const publicClient = createClient(
+    import.meta.env.VITE_SUPABASE_URL || '',
+    import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+)
 
 export default function ReferralRedirect() {
     const { code } = useParams<{ code: string }>()
@@ -9,7 +15,7 @@ export default function ReferralRedirect() {
     useEffect(() => {
         if (!code) { setError(true); return }
 
-        ;(supabase as any).rpc('get_referral_link_data', { p_code: code.toUpperCase() })
+        ;(publicClient as any).rpc('get_referral_link_data', { p_code: code.toUpperCase() })
             .then(({ data, error: rpcError }: any) => {
                 if (rpcError || !data || data.length === 0) {
                     setError(true)
