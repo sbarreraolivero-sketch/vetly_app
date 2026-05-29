@@ -2849,7 +2849,7 @@ Deno.serve(async (req) => {
 
     // Check if this user is already a known Tutor (Client)
     const { data: tutor } = await sb.from("tutors")
-      .select("id, name, patients(id, name, species)")
+      .select("id, name, referred_by, patients(id, name, species)")
       .eq("clinic_id", clinic.id)
       .eq("phone_number", from)
       .limit(1)
@@ -2897,6 +2897,45 @@ Deno.serve(async (req) => {
 
       if (hasPendingAppointmentToday) {
         tutorContext += `[¡ATENCIÓN CRÍTICA! ESTE CLIENTE TIENE UNA CITA PENDIENTE PARA HOY. Si dice "voy en camino", "estoy llegando" o manda su ubicación, NO le pidas datos para agendar ni actúes como si fuera la primera vez. Confírmale que el equipo está avisado y esperándolo.]\n`;
+      }
+    }
+
+    // ===== REFERRAL CODE DETECTION =====
+    // Detect a 6-char uppercase alphanumeric code (e.g. DBD77A) in the first message.
+    // If the tutor has no referrer yet, look up the code and mark referred_by.
+    let referralContext = "";
+    if (!tutor?.referred_by) {
+      const refMatch = (text || "").match(/\b([A-Za-z0-9]{6})\b/g);
+      if (refMatch) {
+        const normalizedSender = normalizePhone(from);
+        for (const rawCode of refMatch) {
+          const code = rawCode.toUpperCase();
+          const { data: referrer } = await sb.from("tutors")
+            .select("id, name")
+            .eq("clinic_id", clinic.id)
+            .eq("referral_code", code)
+            .limit(1)
+            .maybeSingle();
+          if (referrer && referrer.id) {
+            if (tutor) {
+              // Tutor exists: mark referred_by (only if not already set)
+              await sb.from("tutors")
+                .update({ referred_by: referrer.id })
+                .eq("id", tutor.id)
+                .is("referred_by", null);
+            } else {
+              // Tutor doesn't exist yet: create minimal record with referred_by
+              await sb.from("tutors").upsert({
+                clinic_id: clinic.id,
+                phone_number: normalizedSender,
+                name: "Sin nombre",
+                referred_by: referrer.id,
+              }, { onConflict: "clinic_id,phone_number", ignoreDuplicates: false });
+            }
+            referralContext = `\n[SISTEMA: Este cliente llegó REFERIDO por ${referrer.name} (código ${code}). Menciónale que la recomendación de su amigo/a fue registrada y dale una bienvenida cálida.]`;
+            break;
+          }
+        }
       }
     }
 
@@ -3707,7 +3746,7 @@ ${knowledgeSummary}
           globalLocContext
             ? `### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}\n\n${sysPrompt}`
             : sysPrompt
-        )) + (tutorContext || "");
+        )) + (tutorContext || "") + (referralContext || "");
 
         await debugLog(sb, `Prompt Construction`, { 
             hasLoc: !!globalLocContext, 

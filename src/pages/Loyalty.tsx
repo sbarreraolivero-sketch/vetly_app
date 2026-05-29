@@ -59,7 +59,7 @@ export default function Loyalty() {
 
     const [tutorAmounts, setTutorAmounts] = useState<Record<string, string>>({});
     const [pendingAdjustments, setPendingAdjustments] = useState<Record<string, number>>({});
-    const [clinicPhone, setClinicPhone] = useState<string>('')
+    const [_clinicPhone, setClinicPhone] = useState<string>('')
 
     const fetchData = async () => {
         if (!profile?.clinic_id) return
@@ -183,16 +183,10 @@ export default function Loyalty() {
         }
     };
 
-    const copyReferralLink = (code: string, tutorName?: string) => {
-        const phone = clinicPhone.replace(/\D/g, '')
-        const msg = tutorName
-            ? `Hola! Me contacto de parte de ${tutorName} 🐾 Mi código de referido es *${code}*. ¡Quiero agendar una consulta!`
-            : `Hola! Tengo un código de referido: *${code}*. ¡Quiero agendar una consulta!`
-        const link = phone
-            ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
-            : `https://wa.me/?text=${encodeURIComponent(msg)}`
-        navigator.clipboard.writeText(link)
-        toast.success('¡Enlace de WhatsApp copiado!')
+    const copyReferralLink = (code: string, _tutorName?: string) => {
+        const shortLink = `${window.location.origin}/r/${code}`
+        navigator.clipboard.writeText(shortLink)
+        toast.success('¡Enlace corto copiado!')
     }
 
     if (loading) {
@@ -400,12 +394,23 @@ export default function Loyalty() {
                                                 copyReferralLink(tutor.referral_code || '', tutor.name);
                                             }}
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-50 text-accent-600 rounded-full text-xs font-bold hover:bg-accent-100 transition-colors"
-                                            title="Copiar enlace para el tutor"
+                                            title="Copiar enlace corto de referido"
                                         >
                                             <Share2 className="w-3 h-3" />
-                                            Magic Link
+                                            Referido
                                         </button>
-                                        <button className="text-charcoal/40 hover:text-charcoal transition-colors">Ver Historial</button>
+                                        {tutor.referral_code && (
+                                            <a
+                                                href={`/p/${tutor.referral_code}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-full text-xs font-bold hover:bg-primary-100 transition-colors"
+                                                title="Ver portal del tutor"
+                                            >
+                                                Portal
+                                            </a>
+                                        )}
+                                        <button className="text-charcoal/40 hover:text-charcoal transition-colors">Historial</button>
                                     </div>
                                 </div>
                             </div>

@@ -44,6 +44,8 @@ const Finance = lazy(() => import('./pages/Finance'))
 // const RetentionEngine = lazy(() => import('./pages/RetentionEngine'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Loyalty = lazy(() => import('./pages/Loyalty'))
+const ReferralRedirect = lazy(() => import('./pages/ReferralRedirect'))
+const PetOwnerPortal = lazy(() => import('./pages/PetOwnerPortal'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const AICredits = lazy(() => import('./pages/AICredits'))
 const AISettings = lazy(() => import('./pages/AISettings'))
@@ -121,6 +123,8 @@ function MainRoutes() {
                     <Route path="/privacidad" element={<Privacy />} />
                     <Route path="/privacy" element={<Navigate to="/privacidad" replace />} />
                     <Route path="/pricing" element={<Pricing />} />
+                    <Route path="/r/:code" element={<ReferralRedirect />} />
+                    <Route path="/p/:code" element={<PetOwnerPortal />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/update-password" element={<UpdatePassword />} />
                     <Route
