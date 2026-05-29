@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
     Calendar,
     MessageSquare,
@@ -10,8 +10,21 @@ import {
     Target,
     ArrowUpRight,
     ArrowDownRight,
-    Minus
+    Minus,
+    ChevronLeft,
+    ChevronRight,
+    CalendarRange,
+    X,
 } from 'lucide-react'
+import {
+    startOfDay, endOfDay,
+    startOfMonth, endOfMonth,
+    getDay, addDays, addMonths, subMonths,
+    isSameDay, isBefore, isAfter,
+    differenceInCalendarDays, subDays,
+    format as dateFnsFormat,
+} from 'date-fns'
+import { es as esLocale } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
@@ -77,7 +90,10 @@ export default function Dashboard() {
         aiMessages: 0,
     })
 
-    const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year'>('day')
+    const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
+    const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
+    const [showDatePicker, setShowDatePicker] = useState(false)
+    const datePickerRef = useRef<HTMLDivElement>(null)
     const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
     const [recentMessages, setRecentMessages] = useState<Message[]>([])
 
@@ -96,26 +112,46 @@ export default function Dashboard() {
         average: 0
     })
 
-    const { getDateRange, getPreviousDateRange } = useClinicTimezone()
+    const { getDateRange, getPreviousDateRange, toUTC } = useClinicTimezone()
+
+    // Cerrar el picker al hacer clic fuera
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+                setShowDatePicker(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             if (!user || !profile?.clinic_id) return
+            if (timeRange === 'custom' && !customRange) return
 
             try {
                 // Use clinic timezone for all date boundaries
                 const { start: monthStart } = getDateRange('month')
                 const startOfMonth = monthStart.toISOString()
 
-                // Use the selected time range for stats
-                const { start: statsStart, end: statsEnd } = getDateRange(timeRange)
-                const startOfStats = statsStart.toISOString()
-                const endOfStats = statsEnd.toISOString()
+                // Calcular rango del período seleccionado
+                let startOfStats: string, endOfStats: string, startOfPrev: string, endOfPrev: string
 
-                // Previous period for comparison
-                const { start: prevStart, end: prevEnd } = getPreviousDateRange(timeRange)
-                const startOfPrev = prevStart.toISOString()
-                const endOfPrev = prevEnd.toISOString()
+                if (timeRange === 'custom' && customRange) {
+                    startOfStats = toUTC(startOfDay(customRange.start)).toISOString()
+                    endOfStats   = toUTC(endOfDay(customRange.end)).toISOString()
+                    const days   = differenceInCalendarDays(customRange.end, customRange.start) + 1
+                    startOfPrev  = toUTC(startOfDay(subDays(customRange.start, days))).toISOString()
+                    endOfPrev    = toUTC(endOfDay(subDays(customRange.end, days))).toISOString()
+                } else {
+                    const range  = getDateRange(timeRange as 'day' | 'week' | 'month' | 'year')
+                    startOfStats = range.start.toISOString()
+                    endOfStats   = range.end.toISOString()
+                    const prev   = getPreviousDateRange(timeRange as 'day' | 'week' | 'month' | 'year')
+                    startOfPrev  = prev.start.toISOString()
+                    endOfPrev    = prev.end.toISOString()
+                }
 
                 // ⚡ PERFORMANCE: Run ALL queries in parallel instead of sequential
                 const [
@@ -329,7 +365,7 @@ export default function Dashboard() {
         }
 
         fetchDashboardData()
-    }, [user, profile?.clinic_id, timeRange])
+    }, [user, profile?.clinic_id, timeRange, customRange])
 
     if (loading) {
         return (
@@ -357,12 +393,9 @@ export default function Dashboard() {
         return Math.round(((current - previous) / previous) * 100)
     }
 
-    const compareLabel = {
-        day: 'vs. ayer',
-        week: 'vs. sem. ant.',
-        month: 'vs. mes ant.',
-        year: 'vs. año ant.',
-    }[timeRange]
+    const compareLabel = timeRange === 'custom' && customRange
+        ? `vs. ${differenceInCalendarDays(customRange.end, customRange.start) + 1}d ant.`
+        : ({ day: 'vs. ayer', week: 'vs. sem. ant.', month: 'vs. mes ant.', year: 'vs. año ant.' } as Record<string, string>)[timeRange] ?? 'vs. ant.'
 
     const statCards = [
         {
@@ -374,7 +407,7 @@ export default function Dashboard() {
             change: calculatePercentage(stats.appointmentsToday, prevStats.appointments)
         },
         {
-            name: 'NUEVOS PROSPECTOS',
+            name: 'CONVERSACIONES ÚNICAS',
             value: extraStats.newProspects.toString(),
             icon: Target,
             color: 'text-fuchsia-500',
@@ -441,6 +474,106 @@ export default function Dashboard() {
         )
     }
 
+    // ── Mini calendario de rango ──────────────────────────────────────────
+    function MiniCalendar() {
+        const [calMonth, setCalMonth] = useState(() => customRange?.start ?? new Date())
+        const [selecting, setSelecting] = useState<Date | null>(customRange?.start ?? null)
+        const [hovered, setHovered] = useState<Date | null>(null)
+
+        const days = useMemo(() => {
+            const first = startOfMonth(calMonth)
+            const last  = endOfMonth(calMonth)
+            const pad   = (getDay(first) + 6) % 7 // lunes primero
+            const grid: (Date | null)[] = Array(pad).fill(null)
+            let d = new Date(first)
+            while (d <= last) { grid.push(new Date(d)); d = addDays(d, 1) }
+            while (grid.length % 7 !== 0) grid.push(null)
+            return grid
+        }, [calMonth])
+
+        const rangeEnd = selecting ? (hovered ?? null) : null
+
+        const inRange = (d: Date) => {
+            if (!selecting || !rangeEnd) return false
+            const [a, b] = isBefore(selecting, rangeEnd) ? [selecting, rangeEnd] : [rangeEnd, selecting]
+            return !isBefore(d, a) && !isAfter(d, b)
+        }
+
+        const isStart = (d: Date) => !!selecting && isSameDay(d, selecting)
+        const isEnd   = (d: Date) => !!rangeEnd && isSameDay(d, rangeEnd)
+        const isToday = (d: Date) => isSameDay(d, new Date())
+
+        const handleDay = (d: Date) => {
+            if (!selecting) {
+                setSelecting(d)
+            } else {
+                const [s, e] = isBefore(d, selecting) ? [d, selecting] : [selecting, d]
+                setCustomRange({ start: s, end: e })
+                setTimeRange('custom')
+                setShowDatePicker(false)
+            }
+        }
+
+        const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+
+        return (
+            <div className="p-3 w-72">
+                {/* Navegación de mes */}
+                <div className="flex items-center justify-between mb-3">
+                    <button onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 hover:bg-silk-beige rounded-lg transition-colors">
+                        <ChevronLeft className="w-4 h-4 text-charcoal/60" />
+                    </button>
+                    <span className="text-sm font-bold text-charcoal capitalize">
+                        {dateFnsFormat(calMonth, 'MMMM yyyy', { locale: esLocale })}
+                    </span>
+                    <button onClick={() => setCalMonth(m => addMonths(m, 1))} className="p-1 hover:bg-silk-beige rounded-lg transition-colors">
+                        <ChevronRight className="w-4 h-4 text-charcoal/60" />
+                    </button>
+                </div>
+                {/* Cabecera días */}
+                <div className="grid grid-cols-7 mb-1">
+                    {weekDays.map((w, i) => (
+                        <div key={i} className="text-center text-[10px] font-bold text-charcoal/30 py-1">{w}</div>
+                    ))}
+                </div>
+                {/* Grid de días */}
+                <div className="grid grid-cols-7">
+                    {days.map((d, i) => {
+                        if (!d) return <div key={i} />
+                        const start = isStart(d)
+                        const end   = isEnd(d)
+                        const range = inRange(d)
+                        const today = isToday(d)
+                        return (
+                            <button
+                                key={i}
+                                onMouseEnter={() => selecting && setHovered(d)}
+                                onMouseLeave={() => setHovered(null)}
+                                onClick={() => handleDay(d)}
+                                className={`
+                                    relative h-8 text-xs font-medium transition-colors
+                                    ${start || end ? 'bg-primary-500 text-white rounded-lg z-10' : ''}
+                                    ${range && !start && !end ? 'bg-primary-100 text-primary-700' : ''}
+                                    ${!start && !end && !range ? 'hover:bg-silk-beige text-charcoal rounded-lg' : ''}
+                                    ${today && !start && !end ? 'font-extrabold' : ''}
+                                `}
+                            >
+                                {today && !start && !end && (
+                                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary-400 rounded-full" />
+                                )}
+                                {d.getDate()}
+                            </button>
+                        )
+                    })}
+                </div>
+                {/* Hint */}
+                <p className="text-center text-[10px] text-charcoal/30 mt-3">
+                    {selecting ? 'Selecciona la fecha de fin' : 'Selecciona la fecha de inicio'}
+                </p>
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Page Header — limpio y moderno */}
@@ -459,25 +592,59 @@ export default function Dashboard() {
                         Agente activo
                     </div>
                     {/* Filtro de período */}
-                    <div className="bg-white border border-silk-beige p-1 rounded-xl flex gap-1">
-                        {[
-                            { id: 'day', label: 'Hoy' },
-                            { id: 'week', label: 'Semana' },
-                            { id: 'month', label: 'Mes' },
-                            { id: 'year', label: 'Año' }
-                        ].map((range) => (
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white border border-silk-beige p-1 rounded-xl flex gap-1">
+                            {([
+                                { id: 'day',   label: 'Hoy' },
+                                { id: 'week',  label: 'Sem.' },
+                                { id: 'month', label: 'Mes' },
+                                { id: 'year',  label: 'Año' },
+                            ] as const).map((r) => (
+                                <button
+                                    key={r.id}
+                                    onClick={() => { setTimeRange(r.id); setShowDatePicker(false) }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                        timeRange === r.id
+                                        ? 'bg-primary-500 text-white shadow-sm'
+                                        : 'text-charcoal/50 hover:text-charcoal hover:bg-zinc-50'
+                                    }`}
+                                >
+                                    {r.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Selector de rango personalizado */}
+                        <div className="relative" ref={datePickerRef}>
                             <button
-                                key={range.id}
-                                onClick={() => setTimeRange(range.id as any)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                    timeRange === range.id
-                                    ? 'bg-primary-500 text-white shadow-sm'
-                                    : 'text-charcoal/50 hover:text-charcoal hover:bg-zinc-50'
+                                onClick={() => setShowDatePicker(v => !v)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all duration-200 ${
+                                    timeRange === 'custom'
+                                    ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
+                                    : 'bg-white border-silk-beige text-charcoal/50 hover:text-charcoal'
                                 }`}
                             >
-                                {range.label}
+                                <CalendarRange className="w-3.5 h-3.5" />
+                                {timeRange === 'custom' && customRange
+                                    ? `${dateFnsFormat(customRange.start, 'd MMM', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM', { locale: esLocale })}`
+                                    : 'Rango'
+                                }
+                                {timeRange === 'custom' && customRange && (
+                                    <span
+                                        onClick={(e) => { e.stopPropagation(); setTimeRange('month'); setCustomRange(null) }}
+                                        className="ml-0.5 hover:opacity-70"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </span>
+                                )}
                             </button>
-                        ))}
+
+                            {showDatePicker && (
+                                <div className="absolute right-0 top-full mt-2 bg-white border border-silk-beige rounded-2xl shadow-xl z-50">
+                                    <MiniCalendar />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -602,7 +769,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">
-                                    {{ day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año' }[timeRange]}
+                                    {({ day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', custom: 'Período' } as Record<string,string>)[timeRange]}
                                 </p>
                                 <h3 className="text-lg font-extrabold tracking-tight text-white">Top Servicios</h3>
                             </div>
@@ -653,7 +820,7 @@ export default function Dashboard() {
                     </div>
                     <div className="p-5">
                         <p className="text-xs text-charcoal/40 text-center mb-4">
-                            contactos que agendaron cita {{ day: 'hoy', week: 'esta semana', month: 'este mes', year: 'este año' }[timeRange]}
+                            contactos que agendaron cita {({ day: 'hoy', week: 'esta semana', month: 'este mes', year: 'este año', custom: 'en el período' } as Record<string,string>)[timeRange]}
                         </p>
                         <div className="grid grid-cols-3 gap-3 pt-4 border-t border-silk-beige/50">
                             <div className="text-center">
