@@ -8,6 +8,7 @@
     { "src": "/blog/como-animalgrace-ahorra-84-horas-al-mes", "dest": "/blog/como-animalgrace-ahorra-84-horas-al-mes.html" },
     { "src": "/blog/recepcionista-virtual-veterinaria", "dest": "/blog/recepcionista-virtual-veterinaria.html" },
     { "src": "/blog/whatsapp-clinica-veterinaria", "dest": "/blog/whatsapp-clinica-veterinaria.html" },
+    { "src": "/blog/ruta-clinica-veterinaria-movil", "dest": "/blog/ruta-clinica-veterinaria-movil.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }

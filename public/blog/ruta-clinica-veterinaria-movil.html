@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- SEO primario -->
+    <title>Ruta óptima para clínicas veterinarias móviles: cómo reducir kilómetros y ganar horas</title>
+    <meta name="description" content="Cómo organizar la ruta diaria de una clínica veterinaria móvil a domicilio: sectores, buffers de viaje y el sistema que redujo la ruta de Animalgrace de 80 km a 45 km al día.">
+    <link rel="canonical" href="https://vetly.pro/blog/ruta-clinica-veterinaria-movil">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://vetly.pro/blog/ruta-clinica-veterinaria-movil">
+    <meta property="og:title" content="Ruta óptima para clínicas veterinarias móviles: cómo reducir kilómetros y ganar horas">
+    <meta property="og:description" content="El sistema que redujo la ruta de Animalgrace de 80 km a 45 km al día. Guía práctica para veterinarios móviles que quieren dejar de improvisar la ruta cada mañana.">
+    <meta property="og:image" content="https://vetly.pro/ruta-clinica-movil.png">
+    <meta property="og:locale" content="es_CL">
+    <meta property="og:site_name" content="Vetly">
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ruta óptima para clínicas veterinarias móviles">
+    <meta name="twitter:description" content="De 80 km a 45 km al día: cómo Animalgrace redujo un 44% su ruta diaria con optimización por sectores y buffers de viaje reales.">
+    <meta name="twitter:image" content="https://vetly.pro/ruta-clinica-movil.png">
+
+    <!-- Schema: Article + FAQPage + BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Article",
+          "headline": "Ruta óptima para clínicas veterinarias móviles: cómo reducir kilómetros y ganar horas",
+          "description": "Cómo organizar la ruta diaria de una clínica veterinaria móvil a domicilio: sectores, buffers de viaje y el sistema que redujo la ruta de Animalgrace de 80 km a 45 km al día.",
+          "datePublished": "2026-05-29",
+          "dateModified": "2026-05-29",
+          "author": {
+            "@type": "Person",
+            "name": "Sebastián Barrera Olivero",
+            "jobTitle": "Fundador, Vetly"
+          },
+          "publisher": {
+            "@type": "Organization",
+            "name": "Vetly",
+            "url": "https://vetly.pro"
+          },
+          "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://vetly.pro/blog/ruta-clinica-veterinaria-movil"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "¿Cómo se calcula la ruta óptima para una clínica veterinaria móvil?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "La ruta óptima para una clínica veterinaria móvil se calcula considerando cuatro factores: (1) la ubicación geográfica de cada cita, (2) la duración estimada de cada consulta, (3) el tiempo real de desplazamiento entre domicilios (no distancia en línea recta), y (4) un buffer de tiempo entre citas para absorber retrasos imprevistos. El orden óptimo es el que minimiza el total de kilómetros recorridos agrupando citas por zona geográfica contigua, no por orden de llegada de las reservas."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Qué es un buffer de viaje en una clínica veterinaria móvil?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Un buffer de viaje es un margen de tiempo reservado entre una cita y la siguiente para cubrir el desplazamiento real entre domicilios. En una clínica veterinaria móvil, el agente de agendamiento debe calcular este buffer automáticamente usando distancias reales (no estimaciones) para no generar citas físicamente imposibles de cumplir. Sin buffer, una cadena de citas en el mismo sector puede parecer viable en el papel pero resultar imposible en la ruta real."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Es mejor atender por sectores fijos o por demanda en una clínica móvil?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Depende del volumen y la geografía. Para clínicas con alta demanda distribuida en zonas distantes (como Linares y Talca), los sectores fijos con días asignados reducen el kilometraje total y permiten planificar con anticipación. Para clínicas en ciudades compactas (como Santiago), la atención por demanda con agrupamiento diario de citas por zona es más flexible y igualmente eficiente. Lo importante en ambos casos es que el sistema de agendamiento respete la lógica de ruta al momento de confirmar cada nueva cita."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Cuánto combustible ahorra optimizar la ruta de una clínica veterinaria móvil?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Animalgrace redujo su ruta diaria de 80 km a 45 km, una reducción del 44%. Con un consumo promedio de 10 L/100 km y un precio de combustible de $1.200 CLP/litro en Chile, eso equivale a aproximadamente $4.200 CLP de ahorro por día, o más de $80.000 CLP al mes. Además del costo directo, se reduce el desgaste del vehículo y las horas de manejo, lo que tiene impacto directo en la fatiga del conductor."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Puede un agente IA organizar la ruta de una clínica veterinaria móvil automáticamente?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Sí. Vetly incluye Goldi, un agente de optimización de ruta específico para clínicas veterinarias móviles en LATAM. Goldi calcula el buffer de viaje real entre domicilios usando Google Maps, verifica que cada nueva cita sea geográficamente compatible con las ya agendadas en el mismo día, y bloquea automáticamente las combinaciones de zonas que generarían rutas inviables (como ir de Talca a Linares y volver a Talca en el mismo turno)."
+              }
+            }
+          ]
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Inicio", "item": "https://vetly.pro/" },
+            { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://vetly.pro/blog" },
+            { "@type": "ListItem", "position": 3, "name": "Ruta óptima para clínicas veterinarias móviles" }
+          ]
+        }
+      ]
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { font-family: 'Outfit', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #fff; color: #18181b; -webkit-font-smoothing: antialiased; overflow-x: hidden; line-height: 1.6; }
+
+        .site-header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(250,250,250,0.97); backdrop-filter: blur(8px);
+            border-bottom: 1px solid #e4e4e7;
+            height: 64px; display: flex; align-items: center;
+            padding: 0 2rem; gap: 1.5rem;
+        }
+        .logo-link { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+        .logo-link img { height: 28px; }
+        .header-nav { display: flex; align-items: center; gap: 0.125rem; flex: 1; justify-content: center; }
+        .header-nav a { font-size: 0.875rem; font-weight: 500; color: #71717a; text-decoration: none; padding: 0.375rem 0.875rem; border-radius: 0.5rem; transition: color 0.15s; }
+        .header-nav a:hover { color: #18181b; }
+        .header-cta { display: inline-flex; align-items: center; background: #0d9488; color: #fff; font-size: 0.8125rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; text-decoration: none; transition: background 0.15s; white-space: nowrap; flex-shrink: 0; }
+        .header-cta:hover { background: #0f766e; }
+
+        .container { max-width: 720px; margin: 0 auto; padding: 0 1.5rem; }
+
+        .breadcrumb { padding: 1rem 0; }
+        .breadcrumb a { font-size: 0.8125rem; color: #71717a; text-decoration: none; }
+        .breadcrumb a:hover { color: #0d9488; }
+        .breadcrumb span { font-size: 0.8125rem; color: #a1a1aa; margin: 0 0.375rem; }
+        .breadcrumb strong { font-size: 0.8125rem; color: #18181b; font-weight: 500; }
+
+        .article-header { padding: 2rem 0 2rem; }
+        .article-tag { display: inline-flex; align-items: center; gap: 0.375rem; background: #f0fdfa; border: 1px solid #99f6e4; color: #0d9488; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.3rem 0.875rem; border-radius: 100px; margin-bottom: 1rem; }
+        .article-title { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 900; line-height: 1.2; letter-spacing: -0.02em; color: #18181b; margin-bottom: 1rem; }
+        .article-subtitle { font-size: 1.125rem; color: #52525b; line-height: 1.6; margin-bottom: 1.5rem; }
+        .article-meta { display: flex; align-items: center; gap: 1.5rem; font-size: 0.8125rem; color: #71717a; flex-wrap: wrap; }
+        .article-meta-sep { color: #d4d4d8; }
+
+        /* Definition box — extractable para AI SEO */
+        .definition-box { background: #f0fdfa; border: 1.5px solid #99f6e4; border-radius: 0.875rem; padding: 1.25rem 1.5rem; margin-bottom: 2.5rem; }
+        .definition-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #0d9488; margin-bottom: 0.5rem; }
+        .definition-text { font-size: 1rem; color: #18181b; line-height: 1.65; }
+
+        /* Stats strip */
+        .stats-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid #e4e4e7; border-radius: 0.875rem; overflow: hidden; margin-bottom: 2.5rem; }
+        .stat-cell { padding: 1.25rem 1rem; text-align: center; border-right: 1px solid #e4e4e7; }
+        .stat-cell:last-child { border-right: none; }
+        .stat-value { display: block; font-size: 2rem; font-weight: 900; color: #0d9488; letter-spacing: -0.03em; line-height: 1; margin-bottom: 0.375rem; }
+        .stat-label { font-size: 0.8rem; color: #71717a; line-height: 1.4; }
+
+        /* Article body */
+        .article-body { font-size: 1.0625rem; color: #27272a; line-height: 1.75; }
+        .article-body h2 { font-size: 1.5rem; font-weight: 800; color: #18181b; margin: 2.5rem 0 1rem; letter-spacing: -0.02em; }
+        .article-body h3 { font-size: 1.125rem; font-weight: 700; color: #18181b; margin: 1.75rem 0 0.75rem; }
+        .article-body p { margin-bottom: 1.25rem; }
+        .article-body ul, .article-body ol { margin: 0 0 1.25rem 1.25rem; }
+        .article-body li { margin-bottom: 0.5rem; }
+        .article-body strong { color: #18181b; font-weight: 700; }
+
+        /* Ruta visual */
+        .route-example { border: 1px solid #e4e4e7; border-radius: 0.875rem; overflow: hidden; margin: 1.5rem 0 2rem; }
+        .route-header { background: #18181b; color: #fff; padding: 0.75rem 1.25rem; font-size: 0.8125rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+        .route-header .badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.2rem 0.625rem; border-radius: 100px; }
+        .route-header .badge.bad { background: #fef2f2; color: #dc2626; }
+        .route-header .badge.good { background: #f0fdfa; color: #0d9488; }
+        .route-stops { padding: 1rem 1.25rem; }
+        .route-stop { display: flex; align-items: flex-start; gap: 1rem; padding: 0.625rem 0; border-bottom: 1px solid #f4f4f5; }
+        .route-stop:last-child { border-bottom: none; }
+        .stop-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; flex-shrink: 0; margin-top: 0.1rem; }
+        .stop-dot.teal { background: #f0fdfa; color: #0d9488; border: 1.5px solid #6ee7b7; }
+        .stop-dot.red { background: #fef2f2; color: #dc2626; border: 1.5px solid #fca5a5; }
+        .stop-info { flex: 1; }
+        .stop-name { font-size: 0.9375rem; font-weight: 700; color: #18181b; }
+        .stop-detail { font-size: 0.8125rem; color: #71717a; margin-top: 0.125rem; }
+        .stop-travel { font-size: 0.8rem; color: #a1a1aa; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.375rem; }
+        .stop-travel svg { flex-shrink: 0; }
+
+        .pullquote { border-left: 4px solid #0d9488; background: #f9fafb; padding: 1.25rem 1.5rem; margin: 2rem 0; border-radius: 0 0.5rem 0.5rem 0; }
+        .pullquote p { font-size: 1.125rem; font-style: italic; color: #18181b; margin: 0 0 0.5rem; }
+        .pullquote cite { font-size: 0.8125rem; color: #71717a; font-style: normal; font-weight: 600; }
+
+        /* Reglas */
+        .rule-list { margin: 1.5rem 0 2rem; counter-reset: rules; }
+        .rule-item { display: flex; gap: 1.25rem; margin-bottom: 1.25rem; align-items: flex-start; }
+        .rule-num { width: 36px; height: 36px; background: #0d9488; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.875rem; flex-shrink: 0; margin-top: 0.125rem; }
+        .rule-body h3 { font-size: 1rem; font-weight: 700; color: #18181b; margin-bottom: 0.375rem; }
+        .rule-body p { font-size: 0.9375rem; color: #52525b; line-height: 1.6; margin: 0; }
+
+        /* Warning box */
+        .warning-box { background: #fffbeb; border: 1.5px solid #fcd34d; border-radius: 0.875rem; padding: 1.125rem 1.375rem; margin: 1.5rem 0; display: flex; gap: 0.875rem; align-items: flex-start; }
+        .warning-icon { font-size: 1.25rem; flex-shrink: 0; margin-top: 0.1rem; }
+        .warning-text { font-size: 0.9375rem; color: #27272a; line-height: 1.6; }
+        .warning-text strong { color: #18181b; }
+
+        /* FAQ */
+        .faq-section { margin-top: 3rem; }
+        .faq-section h2 { font-size: 1.5rem; font-weight: 800; color: #18181b; margin-bottom: 1.5rem; letter-spacing: -0.02em; }
+        .faq-item { border-bottom: 1px solid #e4e4e7; padding: 1.25rem 0; }
+        .faq-question { font-size: 1rem; font-weight: 700; color: #18181b; margin-bottom: 0.625rem; }
+        .faq-answer { font-size: 0.9375rem; color: #52525b; line-height: 1.65; }
+
+        /* CTA */
+        .cta-box { background: linear-gradient(135deg, #0d9488, #0891b2); border-radius: 1rem; padding: 2.5rem 2rem; text-align: center; margin: 3rem 0 2rem; color: #fff; }
+        .cta-box h2 { font-size: 1.5rem; font-weight: 900; margin-bottom: 0.75rem; letter-spacing: -0.02em; }
+        .cta-box p { font-size: 1rem; opacity: 0.9; margin-bottom: 1.5rem; line-height: 1.6; }
+        .cta-btn { display: inline-flex; align-items: center; gap: 0.5rem; background: #fff; color: #0d9488; font-weight: 800; font-size: 0.9375rem; padding: 0.875rem 2rem; border-radius: 0.625rem; text-decoration: none; box-shadow: 0 4px 16px rgba(0,0,0,0.15); transition: transform 0.15s, box-shadow 0.15s; }
+        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+        .cta-sub { font-size: 0.8rem; opacity: 0.7; margin-top: 0.75rem; }
+
+        /* Related */
+        .related { margin: 2rem 0; padding: 1.5rem; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 0.875rem; }
+        .related-label { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-bottom: 0.75rem; }
+        .related a { font-size: 0.9375rem; font-weight: 700; color: #0d9488; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+        .related a:hover { color: #0f766e; }
+        .related-desc { font-size: 0.8125rem; color: #71717a; margin-top: 0.25rem; }
+
+        /* Author */
+        .author-bio { display: flex; align-items: flex-start; gap: 1rem; border: 1px solid #e4e4e7; border-radius: 0.875rem; padding: 1.25rem 1.5rem; margin: 2rem 0; }
+        .author-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #0d9488, #0891b2); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 1.125rem; flex-shrink: 0; }
+        .author-name { font-size: 0.9375rem; font-weight: 700; color: #18181b; }
+        .author-role { font-size: 0.8125rem; color: #71717a; margin-bottom: 0.375rem; }
+        .author-desc { font-size: 0.875rem; color: #52525b; line-height: 1.55; }
+
+        .site-footer { border-top: 1px solid #e4e4e7; padding: 2rem 1.5rem; text-align: center; font-size: 0.8125rem; color: #a1a1aa; margin-top: 4rem; }
+        .site-footer a { color: #71717a; text-decoration: none; margin: 0 0.75rem; }
+        .site-footer a:hover { color: #0d9488; }
+
+        @media (max-width: 600px) {
+            .header-nav { display: none; }
+            .stats-strip { grid-template-columns: 1fr; }
+            .stat-cell { border-right: none; border-bottom: 1px solid #e4e4e7; }
+            .stat-cell:last-child { border-bottom: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="site-header">
+    <a href="https://vetly.pro/" class="logo-link" aria-label="Vetly inicio">
+        <img src="/logo.webp" alt="Vetly">
+    </a>
+    <nav class="header-nav">
+        <a href="https://vetly.pro/">Inicio</a>
+        <a href="/blog">Blog</a>
+        <a href="https://vetly.pro/#precios">Precios</a>
+    </nav>
+    <a href="/demo" class="header-cta">Agendar demo →</a>
+</header>
+
+<main>
+<div class="container">
+
+    <nav class="breadcrumb" aria-label="Miga de pan">
+        <a href="https://vetly.pro/">Inicio</a>
+        <span>›</span>
+        <a href="/blog">Blog</a>
+        <span>›</span>
+        <strong>Ruta óptima para clínicas veterinarias móviles</strong>
+    </nav>
+
+    <header class="article-header">
+        <div class="article-tag">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#0d9488"/></svg>
+            Logística
+        </div>
+        <h1 class="article-title">Ruta óptima para clínicas veterinarias móviles: cómo reducir kilómetros y ganar horas</h1>
+        <p class="article-subtitle">Una ruta desorganizada no solo gasta combustible — te roba tiempo de consulta, genera atrasos que frustran a los clientes y acumula kilómetros innecesarios en el vehículo. Animalgrace redujo su ruta un 44% sin atender menos pacientes.</p>
+        <div class="article-meta">
+            <span>Sebastián Barrera Olivero, Fundador de Vetly</span>
+            <span class="article-meta-sep">·</span>
+            <span>29 de mayo de 2026</span>
+            <span class="article-meta-sep">·</span>
+            <span>7 min de lectura</span>
+        </div>
+    </header>
+
+    <!-- Hero image -->
+    <figure style="margin: 0 0 2rem; border-radius: 0.875rem; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+        <img src="/ruta-clinica-movil.png" alt="Veterinaria revisando la agenda en tablet dentro del van de su clínica móvil" style="width: 100%; display: block; max-height: 420px; object-fit: cover; object-position: center 25%;">
+    </figure>
+
+    <!-- Resumen extractable — AI SEO -->
+    <div class="definition-box" role="note">
+        <div class="definition-label">En resumen</div>
+        <p class="definition-text">La ruta óptima de una clínica veterinaria móvil se construye agrupando citas por <strong>zona geográfica contigua</strong>, respetando el <strong>tiempo real de desplazamiento</strong> entre domicilios (no distancia en línea recta) y manteniendo un <strong>buffer mínimo</strong> entre citas para absorber imprevistos. Animalgrace Linares pasó de 80 km/día a 45 km/día (−44%) implementando este sistema. El factor más ignorado — y el que más citas arruina — no es el orden de las visitas, sino <strong>confirmar citas sin verificar si la ruta las soporta</strong>.</p>
+    </div>
+
+    <!-- Stats reales -->
+    <div class="stats-strip" aria-label="Resultados Animalgrace">
+        <div class="stat-cell">
+            <span class="stat-value">−44%</span>
+            <div class="stat-label">reducción en kilómetros de ruta diaria</div>
+        </div>
+        <div class="stat-cell">
+            <span class="stat-value">80→45</span>
+            <div class="stat-label">km/día antes y después de optimizar</div>
+        </div>
+        <div class="stat-cell">
+            <span class="stat-value">0</span>
+            <div class="stat-label">citas canceladas por conflicto de ruta en mayo 2026</div>
+        </div>
+    </div>
+
+    <article class="article-body">
+
+        <h2>El problema real no es el GPS — es el agendamiento</h2>
+
+        <p>El GPS dice cómo llegar. El problema es que para cuando el GPS entra en juego, la ruta ya está decidida — y muchas veces está mal decidida desde la noche anterior, cuando alguien confirmó una cita en Talca sin saber que ya había dos citas en Linares a esa misma hora.</p>
+
+        <p>El error de ruta en una clínica veterinaria móvil no ocurre en el vehículo. Ocurre en el momento en que se confirma una cita sin verificar si la secuencia de visitas del día es geográficamente viable.</p>
+
+        <p>Y cuando el agendamiento lo hace un humano respondiendo WhatsApp entre consultas, ese error es casi inevitable.</p>
+
+        <h2>Cómo se ve una ruta mal armada — y cuánto cuesta</h2>
+
+        <p>Este es un ejemplo real del tipo de ruta que generaba Animalgrace antes de optimizar:</p>
+
+        <!-- Ruta mala -->
+        <div class="route-example">
+            <div class="route-header">
+                <span>Lunes — ruta desorganizada</span>
+                <span class="badge bad">80 km estimados</span>
+            </div>
+            <div class="route-stops">
+                <div class="route-stop">
+                    <div class="stop-dot red">1</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Talca centro — Vacuna triple felina</div>
+                        <div class="stop-detail">9:00 · 45 min</div>
+                        <div class="stop-travel">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l4-4M3 12l4 4"/></svg>
+                            55 min en auto hasta próxima cita
+                        </div>
+                    </div>
+                </div>
+                <div class="route-stop">
+                    <div class="stop-dot red">2</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Linares — Consulta general perro</div>
+                        <div class="stop-detail">10:30 · 45 min</div>
+                        <div class="stop-travel">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l4-4M3 12l4 4"/></svg>
+                            50 min de vuelta a Talca
+                        </div>
+                    </div>
+                </div>
+                <div class="route-stop">
+                    <div class="stop-dot red">3</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Talca sur — Desparasitación</div>
+                        <div class="stop-detail">12:30 · 30 min</div>
+                        <div class="stop-travel">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l4-4M3 12l4 4"/></svg>
+                            15 min desplazamiento interno Talca
+                        </div>
+                    </div>
+                </div>
+                <div class="route-stop">
+                    <div class="stop-dot red">4</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Talca norte — Vacuna antirrábica</div>
+                        <div class="stop-detail">13:30 · 30 min</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p>Cuatro citas, dos ciudades a 55 km de distancia, un viaje de ida y vuelta innecesario en el medio del día. El veterinario llega tarde a la segunda cita de Talca, el cliente espera, el estrés acumula. Y la causa fue simplemente que la cita 2 (Linares) se confirmó sin mirar que las citas 1, 3 y 4 ya estaban en Talca.</p>
+
+        <!-- Ruta buena -->
+        <div class="route-example">
+            <div class="route-header">
+                <span>Lunes — ruta optimizada</span>
+                <span class="badge good">45 km estimados</span>
+            </div>
+            <div class="route-stops">
+                <div class="route-stop">
+                    <div class="stop-dot teal">1</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Talca centro — Vacuna triple felina</div>
+                        <div class="stop-detail">9:00 · 45 min</div>
+                        <div class="stop-travel">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l4-4M3 12l4 4"/></svg>
+                            15 min desplazamiento interno Talca
+                        </div>
+                    </div>
+                </div>
+                <div class="route-stop">
+                    <div class="stop-dot teal">2</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Talca sur — Desparasitación</div>
+                        <div class="stop-detail">10:15 · 30 min</div>
+                        <div class="stop-travel">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l4-4M3 12l4 4"/></svg>
+                            15 min desplazamiento interno Talca
+                        </div>
+                    </div>
+                </div>
+                <div class="route-stop">
+                    <div class="stop-dot teal">3</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Talca norte — Vacuna antirrábica</div>
+                        <div class="stop-detail">11:15 · 30 min</div>
+                        <div class="stop-travel">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l4-4M3 12l4 4"/></svg>
+                            55 min hacia Linares al finalizar Talca
+                        </div>
+                    </div>
+                </div>
+                <div class="route-stop">
+                    <div class="stop-dot teal">4</div>
+                    <div class="stop-info">
+                        <div class="stop-name">Linares — Consulta general perro</div>
+                        <div class="stop-detail">13:00 · 45 min</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p>Las mismas cuatro citas. El mismo lunes. Pero reagrupadas por sector, el viaje Talca→Linares ocurre una sola vez, al final de las citas del primer sector. Resultado: 35 km menos, sin apuros, sin clientes esperando.</p>
+
+        <h2>Las 4 reglas de una ruta que funciona</h2>
+
+        <div class="rule-list">
+            <div class="rule-item">
+                <div class="rule-num">1</div>
+                <div class="rule-body">
+                    <h3>Agrupar citas por zona antes de confirmar</h3>
+                    <p>Cada nueva cita debe verificar en qué zona están ya agendadas las citas del mismo día. Si el día está comprometido con el sector A, la nueva cita en el sector B se mueve a otro día — no se intercala en el medio. Este es el principio más simple y el más violado.</p>
+                </div>
+            </div>
+            <div class="rule-item">
+                <div class="rule-num">2</div>
+                <div class="rule-body">
+                    <h3>Calcular el buffer de viaje con distancia real, no estimada</h3>
+                    <p>Decir "calculo 20 minutos entre citas" es un error sistemático. Los 20 minutos valen si las citas están en el mismo barrio. Entre dos comunas distintas pueden ser 45. El buffer debe calcularse con Google Maps para cada par de domicilios, no con una regla fija.</p>
+                </div>
+            </div>
+            <div class="rule-item">
+                <div class="rule-num">3</div>
+                <div class="rule-body">
+                    <h3>Nunca cruzar sectores dos veces en el mismo día</h3>
+                    <p>El patrón A→B→A (Talca→Linares→Talca) duplica el tiempo de traslado inter-sector. Una ruta bien armada hace todos los A primero, luego todos los B. Si la demanda de un día genera ese patrón, hay que mover una de las citas — o rechazarla para el día siguiente.</p>
+                </div>
+            </div>
+            <div class="rule-item">
+                <div class="rule-num">4</div>
+                <div class="rule-body">
+                    <h3>Dejar el sector más lejano para el final del día</h3>
+                    <p>Empezar el día en el sector más cercano y terminar en el más lejano permite ir acercándose progresivamente sin cruzar el territorio. También facilita que la última cita pueda extenderse sin afectar al resto de la agenda.</p>
+                </div>
+            </div>
+        </div>
+
+        <h2>El error que más rutas arruina: confirmar sin verificar</h2>
+
+        <div class="warning-box">
+            <div class="warning-icon">⚠️</div>
+            <p class="warning-text"><strong>El problema más frecuente no es el GPS — es el agendamiento manual.</strong> Cuando un humano responde WhatsApp entre consultas, confirma la cita disponible sin revisar si el orden de visitas del día sigue siendo viable. El resultado es un martes con tres citas en Linares y una en Talca intercalada en el medio.</p>
+        </div>
+
+        <p>Animalgrace vivió esto exactamente. El lunes 26 de mayo de 2026 tenía una ruta que incluía Talca → Linares → Talca — un patrón geográficamente imposible de cumplir en tiempo. La cita en Linares había sido confirmada sin verificar que ya existían dos citas en Talca ese día.</p>
+
+        <p>La solución no fue pedirle al veterinario que preste más atención al confirmar citas. La solución fue que el sistema verificara automáticamente la viabilidad de la ruta antes de confirmar cada nueva reserva.</p>
+
+        <div class="pullquote">
+            <p>"Antes de Vetly, armaba la ruta la noche anterior mirando el mapa. Ahora el sistema no deja agendar algo que no tiene sentido logístico."</p>
+            <cite>— Dra. Claudia Barrera O., fundadora de Animalgrace</cite>
+        </div>
+
+        <h2>Sectores fijos vs. atención por demanda: cuál elegir</h2>
+
+        <p>No existe una única respuesta correcta — depende de la geografía y el volumen de la clínica.</p>
+
+        <h3>Sectores fijos con días asignados</h3>
+        <p>Funciona bien cuando la clínica opera en zonas claramente separadas (como Linares y Talca, a 55 km de distancia). Asignar lunes/miércoles/viernes a un sector y martes/jueves al otro elimina por diseño el patrón A→B→A. Los clientes aprenden que "el móvil viene los lunes por acá" y ajustan sus citas.</p>
+
+        <h3>Agrupamiento diario por demanda</h3>
+        <p>Funciona mejor en ciudades compactas (como Santiago RM) donde no hay sectores tan distantes. El sistema verifica en tiempo real qué zona tiene más citas ese día y agrupa las nuevas reservas cerca. Más flexible, requiere más inteligencia en el sistema de agendamiento.</p>
+
+        <p>Para clínicas que cubren más de 40 km de radio, la combinación óptima es sectores fijos para la planificación semanal + agrupamiento inteligente dentro de cada sector para el orden del día.</p>
+
+        <h2>Cuánto representa en dinero</h2>
+
+        <p>La diferencia entre 80 km/día y 45 km/día es de 35 km. Con 22 días hábiles al mes, son <strong>770 km menos por mes</strong>. A un consumo promedio de 10 L/100 km y un precio de combustible de $1.200 CLP/litro en Chile, eso equivale a <strong>$92.400 CLP de ahorro mensual</strong> solo en combustible — sin contar desgaste de neumáticos, mantenimiento y el valor del tiempo del conductor.</p>
+
+        <p>El tiempo ahorrado es aún más valioso. 35 km menos al día son aproximadamente 45 minutos de manejo menos. En un mes, son más de <strong>16 horas</strong> que el veterinario no pasa al volante — y que puede destinar a atender más pacientes o simplemente a descansar.</p>
+
+    </article>
+
+    <!-- Artículo relacionado -->
+    <div class="related">
+        <div class="related-label">Caso de estudio relacionado</div>
+        <a href="/blog/como-animalgrace-ahorra-84-horas-al-mes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Cómo Animalgrace ahorra más de 84 horas al mes eliminando el WhatsApp manual con IA
+        </a>
+        <div class="related-desc">Datos reales de mayo 2026: ruta optimizada, 66 citas por IA, 0 canceladas.</div>
+    </div>
+
+    <!-- FAQ -->
+    <section class="faq-section">
+        <h2>Preguntas frecuentes</h2>
+
+        <div class="faq-item">
+            <div class="faq-question">¿Cómo se calcula la ruta óptima para una clínica veterinaria móvil?</div>
+            <p class="faq-answer">Considerando cuatro factores: la ubicación geográfica de cada cita, la duración estimada de cada consulta, el tiempo real de desplazamiento entre domicilios (no distancia en línea recta), y un buffer de tiempo entre citas para absorber retrasos. El orden óptimo agrupa citas por zona contigua, no por orden de llegada de las reservas.</p>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">¿Qué es un buffer de viaje y por qué importa?</div>
+            <p class="faq-answer">Es el margen de tiempo reservado entre una cita y la siguiente para cubrir el desplazamiento real. Sin buffer, una cadena de citas en el mismo sector puede parecer viable en el papel pero resultar imposible en la ruta real. El buffer debe calcularse con tiempos reales (Google Maps), no con una regla fija de "20 minutos entre citas".</p>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">¿Es mejor atender por sectores fijos o por demanda?</div>
+            <p class="faq-answer">Depende de la geografía. Para clínicas con zonas distantes (más de 40 km entre sectores), los días fijos por sector reducen el kilometraje total. Para ciudades compactas, el agrupamiento diario por demanda es más flexible. Lo importante en ambos casos es que el sistema de agendamiento verifique la viabilidad de la ruta antes de confirmar cada nueva cita.</p>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">¿Cuánto combustible ahorra optimizar la ruta de una clínica móvil?</div>
+            <p class="faq-answer">Animalgrace redujo su ruta de 80 km a 45 km al día (−44%). Con 22 días hábiles al mes, son 770 km menos. A $1.200 CLP/litro y 10 L/100 km de consumo, el ahorro es de $92.400 CLP mensuales solo en combustible — sin contar desgaste del vehículo ni el valor del tiempo del conductor.</p>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">¿Puede un agente IA verificar la ruta automáticamente al agendar?</div>
+            <p class="faq-answer">Sí. Vetly incluye Goldi, el único agente de optimización de ruta para clínicas veterinarias móviles en LATAM. Calcula el buffer de viaje real con Google Maps, agrupa citas por zona y bloquea combinaciones de sectores que generarían rutas inviables — sin que el veterinario tenga que revisar el mapa cada vez que llega una reserva.</p>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-box">
+        <h2>¿Cuántos kilómetros innecesarios maneja tu clínica cada día?</h2>
+        <p>Agenda una demo y te mostramos cómo Goldi organiza la ruta con el protocolo real de tu zona — en 30 minutos.</p>
+        <a href="/demo" class="cta-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            Agendar mi demo gratuita
+        </a>
+        <div class="cta-sub">Sin tarjeta de crédito · Implementación incluida · 7 días de prueba</div>
+    </div>
+
+    <!-- Author -->
+    <div class="author-bio">
+        <div class="author-avatar">S</div>
+        <div>
+            <div class="author-name">Sebastián Barrera Olivero</div>
+            <div class="author-role">Fundador, Vetly · Ex dueño de Movilvets</div>
+            <p class="author-desc">Construyó Vetly después de vivir en carne propia el caos de gestionar una clínica veterinaria móvil. Antes de escribir una línea de código, fue el cliente ideal del producto.</p>
+        </div>
+    </div>
+
+</div>
+</main>
+
+<footer class="site-footer">
+    <div>
+        <a href="https://vetly.pro/">Inicio</a>
+        <a href="https://vetly.pro/#precios">Precios</a>
+        <a href="/blog">Blog</a>
+        <a href="/demo">Demo</a>
+    </div>
+    <p style="margin-top:1rem;">© 2026 Vetly · Software veterinario con IA para LATAM</p>
+</footer>
+
+</body>
+</html>
