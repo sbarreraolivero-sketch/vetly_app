@@ -10,6 +10,7 @@
     { "src": "/blog/whatsapp-clinica-veterinaria", "dest": "/blog/whatsapp-clinica-veterinaria.html" },
     { "src": "/blog/ruta-clinica-veterinaria-movil", "dest": "/blog/ruta-clinica-veterinaria-movil.html" },
     { "src": "/blog/recordatorios-citas-veterinarias", "dest": "/blog/recordatorios-citas-veterinarias.html" },
+    { "src": "/blog/gestionar-dos-clinicas-veterinarias", "dest": "/blog/gestionar-dos-clinicas-veterinarias.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
