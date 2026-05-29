@@ -166,22 +166,24 @@ export default function Dashboard() {
                         .eq('clinic_id', profile.clinic_id)
                         .order('created_at', { ascending: false })
                         .limit(3),
-                    // 5. Month appointments (for service ranking)
+                    // 5. Appointments in period (for service ranking)
                     (supabase as any)
                         .from('appointments')
                         .select('service')
-                        .gte('appointment_date', startOfMonth)
+                        .gte('appointment_date', startOfStats)
+                        .lte('appointment_date', endOfStats)
                         .eq('clinic_id', profile.clinic_id)
-                        .limit(500),
-                    // 6. Inbound messages this month (for conversion rate)
+                        .limit(1000),
+                    // 6. Inbound messages in period (for conversion rate)
                     (supabase as any)
                         .from('messages')
                         .select('phone_number')
                         .eq('direction', 'inbound')
-                        .gte('created_at', startOfMonth)
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id)
                         .limit(1000),
-                    // 7. Satisfaction surveys
+                    // 7. Satisfaction surveys (always month — métrica lenta)
                     (supabase as any)
                         .from('satisfaction_surveys')
                         .select('id, status, rating, created_at')
@@ -203,13 +205,13 @@ export default function Dashboard() {
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
-                    // 10. Cancelled Appointments (Tracked by update time)
+                    // 10. Cancelled Appointments (by created_at — no updated_at column)
                     supabase
                         .from('appointments')
                         .select('*', { count: 'exact', head: true })
                         .eq('status', 'cancelled')
-                        .gte('updated_at', startOfStats)
-                        .lte('updated_at', endOfStats)
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
                     // 11. AI Messages (Outbound from clinic)
                     supabase
@@ -230,7 +232,7 @@ export default function Dashboard() {
                     supabase.from('reminder_logs').select('*', { count: 'exact', head: true })
                         .eq('status', 'sent').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('appointments').select('*', { count: 'exact', head: true })
-                        .eq('status', 'cancelled').gte('updated_at', startOfPrev).lte('updated_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                        .eq('status', 'cancelled').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                 ])
 
                 // Process results
@@ -349,9 +351,9 @@ export default function Dashboard() {
     const minutosAhorrados = minutosAhorradosTotal % 60;
     const tiempoAhorradoStr = horasAhorradas > 0 ? `${horasAhorradas}h ${minutosAhorrados}m` : `${minutosAhorrados}m`;
 
-    // Percentage calculation helper
-    const calculatePercentage = (current: number, previous: number) => {
-        if (previous === 0) return current > 0 ? 100 : 0
+    // Percentage calculation helper — null significa "sin datos comparables"
+    const calculatePercentage = (current: number, previous: number): number | null => {
+        if (previous === 0) return current > 0 ? null : 0
         return Math.round(((current - previous) / previous) * 100)
     }
 
@@ -406,16 +408,20 @@ export default function Dashboard() {
         }
     ]
 
-    const ChangeBadge = ({ change }: { change: number }) => {
+    const ChangeBadge = ({ change }: { change: number | null }) => {
+        if (change === null) return (
+            <div className="flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-silk-beige/50 text-charcoal/30">
+                –
+            </div>
+        )
         const isPositive = change > 0
         const isNeutral = change === 0
-        
         return (
             <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${
                 isNeutral ? 'bg-silk-beige/50 text-charcoal/40' :
                 isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
             }`}>
-                {isNeutral ? null : 
+                {isNeutral ? null :
                  isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {Math.abs(change)}%
             </div>
@@ -582,7 +588,9 @@ export default function Dashboard() {
                     <div className="bg-gradient-to-br from-amber-500 to-amber-700 p-5 text-white">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">Este mes</p>
+                                <p className="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">
+                                    {{ day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año' }[timeRange]}
+                                </p>
                                 <h3 className="text-lg font-extrabold tracking-tight text-white">Top Servicios</h3>
                             </div>
                             <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
@@ -592,7 +600,7 @@ export default function Dashboard() {
                     </div>
                     <div className="p-5 space-y-3.5">
                         {servicesRanking.length === 0 ? (
-                            <p className="text-charcoal/40 text-center py-6 text-sm">Sin datos este mes.</p>
+                            <p className="text-charcoal/40 text-center py-6 text-sm">Sin datos en el período.</p>
                         ) : (
                             servicesRanking.map((service, index) => (
                                 <div key={service.name} className="flex items-center gap-3">
@@ -631,7 +639,9 @@ export default function Dashboard() {
                         </div>
                     </div>
                     <div className="p-5">
-                        <p className="text-xs text-charcoal/40 text-center mb-4">contactos que agendaron cita este mes</p>
+                        <p className="text-xs text-charcoal/40 text-center mb-4">
+                            contactos que agendaron cita {{ day: 'hoy', week: 'esta semana', month: 'este mes', year: 'este año' }[timeRange]}
+                        </p>
                         <div className="grid grid-cols-3 gap-3 pt-4 border-t border-silk-beige/50">
                             <div className="text-center">
                                 <p className="text-base font-bold text-charcoal">{conversionStats.consultations}</p>
