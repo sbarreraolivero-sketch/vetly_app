@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { differenceInMonths, differenceInYears, parseISO } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { format } from 'date-fns'
 
 interface PortalData {
     tutor: {
@@ -41,10 +38,11 @@ interface PortalData {
 
 function petAge(dob: string | null): string {
     if (!dob) return ''
-    const birth = parseISO(dob)
-    const months = differenceInMonths(new Date(), birth)
+    const birth = new Date(dob)
+    const now = new Date()
+    const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth())
     if (months < 12) return `${months} mes${months !== 1 ? 'es' : ''}`
-    const years = differenceInYears(new Date(), birth)
+    const years = Math.floor(months / 12)
     return `${years} año${years !== 1 ? 's' : ''}`
 }
 
@@ -69,55 +67,68 @@ function statusColor(status: string) {
 
 function statusLabel(status: string) {
     const map: Record<string, string> = {
-        completed: 'Completada',
-        confirmed: 'Confirmada',
-        pending: 'Pendiente',
-        cancelled: 'Cancelada',
-        no_show: 'No se presentó',
+        completed: 'Completada', confirmed: 'Confirmada',
+        pending: 'Pendiente', cancelled: 'Cancelada', no_show: 'No asistió',
     }
     return map[status] || status
 }
 
-function VaccineAlert({ date }: { date: string | null }) {
-    if (!date) return <span className="text-xs text-charcoal/40">Sin registro</span>
-    const d = parseISO(date)
+function formatDate(dateStr: string | null): string {
+    if (!dateStr) return 'Sin registro'
+    const d = new Date(dateStr)
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`
+}
+
+function vaccineColor(dateStr: string | null): string {
+    if (!dateStr) return 'text-charcoal/40'
+    const d = new Date(dateStr)
     const daysLeft = Math.ceil((d.getTime() - Date.now()) / 86400000)
-    const color = daysLeft < 0
-        ? 'text-red-600 font-bold'
-        : daysLeft <= 30 ? 'text-amber-600 font-semibold' : 'text-emerald-600'
-    const label = daysLeft < 0
-        ? `Vencida (${format(d, 'd MMM yyyy', { locale: es })})`
-        : format(d, 'd MMM yyyy', { locale: es })
-    return <span className={`text-xs ${color}`}>{label}</span>
+    if (daysLeft < 0) return 'text-red-600 font-bold'
+    if (daysLeft <= 30) return 'text-amber-600 font-semibold'
+    return 'text-emerald-600'
 }
 
 export default function PetOwnerPortal() {
     const { code } = useParams<{ code: string }>()
     const [data, setData] = useState<PortalData | null>(null)
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
 
     useEffect(() => {
-        if (!code) { setLoading(false); return }
-        ;(supabase as any).rpc('get_pet_owner_portal', { p_code: code.toUpperCase() })
-            .then(({ data: res }: any) => {
-                setData(res ?? null)
+        if (!code) {
+            setLoading(false)
+            return
+        }
+        const upper = code.toUpperCase()
+        ;(supabase as any).rpc('get_pet_owner_portal', { p_code: upper })
+            .then(({ data: res, error: rpcError }: any) => {
+                if (rpcError) {
+                    console.error('[Portal] RPC error:', rpcError)
+                    setError(rpcError.message)
+                } else {
+                    setData(res ?? null)
+                }
+                setLoading(false)
+            })
+            .catch((e: any) => {
+                console.error('[Portal] Catch:', e)
+                setError(e?.message || 'Error desconocido')
                 setLoading(false)
             })
     }, [code])
 
     const handleCopyCode = () => {
         if (!data) return
-        const link = `${window.location.origin}/r/${data.tutor.referral_code}`
-        navigator.clipboard.writeText(link)
+        navigator.clipboard.writeText(`${window.location.origin}/r/${data.tutor.referral_code}`)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
 
     const handleWhatsApp = () => {
         if (!data?.clinic?.phone) return
-        const phone = data.clinic.phone.replace(/\D/g, '')
-        window.open(`https://wa.me/${phone}`, '_blank')
+        window.open(`https://wa.me/${data.clinic.phone.replace(/\D/g, '')}`, '_blank')
     }
 
     if (loading) return (
@@ -131,6 +142,7 @@ export default function PetOwnerPortal() {
             <span className="text-5xl">🐾</span>
             <p className="text-xl font-black text-charcoal">Portal no encontrado</p>
             <p className="text-sm text-charcoal/50">El enlace puede haber expirado o ser incorrecto.</p>
+            {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
         </div>
     )
 
@@ -170,10 +182,10 @@ export default function PetOwnerPortal() {
                                 onClick={handleCopyCode}
                                 className="w-full flex items-center justify-between bg-primary-50 rounded-xl px-4 py-2.5 active:scale-95 transition-transform"
                             >
-                                <span className="font-mono text-sm font-bold text-primary-700">
+                                <span className="font-mono text-sm font-bold text-primary-700 truncate">
                                     vetly.pro/r/{tutor.referral_code}
                                 </span>
-                                <span className="text-xs font-black text-primary-500">
+                                <span className="text-xs font-black text-primary-500 ml-2 flex-shrink-0">
                                     {copied ? '¡Copiado! ✓' : 'Copiar'}
                                 </span>
                             </button>
@@ -214,11 +226,15 @@ export default function PetOwnerPortal() {
                                 <div className="grid grid-cols-2 divide-x divide-silk-beige border-t border-silk-beige">
                                     <div className="px-4 py-3">
                                         <p className="text-xs font-black uppercase tracking-wide text-charcoal/30 mb-0.5">Próx. Vacuna</p>
-                                        <VaccineAlert date={pet.next_vaccine} />
+                                        <p className={`text-xs ${vaccineColor(pet.next_vaccine)}`}>
+                                            {formatDate(pet.next_vaccine)}
+                                        </p>
                                     </div>
                                     <div className="px-4 py-3">
                                         <p className="text-xs font-black uppercase tracking-wide text-charcoal/30 mb-0.5">Próx. Desparasitación</p>
-                                        <VaccineAlert date={pet.next_deworming} />
+                                        <p className={`text-xs ${vaccineColor(pet.next_deworming)}`}>
+                                            {formatDate(pet.next_deworming)}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -235,21 +251,18 @@ export default function PetOwnerPortal() {
                         <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-silk-beige">
                             {appointments.map((appt, i) => {
                                 const d = new Date(appt.appointment_date)
+                                const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
                                 return (
                                     <div key={i} className="flex items-center gap-3 px-4 py-3">
                                         <div className="w-10 h-10 rounded-xl bg-primary-50 flex flex-col items-center justify-center flex-shrink-0">
-                                            <span className="text-xs font-black text-primary-600 leading-none">
-                                                {d.getDate()}
-                                            </span>
-                                            <span className="text-[10px] text-primary-400 uppercase leading-none">
-                                                {d.toLocaleString('es-CL', { month: 'short' })}
-                                            </span>
+                                            <span className="text-xs font-black text-primary-600 leading-none">{d.getDate()}</span>
+                                            <span className="text-[10px] text-primary-400 uppercase leading-none">{months[d.getMonth()]}</span>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-bold text-charcoal truncate">{appt.service}</p>
                                             <p className="text-xs text-charcoal/40">{appt.patient_name}</p>
                                         </div>
-                                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${statusColor(appt.status)}`}>
+                                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full flex-shrink-0 ${statusColor(appt.status)}`}>
                                             {statusLabel(appt.status)}
                                         </span>
                                     </div>
