@@ -397,6 +397,13 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - CTA "¿Tu clínica también necesita descansar?" → "¿Y tú, también necesitas descansar el domingo?"
 - Meta description y todos los títulos corregidos de 50h a 84h
 
+**ART-01 — WhatsApp clínica veterinaria** → publicado en producción:
+- URL: `vetly.pro/blog/whatsapp-clinica-veterinaria`
+- Estructura: resumen extractable (AI SEO), 3 niveles de gestión con cards visuales (personal/Business/IA), tabla comparativa 8 criterios, pullquote Claudia, 5 FAQs con schema, CTA, author bio
+- Schema: `Article` + `FAQPage` + `BreadcrumbList`
+- Ángulo editorial: los 3 niveles — no vende directamente, educa y lleva al lector a concluir que necesita el nivel 3
+- Related → ART-02
+
 **ART-02 — Recepcionista virtual veterinaria** → publicado en producción:
 - URL: `vetly.pro/blog/recepcionista-virtual-veterinaria`
 - Estructura: definición extractable (AI SEO), tabla comparativa humana vs. IA, pasos de implementación, 5 FAQs, artículo relacionado, CTA
@@ -408,8 +415,16 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - 2 artículos publicados + 2 próximamente (ART-01 y ART-06)
 - Se actualiza manualmente al publicar cada nuevo artículo
 
+### Completado sesión 2026-05-29 (continuación)
+
+**Pendientes menores cerrados:**
+- Enlace "Blog" agregado en navbar de `landing.html` (desktop y mobile) — commit `ab9bac8`
+- Imagen OG verificada — se ve bien, no requiere ajuste
+
+**ART-01 — WhatsApp para clínicas veterinarias** → publicado:
+- URL: `vetly.pro/blog/whatsapp-clinica-veterinaria`
+- Blog index actualizado (3 artículos publicados), "Próximamente" actualizado con ART-06 y 2 nuevas ideas
+
 ### Pendiente próxima sesión
-- **ART-01** — "WhatsApp clínica veterinaria" ← PRÓXIMO
-- **ART-06** — "Ruta clínica veterinaria móvil"
-- Agregar enlace "Blog" en el header de `landing.html` (actualmente solo aparece dentro de las páginas del blog)
-- Verificar imagen OG (ajustar en Canva si el ícono del logo no coincide con el logo real)
+- **ART-06** — "Ruta óptima clínica veterinaria móvil" ← PRÓXIMO
+- Hoja de ruta: ~~ART-13~~ ✅ ~~ART-02~~ ✅ ~~ART-01~~ ✅ → ART-06 → outreach comunidades
