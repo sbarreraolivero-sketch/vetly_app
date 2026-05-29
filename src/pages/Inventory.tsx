@@ -257,11 +257,11 @@ const Inventory = () => {
         <div className="space-y-6 animate-fade-in">
 
             {/* Banner */}
-            <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl p-6 text-white">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
+                <div className="p-6 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Clínica</p>
-                        <h1 className="text-2xl font-extrabold tracking-tight">Inventario</h1>
+                        <h1 className="text-2xl font-extrabold tracking-tight text-white">Inventario</h1>
                         <p className="text-sm text-primary-200 mt-1">Gestión de productos, stock y movimientos</p>
                     </div>
                     <div className="flex items-center gap-6 text-center">
