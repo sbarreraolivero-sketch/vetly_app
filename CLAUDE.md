@@ -1870,3 +1870,134 @@ useEffect(() => {
 ```
 
 **Resultado:** cada cambio de filtro muestra el spinner de inmediato y solo el fetch más reciente actualiza el estado. Sin retroactividad, sin flickering.
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 29, 2026-05-29)
+
+### Filtro de calendario en Finance — paridad con Dashboard
+
+`Finance.tsx` ahora tiene el mismo selector de período que Dashboard: botones `Hoy / Sem. / Mes / Año` + botón **Rango** con mini calendario desplegable. El componente `MiniCalendar` es idéntico (construido con `date-fns`, sin dependencias nuevas). El export CSV/JSON usa el label del rango custom cuando está activo.
+
+**Patrón:** el mismo `MiniCalendar` inline de Dashboard se copió a Finance. Si se necesita en más páginas, considerar extraerlo a `src/components/ui/MiniCalendar.tsx`.
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 30, 2026-05-29)
+
+### Sistema de Inventario — implementación completa (4 fases)
+
+#### DB — 3 tablas nuevas (migración `inventory_system`)
+
+| Tabla | Propósito |
+|---|---|
+| `inventory_products` | Catálogo: nombre, SKU, categoría, unidad, precio compra/venta, stock, alerta mínimo, lote, vencimiento |
+| `inventory_movements` | Log de movimientos (purchase/sale/adjustment/waste/return). Trigger `tr_update_stock_on_movement` actualiza stock automáticamente al insertar |
+| `appointment_items` | Líneas de detalle por cita (service/product). `subtotal = quantity × unit_price`, calculado en app |
+
+**RLS:** todas via `clinic_members` (soporte multi-sucursal).
+
+**RPCs:**
+- `get_inventory_abc(clinic_id, days)` — clasificación ABC por ingresos generados en el período
+- `get_inventory_no_rotation(clinic_id, days)` — productos con stock > 0 sin ventas en N días
+- `get_finance_item_metrics(clinic_id, start, end)` — métricas de ítems para Finance: by_type, top_services, top_products, appt_metrics
+- `get_appointment_items(appointment_id)` — ítems de una cita específica
+
+#### Módulo Inventario (`src/pages/Inventory.tsx`)
+
+**3 tabs:**
+1. **Catálogo**: tabla con CRUD, badges de estado (Sin stock / Bajo stock / Vence pronto / OK), botones de editar/archivar/ajustar stock
+2. **Movimientos**: log filtrable por tipo (200 filas), muestra nombre del producto
+3. **Análisis**: clasificación ABC (A=80% ingresos, B=15%, C=5%), tabla de productos sin rotación con selector de días (15/30/60/90d)
+
+**Modal de ajuste de stock (bidireccional):**
+- Toggle **Ingreso (+)** / **Baja (−)**
+- En Ingreso: campo de costo por unidad, preview verde
+- En Baja: selector de motivo (Merma/Vencimiento · Ajuste · Devolución a proveedor), preview rojo con alerta si quedaría negativo o bajo mínimo
+- Colores y texto del botón adaptativos
+
+**Categorías de productos (13):** `medication`, `vaccine`, `antiparasitic`, `anesthetic`, `antibiotic`, `anti_inflammatory`, `vitamin`, `disinfectant`, `surgical`, `food`, `accessory`, `supply`, `other`. Tanto en CHECK constraint de DB como en frontend.
+
+**Inversión vs valor de venta:** el banner muestra **"Inversión"** = `stock_quantity × purchase_price` (costo real invertido, no precio de venta).
+
+**Fix inputs numéricos:** todos los campos numéricos del modal de producto usan `value={n || ''}` con `placeholder` — evita el cero inicial al escribir.
+
+#### Modal de cierre de visita (`src/components/appointments/VisitClosureModal.tsx`)
+
+Se activa cuando el usuario marca una cita como "Completada" (reemplaza el `alert()`). El trigger `tr_auto_create_contacts_on_complete` ya habrá creado el tutor antes de que el modal aparezca.
+
+**Contenido:**
+- Lista de ítems pre-cargada con el servicio de la cita
+- Buscador de productos del inventario — agrega con `+1` si ya está en la lista
+- Cada ítem: cantidad editable, precio editable, subtotal calculado, botón eliminar
+- Campo de **descuento**: toggle `{currency}` / `%`, monto calculado en tiempo real
+- Resumen: Subtotal → Descuento → **Total a cobrar**
+- Selector de método de pago (Efectivo / Transferencia / Tarjeta / Débito)
+- Toggle Cobrado / Pendiente
+- Moneda leída de `clinic_settings.currency` al abrir
+
+**Al guardar** (`inventoryService.closeVisit()`):
+1. UPDATE `appointments` con `status='completed'`, `price=finalTotal`, `discount`, `payment_method`, `payment_status`
+2. INSERT en `appointment_items` (un registro por ítem)
+3. INSERT en `inventory_movements` tipo `sale` con `quantity=-n` para cada producto — el trigger descuenta stock automáticamente
+
+#### Finance profesional
+
+**Tab "Análisis"** (nuevo):
+- Cards: ticket promedio, citas con productos vendidos (% del total), ingresos por tipo (Servicios/Productos)
+- Top 10 servicios del período
+- Top 10 productos del período
+
+**Tab "Transacciones"** mejorado:
+- Click en el nombre del servicio expande la fila mostrando `appointment_items` (desglose de ítems con badges Serv./Prod.)
+- Botón **"Comprobante"** por cada transacción
+- Las citas anteriores al sistema de inventario muestran "Sin desglose de ítems"
+
+**Comprobante de visita** (`src/components/finance/VisitReceipt.tsx`):
+- Modal con preview del recibo (clínica, paciente, tutor, fecha, tabla de ítems, total, método de pago, estado)
+- **Imprimir / PDF**: abre ventana del navegador con HTML estilizado listo para "Guardar como PDF"
+- **Enviar por WhatsApp**: edge function `send-visit-receipt` (deployada, `verify_jwt: false`) envía mensaje de texto formateado al tutor vía YCloud
+
+#### Descuento en formulario de ingreso manual (`NewIncomeForm.tsx`)
+
+Mismo campo de descuento que el modal de cierre de visita: toggle monto fijo / %, resumen Subtotal → Descuento → Total a registrar. El descuento se guarda en `incomes.discount` (columna `NUMERIC DEFAULT 0`).
+
+El monto al agregar servicios del catálogo se calcula automáticamente (readonly); si no hay servicios, el campo es editable. La moneda se lee de `clinic_settings.currency`.
+
+#### Historial financiero por tutor (`TutorDetails.tsx` — tab "Historial Financiero")
+
+El tab ya existía pero solo mostraba el nombre del servicio. Ahora:
+- Consulta citas por `tutor_id` directamente (antes hacía N+1 via `patient_id`)
+- Fallback a `patient_id` para citas históricas sin `tutor_id`
+- Carga `appointment_items` en una sola query para todas las citas del período
+- Muestra desglose real: badges Serv./Prod. + cantidad + subtotal por ítem
+- Muestra descuento aplicado si lo hubo
+- Método de pago en el subtítulo
+- Badges "Visita" / "Ingreso" según tipo de transacción
+
+#### Archivos clave del sistema de inventario
+
+| Archivo | Rol |
+|---|---|
+| `src/pages/Inventory.tsx` | Página completa (catálogo, movimientos, análisis) |
+| `src/services/inventoryService.ts` | CRUD productos, movimientos, closeVisit, analytics |
+| `src/components/appointments/VisitClosureModal.tsx` | Modal cierre de visita con descuento |
+| `src/components/finance/VisitReceipt.tsx` | Preview + imprimir + envío WA |
+| `src/components/finance/NewIncomeForm.tsx` | Formulario ingreso manual con descuento |
+| `src/components/patients/TutorDetails.tsx` | Tab "Historial Financiero" mejorado |
+| `supabase/functions/send-visit-receipt/index.ts` | Edge function comprobante WA |
+| `supabase/migrations/20260529000001_inventory_system.sql` | Tablas + triggers + RPCs |
+
+#### Reglas permanentes — inventario
+
+- **Trigger de stock**: `tr_update_stock_on_movement` es el único mecanismo que actualiza `stock_quantity`. Nunca hacer UPDATE directo de ese campo.
+- **Precio en appointments**: `appointments.price` = precio **después del descuento**. `appointments.discount` = monto descontado. Precio bruto = `price + discount`.
+- **Inversión del stock**: `totalValue` usa `purchase_price`, no `sale_price`. Refleja dinero invertido.
+- **Moneda dinámica**: `VisitClosureModal` y `NewIncomeForm` leen `clinic_settings.currency` al montar. No hardcodear moneda en estos componentes.
+- **Inputs numéricos**: usar `value={n || ''}` con `placeholder` para evitar cero inicial visible. Al parsear: `Number(e.target.value) || 0`.
+- **`appointment_items` vs `appointments.service`**: las citas cerradas desde el modal tienen desglose en `appointment_items`. Las citas históricas solo tienen `appointments.service` y `appointments.price`. Siempre hacer fallback al campo legacy si no hay ítems.
+
+#### Permisos
+- `inventory` agregado a `PageKey` en `src/lib/permissions.ts`
+- Acceso por defecto: `owner` y `admin` = true; todos los demás roles = false
+- Ruta: `/app/inventory` (lazy-loaded en App.tsx, con SubscriptionGuard + RoleGuard owner/admin)
