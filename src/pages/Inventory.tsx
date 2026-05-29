@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     Package, Plus, Search,
-    BarChart2, ArrowDownCircle, RefreshCw,
+    BarChart2, ArrowDownCircle, ArrowUpCircle, RefreshCw,
     Edit2, Archive, X, Boxes,
     FlaskConical, Syringe, Apple, Tag,
     Wrench, Clock, CheckCircle2,
@@ -105,6 +105,8 @@ const Inventory = () => {
     const [restockQty, setRestockQty] = useState(1)
     const [restockCost, setRestockCost] = useState(0)
     const [restockNotes, setRestockNotes] = useState('')
+    const [restockDirection, setRestockDirection] = useState<'in' | 'out'>('in')
+    const [restockOutType, setRestockOutType] = useState<'waste' | 'adjustment' | 'return'>('waste')
     const [saving, setSaving] = useState(false)
 
     // ── Load data ──────────────────────────────────────────────────────
@@ -195,6 +197,8 @@ const Inventory = () => {
         setRestockQty(1)
         setRestockCost(p.purchase_price)
         setRestockNotes('')
+        setRestockDirection('in')
+        setRestockOutType('waste')
         setShowRestockModal(true)
     }
 
@@ -220,26 +224,32 @@ const Inventory = () => {
 
     const handleRestock = async () => {
         if (!restockProduct || restockQty <= 0) return
+        const isOut = restockDirection === 'out'
+        const finalQty = isOut ? -restockQty : restockQty
+        const movType = isOut ? restockOutType : 'purchase'
         setSaving(true)
         try {
             await inventoryService.addMovement({
                 clinic_id: clinicId!,
                 product_id: restockProduct.id,
-                type: 'purchase',
-                quantity: restockQty,
-                unit_cost: restockCost,
+                type: movType,
+                quantity: finalQty,
+                unit_cost: isOut ? null : restockCost,
                 unit_price: null,
                 appointment_id: null,
                 tutor_id: null,
                 notes: restockNotes || null,
                 created_by: null,
             })
-            toast.success(`+${restockQty} ${UNIT_LABELS[restockProduct.unit]}(s) registrados`)
+            const label = isOut
+                ? `−${restockQty} ${UNIT_LABELS[restockProduct.unit]}(s) descontados`
+                : `+${restockQty} ${UNIT_LABELS[restockProduct.unit]}(s) registrados`
+            toast.success(label)
             setShowRestockModal(false)
             await loadProducts()
             if (activeTab === 'movements') await loadMovements()
         } catch (e: any) {
-            toast.error(e.message ?? 'Error al registrar ingreso')
+            toast.error(e.message ?? 'Error al registrar movimiento')
         } finally {
             setSaving(false)
         }
@@ -304,7 +314,7 @@ const Inventory = () => {
                         <div className="w-px h-8 bg-white/20" />
                         <div>
                             <p className="text-lg font-extrabold">{formatCLP(stats.totalValue)}</p>
-                            <p className="text-xs text-primary-200">Valor stock</p>
+                            <p className="text-xs text-primary-200">Inversión</p>
                         </div>
                     </div>
                 </div>
@@ -817,55 +827,135 @@ const Inventory = () => {
             )}
 
             {/* ── MODAL: Restock ── */}
-            {showRestockModal && restockProduct && (
+            {showRestockModal && restockProduct && (() => {
+                const isOut = restockDirection === 'out'
+                const stockAfter = restockProduct.stock_quantity + (isOut ? -restockQty : restockQty)
+                const belowZero = stockAfter < 0
+                const belowMin = stockAfter >= 0 && stockAfter <= restockProduct.min_stock_alert
+                return (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
                         <div className="flex items-center justify-between p-5 border-b border-silk-beige">
-                            <h2 className="font-bold text-charcoal text-lg">Ingreso de stock</h2>
+                            <h2 className="font-bold text-charcoal text-lg">Ajuste de stock</h2>
                             <button onClick={() => setShowRestockModal(false)} className="p-1.5 hover:bg-silk-beige rounded-lg">
                                 <X className="w-5 h-5 text-charcoal/60" />
                             </button>
                         </div>
                         <div className="p-5 space-y-4">
-                            <div className="bg-primary-50 rounded-xl p-3">
-                                <p className="font-semibold text-primary-700">{restockProduct.name}</p>
-                                <p className="text-sm text-primary-500">Stock actual: {restockProduct.stock_quantity} {UNIT_LABELS[restockProduct.unit]}(s)</p>
+                            {/* Producto */}
+                            <div className={cn("rounded-xl p-3", isOut ? "bg-red-50" : "bg-primary-50")}>
+                                <p className={cn("font-semibold", isOut ? "text-red-700" : "text-primary-700")}>{restockProduct.name}</p>
+                                <p className={cn("text-sm", isOut ? "text-red-500" : "text-primary-500")}>
+                                    Stock actual: <strong>{restockProduct.stock_quantity}</strong> {UNIT_LABELS[restockProduct.unit]}(s)
+                                </p>
                             </div>
+
+                            {/* Toggle ingreso / baja */}
                             <div>
-                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Cantidad a ingresar</label>
+                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider mb-2 block">Tipo de movimiento</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => setRestockDirection('in')}
+                                        className={cn(
+                                            "flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all",
+                                            !isOut
+                                                ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                                : "border-silk-beige text-charcoal/50 hover:border-charcoal/20"
+                                        )}
+                                    >
+                                        <ArrowDownCircle className="w-4 h-4" /> Ingreso (+)
+                                    </button>
+                                    <button
+                                        onClick={() => setRestockDirection('out')}
+                                        className={cn(
+                                            "flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all",
+                                            isOut
+                                                ? "border-red-400 bg-red-50 text-red-700"
+                                                : "border-silk-beige text-charcoal/50 hover:border-charcoal/20"
+                                        )}
+                                    >
+                                        <ArrowUpCircle className="w-4 h-4" /> Baja (−)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Sub-tipo de baja */}
+                            {isOut && (
+                                <div>
+                                    <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Motivo de baja</label>
+                                    <select
+                                        className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                                        value={restockOutType}
+                                        onChange={e => setRestockOutType(e.target.value as any)}
+                                    >
+                                        <option value="waste">Merma / Vencimiento</option>
+                                        <option value="adjustment">Ajuste de inventario</option>
+                                        <option value="return">Devolución a proveedor</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Cantidad */}
+                            <div>
+                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">
+                                    {isOut ? 'Cantidad a descontar' : 'Cantidad a ingresar'}
+                                </label>
                                 <input
                                     type="number" min="1"
-                                    className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                                    className={cn(
+                                        "mt-1 w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2",
+                                        isOut
+                                            ? "border-red-200 focus:ring-red-300"
+                                            : "border-silk-beige focus:ring-primary-300"
+                                    )}
                                     value={restockQty || ''}
                                     placeholder="1"
                                     onChange={e => setRestockQty(Number(e.target.value) || 1)}
                                 />
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Costo por unidad</label>
-                                <input
-                                    type="number" min="0"
-                                    className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                    value={restockCost || ''}
-                                    placeholder="0"
-                                    onChange={e => setRestockCost(Number(e.target.value) || 0)}
-                                />
-                            </div>
+
+                            {/* Costo (solo en ingreso) */}
+                            {!isOut && (
+                                <div>
+                                    <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Costo por unidad</label>
+                                    <input
+                                        type="number" min="0"
+                                        className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                                        value={restockCost || ''}
+                                        placeholder="0"
+                                        onChange={e => setRestockCost(Number(e.target.value) || 0)}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Notas */}
                             <div>
                                 <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Notas</label>
                                 <input
                                     className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
                                     value={restockNotes}
                                     onChange={e => setRestockNotes(e.target.value)}
-                                    placeholder="Proveedor, factura, etc."
+                                    placeholder={isOut ? "Motivo, lote afectado, etc." : "Proveedor, factura, etc."}
                                 />
                             </div>
-                            <div className="bg-emerald-50 rounded-xl p-3 text-sm">
-                                <p className="text-emerald-700">
-                                    Stock después del ingreso: <strong>{restockProduct.stock_quantity + restockQty} {UNIT_LABELS[restockProduct.unit]}(s)</strong>
+
+                            {/* Preview */}
+                            <div className={cn(
+                                "rounded-xl p-3 text-sm",
+                                belowZero ? "bg-red-100" : belowMin ? "bg-amber-50" : isOut ? "bg-red-50" : "bg-emerald-50"
+                            )}>
+                                <p className={cn(
+                                    "font-medium",
+                                    belowZero ? "text-red-700" : belowMin ? "text-amber-700" : isOut ? "text-red-700" : "text-emerald-700"
+                                )}>
+                                    Stock después del movimiento:{' '}
+                                    <strong>{stockAfter} {UNIT_LABELS[restockProduct.unit]}(s)</strong>
+                                    {belowZero && ' ⚠ Stock quedaría negativo'}
+                                    {belowMin && !belowZero && ' ⚠ Por debajo del mínimo'}
                                 </p>
                             </div>
                         </div>
+
                         <div className="flex justify-end gap-3 p-5 border-t border-silk-beige">
                             <button onClick={() => setShowRestockModal(false)} className="px-4 py-2 text-sm font-semibold text-charcoal/60 hover:text-charcoal border border-silk-beige rounded-xl">
                                 Cancelar
@@ -873,15 +963,19 @@ const Inventory = () => {
                             <button
                                 onClick={handleRestock}
                                 disabled={saving || restockQty <= 0}
-                                className="px-5 py-2 text-sm font-semibold bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 disabled:opacity-50 flex items-center gap-2"
+                                className={cn(
+                                    "px-5 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center gap-2",
+                                    isOut ? "bg-red-500 hover:bg-red-600" : "bg-emerald-500 hover:bg-emerald-600"
+                                )}
                             >
-                                <ArrowDownCircle className="w-4 h-4" />
-                                {saving ? 'Registrando...' : `Registrar +${restockQty}`}
+                                {isOut ? <ArrowUpCircle className="w-4 h-4" /> : <ArrowDownCircle className="w-4 h-4" />}
+                                {saving ? 'Registrando...' : isOut ? `Descontar −${restockQty}` : `Registrar +${restockQty}`}
                             </button>
                         </div>
                     </div>
                 </div>
-            )}
+                )
+            })()}
         </div>
     )
 }

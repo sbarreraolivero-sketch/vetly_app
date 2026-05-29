@@ -251,7 +251,7 @@ export const inventoryService = {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
             .from('inventory_products')
-            .select('id, stock_quantity, min_stock_alert, sale_price, expiry_date, is_active')
+            .select('id, stock_quantity, min_stock_alert, purchase_price, expiry_date, is_active')
             .eq('clinic_id', clinicId)
         if (error) throw error
         const products: any[] = data ?? []
@@ -266,7 +266,8 @@ export const inventoryService = {
                 const exp = new Date(p.expiry_date)
                 return exp >= today && exp <= in30
             }).length,
-            totalValue: active.reduce((sum: number, p: any) => sum + (p.stock_quantity * p.sale_price), 0),
+            // Inversión real = costo de compra × unidades disponibles
+            totalValue: active.reduce((sum: number, p: any) => sum + (p.stock_quantity * p.purchase_price), 0),
         }
     },
 }
