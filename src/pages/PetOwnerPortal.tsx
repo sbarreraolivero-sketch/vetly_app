@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+// Cliente sin sesión para páginas públicas — evita conflicto de Web Locks con el dashboard
+const publicClient = createClient(
+    import.meta.env.VITE_SUPABASE_URL || '',
+    import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+)
 
 interface PortalData {
     tutor: {
@@ -102,7 +109,7 @@ export default function PetOwnerPortal() {
             return
         }
         const upper = code.toUpperCase()
-        ;(supabase as any).rpc('get_pet_owner_portal', { p_code: upper })
+        ;(publicClient as any).rpc('get_pet_owner_portal', { p_code: upper })
             .then(({ data: res, error: rpcError }: any) => {
                 if (rpcError) {
                     console.error('[Portal] RPC error:', rpcError)
