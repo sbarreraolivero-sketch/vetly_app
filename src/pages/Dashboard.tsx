@@ -357,6 +357,13 @@ export default function Dashboard() {
         return Math.round(((current - previous) / previous) * 100)
     }
 
+    const compareLabel = {
+        day: 'vs. ayer',
+        week: 'vs. sem. ant.',
+        month: 'vs. mes ant.',
+        year: 'vs. año ant.',
+    }[timeRange]
+
     const statCards = [
         {
             name: 'CITAS AGENDADAS POR IA',
@@ -404,26 +411,32 @@ export default function Dashboard() {
             icon: TrendingUp,
             color: 'text-emerald-500',
             bg: 'bg-emerald-500/10',
-            change: 0
+            change: null as number | null
         }
     ]
 
     const ChangeBadge = ({ change }: { change: number | null }) => {
         if (change === null) return (
-            <div className="flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-silk-beige/50 text-charcoal/30">
-                –
+            <div className="flex flex-col items-end gap-0.5">
+                <div className="flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-silk-beige/50 text-charcoal/30">
+                    –
+                </div>
+                <span className="text-[9px] text-charcoal/25 font-medium pr-0.5">{compareLabel}</span>
             </div>
         )
         const isPositive = change > 0
         const isNeutral = change === 0
         return (
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${
-                isNeutral ? 'bg-silk-beige/50 text-charcoal/40' :
-                isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-            }`}>
-                {isNeutral ? null :
-                 isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                {Math.abs(change)}%
+            <div className="flex flex-col items-end gap-0.5">
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${
+                    isNeutral ? 'bg-silk-beige/50 text-charcoal/40' :
+                    isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                }`}>
+                    {isNeutral ? null :
+                     isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                    {Math.abs(change)}%
+                </div>
+                <span className="text-[9px] text-charcoal/25 font-medium pr-0.5">{compareLabel}</span>
             </div>
         )
     }
