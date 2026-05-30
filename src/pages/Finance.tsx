@@ -386,7 +386,7 @@ const Finance = () => {
     }
 
     // ── Income handlers ──
-    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[] }) => {
+    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string }) => {
         if (!clinicId) {
             toast.error('No se pudo identificar la clínica')
             return
@@ -401,7 +401,8 @@ const Finance = () => {
                 category: incomeData.category as any,
                 date: incomeData.date,
                 tutor_id: incomeData.tutor_id,
-                services: incomeData.services
+                services: incomeData.services,
+                notes: incomeData.notes,
             })
             toast.success('Ingreso registrado exitosamente')
             setShowIncomeModal(false)

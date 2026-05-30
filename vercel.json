@@ -15,6 +15,7 @@
     { "src": "/blog/agente-ia-veterinaria", "dest": "/blog/agente-ia-veterinaria.html" },
     { "src": "/blog/agenda-veterinaria-online", "dest": "/blog/agenda-veterinaria-online.html" },
     { "src": "/blog/fidelizacion-clientes-veterinaria", "dest": "/blog/fidelizacion-clientes-veterinaria.html" },
+    { "src": "/blog/metricas-rentabilidad-clinica-veterinaria", "dest": "/blog/metricas-rentabilidad-clinica-veterinaria.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }

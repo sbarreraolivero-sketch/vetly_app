@@ -107,30 +107,22 @@ export const financeService = {
         return data as Income[]
     },
 
-    async addIncome(income: Omit<Income, 'id' | 'created_at'>) {
+    async addIncome(income: Omit<Income, 'id' | 'created_at'> & { notes?: string }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any).rpc('create_clinic_income', {
-            p_clinic_id: income.clinic_id,
+            p_clinic_id:  income.clinic_id,
             p_description: income.description,
-            p_amount: income.amount,
-            p_category: income.category,
-            p_date: income.date,
-            p_tutor_id: income.tutor_id || null,
-            p_services: income.services || []
+            p_amount:     income.amount,
+            p_category:   income.category,
+            p_date:       income.date,
+            p_tutor_id:   income.tutor_id || null,
+            p_services:   income.services || [],
+            p_discount:   income.discount || 0,
+            p_notes:      income.notes || null,
         })
 
         if (error) throw error
-        const created = data?.[0] as Income
-
-        // Guardar descuento si existe
-        if (created?.id && income.discount && income.discount > 0) {
-            await (supabase as any)
-                .from('incomes')
-                .update({ discount: income.discount })
-                .eq('id', created.id)
-        }
-
-        return created
+        return data?.[0] as Income
     },
 
     async deleteIncome(id: string) {

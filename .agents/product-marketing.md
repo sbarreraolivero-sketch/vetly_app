@@ -335,7 +335,8 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 6. ~~ART-06 — Ruta clínica veterinaria móvil~~ ✅ 2026-05-29 (reescrito con ángulo incertidumbre del cliente)
 7. ~~Página `/blog` index~~ ✅ 2026-05-29 (10 artículos publicados)
 8. ~~Enlace Blog en navbar landing~~ ✅ 2026-05-29
-8. **Outreach comunidades veterinarias** ← PRÓXIMO (VEPA Colombia 19 capítulos, Colmevet Chile 33.955 seg.)
+8. ~~ART-11 — Métricas de rentabilidad veterinaria~~ ✅ 2026-05-29
+9. **Outreach comunidades veterinarias** ← PRÓXIMO (VEPA Colombia 19 capítulos, Colmevet Chile 33.955 seg.)
 9. Ads solo cuando haya al menos 5 casos de éxito documentados
 
 ---
@@ -471,6 +472,7 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 | 8 | Agente IA para veterinarias | `/blog/agente-ia-veterinaria` | Guía |
 | 9 | Agenda veterinaria online | `/blog/agenda-veterinaria-online` | Guía práctica |
 | 10 | Fidelización clientes veterinaria | `/blog/fidelizacion-clientes-veterinaria` | Marketing |
+| 11 | Métricas de rentabilidad veterinaria | `/blog/metricas-rentabilidad-clinica-veterinaria` | Gestión y Finanzas |
 
 **Reglas de estilo fijadas en esta sesión:**
 - Todos los valores monetarios en artículos del blog: **USD** (no CLP ni otras monedas locales)
@@ -478,15 +480,20 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Siempre pedir imagen al usuario antes de escribir el artículo; dar prompt del siguiente artículo en el mismo mensaje
 - Validar ángulo editorial con el usuario cuando el artículo toca operaciones reales del cliente
 
+### Completado sesión 2026-05-29 (continuación ART-11)
+
+**ART-11 — Métricas de rentabilidad veterinaria** → publicado:
+- URL: `vetly.pro/blog/metricas-rentabilidad-clinica-veterinaria`
+- Ángulo: 5 métricas que un veterinario dueño debería revisar cada semana sin ser contador
+- Keywords: "métricas clínica veterinaria", "finanzas clínica veterinaria", "rentabilidad veterinaria"
+- Las 5 métricas: ticket promedio · tasa de presentación · mix ingresos (servicios/productos) · top servicios · clasificación ABC inventario
+- Datos reales Animalgrace: 0 no-shows con 89 recordatorios, 66 citas mayo 2026
+- Inventario ABC conectado con la nueva feature de sistema de inventario (sesión 30 de desarrollo)
+- Visuales propios: metrics grid 5 cards, fórmulas en oscuro, tabla comparativa señales de alarma, barras ABC, dashboard preview simulado
+
 ### Pendiente — Próxima sesión
 
-**1. ART-11 — "Cómo saber si tu clínica veterinaria es rentable: las métricas que importan"** ← PRIMERO
-- Pedir imagen antes de escribir (prompt al inicio de sesión)
-- Ángulo: las métricas que un veterinario dueño debería mirar cada semana — sin ser contador
-- Keywords: "métricas clínica veterinaria", "finanzas clínica veterinaria", "rentabilidad veterinaria"
-- Datos concretos del dashboard de Vetly que se pueden capturar en pantalla
-
-**2. Outreach a comunidades veterinarias** ← DESPUÉS de completar artículos
+**1. Outreach a comunidades veterinarias** ← PRÓXIMO
 - **Colmevet Chile** — Facebook 33.955 seguidores
 - **VEPA Colombia** — Facebook 13.658 seguidores + 19 capítulos regionales
 - Formato: versión "post de comunidad" de cada artículo — más corto, conversacional, pregunta abierta al final
