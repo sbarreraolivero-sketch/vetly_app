@@ -16,6 +16,7 @@
     { "src": "/blog/agenda-veterinaria-online", "dest": "/blog/agenda-veterinaria-online.html" },
     { "src": "/blog/fidelizacion-clientes-veterinaria", "dest": "/blog/fidelizacion-clientes-veterinaria.html" },
     { "src": "/blog/metricas-rentabilidad-clinica-veterinaria", "dest": "/blog/metricas-rentabilidad-clinica-veterinaria.html" },
+    { "src": "/blog/burnout-veterinario", "dest": "/blog/burnout-veterinario.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
