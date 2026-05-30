@@ -2001,3 +2001,150 @@ El tab ya existía pero solo mostraba el nombre del servicio. Ahora:
 - `inventory` agregado a `PageKey` en `src/lib/permissions.ts`
 - Acceso por defecto: `owner` y `admin` = true; todos los demás roles = false
 - Ruta: `/app/inventory` (lazy-loaded en App.tsx, con SubscriptionGuard + RoleGuard owner/admin)
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 31, 2026-05-30)
+
+### Finance — corrección masiva de bugs (todo mostraba $0.00)
+
+**Causa raíz:** el `Promise.all` en `Finance.tsx loadData()` incluía 4 queries paralelas. Las RPCs `get_clinic_expenses_secure` y `get_clinic_transactions_secure` no existían → `Promise.all` rechazaba → catch silencioso → todo $0.00 y listas vacías.
+
+**Migraciones aplicadas:**
+
+#### `finance_missing_tables_and_rpcs`
+- Tabla `expenses` creada con RLS via `clinic_members`
+- Columnas `payment_status TEXT DEFAULT 'pending'` y `payment_method TEXT` añadidas a `appointments`
+- Backfill: citas completadas con precio > 0 → `payment_status = 'paid'`
+- RPCs creados: `get_clinic_expenses_secure`, `create_clinic_expense`, `get_clinic_transactions_secure`, `update_appointment_payment_status`
+- `get_finance_stats` reescrito para usar `status != 'cancelled' AND price > 0` (antes usaba `status = 'completed'` que ninguna cita de Linares cumplía)
+
+#### `fix_finance_rpcs_include_all_priced_appointments`
+- `get_clinic_transactions_secure` y `get_finance_stats` actualizados para incluir **todas las citas no canceladas con precio > 0** (no solo las `completed`)
+- Razón: Claudia ingresa citas manualmente y nunca las marca como `completed` — usar `completed` mostraba $0
+
+#### `fix_finance_item_metrics_real_data`
+- `get_finance_item_metrics` actualizado: usa `status != 'cancelled'` en lugar de `status = 'completed' AND payment_status IN ('paid','partial')`
+- Fallback `top_services_fallback`: cuando no hay `appointment_items`, usa `appointments.service + price` directamente
+- Resultado: ticket promedio y top servicios ahora muestran datos reales ($22.129 promedio, 31 citas mayo Linares)
+
+#### `income_notes_and_fix_create_income_rpc`
+- `incomes.notes TEXT DEFAULT NULL` añadida
+- `create_clinic_income` reescrito: ahora guarda `tutor_id`, `services`, `discount`, `notes`, `payment_method` en un solo INSERT (antes se perdían)
+
+#### `add_payment_method_to_incomes`
+- `incomes.payment_method TEXT DEFAULT NULL` añadida
+- `create_clinic_income` actualizado para aceptar `p_payment_method`
+
+#### `save_transaction_items_and_update_income_rpcs`
+- `save_transaction_items(p_appointment_id, p_clinic_id, p_items jsonb, p_price, p_discount, p_payment_method)` — borra ítems anteriores, inserta nuevos, actualiza appointment
+- `update_clinic_income(p_income_id, ...)` — actualiza todos los campos de un ingreso manual
+
+### Finance — nuevas funcionalidades
+
+#### Acciones de transacciones (nuevo orden)
+1. **Registrar Pago** (solo pendientes) / **Deshacer Pago** (solo pagadas)
+2. **Editar** → `EditTransactionModal`
+3. **Comprobante** → `VisitReceipt`
+4. **Eliminar** → `handleClearTransaction` (precio → 0)
+
+#### `EditTransactionModal` (`src/components/finance/EditTransactionModal.tsx`)
+Modal nuevo para editar una transacción existente:
+- Carga `appointment_items` existentes (o ítem sintético del campo `service` si no hay)
+- Agrega/elimina servicios del catálogo y productos del inventario
+- Edita cantidad y precio unitario inline
+- Descuento (fijo o porcentaje) y método de pago
+- Guarda via RPC `save_transaction_items`
+
+#### Ingresos manuales — editar y eliminar
+- Tab "Otros Ingresos": botones **Editar** y **Eliminar** por fila
+- Editar abre `NewIncomeForm` en modo edición (pre-relleno con datos actuales)
+- `handleUpdateIncome` → RPC `update_clinic_income`
+
+#### `NewIncomeForm` — mejoras
+- **Campo "Categoría" eliminado** — se auto-calcula (`product` si solo hay productos, `service` si hay servicios o nada)
+- **Buscador de productos del inventario** — mismo patrón que buscador de tutor (search-as-you-type), productos en violet
+- **Método de pago** — 4 botones toggle: Efectivo / Transferencia / Tarjeta crédito / Tarjeta débito
+- **Notas** — textarea 2 líneas
+- **Modo edición** — acepta prop `editingIncome` para pre-rellenar y cambiar título/botón
+
+#### `VisitReceipt` — fix bug "Cargando ítems..." colgado
+**Causa:** `setLoadingItems(true)` se activaba, pero cuando el RPC devolvía `[]` vacío, el `.finally()` no siempre ejecutaba a tiempo antes de que React batcheara las re-renders. Resultado: spinner colgado permanentemente.
+**Fix:** eliminado el estado `loadingItems` y el spinner. `onLoadItems()` se llama en background (`fire-and-forget`). `displayItems` usa el ítem sintético del `tx.service` de inmediato si no hay ítems reales.
+
+#### Reglas permanentes — Finance
+
+**`appointments.payment_status`:**
+- Valores: `'pending'`, `'paid'`, `'partial'`, `'refunded'`
+- Default: `'pending'`
+- Backfill histórico: citas con `status='completed'` y `price > 0` → `'paid'`
+- Las citas de Linares que Claudia ingresa manualmente quedan en `'pending'` hasta que se registre el pago manualmente desde Finance
+
+**Transacciones vs Ingresos manuales:**
+- Tab **"Transacciones"**: citas de `appointments` donde `status != 'cancelled'` y `price > 0`. Tienen comprobante con Imprimir + WhatsApp.
+- Tab **"Otros Ingresos"**: registros de tabla `incomes`. Se crean manualmente desde el botón "+ Ingreso". No tienen comprobante propio aún.
+
+**`financeService` — métodos clave:**
+- `addIncome(income)` → RPC `create_clinic_income` (9 parámetros, incluyendo notes y payment_method)
+- `updateIncome(id, income)` → RPC `update_clinic_income`
+- `saveTransactionItems(appointmentId, clinicId, items, price, discount, paymentMethod)` → RPC `save_transaction_items`
+- `getTransactions` → RPC `get_clinic_transactions_secure`
+- `getExpenses` → RPC `get_clinic_expenses_secure`
+
+---
+
+### Sistema de Inventario — análisis de facturas con IA
+
+#### Edge function `analyze-invoice` (v1, `verify_jwt: false`)
+
+**Flujo:**
+1. Verifica acceso del usuario via JWT + `clinic_members`
+2. Resuelve pool de créditos (respeta `parent_clinic_id` para sucursales)
+3. Si no es `ai_credits_unlimited`: suma consumo del mes en `ai_credit_transactions`, verifica que haya ≥ 20 créditos
+4. Envía imagen a GPT-4o-mini Vision con prompt estructurado
+5. Parsea JSON devuelto: `{products, supplier, invoice_number, invoice_date}`
+6. Inserta transacción `-20` en `ai_credit_transactions` con `metadata.source: 'invoice_analysis'`
+7. Retorna productos extraídos
+
+**Cobro:** 20 créditos por archivo (independiente del número de páginas). Aparece en historial de AISettings con descripción `"Análisis de factura (N productos detectados)"`.
+
+#### `InvoiceAnalysisModal` (`src/components/inventory/InvoiceAnalysisModal.tsx`)
+
+**Acepta:** imágenes (JPG, PNG, WEBP) y PDFs. Máx 20 MB.
+
+**Flujo PDF (pdfjs-dist, lazy import):**
+- `pdfjs-dist` se importa dinámicamente solo cuando el usuario sube un PDF — no afecta el bundle inicial
+- Renderiza cada página a canvas (escala 2× para mejor legibilidad)
+- Convierte a JPEG base64
+- Llama a la edge function una vez **por página** (máx `MAX_PAGES = 5`)
+- **Deduplicación automática**: si el mismo producto aparece en varias páginas, las cantidades se suman
+- Si el PDF tiene más de 5 páginas → aviso toast + solo se procesan las primeras 5
+
+**Modelo de precios:** 20 créditos por archivo, independiente de páginas. No por página.
+
+**3 pasos del modal:**
+1. **Upload**: zona drag-and-drop, acepta PDF e imágenes
+2. **Analyzing**: spinner con estado dinámico ("Analizando página 2 de 3...")
+3. **Review**: tabla editable — nombre, cantidad, precio, categoría por producto; checkbox para seleccionar/deseleccionar; botón eliminar; resumen de inversión total
+
+**Al confirmar** → `inventoryService.bulkReceiveProducts()`:
+- Para cada producto: busca por nombre (case-insensitive) en `inventory_products`
+- Si existe: actualiza `purchase_price` + inserta movimiento `purchase`
+- Si no existe: crea producto nuevo (precio venta = precio compra como default) + inserta movimiento
+- El trigger `tr_update_stock_on_movement` actualiza `stock_quantity` automáticamente
+
+#### Archivos clave — análisis de facturas
+
+| Archivo | Rol |
+|---|---|
+| `supabase/functions/analyze-invoice/index.ts` | Edge function GPT-4o-mini Vision |
+| `src/components/inventory/InvoiceAnalysisModal.tsx` | Modal completo (upload, análisis, revisión) |
+| `src/services/inventoryService.ts` → `bulkReceiveProducts` | Upsert masivo de productos |
+
+#### Reglas permanentes — análisis de facturas
+
+- El costo es siempre **20 créditos por archivo**, no por página
+- Máximo **5 páginas** por PDF. Si el archivo tiene más, se avisa y se procesan las primeras 5
+- El crédito se descuenta del pool `parent_clinic_id` (misma lógica que mensajes del webhook)
+- `pdfjs-dist` se carga lazy — no hardcodear en imports de nivel superior
+- La deduplicación es por nombre exacto case-insensitive. Productos con nombres distintos pero equivalentes (ej: "Amoxicilina 500mg" vs "AMOXICILINA 500MG") se crean como productos separados — el usuario puede fusionarlos manualmente en el catálogo
