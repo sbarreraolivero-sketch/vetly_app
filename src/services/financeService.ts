@@ -125,12 +125,48 @@ export const financeService = {
         return data?.[0] as Income
     },
 
+    async updateIncome(id: string, income: Partial<Omit<Income, 'id' | 'clinic_id' | 'created_at'>> & { notes?: string; payment_method?: string }) {
+        const { data, error } = await (supabase as any).rpc('update_clinic_income', {
+            p_income_id:      id,
+            p_description:    income.description,
+            p_amount:         income.amount,
+            p_category:       income.category,
+            p_date:           income.date,
+            p_tutor_id:       income.tutor_id || null,
+            p_services:       income.services || [],
+            p_discount:       income.discount || 0,
+            p_notes:          (income as any).notes || null,
+            p_payment_method: (income as any).payment_method || null,
+        })
+        if (error) throw error
+        return data?.[0] as Income
+    },
+
     async deleteIncome(id: string) {
         const { error } = await (supabase as any)
             .from('incomes')
             .delete()
             .eq('id', id)
 
+        if (error) throw error
+    },
+
+    async saveTransactionItems(
+        appointmentId: string,
+        clinicId: string,
+        items: Array<{ item_type: string; name: string; quantity: number; unit_price: number; subtotal: number; product_id?: string | null }>,
+        price: number,
+        discount: number,
+        paymentMethod: string | null,
+    ) {
+        const { error } = await (supabase as any).rpc('save_transaction_items', {
+            p_appointment_id: appointmentId,
+            p_clinic_id:      clinicId,
+            p_items:          JSON.stringify(items),
+            p_price:          price,
+            p_discount:       discount,
+            p_payment_method: paymentMethod,
+        })
         if (error) throw error
     },
 

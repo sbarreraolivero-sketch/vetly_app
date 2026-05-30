@@ -49,7 +49,6 @@ const STATUS_LABELS: Record<string, string> = {
 const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItems, onClose }: VisitReceiptProps) => {
     const printRef = useRef<HTMLDivElement>(null)
     const [sending, setSending] = useState(false)
-    const [loadingItems, setLoadingItems] = useState(false)
 
     const displayItems: ReceiptItem[] = items.length > 0
         ? items
@@ -60,12 +59,8 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
     const total = displayItems.reduce((sum, i) => sum + i.subtotal, 0) || (tx.price ?? 0)
 
     useEffect(() => {
-        // Load items if not loaded
-        if (items.length === 0) {
-            setLoadingItems(true)
-            onLoadItems().finally(() => setLoadingItems(false))
-        }
-        // Clinic phone is passed by edge function — no need to load here
+        // Carga ítems en background — sin spinner para evitar estado colgado
+        if (items.length === 0) onLoadItems().catch(() => {})
     }, [])
 
     const handlePrint = () => {
@@ -213,66 +208,60 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
                     </div>
 
                     {/* Items */}
-                    {loadingItems ? (
-                        <div className="flex items-center justify-center py-4 text-charcoal/40">
-                            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Cargando ítems...
-                        </div>
-                    ) : (
-                        <div>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-silk-beige">
-                                        <th className="text-left py-2 text-xs font-black uppercase tracking-wider text-charcoal/40">Descripción</th>
-                                        <th className="text-center py-2 text-xs font-black uppercase tracking-wider text-charcoal/40">Cant.</th>
-                                        <th className="text-right py-2 text-xs font-black uppercase tracking-wider text-charcoal/40">Subtotal</th>
+                    <div>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-silk-beige">
+                                    <th className="text-left py-2 text-xs font-black uppercase tracking-wider text-charcoal/40">Descripción</th>
+                                    <th className="text-center py-2 text-xs font-black uppercase tracking-wider text-charcoal/40">Cant.</th>
+                                    <th className="text-right py-2 text-xs font-black uppercase tracking-wider text-charcoal/40">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-silk-beige/50">
+                                {displayItems.map(item => (
+                                    <tr key={item.id}>
+                                        <td className="py-2.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn(
+                                                    "text-[10px] px-1.5 py-0.5 rounded font-semibold",
+                                                    item.item_type === 'service'
+                                                        ? "bg-primary-100 text-primary-600"
+                                                        : "bg-violet-100 text-violet-600"
+                                                )}>
+                                                    {item.item_type === 'service' ? 'Serv.' : 'Prod.'}
+                                                </span>
+                                                <span className="text-charcoal">{item.name}</span>
+                                            </div>
+                                            <p className="text-xs text-charcoal/40 ml-8">{formatCLP(item.unit_price)} × {item.quantity}</p>
+                                        </td>
+                                        <td className="py-2.5 text-center text-charcoal/60">{item.quantity}</td>
+                                        <td className="py-2.5 text-right font-semibold text-charcoal">{formatCLP(item.subtotal)}</td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-silk-beige/50">
-                                    {displayItems.map(item => (
-                                        <tr key={item.id}>
-                                            <td className="py-2.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={cn(
-                                                        "text-[10px] px-1.5 py-0.5 rounded font-semibold",
-                                                        item.item_type === 'service'
-                                                            ? "bg-primary-100 text-primary-600"
-                                                            : "bg-violet-100 text-violet-600"
-                                                    )}>
-                                                        {item.item_type === 'service' ? 'Serv.' : 'Prod.'}
-                                                    </span>
-                                                    <span className="text-charcoal">{item.name}</span>
-                                                </div>
-                                                <p className="text-xs text-charcoal/40 ml-8">{formatCLP(item.unit_price)} × {item.quantity}</p>
-                                            </td>
-                                            <td className="py-2.5 text-center text-charcoal/60">{item.quantity}</td>
-                                            <td className="py-2.5 text-right font-semibold text-charcoal">{formatCLP(item.subtotal)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                ))}
+                            </tbody>
+                        </table>
 
-                            {/* Total */}
-                            <div className="flex justify-between items-center pt-3 border-t border-silk-beige mt-1">
-                                <span className="font-bold text-charcoal">Total</span>
-                                <span className="text-2xl font-extrabold text-primary-600">{formatCLP(total)}</span>
-                            </div>
-
-                            {/* Payment info */}
-                            <div className="mt-3 flex gap-3 text-sm">
-                                {tx.payment_method && (
-                                    <span className="text-charcoal/60">
-                                        Pago: <strong className="text-charcoal">{PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method}</strong>
-                                    </span>
-                                )}
-                                <span className={cn(
-                                    "font-bold",
-                                    tx.payment_status === 'paid' ? "text-emerald-600" : "text-amber-600"
-                                )}>
-                                    {STATUS_LABELS[tx.payment_status ?? 'pending']}
-                                </span>
-                            </div>
+                        {/* Total */}
+                        <div className="flex justify-between items-center pt-3 border-t border-silk-beige mt-1">
+                            <span className="font-bold text-charcoal">Total</span>
+                            <span className="text-2xl font-extrabold text-primary-600">{formatCLP(total)}</span>
                         </div>
-                    )}
+
+                        {/* Payment info */}
+                        <div className="mt-3 flex gap-3 text-sm">
+                            {tx.payment_method && (
+                                <span className="text-charcoal/60">
+                                    Pago: <strong className="text-charcoal">{PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method}</strong>
+                                </span>
+                            )}
+                            <span className={cn(
+                                "font-bold",
+                                tx.payment_status === 'paid' ? "text-emerald-600" : "text-amber-600"
+                            )}>
+                                {STATUS_LABELS[tx.payment_status ?? 'pending']}
+                            </span>
+                        </div>
+                    </div>
 
                     <div className="text-center text-xs text-charcoal/30 pt-3 border-t border-silk-beige">
                         ¡Gracias por su confianza! 🐾

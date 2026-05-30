@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText } from 'lucide-react'
+import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
@@ -20,9 +20,29 @@ interface TutorOption {
     name: string
 }
 
+const PAYMENT_OPTIONS = [
+    { value: 'efectivo',      label: 'Efectivo' },
+    { value: 'transferencia', label: 'Transferencia' },
+    { value: 'tarjeta',       label: 'Tarjeta crédito' },
+    { value: 'debito',        label: 'Tarjeta débito' },
+]
+
+interface EditingIncome {
+    id: string
+    description: string
+    amount: number
+    discount?: number
+    date: string
+    tutor_id?: string | null
+    services?: any[] | null
+    notes?: string | null
+    payment_method?: string | null
+}
+
 interface NewIncomeFormProps {
     clinicId: string
     onClose: () => void
+    editingIncome?: EditingIncome
     onSuccess: (incomeData: {
         description: string
         amount: number
@@ -32,14 +52,17 @@ interface NewIncomeFormProps {
         tutor_id?: string
         services?: any[]
         notes?: string
+        payment_method?: string
     }) => void
 }
 
-export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormProps) {
-    const [description, setDescription] = useState('')
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: NewIncomeFormProps) {
+    const isEdit = !!editingIncome
+    const [description, setDescription] = useState(editingIncome?.description ?? '')
+    const [date, setDate] = useState(editingIncome?.date ?? new Date().toISOString().split('T')[0])
     const [currency, setCurrency] = useState('CLP')
-    const [notes, setNotes] = useState('')
+    const [notes, setNotes] = useState(editingIncome?.notes ?? '')
+    const [paymentMethod, setPaymentMethod] = useState(editingIncome?.payment_method ?? '')
 
     // Tutor
     const [tutors, setTutors] = useState<TutorOption[]>([])
@@ -182,6 +205,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
             tutor_id: selectedTutor?.id,
             services: allServices.length > 0 ? allServices : undefined,
             notes: notes.trim() || undefined,
+            payment_method: paymentMethod || undefined,
         })
     }
 
@@ -193,7 +217,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
                 <div className="flex items-center justify-between p-6 border-b border-silk-beige">
                     <h3 className="text-xl font-bold text-charcoal flex items-center gap-2">
                         <Calculator className="w-5 h-5 text-primary-500" />
-                        Registrar Nuevo Ingreso
+                        {isEdit ? 'Editar Ingreso' : 'Registrar Nuevo Ingreso'}
                     </h3>
                     <button onClick={onClose} className="p-2 hover:bg-silk-beige rounded-soft transition-colors">
                         <X className="w-5 h-5 text-charcoal/50 hover:text-charcoal" />
@@ -434,6 +458,27 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
                         )}
                     </div>
 
+                    {/* Método de pago */}
+                    <div>
+                        <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-charcoal/40" />
+                            Método de pago (opcional)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {PAYMENT_OPTIONS.map(opt => (
+                                <button key={opt.value} type="button"
+                                    onClick={() => setPaymentMethod(paymentMethod === opt.value ? '' : opt.value)}
+                                    className={cn(
+                                        "py-2 px-3 rounded-lg border text-sm font-medium transition-all",
+                                        paymentMethod === opt.value
+                                            ? "bg-primary-500 text-white border-primary-500 shadow-sm"
+                                            : "bg-white border-silk-beige text-charcoal/60 hover:border-primary-300"
+                                    )}
+                                >{opt.label}</button>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Notas */}
                     <div>
                         <label className="block text-sm font-medium text-charcoal mb-1 flex items-center gap-1.5">
@@ -445,7 +490,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
                             onChange={e => setNotes(e.target.value)}
                             rows={2}
                             className="input-soft resize-none"
-                            placeholder="Observaciones, método de pago, referencias..."
+                            placeholder="Observaciones, referencias..."
                         />
                     </div>
                 </form>
@@ -458,7 +503,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess }: NewIncomeFormPro
                         disabled={finalAmount <= 0 && subtotal <= 0}
                         className="btn-primary disabled:opacity-50"
                     >
-                        Registrar Ingreso
+                        {isEdit ? 'Guardar cambios' : 'Registrar Ingreso'}
                     </button>
                 </div>
             </div>

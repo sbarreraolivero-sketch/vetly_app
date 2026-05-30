@@ -15,7 +15,8 @@ import {
     Trash2,
     Calendar,
     CalendarRange,
-    Lightbulb
+    Lightbulb,
+    Edit2,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
@@ -29,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { financeService, type FinanceStats, type Expense, type Income } from '@/services/financeService'
 import VisitReceipt from '@/components/finance/VisitReceipt'
+import { EditTransactionModal } from '@/components/finance/EditTransactionModal'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
@@ -174,7 +176,9 @@ const Finance = () => {
         }
     }
 
-    const [receiptTx, setReceiptTx] = useState<any | null>(null)
+    const [receiptTx, setReceiptTx]   = useState<any | null>(null)
+    const [editTx, setEditTx]         = useState<any | null>(null)
+    const [editingIncome, setEditingIncome] = useState<any | null>(null)
 
     const loadTxItems = async (appointmentId: string) => {
         if (txItems[appointmentId]) {
@@ -386,12 +390,8 @@ const Finance = () => {
     }
 
     // ── Income handlers ──
-    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string }) => {
-        if (!clinicId) {
-            toast.error('No se pudo identificar la clínica')
-            return
-        }
-
+    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+        if (!clinicId) { toast.error('No se pudo identificar la clínica'); return }
         try {
             await financeService.addIncome({
                 clinic_id: clinicId,
@@ -403,13 +403,37 @@ const Finance = () => {
                 tutor_id: incomeData.tutor_id,
                 services: incomeData.services,
                 notes: incomeData.notes,
-            })
-            toast.success('Ingreso registrado exitosamente')
+                payment_method: incomeData.payment_method,
+            } as any)
+            toast.success('Ingreso registrado')
             setShowIncomeModal(false)
             loadData()
         } catch (error) {
             console.error('Error adding income:', error)
             toast.error('Error al registrar el ingreso')
+        }
+    }
+
+    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+        if (!editingIncome?.id) return
+        try {
+            await financeService.updateIncome(editingIncome.id, {
+                description: incomeData.description,
+                amount: incomeData.amount,
+                discount: incomeData.discount ?? 0,
+                category: incomeData.category as any,
+                date: incomeData.date,
+                tutor_id: incomeData.tutor_id,
+                services: incomeData.services,
+                notes: incomeData.notes,
+                payment_method: incomeData.payment_method,
+            } as any)
+            toast.success('Ingreso actualizado')
+            setEditingIncome(null)
+            loadData()
+        } catch (error) {
+            console.error('Error updating income:', error)
+            toast.error('Error al actualizar el ingreso')
         }
     }
 
@@ -933,36 +957,30 @@ const Finance = () => {
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <div className="flex flex-col items-end gap-1">
-                                                    <button
-                                                        onClick={() => setReceiptTx(tx)}
-                                                        className="text-xs text-primary-600 font-medium hover:underline flex items-center gap-1"
-                                                    >
-                                                        <FileText className="w-3 h-3" /> Comprobante
-                                                    </button>
                                                     {tx.payment_status === 'pending' && (
-                                                        <>
-                                                        <button
-                                                            className="text-xs text-emerald-600 font-medium hover:underline"
-                                                            onClick={() => handleRegisterPayment(tx.id)}
-                                                        >
+                                                        <button onClick={() => handleRegisterPayment(tx.id)}
+                                                            className="text-xs text-emerald-600 font-semibold hover:underline">
                                                             Registrar Pago
                                                         </button>
-                                                        <button
-                                                            className="text-xs text-red-500 font-medium hover:underline"
-                                                            onClick={() => handleClearTransaction(tx.id)}
-                                                        >
-                                                            Eliminar
-                                                        </button>
-                                                        </>
                                                     )}
                                                     {tx.payment_status === 'paid' && (
-                                                        <button
-                                                            className="text-xs text-red-600 font-medium hover:underline flex items-center gap-1"
-                                                            onClick={() => handleDeletePayment(tx.id)}
-                                                        >
-                                                            <Trash2 className="w-3 h-3" /> Eliminar Pago
+                                                        <button onClick={() => handleDeletePayment(tx.id)}
+                                                            className="text-xs text-amber-600 font-semibold hover:underline">
+                                                            Deshacer Pago
                                                         </button>
                                                     )}
+                                                    <button onClick={() => setEditTx(tx)}
+                                                        className="text-xs text-primary-600 font-medium hover:underline flex items-center gap-1">
+                                                        <Edit2 className="w-3 h-3" /> Editar
+                                                    </button>
+                                                    <button onClick={() => setReceiptTx(tx)}
+                                                        className="text-xs text-charcoal/60 font-medium hover:underline flex items-center gap-1">
+                                                        <FileText className="w-3 h-3" /> Comprobante
+                                                    </button>
+                                                    <button onClick={() => handleClearTransaction(tx.id)}
+                                                        className="text-xs text-red-500 font-medium hover:underline flex items-center gap-1">
+                                                        <Trash2 className="w-3 h-3" /> Eliminar
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1093,13 +1111,20 @@ const Finance = () => {
                                                 +{formatCurrency(income.amount)}
                                             </td>
                                             <td className="px-6 py-3 text-right">
-                                                <button
-                                                    onClick={() => handleDeleteIncome(income.id, income.description)}
-                                                    className="text-charcoal/40 hover:text-red-500 transition-colors inline-flex items-center gap-1 text-xs"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                    Eliminar
-                                                </button>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <button
+                                                        onClick={() => setEditingIncome(income)}
+                                                        className="text-primary-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <Edit2 className="w-3 h-3" /> Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteIncome(income.id, income.description)}
+                                                        className="text-red-500 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" /> Eliminar
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -1320,12 +1345,32 @@ const Finance = () => {
                 </div>
             )}
 
-            {/* Modal de Ingresos */}
+            {/* Modal nuevo ingreso */}
             {showIncomeModal && clinicId && (
                 <NewIncomeForm
                     clinicId={clinicId}
                     onClose={() => setShowIncomeModal(false)}
                     onSuccess={handleAddIncome}
+                />
+            )}
+
+            {/* Modal editar ingreso */}
+            {editingIncome && clinicId && (
+                <NewIncomeForm
+                    clinicId={clinicId}
+                    editingIncome={editingIncome}
+                    onClose={() => setEditingIncome(null)}
+                    onSuccess={handleUpdateIncome}
+                />
+            )}
+
+            {/* Modal editar transacción */}
+            {editTx && clinicId && (
+                <EditTransactionModal
+                    transaction={editTx}
+                    clinicId={clinicId}
+                    onClose={() => setEditTx(null)}
+                    onSuccess={loadData}
                 />
             )}
         </div>

@@ -4,11 +4,12 @@ import {
     BarChart2, ArrowDownCircle, ArrowUpCircle, RefreshCw,
     Edit2, Archive, X, Boxes,
     FlaskConical, Syringe, Apple, Tag,
-    Wrench, Clock, CheckCircle2,
+    Wrench, Clock, CheckCircle2, Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { inventoryService, type InventoryProduct, type InventoryMovement } from '@/services/inventoryService'
 import type { AbcProduct, NoRotationProduct } from '@/services/inventoryService'
+import { InvoiceAnalysisModal } from '@/components/inventory/InvoiceAnalysisModal'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -97,6 +98,7 @@ const Inventory = () => {
     const [abcDays, setAbcDays] = useState(90)
 
     // Modal states
+    const [showInvoiceModal, setShowInvoiceModal] = useState(false)
     const [showProductModal, setShowProductModal] = useState(false)
     const [editingProduct, setEditingProduct] = useState<InventoryProduct | null>(null)
     const [productForm, setProductForm] = useState(EMPTY_PRODUCT)
@@ -295,6 +297,13 @@ const Inventory = () => {
                         <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Clínica</p>
                         <h1 className="text-2xl font-extrabold tracking-tight text-white">Inventario</h1>
                         <p className="text-sm text-primary-200 mt-1">Gestión de productos, stock y movimientos</p>
+                        <button
+                            onClick={() => setShowInvoiceModal(true)}
+                            className="mt-3 inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Analizar Factura con IA
+                        </button>
                     </div>
                     <div className="flex items-center gap-6 text-center">
                         <div>
@@ -976,6 +985,16 @@ const Inventory = () => {
                 </div>
                 )
             })()}
+
+            {/* Modal análisis de factura IA */}
+            {showInvoiceModal && clinicId && (
+                <InvoiceAnalysisModal
+                    clinicId={clinicId}
+                    currency="CLP"
+                    onClose={() => setShowInvoiceModal(false)}
+                    onSuccess={() => loadProducts()}
+                />
+            )}
         </div>
     )
 }

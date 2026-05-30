@@ -245,6 +245,81 @@ export const inventoryService = {
         }
     },
 
+    // ── Ingreso masivo desde factura analizada ─────────────────────────
+    async bulkReceiveProducts(
+        clinicId: string,
+        items: Array<{
+            name: string
+            quantity: number
+            purchase_price: number
+            category: string
+            sku?: string
+        }>
+    ) {
+        for (const item of items) {
+            // Buscar si ya existe un producto con ese nombre (case-insensitive)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: existing } = await (supabase as any)
+                .from('inventory_products')
+                .select('id, stock_quantity')
+                .eq('clinic_id', clinicId)
+                .ilike('name', item.name.trim())
+                .eq('is_active', true)
+                .limit(1)
+                .maybeSingle()
+
+            let productId: string
+
+            if (existing?.id) {
+                // Producto ya existe: solo actualizar precio de compra si el nuevo es diferente
+                productId = existing.id
+                if (item.purchase_price > 0) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any)
+                        .from('inventory_products')
+                        .update({ purchase_price: item.purchase_price })
+                        .eq('id', productId)
+                }
+            } else {
+                // Producto nuevo: crear con stock 0 (el movimiento lo actualizará)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: created, error: createError } = await (supabase as any)
+                    .from('inventory_products')
+                    .insert({
+                        clinic_id:      clinicId,
+                        name:           item.name.trim(),
+                        sku:            item.sku ?? '',
+                        category:       item.category,
+                        unit:           'unit',
+                        purchase_price: item.purchase_price,
+                        sale_price:     item.purchase_price,  // precio venta = compra como default
+                        stock_quantity: 0,
+                        min_stock_alert: 5,
+                        is_active:      true,
+                    })
+                    .select('id')
+                    .single()
+
+                if (createError) throw createError
+                productId = created.id
+            }
+
+            // Insertar movimiento de compra — el trigger actualiza stock automáticamente
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error: mvError } = await (supabase as any)
+                .from('inventory_movements')
+                .insert({
+                    product_id:  productId,
+                    clinic_id:   clinicId,
+                    type:        'purchase',
+                    quantity:    Math.abs(item.quantity),
+                    unit_cost:   item.purchase_price,
+                    notes:       'Ingreso desde análisis de factura IA',
+                })
+            if (mvError) throw mvError
+        }
+    },
+
     // ── Estadísticas rápidas para el banner ────────────────────────────
 
     async getInventoryStats(clinicId: string) {
