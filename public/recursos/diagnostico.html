@@ -184,9 +184,13 @@
 <footer-bar>© 2026 Vetly · Diagnóstico gratuito</footer-bar>
 
 <script>
+var SUPA_URL  = 'https://ehmncwawzdciajvuallg.supabase.co';
+var SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVobW5jd2F3emRjaWFqdnVhbGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDY4NzgsImV4cCI6MjA4OTQyMjg3OH0.FBiTDJ6ecEip6aEJrWaNzhLK93jO-VKJTff-Kt9lKng';
+
 var answers = [];
 var current = 0;
 var total = 7;
+var leadId = null;  // ID del registro guardado en Supabase
 
 function answer(q, score) {
     answers[q] = score;
@@ -213,6 +217,44 @@ function updateProgress() {
     document.getElementById('q-count').textContent = 'Pregunta ' + (current + 1) + ' de ' + total;
 }
 
+function saveLead(score, pct, level) {
+    fetch(SUPA_URL + '/rest/v1/diagnostic_leads', {
+        method: 'POST',
+        headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': 'Bearer ' + SUPA_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+            score: score,
+            score_pct: pct,
+            level: level,
+            answers: answers,
+            wa_clicked: false,
+            source_url: window.location.href,
+            referrer: document.referrer || null
+        })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (data && data[0]) leadId = data[0].id; })
+    .catch(function(){});
+}
+
+function markWaClicked() {
+    if (!leadId) return;
+    fetch(SUPA_URL + '/rest/v1/diagnostic_leads?id=eq.' + leadId, {
+        method: 'PATCH',
+        headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': 'Bearer ' + SUPA_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ wa_clicked: true })
+    }).catch(function(){});
+}
+
 function showResult() {
     var total_score = answers.reduce(function(a, b){ return a + b; }, 0);
     var max = total * 3;
@@ -233,9 +275,10 @@ function showResult() {
 
     score_el.textContent = pct + '%';
 
-    var waBase = 'https://wa.me/56993089185?text=';
+    var level, waMsg;
 
     if (total_score <= 5) {
+        level = 'controlado';
         rh.classList.add('level-green');
         level_el.textContent = '✅ Controlado';
         title_el.textContent = 'Tu gestión de WhatsApp está bien encaminada';
@@ -245,9 +288,10 @@ function showResult() {
             'Mide cuántas consultas no terminan en cita — ese número revela oportunidades de conversión.',
             'Evalúa automatizar los recordatorios: incluso con buena gestión, el tiempo de envío manual acumula horas al mes.'
         ]);
-        cta.href = waBase + 'Hola%21+Hice+el+diagn%C3%B3stico+de+WhatsApp+y+qued%C3%A9+en+nivel+controlado.+Quiero+ver+c%C3%B3mo+automatizar+lo+que+hago+bien+%F0%9F%90%BE';
+        waMsg = 'Hola%21+Hice+el+diagn%C3%B3stico+de+WhatsApp+de+Vetly+y+qued%C3%A9+en+nivel+%E2%9C%85+Controlado+(' + pct + '%25).+Quiero+ver+c%C3%B3mo+automatizar+lo+que+hago+bien+%F0%9F%90%BE';
         cta_text.textContent = 'Ver cómo automatizar mi gestión →';
     } else if (total_score <= 13) {
+        level = 'en_riesgo';
         rh.classList.add('level-amber');
         level_el.textContent = '⚠️ En riesgo';
         title_el.textContent = 'Tu WhatsApp está limitando tu crecimiento';
@@ -257,9 +301,10 @@ function showResult() {
             'Separa el WhatsApp de la clínica de tu teléfono personal — mezclarlos amplifica el estrés.',
             'Calcula cuántas horas semanales dedicas a coordinar citas por WhatsApp. El número te va a sorprender.'
         ]);
-        cta.href = waBase + 'Hola%21+Hice+el+diagn%C3%B3stico+y+estoy+en+riesgo+con+mi+WhatsApp.+Quiero+ver+c%C3%B3mo+Vetly+puede+ayudarme+%F0%9F%90%BE';
+        waMsg = 'Hola%21+Hice+el+diagn%C3%B3stico+de+WhatsApp+de+Vetly+y+mi+resultado+es+%E2%9A%A0%EF%B8%8F+En+riesgo+(' + pct + '%25).+El+WhatsApp+est%C3%A1+limitando+mi+crecimiento.+Quiero+ver+c%C3%B3mo+Vetly+puede+ayudarme+%F0%9F%90%BE';
         cta_text.textContent = 'Quiero solucionar esto →';
     } else {
+        level = 'critico';
         rh.classList.add('level-red');
         level_el.textContent = '🚨 Crítico';
         title_el.textContent = 'El WhatsApp te está costando clientes y energía';
@@ -269,11 +314,17 @@ function showResult() {
             'Esta semana: implementa el script de 3 mensajes anti no-shows — recupera esas horas de inmediato.',
             'Este mes: evalúa un sistema que atienda WhatsApp automáticamente. El costo mensual es menor que una semana de tu tiempo.'
         ]);
-        cta.href = waBase + 'Hola%21+Hice+el+diagn%C3%B3stico+y+mi+resultado+es+cr%C3%ADtico.+El+WhatsApp+me+est%C3%A1+frenando.+Quiero+ver+c%C3%B3mo+Vetly+puede+ayudarme+%F0%9F%90%BE';
+        waMsg = 'Hola%21+Hice+el+diagn%C3%B3stico+de+WhatsApp+de+Vetly+y+mi+resultado+es+%F0%9F%9A%A8+Cr%C3%ADtico+(' + pct + '%25).+El+WhatsApp+me+est%C3%A1+frenando.+Necesito+ayuda+%F0%9F%90%BE';
         cta_text.textContent = 'Necesito solucionar esto hoy →';
     }
 
+    cta.href = 'https://wa.me/56993089185?text=' + waMsg;
+    cta.addEventListener('click', markWaClicked, { once: true });
+
     document.getElementById('result').classList.add('active');
+
+    // Guardar en Supabase (fire-and-forget)
+    saveLead(total_score, pct, level);
 }
 
 function makeActions(list) {

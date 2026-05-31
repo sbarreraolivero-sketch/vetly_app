@@ -11,13 +11,20 @@
     <style>
         *,*::before,*::after{font-family:'Outfit',sans-serif;box-sizing:border-box;margin:0;padding:0}
         body{background:#f4f4f5;color:#18181b;-webkit-font-smoothing:antialiased;min-height:100vh;padding:2rem 1rem}
-        .page{max-width:600px;margin:0 auto}
+        .page{max-width:620px;margin:0 auto}
 
         /* Header */
-        .page-header{text-align:center;margin-bottom:2rem}
+        .page-header{text-align:center;margin-bottom:1.75rem}
         .page-tag{display:inline-block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0d9488;background:#f0fdfa;border:1px solid #99f6e4;padding:.25rem .75rem;border-radius:100px;margin-bottom:.875rem}
         .page-title{font-size:1.75rem;font-weight:900;letter-spacing:-.03em;line-height:1.15;margin-bottom:.625rem}
-        .page-sub{font-size:.9375rem;color:#52525b;line-height:1.6;max-width:480px;margin:0 auto}
+        .page-sub{font-size:.9375rem;color:#52525b;line-height:1.6;max-width:480px;margin:0 auto 1.25rem}
+
+        /* Download bar */
+        .action-bar{display:flex;gap:.75rem;justify-content:center;margin-bottom:2rem;flex-wrap:wrap}
+        .btn-download{display:flex;align-items:center;gap:.5rem;background:#18181b;color:#fff;font-weight:800;font-size:.875rem;padding:.625rem 1.25rem;border-radius:.75rem;border:none;cursor:pointer;text-decoration:none;transition:background .15s}
+        .btn-download:hover{background:#27272a}
+        .btn-reset{display:flex;align-items:center;gap:.5rem;background:#fff;color:#71717a;font-weight:700;font-size:.875rem;padding:.625rem 1.25rem;border-radius:.75rem;border:1.5px solid #e4e4e7;cursor:pointer;transition:all .15s}
+        .btn-reset:hover{border-color:#a1a1aa;color:#18181b}
 
         /* Cómo usar */
         .how-card{background:#18181b;border-radius:1rem;padding:1.375rem 1.5rem;margin-bottom:2rem;color:#fff}
@@ -28,62 +35,76 @@
         .step-text{font-size:.875rem;color:#d4d4d8;line-height:1.5}
         .step-text strong{color:#fff}
 
-        /* Reglas de ruta */
+        /* Reglas */
         .rules-section{margin-bottom:2rem}
         .section-title{font-size:1rem;font-weight:900;color:#18181b;margin-bottom:.875rem;letter-spacing:-.01em}
         .rules-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-        .rule-card{background:#fff;border-radius:.875rem;padding:1rem;border:1px solid #e4e4e7;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+        .rule-card{background:#fff;border-radius:.875rem;padding:1rem;border:1px solid #e4e4e7}
         .rule-icon{font-size:1.25rem;margin-bottom:.375rem}
         .rule-title{font-size:.8125rem;font-weight:800;color:#18181b;margin-bottom:.25rem}
         .rule-text{font-size:.8125rem;color:#71717a;line-height:1.5}
         .rule-card.highlight{background:#f0fdfa;border-color:#99f6e4}
         .rule-card.highlight .rule-title{color:#0d9488}
 
-        /* Plantilla semanal */
+        /* Day cards */
         .week-section{margin-bottom:2rem}
         .day-card{background:#fff;border-radius:1rem;border:1.5px solid #e4e4e7;margin-bottom:1rem;overflow:hidden}
+        .day-card.example-card{border-color:#0d9488;border-width:2px}
         .day-header{display:flex;align-items:center;gap:.75rem;padding:.875rem 1rem;border-bottom:1px solid #f4f4f5}
         .day-badge{width:40px;height:40px;border-radius:.625rem;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.875rem;flex-shrink:0}
-        .day-info{flex:1}
+        .day-info{flex:1;min-width:0}
         .day-name{font-size:.9375rem;font-weight:800;color:#18181b}
-        .day-sector{font-size:.8125rem;color:#71717a;margin-top:.0625rem}
-        .day-status{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:.2rem .5rem;border-radius:100px}
+        .day-sector-label{font-size:.8125rem;color:#71717a;margin-top:.125rem;display:flex;align-items:center;gap:.25rem}
+        .sector-input{border:none;border-bottom:1.5px solid #e4e4e7;background:transparent;font-size:.8125rem;color:#18181b;font-family:'Outfit',sans-serif;font-weight:600;width:160px;padding:.1rem .2rem;outline:none;transition:border-color .15s}
+        .sector-input:focus{border-color:#0d9488}
+        .sector-input::placeholder{color:#a1a1aa;font-weight:400}
+        .example-badge{font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:.2rem .625rem;border-radius:100px;background:#f0fdfa;color:#0d9488;white-space:nowrap}
 
-        /* Status colors */
-        .status-a{background:#f0fdfa;color:#0d9488}
-        .status-b{background:#f3f0ff;color:#7c3aed}
-        .status-c{background:#fff7ed;color:#c2410c}
-        .status-libre{background:#f4f4f5;color:#71717a}
-
-        /* Slots de citas */
+        /* Example slots (fixed) */
         .day-slots{padding:.75rem 1rem 1rem}
-        .slot{display:grid;grid-template-columns:70px 1fr auto;gap:.5rem 1rem;align-items:center;padding:.5rem .75rem;border-radius:.625rem;margin-bottom:.375rem;background:#fafafa;border:1px solid #f4f4f5}
+        .slot{display:grid;grid-template-columns:72px 1fr auto;gap:.5rem 1rem;align-items:center;padding:.5rem .75rem;border-radius:.625rem;margin-bottom:.375rem;background:#fafafa;border:1px solid #f4f4f5}
         .slot-time{font-size:.875rem;font-weight:800;color:#18181b}
         .slot-desc{font-size:.875rem;color:#52525b}
-        .slot-travel{font-size:.75rem;color:#a1a1aa;text-align:right;white-space:nowrap}
+        .slot-tag{font-size:.75rem;color:#a1a1aa;text-align:right;white-space:nowrap}
         .slot.buffer{background:#fff7ed;border-color:#fed7aa}
-        .slot.buffer .slot-time{color:#c2410c}
-        .slot.buffer .slot-desc{color:#c2410c;font-style:italic}
-        .slot.empty{background:#f9fafb;border:1.5px dashed #e4e4e7}
-        .slot.empty .slot-desc{color:#a1a1aa;font-style:italic}
+        .slot.buffer .slot-time{color:#c2410c;font-size:.8125rem}
+        .slot.buffer .slot-desc{color:#c2410c;font-style:italic;font-size:.8125rem}
 
-        /* Checklist del van */
+        /* Editable slots */
+        .editable-slots{padding:.625rem 1rem .875rem}
+        .eslot{display:flex;align-items:center;gap:.625rem;padding:.375rem 0;border-bottom:1px solid #f9fafb}
+        .eslot:last-child{border-bottom:none}
+        .time-input{border:1.5px solid #e4e4e7;border-radius:.5rem;background:#fafafa;font-size:.875rem;font-weight:800;color:#18181b;font-family:'Outfit',sans-serif;padding:.3rem .5rem;width:92px;outline:none;transition:border-color .15s;text-align:center}
+        .time-input:focus{border-color:#0d9488;background:#fff}
+        .time-input::placeholder{color:#d4d4d8;font-weight:400;font-size:.8125rem}
+        .desc-input{flex:1;border:1.5px solid #e4e4e7;border-radius:.5rem;background:#fafafa;font-size:.875rem;color:#18181b;font-family:'Outfit',sans-serif;padding:.3rem .625rem;outline:none;transition:border-color .15s}
+        .desc-input:focus{border-color:#0d9488;background:#fff}
+        .desc-input::placeholder{color:#d4d4d8}
+        .del-slot{width:26px;height:26px;border-radius:.375rem;border:none;background:transparent;color:#d4d4d8;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+        .del-slot:hover{background:#fee2e2;color:#dc2626}
+        .add-slot-btn{display:flex;align-items:center;gap:.375rem;background:none;border:1.5px dashed #d4d4d8;border-radius:.625rem;color:#a1a1aa;font-size:.8125rem;font-weight:700;padding:.375rem .875rem;cursor:pointer;margin:.375rem 1rem .75rem;width:calc(100% - 2rem);justify-content:center;transition:all .15s}
+        .add-slot-btn:hover{border-color:#0d9488;color:#0d9488;background:#f0fdfa}
+
+        /* Checklist */
         .checklist-section{background:#fff;border-radius:1rem;border:1px solid #e4e4e7;padding:1.375rem 1.5rem;margin-bottom:2rem}
-        .checklist-title{font-size:.9375rem;font-weight:900;color:#18181b;margin-bottom:.875rem;display:flex;align-items:center;gap:.5rem}
-        .checklist-cols{display:grid;grid-template-columns:1fr 1fr;gap:.25rem .875rem}
-        .check-item{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.8125rem;color:#52525b;cursor:pointer}
-        .check-box{width:16px;height:16px;border:2px solid #d4d4d8;border-radius:.25rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .1s}
+        .checklist-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:.5rem}
+        .checklist-title{font-size:.9375rem;font-weight:900;color:#18181b}
+        .btn-reset-checks{font-size:.75rem;font-weight:700;color:#71717a;background:none;border:none;cursor:pointer;padding:.25rem .5rem;border-radius:.5rem;transition:all .15s}
+        .btn-reset-checks:hover{background:#f4f4f5;color:#18181b}
+        .checklist-cols{display:grid;grid-template-columns:1fr 1fr;gap:.125rem .875rem}
+        .check-item{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.8125rem;color:#52525b;cursor:pointer;user-select:none}
+        .check-box{width:17px;height:17px;border:2px solid #d4d4d8;border-radius:.3125rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s}
         .check-box.checked{background:#0d9488;border-color:#0d9488}
-        .check-box.checked::after{content:'✓';color:#fff;font-size:.625rem;font-weight:900}
+        .check-box.checked::after{content:'✓';color:#fff;font-size:.6875rem;font-weight:900}
 
-        /* Nota de fin de jornada */
+        /* EOD */
         .eod-card{background:#f9fafb;border:1px solid #e4e4e7;border-radius:.875rem;padding:1rem 1.25rem;margin-bottom:2rem}
         .eod-title{font-size:.8125rem;font-weight:800;color:#18181b;margin-bottom:.5rem}
         .eod-items{display:flex;flex-direction:column;gap:.375rem}
         .eod-item{display:flex;align-items:center;gap:.5rem;font-size:.8125rem;color:#52525b}
         .eod-dot{width:6px;height:6px;border-radius:50%;background:#0d9488;flex-shrink:0}
 
-        /* Nota sobre Lía */
+        /* Lía note */
         .lia-note{background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:1rem;padding:1.25rem 1.375rem;margin-bottom:2rem}
         .lia-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0d9488;margin-bottom:.5rem}
         .lia-text{font-size:.9375rem;color:#18181b;line-height:1.6}
@@ -94,16 +115,21 @@
         .cta-wa:hover{background:#1ebe5d}
         .cta-sub{text-align:center;font-size:.75rem;color:#a1a1aa;margin-bottom:2rem}
 
+        /* Print */
         @media print{
             body{background:#fff;padding:0}
-            .how-card,.lia-note,.cta-wa,.cta-sub{display:none}
-            .day-card{break-inside:avoid}
+            .how-card,.lia-note,.cta-wa,.cta-sub,.action-bar,.del-slot,.add-slot-btn,.btn-reset-checks{display:none!important}
+            .day-card{break-inside:avoid;border:1px solid #ccc;margin-bottom:.625rem}
+            .time-input,.desc-input,.sector-input{border:none;background:transparent;font-size:.875rem}
+            .eslot{border-bottom:1px solid #eee}
+            .check-box{border:1.5px solid #999}
+            .check-box.checked::after{content:'✓';color:#000}
         }
         @media(max-width:480px){
             .rules-grid{grid-template-columns:1fr}
             .checklist-cols{grid-template-columns:1fr}
-            .slot{grid-template-columns:60px 1fr}
-            .slot-travel{display:none}
+            .slot{grid-template-columns:64px 1fr}
+            .slot-tag{display:none}
         }
     </style>
 </head>
@@ -113,7 +139,19 @@
     <div class="page-header">
         <div class="page-tag">🗺️ Plantilla gratuita · Vetly</div>
         <h1 class="page-title">Ruta semanal para clínica veterinaria móvil</h1>
-        <p class="page-sub">La hoja de ruta que usan las clínicas móviles para terminar la semana sin caos — con sectores, buffers y checklist del van incluidos.</p>
+        <p class="page-sub">Completa los campos, marca el checklist y descarga. Lista para usar el lunes.</p>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="action-bar">
+        <button class="btn-download" onclick="window.print()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Imprimir / Guardar PDF
+        </button>
+        <button class="btn-reset" onclick="resetAll()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Limpiar todo
+        </button>
     </div>
 
     <!-- Cómo usar -->
@@ -122,19 +160,19 @@
         <div class="how-steps">
             <div class="how-step">
                 <div class="step-num">1</div>
-                <div class="step-text"><strong>Imprime o guarda en pantalla</strong> — puedes usarla directo desde el teléfono o imprimirla cada semana (Ctrl+P).</div>
+                <div class="step-text"><strong>Mira el ejemplo</strong> (Lunes) para entender el formato — con buffers, pausa y citas de muestra.</div>
             </div>
             <div class="how-step">
                 <div class="step-num">2</div>
-                <div class="step-text"><strong>Asigna un sector por día</strong> — agrupa las citas por zona geográfica. Menos viaje, más citas.</div>
+                <div class="step-text"><strong>Completa los días siguientes</strong> — escribe la hora y el detalle de cada cita. Usa "Agregar cita" si necesitas más filas.</div>
             </div>
             <div class="how-step">
                 <div class="step-num">3</div>
-                <div class="step-text"><strong>Respeta los buffers</strong> — entre citas del mismo sector: 15 min. Cambio de sector: 60 min. Sin eso, la ruta se cae al primer retraso.</div>
+                <div class="step-text"><strong>Marca el checklist</strong> del van antes de salir. Al volver, desmarca para la próxima jornada.</div>
             </div>
             <div class="how-step">
                 <div class="step-num">4</div>
-                <div class="step-text"><strong>Marca el checklist del van</strong> antes de salir. Un equipo olvidado = cita cancelada in situ.</div>
+                <div class="step-text"><strong>Descarga o imprime</strong> con el botón de arriba. Los campos editados se imprimen tal como aparecen.</div>
             </div>
         </div>
     </div>
@@ -146,184 +184,73 @@
             <div class="rule-card highlight">
                 <div class="rule-icon">⏱️</div>
                 <div class="rule-title">Buffer entre citas: 15 min</div>
-                <div class="rule-text">Mismo sector. Incluye el tiempo de cierre, traslado y apertura del siguiente.</div>
+                <div class="rule-text">Mismo sector. Cierre, traslado y apertura del siguiente.</div>
             </div>
             <div class="rule-card highlight">
                 <div class="rule-icon">🚗</div>
                 <div class="rule-title">Cambio de sector: 60 min</div>
-                <div class="rule-text">Al mover el van entre zonas lejanas. Tiempo real de traslado más margen.</div>
+                <div class="rule-text">Al mover el van entre zonas lejanas.</div>
             </div>
             <div class="rule-card">
                 <div class="rule-icon">📍</div>
                 <div class="rule-title">Agrupar por zona</div>
-                <div class="rule-text">Nunca zigzaguear. Citas del norte por la mañana, sur por la tarde — o viceversa.</div>
+                <div class="rule-text">Nunca zigzaguear. Norte por la mañana, sur por la tarde.</div>
             </div>
             <div class="rule-card">
                 <div class="rule-icon">🌅</div>
                 <div class="rule-title">Primera cita: 9:00 am</div>
-                <div class="rule-text">Nunca antes. El veterinario necesita tiempo de preparación y el cliente de despertarse.</div>
+                <div class="rule-text">Nunca antes. El veterinario y el cliente necesitan despertar.</div>
             </div>
             <div class="rule-card">
                 <div class="rule-icon">🌆</div>
                 <div class="rule-title">Última cita: 6:00 pm</div>
-                <div class="rule-text">Para terminar antes de las 7. La jornada tiene límite — y el equipo también.</div>
+                <div class="rule-text">Para terminar antes de las 7. La jornada tiene límite.</div>
             </div>
             <div class="rule-card">
                 <div class="rule-icon">📵</div>
                 <div class="rule-title">No agendar en ruta</div>
-                <div class="rule-text">Si el veterinario conduce, nadie agenda. Usa Lía o un sistema que lo haga automáticamente.</div>
+                <div class="rule-text">Si el veterinario conduce, nadie agenda manualmente.</div>
             </div>
         </div>
     </div>
 
-    <!-- Plantilla semanal -->
+    <!-- Semana -->
     <div class="week-section">
         <div class="section-title">Plantilla de la semana</div>
 
-        <!-- Lunes -->
-        <div class="day-card">
+        <!-- EJEMPLO (Lunes fijo con buffers) -->
+        <div class="day-card example-card">
             <div class="day-header">
-                <div class="day-badge" style="background:#e0f2fe;color:#0369a1">LU</div>
+                <div class="day-badge" style="background:#f0fdfa;color:#0d9488">EJ</div>
                 <div class="day-info">
-                    <div class="day-name">Lunes</div>
-                    <div class="day-sector">Sector: _______________</div>
+                    <div class="day-name">Ejemplo — así se ve un día completo</div>
+                    <div class="day-sector-label" style="color:#0d9488;font-size:.75rem;font-weight:700;margin-top:.125rem">Solo de referencia — no editable</div>
                 </div>
-                <div class="day-status status-a">Operativo</div>
+                <div class="example-badge">Ejemplo</div>
             </div>
             <div class="day-slots">
-                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
-                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">Firulais · Vacuna · Los Ángeles 432</span><span class="slot-tag">~60 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación (15 min)</span><span class="slot-tag">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:15</span><span class="slot-desc">Michi · Desparasitación · Av. Bello 98</span><span class="slot-tag">~45 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación (15 min)</span><span class="slot-tag">15 min</span></div>
+                <div class="slot"><span class="slot-time">11:15</span><span class="slot-desc">Thor · Control post-cirugía · Calle 7 nº 210</span><span class="slot-tag">~60 min</span></div>
+                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-tag">60 min</span></div>
+                <div class="slot"><span class="slot-time">13:30</span><span class="slot-desc">Luna · Vacuna óctuple · Los Pinos 55</span><span class="slot-tag">~60 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación (15 min)</span><span class="slot-tag">15 min</span></div>
+                <div class="slot"><span class="slot-time">14:45</span><span class="slot-desc">Rocky · Castración domicilio · Av. Sur 880</span><span class="slot-tag">~90 min</span></div>
             </div>
         </div>
 
-        <!-- Martes -->
-        <div class="day-card">
-            <div class="day-header">
-                <div class="day-badge" style="background:#fce7f3;color:#9d174d">MA</div>
-                <div class="day-info">
-                    <div class="day-name">Martes</div>
-                    <div class="day-sector">Sector: _______________</div>
-                </div>
-                <div class="day-status status-b">Operativo</div>
-            </div>
-            <div class="day-slots">
-                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
-                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
-            </div>
-        </div>
-
-        <!-- Miércoles -->
-        <div class="day-card">
-            <div class="day-header">
-                <div class="day-badge" style="background:#f0fdf4;color:#15803d">MI</div>
-                <div class="day-info">
-                    <div class="day-name">Miércoles</div>
-                    <div class="day-sector">Sector: _______________</div>
-                </div>
-                <div class="day-status status-a">Operativo</div>
-            </div>
-            <div class="day-slots">
-                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
-                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
-            </div>
-        </div>
-
-        <!-- Jueves -->
-        <div class="day-card">
-            <div class="day-header">
-                <div class="day-badge" style="background:#fff7ed;color:#c2410c">JU</div>
-                <div class="day-info">
-                    <div class="day-name">Jueves</div>
-                    <div class="day-sector">Sector: _______________</div>
-                </div>
-                <div class="day-status status-c">Operativo</div>
-            </div>
-            <div class="day-slots">
-                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
-                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
-            </div>
-        </div>
-
-        <!-- Viernes -->
-        <div class="day-card">
-            <div class="day-header">
-                <div class="day-badge" style="background:#fdf4ff;color:#9333ea">VI</div>
-                <div class="day-info">
-                    <div class="day-name">Viernes</div>
-                    <div class="day-sector">Sector: _______________</div>
-                </div>
-                <div class="day-status status-b">Operativo</div>
-            </div>
-            <div class="day-slots">
-                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
-                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
-            </div>
-        </div>
-
-        <!-- Sábado -->
-        <div class="day-card">
-            <div class="day-header">
-                <div class="day-badge" style="background:#fafafa;color:#71717a">SA</div>
-                <div class="day-info">
-                    <div class="day-name">Sábado</div>
-                    <div class="day-sector">Máx 3 citas · Sector único</div>
-                </div>
-                <div class="day-status status-libre">Reducido</div>
-            </div>
-            <div class="day-slots">
-                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
-                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
-                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">—</span></div>
-                <div class="slot empty"><span class="slot-time">13:00+</span><span class="slot-desc">Fin de jornada sabatina</span><span class="slot-travel">—</span></div>
-            </div>
-        </div>
+        <!-- Días editables -->
+        <div id="days-container"></div>
     </div>
 
     <!-- Checklist del van -->
     <div class="checklist-section">
-        <div class="checklist-title">🚐 Checklist del van — antes de salir</div>
+        <div class="checklist-header">
+            <div class="checklist-title">🚐 Checklist del van — antes de salir</div>
+            <button class="btn-reset-checks" onclick="resetChecks()">Desmarcar todo</button>
+        </div>
         <div class="checklist-cols" id="checks">
             <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Maletín de vacunas</div>
             <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Jeringas y agujas</div>
@@ -340,7 +267,7 @@
         </div>
     </div>
 
-    <!-- Notas fin de jornada -->
+    <!-- Fin de jornada -->
     <div class="eod-card">
         <div class="eod-title">✅ Al terminar la jornada</div>
         <div class="eod-items">
@@ -348,18 +275,18 @@
             <div class="eod-item"><div class="eod-dot"></div>Enviar comprobante de pago a quien lo pidió</div>
             <div class="eod-item"><div class="eod-dot"></div>Confirmar citas del día siguiente</div>
             <div class="eod-item"><div class="eod-dot"></div>Reponer medicamentos con stock bajo</div>
-            <div class="eod-item"><div class="eod-dot"></div>Revisar mensajes de WhatsApp no respondidos</div>
+            <div class="eod-item"><div class="eod-dot"></div>Revisar mensajes de WhatsApp pendientes</div>
         </div>
     </div>
 
-    <!-- Nota sobre Lía -->
+    <!-- Lía -->
     <div class="lia-note">
         <div class="lia-label">🐾 Lía hace esto automáticamente</div>
         <p class="lia-text">Lía, la recepcionista IA de Vetly, <strong>agrupa las citas por sector</strong>, calcula los buffers de traslado y detecta rutas imposibles antes de confirmar. Esta planilla es para quienes aún no tienen Lía — y una vista previa de lo que te ahorras cuando sí la tienes.</p>
     </div>
 
     <!-- CTA -->
-    <a class="cta-wa" href="https://wa.me/56993089185?text=Hola%21+Vi+la+plantilla+de+ruta+de+Vetly.+Quiero+saber+c%C3%B3mo+funciona+Lía+para+organizar+rutas+autom%C3%A1ticamente+%F0%9F%97%BA%EF%B8%8F" target="_blank" rel="noopener">
+    <a class="cta-wa" href="https://wa.me/56993089185?text=Hola%21+Vi+la+plantilla+de+ruta+de+Vetly.+Quiero+saber+c%C3%B3mo+funciona+L%C3%ADa+para+organizar+rutas+autom%C3%A1ticamente+%F0%9F%97%BA%EF%B8%8F" target="_blank" rel="noopener">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
         Ver cómo Lía organiza las rutas →
     </a>
@@ -368,10 +295,102 @@
 </div>
 
 <script>
-function toggle(el){
-    var box = el.querySelector('.check-box');
-    box.classList.toggle('checked');
+var DAYS = [
+    { abbr:'LU', name:'Lunes',     bg:'#e0f2fe', color:'#0369a1' },
+    { abbr:'MA', name:'Martes',    bg:'#fce7f3', color:'#9d174d' },
+    { abbr:'MI', name:'Miércoles', bg:'#f0fdf4', color:'#15803d' },
+    { abbr:'JU', name:'Jueves',    bg:'#fff7ed', color:'#c2410c' },
+    { abbr:'VI', name:'Viernes',   bg:'#fdf4ff', color:'#9333ea' },
+    { abbr:'SA', name:'Sábado',    bg:'#fafafa', color:'#71717a' }
+];
+
+var INIT_SLOTS = 4; // slots vacíos iniciales por día
+
+function buildDay(d, idx) {
+    var card = document.createElement('div');
+    card.className = 'day-card';
+    card.dataset.dayIdx = idx;
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'day-header';
+    header.innerHTML = [
+        '<div class="day-badge" style="background:' + d.bg + ';color:' + d.color + '">' + d.abbr + '</div>',
+        '<div class="day-info">',
+        '  <div class="day-name">' + d.name + '</div>',
+        '  <div class="day-sector-label">Sector:&nbsp;<input class="sector-input" type="text" placeholder="Ej: Norte, Sector A…" maxlength="40"></div>',
+        '</div>'
+    ].join('');
+    card.appendChild(header);
+
+    // Slots container
+    var slotsDiv = document.createElement('div');
+    slotsDiv.className = 'editable-slots';
+    card.appendChild(slotsDiv);
+
+    for (var i = 0; i < INIT_SLOTS; i++) addSlot(slotsDiv);
+
+    // Add button
+    var addBtn = document.createElement('button');
+    addBtn.className = 'add-slot-btn';
+    addBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar cita';
+    addBtn.addEventListener('click', function() { addSlot(slotsDiv); });
+    card.appendChild(addBtn);
+
+    return card;
 }
+
+function addSlot(container) {
+    var row = document.createElement('div');
+    row.className = 'eslot';
+    row.innerHTML = [
+        '<input class="time-input" type="time" placeholder="HH:MM">',
+        '<input class="desc-input" type="text" placeholder="Paciente · Servicio · Dirección">',
+        '<button class="del-slot" title="Eliminar cita" onclick="removeSlot(this)">×</button>'
+    ].join('');
+    container.appendChild(row);
+}
+
+function removeSlot(btn) {
+    var row = btn.closest('.eslot');
+    var container = row.parentElement;
+    // Dejar siempre al menos 1 slot
+    if (container.querySelectorAll('.eslot').length > 1) {
+        row.remove();
+    } else {
+        row.querySelector('.time-input').value = '';
+        row.querySelector('.desc-input').value = '';
+    }
+}
+
+function toggle(el) {
+    el.querySelector('.check-box').classList.toggle('checked');
+}
+
+function resetChecks() {
+    document.querySelectorAll('.check-box').forEach(function(b){ b.classList.remove('checked'); });
+}
+
+function resetAll() {
+    if (!confirm('¿Limpiar todos los campos de la semana?')) return;
+    document.querySelectorAll('.time-input').forEach(function(i){ i.value=''; });
+    document.querySelectorAll('.desc-input').forEach(function(i){ i.value=''; });
+    document.querySelectorAll('.sector-input').forEach(function(i){ i.value=''; });
+    resetChecks();
+    // Dejar solo 4 slots por día
+    document.querySelectorAll('.editable-slots').forEach(function(c){
+        var slots = c.querySelectorAll('.eslot');
+        slots.forEach(function(s, idx){ if(idx >= INIT_SLOTS) s.remove(); });
+    });
+}
+
+// Renderizar días
+(function init(){
+    var container = document.getElementById('days-container');
+    DAYS.forEach(function(d, idx){
+        container.appendChild(buildDay(d, idx));
+    });
+})();
 </script>
 </body>
 </html>
