@@ -731,8 +731,16 @@ export default function Loyalty() {
                                     </div>
                                 </div>
                                 <div className="pt-2 border-t border-white/10">
-                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">Cashback / Acumulación (%)</label>
-                                    <p className="text-xs text-white/60 mb-2 leading-tight">Lo que el cliente acumula por sí mismo en cada cita.</p>
+                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">
+                                        {settings?.loyalty_program_mode === 'money'
+                                            ? `Cashback / Acumulación (${settings?.loyalty_currency_symbol})`
+                                            : 'Cashback / Acumulación (%)'}
+                                    </label>
+                                    <p className="text-xs text-white/60 mb-2 leading-tight">
+                                        {settings?.loyalty_program_mode === 'money'
+                                            ? `Dinero que el cliente acumula por sí mismo en cada cita (en ${settings?.loyalty_currency_symbol}).`
+                                            : 'Porcentaje del valor de la cita que el cliente acumula.'}
+                                    </p>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -740,7 +748,11 @@ export default function Loyalty() {
                                             onChange={(e) => setSettings(s => s ? { ...s, loyalty_points_percentage: parseFloat(e.target.value) } : null)}
                                             className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
                                         />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">%</span>
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">
+                                            {settings?.loyalty_program_mode === 'money'
+                                                ? settings?.loyalty_currency_symbol
+                                                : '%'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
