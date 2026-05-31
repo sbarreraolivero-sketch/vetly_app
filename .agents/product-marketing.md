@@ -491,6 +491,38 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Inventario ABC conectado con la nueva feature de sistema de inventario (sesión 30 de desarrollo)
 - Visuales propios: metrics grid 5 cards, fórmulas en oscuro, tabla comparativa señales de alarma, barras ABC, dashboard preview simulado
 
+### Completado sesión 2026-05-30 (ART-07)
+
+**ART-07 — Cómo empezar una clínica veterinaria móvil a domicilio** → publicado:
+- URL: `vetly.pro/blog/clinica-veterinaria-movil-a-domicilio`
+- Ángulo: guía top-of-funnel completa (inversión, equipamiento, precios, primeros clientes, logística, herramientas, 5 errores)
+- Conexión con Sesión 30 (Inventario): ABC del van, control de stock por visita, análisis de facturas con IA
+- Stats strip: $6.500 inversión mínima, $0 arriendo, 44% menos km/día con ruta optimizada, <5s respuesta IA
+- Author bio de Sebastián como ex-fundador de Movilvets (founder-market fit)
+- Schema: Article + FAQPage + BreadcrumbList + HowTo (6 pasos)
+- Sección "Próximamente" del blog index actualizada: ART-08 inventario + 2 futuros artículos
+
+### Estado del blog — 2026-05-30
+
+| # | Artículo | URL | Tag |
+|---|----------|-----|-----|
+| 1 | Cómo Animalgrace ahorra 84h/mes | `/blog/como-animalgrace-ahorra-84-horas-al-mes` | Caso de estudio |
+| 2 | Recepcionista virtual veterinaria | `/blog/recepcionista-virtual-veterinaria` | Guía |
+| 3 | WhatsApp para clínicas veterinarias | `/blog/whatsapp-clinica-veterinaria` | Guía |
+| 4 | Ruta clínica veterinaria móvil | `/blog/ruta-clinica-veterinaria-movil` | Logística |
+| 5 | Recordatorios citas veterinarias | `/blog/recordatorios-citas-veterinarias` | Guía |
+| 6 | Gestionar dos clínicas veterinarias | `/blog/gestionar-dos-clinicas-veterinarias` | Gestión |
+| 7 | Software de gestión veterinaria | `/blog/software-gestion-veterinaria` | Guía de compra |
+| 8 | Agente IA para veterinarias | `/blog/agente-ia-veterinaria` | Guía |
+| 9 | Agenda veterinaria online | `/blog/agenda-veterinaria-online` | Guía práctica |
+| 10 | Fidelización clientes veterinaria | `/blog/fidelizacion-clientes-veterinaria` | Marketing |
+| 11 | Métricas de rentabilidad veterinaria | `/blog/metricas-rentabilidad-clinica-veterinaria` | Gestión y Finanzas |
+| 12 | Burnout veterinario | `/blog/burnout-veterinario` | Bienestar |
+| 13 | Precios clínica veterinaria | `/blog/precios-clinica-veterinaria` | Gestión |
+| 14 | Clínica veterinaria móvil a domicilio | `/blog/clinica-veterinaria-movil-a-domicilio` | Guía práctica |
+
+**ART-08 pendiente:** "Inventario para clínica veterinaria: cómo controlar tu stock y no perder dinero" — conecta directamente con Sesión 30 (análisis ABC, facturas con IA, registro por visita).
+
 ### Pendiente — Próxima sesión
 
 **1. Outreach a comunidades veterinarias** ← PRÓXIMO
