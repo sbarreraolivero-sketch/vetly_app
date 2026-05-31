@@ -2299,3 +2299,61 @@ Sección añadida debajo de "Validación y Activación":
 - **Tabla** (últimos 100): fecha/hora · badge de nivel coloreado · barra de progreso con % · ✓ WA clicked · fuente (helper `sourceLabel()` convierte la URL a nombre legible)
 - Botón refresh manual
 - Fetch via `supabase.from('diagnostic_leads')` — usa la policy `authenticated_select`
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 33, 2026-05-31)
+
+### Fidelización — símbolo de acumulación dinámico por modo del programa
+
+**Problema:** en Ajustes → "Reglas de Ganancia", el campo "Cashback / Acumulación" mostraba siempre `%` como sufijo aunque el modo del programa fuera "Dinero (Cashback)".
+
+**Fix (`src/pages/Loyalty.tsx`):**
+- Label ahora muestra `Cashback / Acumulación ($)` cuando `loyalty_program_mode === 'money'`, o `(%)` en los demás modos
+- Descripción adapta su texto según el modo: "Dinero que el cliente acumula…" vs "Porcentaje del valor de la cita…"
+- Sufijo del input cambia a `loyalty_currency_symbol` en modo money, y a `%` en los demás
+- El cambio es reactivo: al hacer clic en un modo diferente el campo se actualiza de inmediato sin guardar
+
+### Auditoría recordatorios Animalgrace Linares/Talca
+
+**Síntoma:** últimos 6 recordatorios fallidos. Diagnóstico vía `reminder_logs`.
+
+**Causa raíz:** `BALANCE_INSUFFICIENT` en la cuenta de YCloud de Linares/Talca. El saldo se agotó el 28 de mayo a las 13:00 UTC, interrumpiendo los recordatorios de Lulu, Jim, Simón y Tadeo. Los envíos previos (Abril, Zuki) funcionaron correctamente.
+
+**Resolución:** **no es un bug de código** — Claudia debe recargar el saldo de YCloud de la cuenta de Linares/Talca. Los 6 registros `failed` son de citas ya pasadas y no se reenviarán (idempotencia del cron). Los próximos recordatorios funcionan desde que haya saldo.
+
+### Adaptación mobile completa — 4 banners de sección
+
+**Problema:** los banners de Recordatorios, Ajustes IA, Finanzas e Inventario usaban `flex items-start justify-between` sin breakpoint responsive. En mobile (≈298px), los botones de acción comprimían el título hasta fragmentarlo en 3–4 líneas.
+
+**Patrón de fix aplicado:**
+
+| Antes | Después |
+|---|---|
+| `flex items-start justify-between gap-4` | `flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4` |
+| Ícono decorativo siempre visible | `hidden sm:flex` — oculto en mobile |
+| Padding `p-6 sm:p-8` | `p-5 sm:p-8` |
+| `text-2xl sm:text-3xl` | `text-xl sm:text-3xl` |
+| Texto descripción `text-sm` | `text-xs sm:text-sm` |
+
+**Por página:**
+- **Recordatorios** (`Reminders.tsx`): título arriba, botón "Guardar" compacto debajo; ícono reloj oculto en mobile
+- **Ajustes IA** (`AISettings.tsx`): título arriba, botón "Guardar" compacto debajo; ícono sliders oculto en mobile
+- **Finanzas** (`Finance.tsx`): título arriba, 3 botones (Exportar/Gasto/Ingreso) en fila compacta debajo; ícono dólar oculto en mobile; padding de botones reducido a `px-3 py-2`
+- **Inventario** (`Inventory.tsx`): título + botón "Factura IA" (abreviado en mobile) en fila superior; 4 stats pasan de fila horizontal desbordante a **grid 2×2** con fondo `white/10` redondeado en mobile
+
+### Fix SQL Finance — `column reference "clinic_id" is ambiguous`
+
+**Síntoma:** la página de Finanzas no cargaba ingresos manuales — error 400 en `get_clinic_incomes_secure`.
+
+**Causa raíz:** la función `get_clinic_incomes_secure` declara un `RETURNS TABLE(..., clinic_id uuid, ...)`. El chequeo de acceso interno usaba `WHERE ... AND clinic_id = p_clinic_id` sobre `clinic_members`, pero PostgreSQL lo consideraba ambiguo entre `clinic_members.clinic_id` y la columna de retorno de la función.
+
+**Fix (migración `fix_get_clinic_incomes_secure_ambiguous_clinic_id`):**
+```sql
+-- Antes (ambiguo):
+WHERE user_id = auth.uid() AND clinic_id = p_clinic_id AND status = 'active'
+
+-- Después (explícito con alias cm):
+FROM public.clinic_members cm
+WHERE cm.user_id = auth.uid() AND cm.clinic_id = p_clinic_id AND cm.status = 'active'
+```
