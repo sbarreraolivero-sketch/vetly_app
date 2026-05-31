@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recursos gratuitos para clínicas veterinarias · Vetly</title>
+    <meta name="description" content="Herramientas gratuitas para veterinarios: calculadora de horas, script anti no-shows, plantilla de ruta y diagnóstico de WhatsApp.">
+    <link rel="canonical" href="https://vetly.pro/recursos">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{font-family:'Outfit',sans-serif;box-sizing:border-box;margin:0;padding:0}
+        body{background:#f4f4f5;color:#18181b;-webkit-font-smoothing:antialiased;min-height:100vh}
+
+        /* Navbar */
+        .site-header{background:#fff;border-bottom:1px solid #e4e4e7;position:sticky;top:0;z-index:50}
+        .nav-inner{max-width:1100px;margin:0 auto;padding:0 1.5rem;height:56px;display:flex;align-items:center;justify-content:space-between;gap:2rem}
+        .nav-logo{font-size:1.125rem;font-weight:900;color:#18181b;text-decoration:none;letter-spacing:-.02em}
+        .nav-logo span{color:#0d9488}
+        .header-nav{display:flex;align-items:center;gap:1.75rem}
+        .header-nav a{font-size:.875rem;font-weight:600;color:#52525b;text-decoration:none;transition:color .15s}
+        .header-nav a:hover{color:#18181b}
+        .header-nav a.active{color:#0d9488;font-weight:800}
+        .header-cta{background:#0d9488;color:#fff;font-size:.875rem;font-weight:700;padding:.5rem 1.125rem;border-radius:.625rem;text-decoration:none;white-space:nowrap;transition:background .15s}
+        .header-cta:hover{background:#0f766e}
+        @media(max-width:600px){
+            .header-nav{display:none}
+        }
+
+        /* Hero */
+        .hero{background:linear-gradient(135deg,#0d9488,#0891b2);padding:4rem 1.5rem 3.5rem;text-align:center;color:#fff}
+        .hero-tag{display:inline-block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#99f6e4;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:.3rem .875rem;border-radius:100px;margin-bottom:1rem}
+        .hero-title{font-size:2.25rem;font-weight:900;letter-spacing:-.04em;line-height:1.1;margin-bottom:.875rem}
+        .hero-sub{font-size:1.0625rem;color:#ccfbf1;line-height:1.6;max-width:520px;margin:0 auto}
+        @media(max-width:480px){.hero-title{font-size:1.625rem}}
+
+        /* Grid de recursos */
+        .resources-section{max-width:900px;margin:0 auto;padding:3rem 1.5rem}
+        .section-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#71717a;margin-bottom:1.5rem;text-align:center}
+        .resources-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+        @media(max-width:640px){.resources-grid{grid-template-columns:1fr}}
+
+        .resource-card{background:#fff;border-radius:1.25rem;border:1.5px solid #e4e4e7;overflow:hidden;display:flex;flex-direction:column;transition:box-shadow .2s,border-color .2s}
+        .resource-card:hover{box-shadow:0 8px 30px rgba(0,0,0,.09);border-color:#0d9488}
+        .card-accent{height:5px}
+        .card-body{padding:1.5rem;flex:1;display:flex;flex-direction:column}
+        .card-emoji{font-size:2rem;margin-bottom:.75rem;display:block}
+        .card-tag{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:.2rem .625rem;border-radius:100px;display:inline-block;margin-bottom:.625rem}
+        .card-title{font-size:1.0625rem;font-weight:900;color:#18181b;letter-spacing:-.02em;line-height:1.3;margin-bottom:.5rem}
+        .card-desc{font-size:.875rem;color:#52525b;line-height:1.6;flex:1;margin-bottom:1.25rem}
+        .card-bullets{list-style:none;display:flex;flex-direction:column;gap:.3rem;margin-bottom:1.25rem}
+        .card-bullets li{font-size:.8125rem;color:#71717a;display:flex;align-items:baseline;gap:.5rem}
+        .card-bullets li::before{content:'✓';color:#0d9488;font-weight:900;flex-shrink:0}
+        .card-cta{display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1.25rem;border-radius:.75rem;font-size:.875rem;font-weight:800;text-decoration:none;transition:all .15s;width:100%}
+        .card-cta.wa{background:#25D366;color:#fff}
+        .card-cta.wa:hover{background:#1ebe5d;transform:translateY(-1px)}
+        .card-cta.view{background:#f4f4f5;color:#18181b;border:1.5px solid #e4e4e7}
+        .card-cta.view:hover{background:#e4e4e7}
+        .cta-row{display:flex;gap:.625rem;flex-direction:column}
+
+        /* Colores por recurso */
+        .c-teal  .card-accent{background:linear-gradient(90deg,#0d9488,#0891b2)}
+        .c-teal  .card-tag{background:#f0fdfa;color:#0d9488}
+        .c-violet .card-accent{background:linear-gradient(90deg,#7c3aed,#6d28d9)}
+        .c-violet .card-tag{background:#f5f3ff;color:#7c3aed}
+        .c-emerald .card-accent{background:linear-gradient(90deg,#059669,#0d9488)}
+        .c-emerald .card-tag{background:#ecfdf5;color:#059669}
+        .c-amber .card-accent{background:linear-gradient(90deg,#d97706,#b45309)}
+        .c-amber .card-tag{background:#fffbeb;color:#d97706}
+
+        /* Sección cómo funciona */
+        .how-section{background:#18181b;padding:3rem 1.5rem;text-align:center;color:#fff}
+        .how-inner{max-width:700px;margin:0 auto}
+        .how-title{font-size:1.375rem;font-weight:900;letter-spacing:-.03em;margin-bottom:.5rem}
+        .how-sub{font-size:.9375rem;color:#a1a1aa;line-height:1.6;margin-bottom:2rem}
+        .how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;text-align:left}
+        @media(max-width:560px){.how-steps{grid-template-columns:1fr}}
+        .how-step{background:rgba(255,255,255,.06);border-radius:.875rem;padding:1.125rem}
+        .step-n{font-size:.6875rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:#6ee7b7;margin-bottom:.375rem}
+        .step-t{font-size:.9375rem;font-weight:800;color:#fff;margin-bottom:.25rem}
+        .step-d{font-size:.8125rem;color:#a1a1aa;line-height:1.5}
+
+        /* CTA final */
+        .cta-section{max-width:600px;margin:0 auto;padding:3rem 1.5rem;text-align:center}
+        .cta-title{font-size:1.5rem;font-weight:900;letter-spacing:-.03em;margin-bottom:.5rem}
+        .cta-sub{font-size:.9375rem;color:#52525b;margin-bottom:1.5rem;line-height:1.6}
+        .cta-btn{display:inline-flex;align-items:center;gap:.625rem;background:#25D366;color:#fff;font-weight:800;font-size:1rem;padding:.875rem 1.75rem;border-radius:.875rem;text-decoration:none;transition:all .15s}
+        .cta-btn:hover{background:#1ebe5d;transform:translateY(-1px)}
+        .cta-note{font-size:.75rem;color:#a1a1aa;margin-top:.75rem}
+
+        footer{border-top:1px solid #e4e4e7;padding:1.5rem;text-align:center;font-size:.75rem;color:#a1a1aa}
+        footer a{color:#0d9488;text-decoration:none}
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<header class="site-header">
+    <div class="nav-inner">
+        <a href="https://vetly.pro/" class="nav-logo">Vetly<span>.pro</span></a>
+        <nav class="header-nav">
+            <a href="https://vetly.pro/">Inicio</a>
+            <a href="/blog">Blog</a>
+            <a href="/recursos" class="active">Recursos</a>
+            <a href="https://vetly.pro/#precios">Precios</a>
+        </nav>
+        <a href="/demo" class="header-cta">Agendar demo →</a>
+    </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-tag">🎁 100% gratuito · Sin registro</div>
+    <h1 class="hero-title">Recursos para clínicas veterinarias</h1>
+    <p class="hero-sub">Herramientas prácticas que puedes usar desde hoy. Sin formularios, sin tarjeta, sin espera.</p>
+</section>
+
+<!-- Grid de recursos -->
+<section class="resources-section">
+    <div class="section-label">4 herramientas disponibles ahora</div>
+    <div class="resources-grid">
+
+        <!-- Calculadora -->
+        <div class="resource-card c-teal">
+            <div class="card-accent"></div>
+            <div class="card-body">
+                <span class="card-emoji">🧮</span>
+                <span class="card-tag">Calculadora interactiva</span>
+                <h2 class="card-title">¿Cuántas horas pierdes en WhatsApp cada mes?</h2>
+                <p class="card-desc">Mueve 5 sliders con los datos de tu clínica y obtén el número exacto — horas, días equivalentes y citas perdidas por no-shows.</p>
+                <ul class="card-bullets">
+                    <li>Resultado personalizado en tiempo real</li>
+                    <li>Calcula horas, días/año y citas perdidas</li>
+                    <li>Insight según tu nivel de pérdida</li>
+                </ul>
+                <div class="cta-row">
+                    <a class="card-cta view" href="/recursos/calculadora">Calcular mis horas perdidas →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Script no-shows -->
+        <div class="resource-card c-violet">
+            <div class="card-accent"></div>
+            <div class="card-body">
+                <span class="card-emoji">📋</span>
+                <span class="card-tag">Script listo para copiar</span>
+                <h2 class="card-title">El script de 3 mensajes que elimina los no-shows</h2>
+                <p class="card-desc">El protocolo exacto — con timing y copy listo — que usan las clínicas veterinarias con 0% de inasistencias.</p>
+                <ul class="card-bullets">
+                    <li>3 mensajes con timing exacto (noche anterior, 2h antes, urgencia)</li>
+                    <li>Botón "Copiar" por cada mensaje</li>
+                    <li>Nota de por qué funciona cada uno</li>
+                </ul>
+                <div class="cta-row">
+                    <a class="card-cta view" href="/recursos/script-no-shows">Ver el script →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ruta móvil -->
+        <div class="resource-card c-emerald">
+            <div class="card-accent"></div>
+            <div class="card-body">
+                <span class="card-emoji">🗺️</span>
+                <span class="card-tag">Plantilla editable e imprimible</span>
+                <h2 class="card-title">Plantilla de ruta semanal para clínica veterinaria móvil</h2>
+                <p class="card-desc">Completa los horarios, organiza por sector y descarga en PDF. Con checklist del van incluido para no olvidar nada antes de salir.</p>
+                <ul class="card-bullets">
+                    <li>Ejemplo completo con buffers reales</li>
+                    <li>Campos editables — hora y detalle por cita</li>
+                    <li>Checklist del van interactivo + imprimible</li>
+                </ul>
+                <div class="cta-row">
+                    <a class="card-cta view" href="/recursos/ruta-movil">Abrir la plantilla →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagnóstico -->
+        <div class="resource-card c-amber">
+            <div class="card-accent"></div>
+            <div class="card-body">
+                <span class="card-emoji">🔍</span>
+                <span class="card-tag">Diagnóstico en 2 minutos</span>
+                <h2 class="card-title">¿Tu WhatsApp está frenando el crecimiento de tu clínica?</h2>
+                <p class="card-desc">7 preguntas. Resultado personalizado en 3 niveles con tus 3 acciones inmediatas. Sin registro.</p>
+                <ul class="card-bullets">
+                    <li>Nivel ✅ Controlado / ⚠️ En riesgo / 🚨 Crítico</li>
+                    <li>3 acciones concretas según tu resultado</li>
+                    <li>Tarda menos de 2 minutos</li>
+                </ul>
+                <div class="cta-row">
+                    <a class="card-cta view" href="/recursos/diagnostico">Hacer el diagnóstico →</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<!-- Cómo funciona -->
+<section class="how-section">
+    <div class="how-inner">
+        <h2 class="how-title">¿Cómo obtengo el recurso?</h2>
+        <p class="how-sub">Sin formularios. Sin registro. Haz clic, úsalo ahora mismo.</p>
+        <div class="how-steps">
+            <div class="how-step">
+                <div class="step-n">Paso 1</div>
+                <div class="step-t">Elige el recurso</div>
+                <div class="step-d">El que más te sirva según el problema que estás viviendo hoy.</div>
+            </div>
+            <div class="how-step">
+                <div class="step-n">Paso 2</div>
+                <div class="step-t">Úsalo ahora</div>
+                <div class="step-d">Todos los recursos son interactivos y funcionales desde el primer clic. Sin descarga de apps.</div>
+            </div>
+            <div class="how-step">
+                <div class="step-n">Paso 3</div>
+                <div class="step-t">Si quieres más</div>
+                <div class="step-d">Habla con Andrés por WhatsApp — el consultor de Vetly que puede mostrarte cómo automatizar todo esto.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA final -->
+<section class="cta-section">
+    <h2 class="cta-title">¿Quieres que esto funcione solo?</h2>
+    <p class="cta-sub">Estos recursos te ayudan a hacer mejor lo que hoy haces manual. Lía lo hace automáticamente — 24/7, sin que toques el teléfono.</p>
+    <a class="cta-btn" href="https://wa.me/56993089185?text=Hola%21+Vi+los+recursos+de+Vetly+y+quiero+saber+c%C3%B3mo+funciona+L%C3%ADa+%F0%9F%90%BE" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+        Hablar con Andrés por WhatsApp →
+    </a>
+    <p class="cta-note">Responde en minutos · Sin compromiso · Solo si te interesa saber más</p>
+</section>
+
+<footer>
+    © 2026 Vetly · <a href="https://vetly.pro/">vetly.pro</a> · <a href="/blog">Blog</a> · <a href="/demo">Solicitar demo</a>
+</footer>
+
+</body>
+</html>
