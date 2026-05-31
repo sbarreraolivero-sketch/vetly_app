@@ -43,3 +43,6 @@ yarn-error.log*
 .env.vercel
 scratch/
 
+# Agentes externos (n8n, etc.) — no deben ser públicos
+public/*.json
+
