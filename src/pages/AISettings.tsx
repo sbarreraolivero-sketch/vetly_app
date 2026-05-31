@@ -257,22 +257,22 @@ export default function AISettings() {
 
             {/* ── Banner ─────────────────────────────────────────────────── */}
             <div className="bg-gradient-to-br from-sky-500 to-sky-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8 flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-2">Agente IA</p>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Ajustes de IA</h1>
-                        <p className="text-sm text-sky-100/80 font-light mt-1">Motor de ruteo inteligente, créditos y estrategia del agente.</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-1.5">Agente IA</p>
+                        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">Ajustes de IA</h1>
+                        <p className="text-xs sm:text-sm text-sky-100/80 font-light mt-1">Motor de ruteo inteligente, créditos y estrategia del agente.</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={handleSaveAI}
                             disabled={savingModel || isLoading}
-                            className="flex items-center gap-2 bg-white text-sky-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm disabled:opacity-50"
+                            className="flex items-center gap-2 bg-white text-sky-700 font-bold text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm disabled:opacity-50"
                         >
                             {savingModel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             Guardar
                         </button>
-                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                        <div className="hidden sm:flex w-12 h-12 bg-white/15 rounded-2xl items-center justify-center shrink-0">
                             <SlidersHorizontal className="w-6 h-6 text-white" />
                         </div>
                     </div>

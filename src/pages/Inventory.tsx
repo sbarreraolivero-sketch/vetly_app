@@ -492,42 +492,42 @@ const Inventory = () => {
 
             {/* Banner */}
             <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Clínica</p>
-                        <h1 className="text-2xl font-extrabold tracking-tight text-white">
-                            Inventario
-                            {hasMultipleLocations && activeLocation && (
-                                <span className="ml-2 text-base font-semibold text-primary-200">— {activeLocation.name}</span>
-                            )}
-                        </h1>
-                        <p className="text-sm text-primary-200 mt-1">Gestión de productos, stock y movimientos</p>
+                <div className="p-5 sm:p-6 text-white flex flex-col gap-4">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Clínica</p>
+                            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                                Inventario
+                                {hasMultipleLocations && activeLocation && (
+                                    <span className="ml-2 text-sm sm:text-base font-semibold text-primary-200">— {activeLocation.name}</span>
+                                )}
+                            </h1>
+                            <p className="text-xs sm:text-sm text-primary-200 mt-1">Gestión de productos, stock y movimientos</p>
+                        </div>
                         <button
                             onClick={() => setShowInvoiceModal(true)}
-                            className="mt-3 inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                            className="shrink-0 inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
                         >
                             <Sparkles className="w-3.5 h-3.5" />
-                            Analizar Factura con IA
+                            <span className="hidden sm:inline">Analizar Factura con IA</span>
+                            <span className="sm:hidden">Factura IA</span>
                         </button>
                     </div>
-                    <div className="flex items-center gap-6 text-center">
-                        <div>
-                            <p className="text-2xl font-extrabold">{displayStats.total}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 text-center">
+                        <div className="bg-white/10 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0">
+                            <p className="text-xl sm:text-2xl font-extrabold">{displayStats.total}</p>
                             <p className="text-xs text-primary-200">Productos</p>
                         </div>
-                        <div className="w-px h-8 bg-white/20" />
-                        <div>
-                            <p className={cn("text-2xl font-extrabold", displayStats.lowStock > 0 ? "text-amber-300" : "text-white")}>{displayStats.lowStock}</p>
+                        <div className="bg-white/10 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0">
+                            <p className={cn("text-xl sm:text-2xl font-extrabold", displayStats.lowStock > 0 ? "text-amber-300" : "text-white")}>{displayStats.lowStock}</p>
                             <p className="text-xs text-primary-200">Bajo stock</p>
                         </div>
-                        <div className="w-px h-8 bg-white/20" />
-                        <div>
-                            <p className={cn("text-2xl font-extrabold", displayStats.expiringSoon > 0 ? "text-amber-300" : "text-white")}>{displayStats.expiringSoon}</p>
+                        <div className="bg-white/10 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0">
+                            <p className={cn("text-xl sm:text-2xl font-extrabold", displayStats.expiringSoon > 0 ? "text-amber-300" : "text-white")}>{displayStats.expiringSoon}</p>
                             <p className="text-xs text-primary-200">Vencen en 30d</p>
                         </div>
-                        <div className="w-px h-8 bg-white/20" />
-                        <div>
-                            <p className="text-lg font-extrabold">{formatCLP(displayStats.totalValue)}</p>
+                        <div className="bg-white/10 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0">
+                            <p className="text-base sm:text-lg font-extrabold">{formatCLP(displayStats.totalValue)}</p>
                             <p className="text-xs text-primary-200">Inversión</p>
                         </div>
                     </div>
