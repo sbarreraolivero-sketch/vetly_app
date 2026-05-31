@@ -22,6 +22,11 @@
     { "src": "/blog/inventario-clinica-veterinaria", "dest": "/blog/inventario-clinica-veterinaria.html" },
     { "src": "/blog/cobros-veterinaria-domicilio", "dest": "/blog/cobros-veterinaria-domicilio.html" },
     { "src": "/blog/conseguir-clientes-veterinaria", "dest": "/blog/conseguir-clientes-veterinaria.html" },
+    { "src": "/recursos", "dest": "/recursos/index.html" },
+    { "src": "/recursos/calculadora", "dest": "/recursos/calculadora.html" },
+    { "src": "/recursos/script-no-shows", "dest": "/recursos/script-no-shows.html" },
+    { "src": "/recursos/ruta-movil", "dest": "/recursos/ruta-movil.html" },
+    { "src": "/recursos/diagnostico", "dest": "/recursos/diagnostico.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
