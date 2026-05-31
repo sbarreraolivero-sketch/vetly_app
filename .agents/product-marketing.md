@@ -253,13 +253,20 @@ chatbot (suena frío), bot (idem), automatización (demasiado técnico), softwar
 
 ### Historia del Fundador (Sebastián)
 
-**Founder-market fit máximo:** Sebastián fue dueño de una clínica veterinaria móvil llamada **Movilvets**. Vivió exactamente el mismo caos que Claudia — en carne propia. No construyó Vetly porque vio una oportunidad de mercado. Lo construyó porque lo necesitaba y no existía. Esta historia es el argumento de confianza más poderoso disponible: el creador del producto es el cliente ideal del producto.
+**Perfil real:** Sebastián es **administrador de empresas**, no veterinario. Fundó **Movilvets**, una clínica veterinaria móvil, desde el rol de dueño/operador de negocio. Vivió el caos en carne propia — no desde la medicina, sino desde la gestión: el WhatsApp sin control, la logística imposible, las horas perdidas en coordinación, los clientes que no aparecen. Cuando vendió/cerró Movilvets, tenía clarísimo cuáles eran todos los problemas del dueño de una clínica — y construyó Vetly para resolverlos.
+
+**Por qué esta historia es más poderosa que "veterinario que se cansó":**
+- Habla desde el negocio, no desde la medicina — exactamente lo que le importa al dueño que toma la decisión de compra
+- Entiende el problema completo: operaciones, finanzas, logística, gestión de clientes
+- No vende desde la nostalgia clínica — vende desde haber resuelto el problema como empresario
 
 **Cómo usar esta historia:**
+- En LinkedIn: "Soy administrador de empresas. Fundé una clínica veterinaria móvil. Lo que aprendí me cambió la visión del rubro para siempre."
 - En la landing: sección "¿Por qué construí Vetly?" con foto del fundador
-- En LinkedIn: posts del fundador en primera persona
-- En el caso de estudio: mencionar que Sebastián validó el problema porque lo vivió
-- En demos: "Yo fui dueño de una clínica móvil. Sé exactamente lo que estás viviendo."
+- En demos: "No soy veterinario — soy el dueño que tuvo que resolver el caos. Por eso Vetly ataca exactamente los problemas de gestión, no los clínicos."
+- En el caso de estudio: "Sebastián construyó Vetly desde la experiencia de operar Movilvets — sabía exactamente qué necesitaba Claudia porque él lo vivió primero."
+
+**Ángulo de contenido en LinkedIn:** administrador de empresas que entró al mundo veterinario y descubrió que el mayor problema no era la medicina — era la gestión. Ese ángulo diferencia a Sebastián de cualquier otro SaaS vet: habla el idioma del dueño, no del clínico.
 
 ---
 
