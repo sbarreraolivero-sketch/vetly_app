@@ -1,8 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, Search, Loader2, RefreshCw, ShieldCheck, Mail, Calendar as CalendarIcon, AlertCircle } from 'lucide-react'
+import { CheckCircle, Search, Loader2, RefreshCw, ShieldCheck, Mail, Calendar as CalendarIcon, AlertCircle, MessageCircle, TrendingUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { cn } from '@/lib/utils'
+
+interface DiagnosticLead {
+    id: string
+    created_at: string
+    score: number
+    score_pct: number
+    level: 'controlado' | 'en_riesgo' | 'critico'
+    wa_clicked: boolean
+    source_url: string | null
+    referrer: string | null
+}
 
 interface PendingClinic {
     id: string
@@ -14,6 +25,16 @@ interface PendingClinic {
     owner_name: string
 }
 
+function sourceLabel(url: string | null): string {
+    if (!url) return 'Directo'
+    try {
+        const path = new URL(url).pathname
+        if (path.includes('diagnostico')) return 'Diagnóstico'
+        const slug = path.split('/').filter(Boolean).pop() || ''
+        return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Directo'
+    } catch { return url }
+}
+
 export default function AdminDashboard() {
     const { adminUser, loading: adminLoading } = useAdminAuth()
     const [clinics, setClinics] = useState<PendingClinic[]>([])
@@ -21,6 +42,8 @@ export default function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState('')
     const [activating, setActivating] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [leads, setLeads] = useState<DiagnosticLead[]>([])
+    const [leadsLoading, setLeadsLoading] = useState(true)
 
     const fetchPendingClinics = useCallback(async () => {
         setLoading(true)
@@ -70,9 +93,24 @@ export default function AdminDashboard() {
         }
     }, [])
 
+    const fetchLeads = useCallback(async () => {
+        setLeadsLoading(true)
+        try {
+            const { data, error } = await supabase
+                .from('diagnostic_leads')
+                .select('id,created_at,score,score_pct,level,wa_clicked,source_url,referrer')
+                .order('created_at', { ascending: false })
+                .limit(100)
+            if (!error && data) setLeads(data as DiagnosticLead[])
+        } catch { /* silencioso */ } finally {
+            setLeadsLoading(false)
+        }
+    }, [])
+
     useEffect(() => {
         fetchPendingClinics()
-    }, [fetchPendingClinics])
+        fetchLeads()
+    }, [fetchPendingClinics, fetchLeads])
 
     const handleActivate = async (clinic: PendingClinic) => {
         const msg = (clinic.subscription_plan === 'enterprise' || clinic.subscription_plan === 'prestige')
@@ -256,6 +294,124 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+            {/* ── Leads del Diagnóstico ── */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-violet-600" />
+                            Leads del Diagnóstico WhatsApp
+                        </h2>
+                        <p className="text-xs text-gray-400 font-medium mt-0.5">Personas que completaron el quiz en vetly.pro/recursos/diagnostico</p>
+                    </div>
+                    <button onClick={fetchLeads} className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-300 transition-all">
+                        <RefreshCw className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Stats rápidas */}
+                {!leadsLoading && leads.length > 0 && (() => {
+                    const critico  = leads.filter(l => l.level === 'critico').length
+                    const enRiesgo = leads.filter(l => l.level === 'en_riesgo').length
+                    const controlado = leads.filter(l => l.level === 'controlado').length
+                    const waClicked = leads.filter(l => l.wa_clicked).length
+                    const convRate = Math.round(waClicked / leads.length * 100)
+                    return (
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            <div className="bg-white border border-gray-200 rounded-2xl p-4 text-center">
+                                <div className="text-2xl font-black text-gray-900">{leads.length}</div>
+                                <div className="text-xs text-gray-400 font-bold mt-0.5">Total leads</div>
+                            </div>
+                            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
+                                <div className="text-2xl font-black text-red-600">{critico}</div>
+                                <div className="text-xs text-red-400 font-bold mt-0.5">🚨 Crítico</div>
+                            </div>
+                            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center">
+                                <div className="text-2xl font-black text-amber-600">{enRiesgo}</div>
+                                <div className="text-xs text-amber-400 font-bold mt-0.5">⚠️ En riesgo</div>
+                            </div>
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
+                                <div className="text-2xl font-black text-emerald-600">{controlado}</div>
+                                <div className="text-xs text-emerald-400 font-bold mt-0.5">✅ Controlado</div>
+                            </div>
+                            <div className="bg-green-50 border border-green-100 rounded-2xl p-4 text-center col-span-2 sm:col-span-1">
+                                <div className="text-2xl font-black text-green-600">{convRate}%</div>
+                                <div className="text-xs text-green-400 font-bold mt-0.5">
+                                    <MessageCircle className="inline w-3 h-3 mr-0.5" />WA clicked
+                                </div>
+                            </div>
+                        </div>
+                    )
+                })()}
+
+                {/* Tabla */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    {leadsLoading ? (
+                        <div className="p-12 flex items-center justify-center gap-3">
+                            <Loader2 className="w-6 h-6 animate-spin text-violet-500" />
+                            <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Cargando leads...</span>
+                        </div>
+                    ) : leads.length === 0 ? (
+                        <div className="p-12 text-center">
+                            <p className="text-sm font-bold text-gray-400">Aún no hay leads registrados</p>
+                            <p className="text-xs text-gray-300 mt-1">Aparecerán aquí cuando alguien complete el diagnóstico en el sitio.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                                        <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Fecha</th>
+                                        <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nivel</th>
+                                        <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Puntaje</th>
+                                        <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">WA</th>
+                                        <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Fuente</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {leads.map(lead => (
+                                        <tr key={lead.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-5 py-3.5 text-xs text-gray-500 font-medium whitespace-nowrap">
+                                                {new Date(lead.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                            <td className="px-5 py-3.5">
+                                                <span className={cn(
+                                                    'inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
+                                                    lead.level === 'critico'   && 'bg-red-50 text-red-600',
+                                                    lead.level === 'en_riesgo' && 'bg-amber-50 text-amber-600',
+                                                    lead.level === 'controlado'&& 'bg-emerald-50 text-emerald-600',
+                                                )}>
+                                                    {lead.level === 'critico' ? '🚨 Crítico' : lead.level === 'en_riesgo' ? '⚠️ En riesgo' : '✅ Controlado'}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-3.5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                        <div
+                                                            className={cn('h-full rounded-full', lead.level === 'critico' ? 'bg-red-400' : lead.level === 'en_riesgo' ? 'bg-amber-400' : 'bg-emerald-400')}
+                                                            style={{ width: `${lead.score_pct}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-xs font-black text-gray-700">{lead.score_pct}%</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-3.5 text-center">
+                                                {lead.wa_clicked
+                                                    ? <span className="text-green-500 text-base">✓</span>
+                                                    : <span className="text-gray-200 text-base">–</span>
+                                                }
+                                            </td>
+                                            <td className="px-5 py-3.5 text-xs text-gray-400 font-medium truncate max-w-[180px]">
+                                                {sourceLabel(lead.source_url)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
