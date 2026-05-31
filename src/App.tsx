@@ -53,7 +53,6 @@ const AISettings = lazy(() => import('./pages/AISettings'))
 const Integrations = lazy(() => import('./pages/Integrations'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
-const Landing = lazy(() => import('./pages/Landing'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
@@ -118,7 +117,7 @@ function MainRoutes() {
                 <Suspense fallback={<PageLoader />}>
                 <Routes>
                     {/* Public Routes */}
-                    <Route path="/" element={<Landing />} />
+                    <Route path="/" element={<Navigate to="/login" replace />} />
                     <Route path="/terminos" element={<Terms />} />
                     <Route path="/terms" element={<Navigate to="/terminos" replace />} />
                     <Route path="/privacidad" element={<Privacy />} />
