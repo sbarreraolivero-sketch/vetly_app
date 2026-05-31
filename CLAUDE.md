@@ -2148,3 +2148,78 @@ Modal nuevo para editar una transacción existente:
 - El crédito se descuenta del pool `parent_clinic_id` (misma lógica que mensajes del webhook)
 - `pdfjs-dist` se carga lazy — no hardcodear en imports de nivel superior
 - La deduplicación es por nombre exacto case-insensitive. Productos con nombres distintos pero equivalentes (ej: "Amoxicilina 500mg" vs "AMOXICILINA 500MG") se crean como productos separados — el usuario puede fusionarlos manualmente en el catálogo
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 32, 2026-05-30)
+
+### Sistema de inventarios múltiples — implementación completa
+
+#### Motivación
+Animalgrace opera con una sede y un vehículo móvil. Necesitaban saber exactamente cuánto stock había en cada lugar por separado, y poder traspasar productos entre ambos. Adicionalmente, necesitaban registrar materiales operativos (pinzas, termómetros, jeringas) que no se venden pero sí se usan en cada atención.
+
+#### Impacto en la gestión de las clínicas Vetly
+
+**Para clínicas móviles (caso Animalgrace):**
+- Pueden crear un 2do inventario "Vehículo" y gestionar el stock de cada lugar por separado
+- Al iniciar la jornada: traspasar desde "Sede" al "Vehículo" los productos que llevarán
+- Al cerrar la jornada: devolver al "Sede" lo que sobró
+- El arqueo es exacto: saben cuánto hay en el vehículo y cuánto en la sede en todo momento
+- El switch "Activo para ventas" determina de qué inventario se descuenta cuando se cierra una visita — en días de trabajo móvil, activar "Vehículo"; cuando atienden en sede, activar "Sede"
+- Los materiales (pinzas, termómetros, estetoscopios) se registran separados de los productos vendibles y también tienen stock por ubicación
+
+**Para clínicas fijas (usuarios sin vehículo):**
+- Sin cambios: ven un solo "Inventario Principal" exactamente igual que antes
+- El toggle de ubicaciones no aparece si solo tienen 1 inventario — cero fricción
+
+#### Arquitectura DB
+
+**Nuevas tablas:**
+- `inventory_locations`: `id, clinic_id, name, type (warehouse/vehicle), is_active_for_sales, is_default`
+- `inventory_stock`: `product_id, location_id, quantity` — el stock por ubicación. UNIQUE `(product_id, location_id)`
+
+**Columnas nuevas:**
+- `inventory_movements.location_id` — a qué ubicación corresponde el movimiento (nullable para retrocompatibilidad)
+- `inventory_movements.type` — expandido: ahora incluye `transfer_in` y `transfer_out`
+- `inventory_products.is_for_sale BOOLEAN DEFAULT true` — distingue productos vendibles de materiales operativos
+
+**Función `transfer_inventory(clinic_id, product_id, from_location_id, to_location_id, quantity, notes)`:**
+- Crea dos movimientos atómicos: `transfer_out` en origen + `transfer_in` en destino
+- Verifica stock disponible en origen antes de ejecutar — lanza excepción si es insuficiente
+- Los traspasos **no modifican** `inventory_products.stock_quantity` (el total no cambia, solo se redistribuye entre ubicaciones)
+
+**Trigger `update_product_stock` actualizado:**
+- `transfer_in`/`transfer_out` → solo actualiza `inventory_stock` (por ubicación)
+- Todos los demás tipos → actualiza `inventory_products.stock_quantity` (total) + `inventory_stock` (si tiene `location_id`)
+
+**Seed automático (aplicado en producción):**
+- Para cada clínica con productos: se creó "Inventario Principal" con `is_default=true, is_active_for_sales=true`
+- El stock actual de cada producto se migró a `inventory_stock` como snapshot inicial
+
+#### Archivos clave
+
+| Archivo | Cambio |
+|---|---|
+| `src/pages/Inventory.tsx` | Selector de ubicaciones, modal traspaso, panel config, toggle Productos/Materiales, card explicativo ABC |
+| `src/services/inventoryService.ts` | Métodos: `getLocations`, `createLocation`, `updateLocation`, `setActiveForSales`, `getActiveForSalesLocation`, `getLocationStockMap`, `transferStock`. `getProducts()` ahora filtra `is_for_sale = true` |
+| `src/components/appointments/VisitClosureModal.tsx` | Carga `getActiveForSalesLocation` al montar y pasa `location_id` a `closeVisit` |
+| `src/types/database.ts` | `is_for_sale` añadido a `inventory_products` Row/Insert/Update |
+| `supabase/migrations/20260530000002_inventory_locations.sql` | Migración completa |
+
+#### Reglas permanentes — inventarios múltiples
+
+- **Máximo 2 inventarios** por clínica. El límite se aplica en la UI (botón "Agregar" desaparece con 2 ubicaciones).
+- **`inventory_products.stock_quantity`** = stock total (suma de todas las ubicaciones). Para el stock por ubicación usar `inventory_stock` o `inventoryService.getLocationStockMap(locationId)`.
+- **Traspasos**: siempre via `inventoryService.transferStock()` o la función DB `transfer_inventory()`. Nunca hacer UPDATE directo en `inventory_stock`.
+- **`is_active_for_sales`**: solo una ubicación puede tener este flag `true` a la vez. `setActiveForSales()` resetea todas antes de activar la seleccionada.
+- **Materiales (`is_for_sale = false`)**: nunca aparecen en `VisitClosureModal` (filtro en `getProducts()`), ni en análisis ABC ni en métricas de Finance. Sí tienen stock por ubicación y soportan traspasos.
+- **Análisis de facturas IA** (`bulkReceiveProducts`): acepta `locationId` opcional. Los productos creados/actualizados desde facturas se asignan a la ubicación indicada.
+- **`getProducts(clinicId)`** = solo productos vendibles (`is_for_sale = true`, `is_active = true`). Usar `getAllProducts(clinicId)` para ver todo (incluyendo materiales y archivados).
+
+#### Card explicativo ABC (Análisis tab)
+
+Añadido en el tab Análisis antes de la tabla ABC. Explica en lenguaje de negocio (no técnico) qué significa cada clase:
+- **A** (emerald): 80% de ingresos, ~20% del catálogo → siempre en el vehículo, nunca deben faltar
+- **B** (amber): 15% → llevar según agenda del día
+- **C** (red): 5% → guardar en sede, llevar solo si hay cita que lo requiera
+- Tip al pie: cómo usar la clasificación para decidir qué cargar en el vehículo cada día

@@ -640,6 +640,7 @@ export interface Database {
                     batch_number: string | null
                     expiry_date: string | null
                     is_active: boolean
+                    is_for_sale: boolean
                     created_at: string
                     updated_at: string
                 }
@@ -658,6 +659,7 @@ export interface Database {
                     batch_number?: string | null
                     expiry_date?: string | null
                     is_active?: boolean
+                    is_for_sale?: boolean
                 }
                 Update: {
                     name?: string
@@ -672,6 +674,7 @@ export interface Database {
                     batch_number?: string | null
                     expiry_date?: string | null
                     is_active?: boolean
+                    is_for_sale?: boolean
                 }
             }
             inventory_movements: {

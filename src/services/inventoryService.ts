@@ -3,6 +3,16 @@ import type { InventoryProduct, InventoryMovement, AppointmentItem } from '@/typ
 
 export type { InventoryProduct, InventoryMovement, AppointmentItem }
 
+export interface InventoryLocation {
+    id: string
+    clinic_id: string
+    name: string
+    type: 'warehouse' | 'vehicle'
+    is_active_for_sales: boolean
+    is_default: boolean
+    created_at: string
+}
+
 export interface ProductWithMovement extends InventoryProduct {
     last_movement_at?: string | null
     days_since_movement?: number | null
@@ -40,14 +50,102 @@ export interface VisitItem {
 
 export const inventoryService = {
 
+    // ── Ubicaciones ────────────────────────────────────────────────────
+
+    async getLocations(clinicId: string): Promise<InventoryLocation[]> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .from('inventory_locations')
+            .select('*')
+            .eq('clinic_id', clinicId)
+            .order('created_at', { ascending: true })
+        if (error) throw error
+        return data ?? []
+    },
+
+    async createLocation(clinicId: string, name: string, type: 'warehouse' | 'vehicle'): Promise<InventoryLocation> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .from('inventory_locations')
+            .insert({ clinic_id: clinicId, name, type, is_active_for_sales: false, is_default: false })
+            .select()
+            .single()
+        if (error) throw error
+        return data
+    },
+
+    async updateLocation(id: string, updates: Partial<Pick<InventoryLocation, 'name' | 'type'>>): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
+            .from('inventory_locations')
+            .update(updates)
+            .eq('id', id)
+        if (error) throw error
+    },
+
+    // Solo una ubicación puede ser activa para ventas a la vez
+    async setActiveForSales(locationId: string, clinicId: string): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sb = supabase as any
+        await sb.from('inventory_locations').update({ is_active_for_sales: false }).eq('clinic_id', clinicId)
+        const { error } = await sb.from('inventory_locations').update({ is_active_for_sales: true }).eq('id', locationId)
+        if (error) throw error
+    },
+
+    async getActiveForSalesLocation(clinicId: string): Promise<InventoryLocation | null> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+            .from('inventory_locations')
+            .select('*')
+            .eq('clinic_id', clinicId)
+            .eq('is_active_for_sales', true)
+            .maybeSingle()
+        return data ?? null
+    },
+
+    // Devuelve mapa productId → quantity para una ubicación específica
+    async getLocationStockMap(locationId: string): Promise<Map<string, number>> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .from('inventory_stock')
+            .select('product_id, quantity')
+            .eq('location_id', locationId)
+        if (error) throw error
+        const map = new Map<string, number>()
+        for (const row of data ?? []) map.set(row.product_id, row.quantity)
+        return map
+    },
+
+    async transferStock(params: {
+        clinicId: string
+        productId: string
+        fromLocationId: string
+        toLocationId: string
+        quantity: number
+        notes?: string
+    }): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).rpc('transfer_inventory', {
+            p_clinic_id:        params.clinicId,
+            p_product_id:       params.productId,
+            p_from_location_id: params.fromLocationId,
+            p_to_location_id:   params.toLocationId,
+            p_quantity:         params.quantity,
+            p_notes:            params.notes ?? null,
+        })
+        if (error) throw error
+    },
+
     // ── Productos ──────────────────────────────────────────────────────
 
+    // Solo productos vendibles — usado por VisitClosureModal
     async getProducts(clinicId: string): Promise<InventoryProduct[]> {
         const { data, error } = await supabase
             .from('inventory_products')
             .select('*')
             .eq('clinic_id', clinicId)
             .eq('is_active', true)
+            .eq('is_for_sale', true)
             .order('name')
         if (error) throw error
         return data ?? []
@@ -122,7 +220,7 @@ export const inventoryService = {
         }))
     },
 
-    async addMovement(movement: Omit<InventoryMovement, 'id' | 'created_at'>): Promise<InventoryMovement> {
+    async addMovement(movement: Omit<InventoryMovement, 'id' | 'created_at'> & { location_id?: string | null }): Promise<InventoryMovement> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
             .from('inventory_movements')
@@ -144,6 +242,7 @@ export const inventoryService = {
         paymentMethod: string
         paymentStatus: 'paid' | 'pending'
         tutorId?: string | null
+        locationId?: string | null
     }): Promise<void> {
         const subtotal = params.items.reduce((sum, i) => sum + i.subtotal, 0)
         const discount = params.discount ?? 0
@@ -193,6 +292,7 @@ export const inventoryService = {
                 unit_price: item.unit_price,
                 appointment_id: params.appointmentId,
                 tutor_id: params.tutorId ?? null,
+                location_id: params.locationId ?? null,
             }))
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: mvErr } = await (supabase as any)
@@ -254,7 +354,8 @@ export const inventoryService = {
             purchase_price: number
             category: string
             sku?: string
-        }>
+        }>,
+        locationId?: string | null
     ) {
         for (const item of items) {
             // Buscar si ya existe un producto con ese nombre (case-insensitive)
@@ -315,6 +416,7 @@ export const inventoryService = {
                     quantity:    Math.abs(item.quantity),
                     unit_cost:   item.purchase_price,
                     notes:       'Ingreso desde análisis de factura IA',
+                    location_id: locationId ?? null,
                 })
             if (mvError) throw mvError
         }

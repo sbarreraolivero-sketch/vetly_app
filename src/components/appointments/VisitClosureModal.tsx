@@ -39,6 +39,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
     const [productSearch, setProductSearch] = useState('')
     const [saving, setSaving] = useState(false)
     const [currency, setCurrency] = useState('CLP')
+    const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
     // Descuento
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(0)
@@ -54,6 +55,11 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
     // Carga productos, servicio pre-cargado y moneda de la clínica
     useEffect(() => {
         inventoryService.getProducts(clinicId).catch(() => {}).then(p => { if (p) setProducts(p) })
+
+        // Ubicación activa para ventas (para descontar el inventario correcto)
+        inventoryService.getActiveForSalesLocation(clinicId)
+            .then(loc => { if (loc) setActiveLocationId(loc.id) })
+            .catch(() => {})
 
         // Moneda de la clínica
         ;(supabase as any)
@@ -144,6 +150,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                 paymentMethod,
                 paymentStatus,
                 tutorId: appointment.tutor_id ?? null,
+                locationId: activeLocationId,
             })
             toast.success(paymentStatus === 'paid' ? '¡Visita cerrada y cobro registrado!' : 'Visita cerrada — pago pendiente')
             onSaved(appointment.id)
