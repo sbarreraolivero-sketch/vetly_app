@@ -390,20 +390,21 @@ const Finance = () => {
     }
 
     // ── Income handlers ──
-    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
         if (!clinicId) { toast.error('No se pudo identificar la clínica'); return }
         try {
             await financeService.addIncome({
-                clinic_id: clinicId,
-                description: incomeData.description,
-                amount: incomeData.amount,
-                discount: incomeData.discount ?? 0,
-                category: incomeData.category as any,
-                date: incomeData.date,
-                tutor_id: incomeData.tutor_id,
-                services: incomeData.services,
-                notes: incomeData.notes,
-                payment_method: incomeData.payment_method,
+                clinic_id:       clinicId,
+                description:     incomeData.description,
+                amount:          incomeData.amount,
+                discount:        incomeData.discount ?? 0,
+                discount_reason: incomeData.discount_reason,
+                category:        incomeData.category as any,
+                date:            incomeData.date,
+                tutor_id:        incomeData.tutor_id,
+                services:        incomeData.services,
+                notes:           incomeData.notes,
+                payment_method:  incomeData.payment_method,
             } as any)
             toast.success('Ingreso registrado')
             setShowIncomeModal(false)
@@ -414,19 +415,20 @@ const Finance = () => {
         }
     }
 
-    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
         if (!editingIncome?.id) return
         try {
             await financeService.updateIncome(editingIncome.id, {
-                description: incomeData.description,
-                amount: incomeData.amount,
-                discount: incomeData.discount ?? 0,
-                category: incomeData.category as any,
-                date: incomeData.date,
-                tutor_id: incomeData.tutor_id,
-                services: incomeData.services,
-                notes: incomeData.notes,
-                payment_method: incomeData.payment_method,
+                description:     incomeData.description,
+                amount:          incomeData.amount,
+                discount:        incomeData.discount ?? 0,
+                discount_reason: incomeData.discount_reason,
+                category:        incomeData.category as any,
+                date:            incomeData.date,
+                tutor_id:        incomeData.tutor_id,
+                services:        incomeData.services,
+                notes:           incomeData.notes,
+                payment_method:  incomeData.payment_method,
             } as any)
             toast.success('Ingreso actualizado')
             setEditingIncome(null)
@@ -943,7 +945,17 @@ const Finance = () => {
                                                 </button>
                                             </td>
                                             <td className="px-6 py-3 font-medium text-charcoal">
-                                                {formatCurrency(tx.price || 0)}
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span>{formatCurrency(tx.price || 0)}</span>
+                                                    {(tx as any).discount > 0 && (
+                                                        <span className="text-xs text-emerald-600">
+                                                            −{formatCurrency((tx as any).discount)}
+                                                            {(tx as any).discount_reason && (
+                                                                <span className="ml-1 italic text-emerald-500">· {(tx as any).discount_reason}</span>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-3">
                                                 <span className={cn(
@@ -1108,7 +1120,17 @@ const Finance = () => {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-3 font-medium text-right text-emerald-600">
-                                                +{formatCurrency(income.amount)}
+                                                <div className="flex flex-col items-end gap-0.5">
+                                                    <span>+{formatCurrency(income.amount)}</span>
+                                                    {(income as any).discount > 0 && (
+                                                        <span className="text-xs text-emerald-500">
+                                                            −{formatCurrency((income as any).discount)}
+                                                            {(income as any).discount_reason && (
+                                                                <span className="ml-1 italic">· {(income as any).discount_reason}</span>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <div className="flex flex-col items-end gap-1">

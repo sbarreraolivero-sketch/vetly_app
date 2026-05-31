@@ -32,6 +32,7 @@ interface EditingIncome {
     description: string
     amount: number
     discount?: number
+    discount_reason?: string | null
     date: string
     tutor_id?: string | null
     services?: any[] | null
@@ -47,6 +48,7 @@ interface NewIncomeFormProps {
         description: string
         amount: number
         discount: number
+        discount_reason?: string
         category: string
         date: string
         tutor_id?: string
@@ -88,7 +90,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
 
     // Descuento
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
-    const [discountValue, setDiscountValue] = useState<number>(0)
+    const [discountValue, setDiscountValue] = useState<number>(editingIncome?.discount ?? 0)
+    const [discountReason, setDiscountReason] = useState<string>(editingIncome?.discount_reason ?? '')
 
     const formatMoney = (n: number) =>
         new Intl.NumberFormat('es-CL', {
@@ -200,6 +203,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
             description,
             amount: finalAmount,
             discount: discountAmount,
+            discount_reason: discountReason.trim() || undefined,
             category: autoCategory,
             date,
             tutor_id: selectedTutor?.id,
@@ -435,6 +439,17 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
                                 </span>
                             )}
                         </div>
+
+                        {discountAmount > 0 && (
+                            <input
+                                type="text"
+                                maxLength={80}
+                                className="w-full text-sm border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 placeholder:text-emerald-400 text-emerald-800"
+                                placeholder='Motivo del descuento (ej: "cliente frecuente", "alianza Petshop X")'
+                                value={discountReason}
+                                onChange={e => setDiscountReason(e.target.value)}
+                            />
+                        )}
 
                         {subtotal > 0 && (
                             <div className="pt-2 space-y-1 text-sm border-t border-silk-beige">

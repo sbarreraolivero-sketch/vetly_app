@@ -107,36 +107,38 @@ export const financeService = {
         return data as Income[]
     },
 
-    async addIncome(income: Omit<Income, 'id' | 'created_at'> & { notes?: string }) {
+    async addIncome(income: Omit<Income, 'id' | 'created_at'> & { notes?: string; discount_reason?: string }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any).rpc('create_clinic_income', {
-            p_clinic_id:  income.clinic_id,
-            p_description: income.description,
-            p_amount:     income.amount,
-            p_category:   income.category,
-            p_date:       income.date,
-            p_tutor_id:   income.tutor_id || null,
-            p_services:   income.services || [],
-            p_discount:   income.discount || 0,
-            p_notes:      income.notes || null,
+            p_clinic_id:       income.clinic_id,
+            p_description:     income.description,
+            p_amount:          income.amount,
+            p_category:        income.category,
+            p_date:            income.date,
+            p_tutor_id:        income.tutor_id || null,
+            p_services:        income.services || [],
+            p_discount:        income.discount || 0,
+            p_notes:           income.notes || null,
+            p_discount_reason: income.discount_reason || null,
         })
 
         if (error) throw error
         return data?.[0] as Income
     },
 
-    async updateIncome(id: string, income: Partial<Omit<Income, 'id' | 'clinic_id' | 'created_at'>> & { notes?: string; payment_method?: string }) {
+    async updateIncome(id: string, income: Partial<Omit<Income, 'id' | 'clinic_id' | 'created_at'>> & { notes?: string; payment_method?: string; discount_reason?: string }) {
         const { data, error } = await (supabase as any).rpc('update_clinic_income', {
-            p_income_id:      id,
-            p_description:    income.description,
-            p_amount:         income.amount,
-            p_category:       income.category,
-            p_date:           income.date,
-            p_tutor_id:       income.tutor_id || null,
-            p_services:       income.services || [],
-            p_discount:       income.discount || 0,
-            p_notes:          (income as any).notes || null,
-            p_payment_method: (income as any).payment_method || null,
+            p_income_id:       id,
+            p_description:     income.description,
+            p_amount:          income.amount,
+            p_category:        income.category,
+            p_date:            income.date,
+            p_tutor_id:        income.tutor_id || null,
+            p_services:        income.services || [],
+            p_discount:        income.discount || 0,
+            p_notes:           (income as any).notes || null,
+            p_payment_method:  (income as any).payment_method || null,
+            p_discount_reason: (income as any).discount_reason || null,
         })
         if (error) throw error
         return data?.[0] as Income
@@ -158,14 +160,16 @@ export const financeService = {
         price: number,
         discount: number,
         paymentMethod: string | null,
+        discountReason?: string | null,
     ) {
         const { error } = await (supabase as any).rpc('save_transaction_items', {
-            p_appointment_id: appointmentId,
-            p_clinic_id:      clinicId,
-            p_items:          JSON.stringify(items),
-            p_price:          price,
-            p_discount:       discount,
-            p_payment_method: paymentMethod,
+            p_appointment_id:  appointmentId,
+            p_clinic_id:       clinicId,
+            p_items:           JSON.stringify(items),
+            p_price:           price,
+            p_discount:        discount,
+            p_payment_method:  paymentMethod,
+            p_discount_reason: discountReason || null,
         })
         if (error) throw error
     },

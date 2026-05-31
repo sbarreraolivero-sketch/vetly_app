@@ -43,6 +43,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
     // Descuento
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(0)
+    const [discountReason, setDiscountReason] = useState<string>('')
     const searchRef = useRef<HTMLDivElement>(null)
 
     const formatMoney = (n: number) =>
@@ -142,15 +143,16 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
         setSaving(true)
         try {
             await inventoryService.closeVisit({
-                appointmentId: appointment.id,
+                appointmentId:  appointment.id,
                 clinicId,
                 items,
-                discount: discountAmount,
+                discount:       discountAmount,
+                discountReason: discountReason.trim() || undefined,
                 finalTotal,
                 paymentMethod,
                 paymentStatus,
-                tutorId: appointment.tutor_id ?? null,
-                locationId: activeLocationId,
+                tutorId:        appointment.tutor_id ?? null,
+                locationId:     activeLocationId,
             })
             toast.success(paymentStatus === 'paid' ? '¡Visita cerrada y cobro registrado!' : 'Visita cerrada — pago pendiente')
             onSaved(appointment.id)
@@ -359,6 +361,17 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                                     </span>
                                 )}
                             </div>
+
+                            {discountAmount > 0 && (
+                                <input
+                                    type="text"
+                                    maxLength={80}
+                                    className="w-full text-sm border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-300 placeholder:text-emerald-400 text-emerald-800"
+                                    placeholder='Motivo (ej: "cliente frecuente", "alianza Petshop X")'
+                                    value={discountReason}
+                                    onChange={e => setDiscountReason(e.target.value)}
+                                />
+                            )}
 
                             {/* Total final */}
                             <div className="flex justify-between items-center pt-1 border-t border-silk-beige">

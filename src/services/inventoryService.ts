@@ -238,6 +238,7 @@ export const inventoryService = {
         clinicId: string
         items: VisitItem[]
         discount?: number
+        discountReason?: string
         finalTotal?: number
         paymentMethod: string
         paymentStatus: 'paid' | 'pending'
@@ -253,11 +254,12 @@ export const inventoryService = {
         const { error: apptErr } = await (supabase as any)
             .from('appointments')
             .update({
-                status: 'completed',
-                price: totalPrice,
+                status:          'completed',
+                price:           totalPrice,
                 discount,
-                payment_method: params.paymentMethod,
-                payment_status: params.paymentStatus,
+                discount_reason: params.discountReason ?? null,
+                payment_method:  params.paymentMethod,
+                payment_status:  params.paymentStatus,
             })
             .eq('id', params.appointmentId)
         if (apptErr) throw apptErr

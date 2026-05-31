@@ -46,6 +46,7 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
     const [paymentMethod, setPaymentMethod] = useState(tx.payment_method ?? '')
     const [discountType, setDiscountType]   = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(tx.discount ?? 0)
+    const [discountReason, setDiscountReason] = useState<string>((tx as any).discount_reason ?? '')
     const [saving, setSaving]           = useState(false)
 
     const [services, setServices]       = useState<ServiceOption[]>([])
@@ -123,7 +124,7 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
         if (items.length === 0) { toast.error('Agrega al menos un servicio o producto'); return }
         setSaving(true)
         try {
-            await financeService.saveTransactionItems(tx.id, clinicId, items, finalTotal, discountAmount, paymentMethod || null)
+            await financeService.saveTransactionItems(tx.id, clinicId, items, finalTotal, discountAmount, paymentMethod || null, discountReason.trim() || null)
             toast.success('Transacción actualizada')
             onSuccess()
             onClose()
@@ -252,6 +253,16 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
                                 <span className="text-sm font-semibold text-emerald-600 shrink-0">−{formatMoney(discountAmount)}</span>
                             )}
                         </div>
+                        {discountAmount > 0 && (
+                            <input
+                                type="text"
+                                maxLength={80}
+                                className="w-full text-sm border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 placeholder:text-emerald-400 text-emerald-800"
+                                placeholder='Motivo (ej: "cliente frecuente", "alianza Petshop X")'
+                                value={discountReason}
+                                onChange={e => setDiscountReason(e.target.value)}
+                            />
+                        )}
                         {subtotal > 0 && (
                             <div className="pt-2 border-t border-silk-beige text-sm space-y-1">
                                 {discountAmount > 0 && (
