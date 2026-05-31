@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plantilla de ruta semanal para clínica veterinaria móvil · Vetly</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{font-family:'Outfit',sans-serif;box-sizing:border-box;margin:0;padding:0}
+        body{background:#f4f4f5;color:#18181b;-webkit-font-smoothing:antialiased;min-height:100vh;padding:2rem 1rem}
+        .page{max-width:600px;margin:0 auto}
+
+        /* Header */
+        .page-header{text-align:center;margin-bottom:2rem}
+        .page-tag{display:inline-block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0d9488;background:#f0fdfa;border:1px solid #99f6e4;padding:.25rem .75rem;border-radius:100px;margin-bottom:.875rem}
+        .page-title{font-size:1.75rem;font-weight:900;letter-spacing:-.03em;line-height:1.15;margin-bottom:.625rem}
+        .page-sub{font-size:.9375rem;color:#52525b;line-height:1.6;max-width:480px;margin:0 auto}
+
+        /* Cómo usar */
+        .how-card{background:#18181b;border-radius:1rem;padding:1.375rem 1.5rem;margin-bottom:2rem;color:#fff}
+        .how-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#6ee7b7;margin-bottom:.875rem}
+        .how-steps{display:flex;flex-direction:column;gap:.625rem}
+        .how-step{display:flex;gap:.75rem;align-items:flex-start}
+        .step-num{width:24px;height:24px;border-radius:50%;background:#6ee7b7;color:#18181b;font-size:.75rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+        .step-text{font-size:.875rem;color:#d4d4d8;line-height:1.5}
+        .step-text strong{color:#fff}
+
+        /* Reglas de ruta */
+        .rules-section{margin-bottom:2rem}
+        .section-title{font-size:1rem;font-weight:900;color:#18181b;margin-bottom:.875rem;letter-spacing:-.01em}
+        .rules-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+        .rule-card{background:#fff;border-radius:.875rem;padding:1rem;border:1px solid #e4e4e7;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+        .rule-icon{font-size:1.25rem;margin-bottom:.375rem}
+        .rule-title{font-size:.8125rem;font-weight:800;color:#18181b;margin-bottom:.25rem}
+        .rule-text{font-size:.8125rem;color:#71717a;line-height:1.5}
+        .rule-card.highlight{background:#f0fdfa;border-color:#99f6e4}
+        .rule-card.highlight .rule-title{color:#0d9488}
+
+        /* Plantilla semanal */
+        .week-section{margin-bottom:2rem}
+        .day-card{background:#fff;border-radius:1rem;border:1.5px solid #e4e4e7;margin-bottom:1rem;overflow:hidden}
+        .day-header{display:flex;align-items:center;gap:.75rem;padding:.875rem 1rem;border-bottom:1px solid #f4f4f5}
+        .day-badge{width:40px;height:40px;border-radius:.625rem;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.875rem;flex-shrink:0}
+        .day-info{flex:1}
+        .day-name{font-size:.9375rem;font-weight:800;color:#18181b}
+        .day-sector{font-size:.8125rem;color:#71717a;margin-top:.0625rem}
+        .day-status{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:.2rem .5rem;border-radius:100px}
+
+        /* Status colors */
+        .status-a{background:#f0fdfa;color:#0d9488}
+        .status-b{background:#f3f0ff;color:#7c3aed}
+        .status-c{background:#fff7ed;color:#c2410c}
+        .status-libre{background:#f4f4f5;color:#71717a}
+
+        /* Slots de citas */
+        .day-slots{padding:.75rem 1rem 1rem}
+        .slot{display:grid;grid-template-columns:70px 1fr auto;gap:.5rem 1rem;align-items:center;padding:.5rem .75rem;border-radius:.625rem;margin-bottom:.375rem;background:#fafafa;border:1px solid #f4f4f5}
+        .slot-time{font-size:.875rem;font-weight:800;color:#18181b}
+        .slot-desc{font-size:.875rem;color:#52525b}
+        .slot-travel{font-size:.75rem;color:#a1a1aa;text-align:right;white-space:nowrap}
+        .slot.buffer{background:#fff7ed;border-color:#fed7aa}
+        .slot.buffer .slot-time{color:#c2410c}
+        .slot.buffer .slot-desc{color:#c2410c;font-style:italic}
+        .slot.empty{background:#f9fafb;border:1.5px dashed #e4e4e7}
+        .slot.empty .slot-desc{color:#a1a1aa;font-style:italic}
+
+        /* Checklist del van */
+        .checklist-section{background:#fff;border-radius:1rem;border:1px solid #e4e4e7;padding:1.375rem 1.5rem;margin-bottom:2rem}
+        .checklist-title{font-size:.9375rem;font-weight:900;color:#18181b;margin-bottom:.875rem;display:flex;align-items:center;gap:.5rem}
+        .checklist-cols{display:grid;grid-template-columns:1fr 1fr;gap:.25rem .875rem}
+        .check-item{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.8125rem;color:#52525b;cursor:pointer}
+        .check-box{width:16px;height:16px;border:2px solid #d4d4d8;border-radius:.25rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .1s}
+        .check-box.checked{background:#0d9488;border-color:#0d9488}
+        .check-box.checked::after{content:'✓';color:#fff;font-size:.625rem;font-weight:900}
+
+        /* Nota de fin de jornada */
+        .eod-card{background:#f9fafb;border:1px solid #e4e4e7;border-radius:.875rem;padding:1rem 1.25rem;margin-bottom:2rem}
+        .eod-title{font-size:.8125rem;font-weight:800;color:#18181b;margin-bottom:.5rem}
+        .eod-items{display:flex;flex-direction:column;gap:.375rem}
+        .eod-item{display:flex;align-items:center;gap:.5rem;font-size:.8125rem;color:#52525b}
+        .eod-dot{width:6px;height:6px;border-radius:50%;background:#0d9488;flex-shrink:0}
+
+        /* Nota sobre Lía */
+        .lia-note{background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:1rem;padding:1.25rem 1.375rem;margin-bottom:2rem}
+        .lia-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0d9488;margin-bottom:.5rem}
+        .lia-text{font-size:.9375rem;color:#18181b;line-height:1.6}
+        .lia-text strong{color:#0d9488}
+
+        /* CTA */
+        .cta-wa{display:flex;align-items:center;justify-content:center;gap:.625rem;background:#25D366;color:#fff;font-weight:800;font-size:1rem;padding:1rem 1.5rem;border-radius:.875rem;text-decoration:none;transition:background .15s;margin-bottom:.75rem}
+        .cta-wa:hover{background:#1ebe5d}
+        .cta-sub{text-align:center;font-size:.75rem;color:#a1a1aa;margin-bottom:2rem}
+
+        @media print{
+            body{background:#fff;padding:0}
+            .how-card,.lia-note,.cta-wa,.cta-sub{display:none}
+            .day-card{break-inside:avoid}
+        }
+        @media(max-width:480px){
+            .rules-grid{grid-template-columns:1fr}
+            .checklist-cols{grid-template-columns:1fr}
+            .slot{grid-template-columns:60px 1fr}
+            .slot-travel{display:none}
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <div class="page-header">
+        <div class="page-tag">🗺️ Plantilla gratuita · Vetly</div>
+        <h1 class="page-title">Ruta semanal para clínica veterinaria móvil</h1>
+        <p class="page-sub">La hoja de ruta que usan las clínicas móviles para terminar la semana sin caos — con sectores, buffers y checklist del van incluidos.</p>
+    </div>
+
+    <!-- Cómo usar -->
+    <div class="how-card">
+        <div class="how-label">📌 Cómo usar esta plantilla</div>
+        <div class="how-steps">
+            <div class="how-step">
+                <div class="step-num">1</div>
+                <div class="step-text"><strong>Imprime o guarda en pantalla</strong> — puedes usarla directo desde el teléfono o imprimirla cada semana (Ctrl+P).</div>
+            </div>
+            <div class="how-step">
+                <div class="step-num">2</div>
+                <div class="step-text"><strong>Asigna un sector por día</strong> — agrupa las citas por zona geográfica. Menos viaje, más citas.</div>
+            </div>
+            <div class="how-step">
+                <div class="step-num">3</div>
+                <div class="step-text"><strong>Respeta los buffers</strong> — entre citas del mismo sector: 15 min. Cambio de sector: 60 min. Sin eso, la ruta se cae al primer retraso.</div>
+            </div>
+            <div class="how-step">
+                <div class="step-num">4</div>
+                <div class="step-text"><strong>Marca el checklist del van</strong> antes de salir. Un equipo olvidado = cita cancelada in situ.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reglas de ruta -->
+    <div class="rules-section">
+        <div class="section-title">Reglas de oro para la ruta</div>
+        <div class="rules-grid">
+            <div class="rule-card highlight">
+                <div class="rule-icon">⏱️</div>
+                <div class="rule-title">Buffer entre citas: 15 min</div>
+                <div class="rule-text">Mismo sector. Incluye el tiempo de cierre, traslado y apertura del siguiente.</div>
+            </div>
+            <div class="rule-card highlight">
+                <div class="rule-icon">🚗</div>
+                <div class="rule-title">Cambio de sector: 60 min</div>
+                <div class="rule-text">Al mover el van entre zonas lejanas. Tiempo real de traslado más margen.</div>
+            </div>
+            <div class="rule-card">
+                <div class="rule-icon">📍</div>
+                <div class="rule-title">Agrupar por zona</div>
+                <div class="rule-text">Nunca zigzaguear. Citas del norte por la mañana, sur por la tarde — o viceversa.</div>
+            </div>
+            <div class="rule-card">
+                <div class="rule-icon">🌅</div>
+                <div class="rule-title">Primera cita: 9:00 am</div>
+                <div class="rule-text">Nunca antes. El veterinario necesita tiempo de preparación y el cliente de despertarse.</div>
+            </div>
+            <div class="rule-card">
+                <div class="rule-icon">🌆</div>
+                <div class="rule-title">Última cita: 6:00 pm</div>
+                <div class="rule-text">Para terminar antes de las 7. La jornada tiene límite — y el equipo también.</div>
+            </div>
+            <div class="rule-card">
+                <div class="rule-icon">📵</div>
+                <div class="rule-title">No agendar en ruta</div>
+                <div class="rule-text">Si el veterinario conduce, nadie agenda. Usa Lía o un sistema que lo haga automáticamente.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plantilla semanal -->
+    <div class="week-section">
+        <div class="section-title">Plantilla de la semana</div>
+
+        <!-- Lunes -->
+        <div class="day-card">
+            <div class="day-header">
+                <div class="day-badge" style="background:#e0f2fe;color:#0369a1">LU</div>
+                <div class="day-info">
+                    <div class="day-name">Lunes</div>
+                    <div class="day-sector">Sector: _______________</div>
+                </div>
+                <div class="day-status status-a">Operativo</div>
+            </div>
+            <div class="day-slots">
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
+                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
+            </div>
+        </div>
+
+        <!-- Martes -->
+        <div class="day-card">
+            <div class="day-header">
+                <div class="day-badge" style="background:#fce7f3;color:#9d174d">MA</div>
+                <div class="day-info">
+                    <div class="day-name">Martes</div>
+                    <div class="day-sector">Sector: _______________</div>
+                </div>
+                <div class="day-status status-b">Operativo</div>
+            </div>
+            <div class="day-slots">
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
+                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
+            </div>
+        </div>
+
+        <!-- Miércoles -->
+        <div class="day-card">
+            <div class="day-header">
+                <div class="day-badge" style="background:#f0fdf4;color:#15803d">MI</div>
+                <div class="day-info">
+                    <div class="day-name">Miércoles</div>
+                    <div class="day-sector">Sector: _______________</div>
+                </div>
+                <div class="day-status status-a">Operativo</div>
+            </div>
+            <div class="day-slots">
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
+                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
+            </div>
+        </div>
+
+        <!-- Jueves -->
+        <div class="day-card">
+            <div class="day-header">
+                <div class="day-badge" style="background:#fff7ed;color:#c2410c">JU</div>
+                <div class="day-info">
+                    <div class="day-name">Jueves</div>
+                    <div class="day-sector">Sector: _______________</div>
+                </div>
+                <div class="day-status status-c">Operativo</div>
+            </div>
+            <div class="day-slots">
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
+                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
+            </div>
+        </div>
+
+        <!-- Viernes -->
+        <div class="day-card">
+            <div class="day-header">
+                <div class="day-badge" style="background:#fdf4ff;color:#9333ea">VI</div>
+                <div class="day-info">
+                    <div class="day-name">Viernes</div>
+                    <div class="day-sector">Sector: _______________</div>
+                </div>
+                <div class="day-status status-b">Operativo</div>
+            </div>
+            <div class="day-slots">
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">🍽️ Pausa</span><span class="slot-desc">Almuerzo (no negociable)</span><span class="slot-travel">60 min</span></div>
+                <div class="slot"><span class="slot-time">14:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">15:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot empty"><span class="slot-time">17:00</span><span class="slot-desc">Disponible si se requiere</span><span class="slot-travel">—</span></div>
+            </div>
+        </div>
+
+        <!-- Sábado -->
+        <div class="day-card">
+            <div class="day-header">
+                <div class="day-badge" style="background:#fafafa;color:#71717a">SA</div>
+                <div class="day-info">
+                    <div class="day-name">Sábado</div>
+                    <div class="day-sector">Máx 3 citas · Sector único</div>
+                </div>
+                <div class="day-status status-libre">Reducido</div>
+            </div>
+            <div class="day-slots">
+                <div class="slot"><span class="slot-time">9:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">10:30</span><span class="slot-desc">______________________________</span><span class="slot-travel">+15 min</span></div>
+                <div class="slot buffer"><span class="slot-time">Buffer</span><span class="slot-desc">Traslado / Preparación</span><span class="slot-travel">15 min</span></div>
+                <div class="slot"><span class="slot-time">12:00</span><span class="slot-desc">______________________________</span><span class="slot-travel">—</span></div>
+                <div class="slot empty"><span class="slot-time">13:00+</span><span class="slot-desc">Fin de jornada sabatina</span><span class="slot-travel">—</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checklist del van -->
+    <div class="checklist-section">
+        <div class="checklist-title">🚐 Checklist del van — antes de salir</div>
+        <div class="checklist-cols" id="checks">
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Maletín de vacunas</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Jeringas y agujas</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Termómetro digital</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Estetoscopio</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Guantes (varias tallas)</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Mascarillas</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Medicamentos del día</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Antiparasitarios</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Ficha de cada paciente</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Teléfono cargado</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Agua y snacks</div>
+            <div class="check-item" onclick="toggle(this)"><div class="check-box"></div>Tarjeta de presentación</div>
+        </div>
+    </div>
+
+    <!-- Notas fin de jornada -->
+    <div class="eod-card">
+        <div class="eod-title">✅ Al terminar la jornada</div>
+        <div class="eod-items">
+            <div class="eod-item"><div class="eod-dot"></div>Registrar cada visita completada en el sistema</div>
+            <div class="eod-item"><div class="eod-dot"></div>Enviar comprobante de pago a quien lo pidió</div>
+            <div class="eod-item"><div class="eod-dot"></div>Confirmar citas del día siguiente</div>
+            <div class="eod-item"><div class="eod-dot"></div>Reponer medicamentos con stock bajo</div>
+            <div class="eod-item"><div class="eod-dot"></div>Revisar mensajes de WhatsApp no respondidos</div>
+        </div>
+    </div>
+
+    <!-- Nota sobre Lía -->
+    <div class="lia-note">
+        <div class="lia-label">🐾 Lía hace esto automáticamente</div>
+        <p class="lia-text">Lía, la recepcionista IA de Vetly, <strong>agrupa las citas por sector</strong>, calcula los buffers de traslado y detecta rutas imposibles antes de confirmar. Esta planilla es para quienes aún no tienen Lía — y una vista previa de lo que te ahorras cuando sí la tienes.</p>
+    </div>
+
+    <!-- CTA -->
+    <a class="cta-wa" href="https://wa.me/56993089185?text=Hola%21+Vi+la+plantilla+de+ruta+de+Vetly.+Quiero+saber+c%C3%B3mo+funciona+Lía+para+organizar+rutas+autom%C3%A1ticamente+%F0%9F%97%BA%EF%B8%8F" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+        Ver cómo Lía organiza las rutas →
+    </a>
+    <p class="cta-sub">Andrés te explica en 5 minutos · Sin compromiso</p>
+
+</div>
+
+<script>
+function toggle(el){
+    var box = el.querySelector('.check-box');
+    box.classList.toggle('checked');
+}
+</script>
+</body>
+</html>

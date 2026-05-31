@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Script anti no-shows para clínicas veterinarias · Vetly</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{font-family:'Outfit',sans-serif;box-sizing:border-box;margin:0;padding:0}
+        body{background:#f4f4f5;color:#18181b;-webkit-font-smoothing:antialiased;min-height:100vh;padding:2rem 1rem}
+        .page{max-width:560px;margin:0 auto}
+        .page-header{text-align:center;margin-bottom:2rem}
+        .page-tag{display:inline-block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0d9488;background:#f0fdfa;border:1px solid #99f6e4;padding:.25rem .75rem;border-radius:100px;margin-bottom:.875rem}
+        .page-title{font-size:1.75rem;font-weight:900;letter-spacing:-.03em;line-height:1.15;margin-bottom:.625rem}
+        .page-sub{font-size:.9375rem;color:#52525b;line-height:1.6}
+
+        /* Stat strip */
+        .stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:2rem}
+        .stat-item{background:#fff;border:1px solid #e4e4e7;border-radius:.875rem;padding:1rem;text-align:center}
+        .stat-num{font-size:1.375rem;font-weight:900;color:#0d9488}
+        .stat-label{font-size:.75rem;color:#71717a;margin-top:.125rem;line-height:1.4}
+
+        /* Mensajes */
+        .msg-section{margin-bottom:1.5rem}
+        .msg-header{display:flex;align-items:center;gap:.75rem;margin-bottom:.875rem}
+        .msg-badge{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.875rem;font-weight:900;color:#fff;flex-shrink:0}
+        .msg-badge.m1{background:#0d9488}
+        .msg-badge.m2{background:#7c3aed}
+        .msg-badge.m3{background:#2563eb}
+        .msg-meta{flex:1}
+        .msg-num{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.125rem}
+        .msg-num.m1{color:#0d9488}
+        .msg-num.m2{color:#7c3aed}
+        .msg-num.m3{color:#2563eb}
+        .msg-timing{font-size:.875rem;font-weight:700;color:#18181b}
+        .msg-card{background:#fff;border-radius:.875rem;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+        .msg-wa-header{padding:.625rem 1rem;display:flex;align-items:center;gap:.5rem;font-size:.8125rem;font-weight:700}
+        .msg-wa-header.c1{background:#e8f8f4;color:#0d9488}
+        .msg-wa-header.c2{background:#f3f0ff;color:#7c3aed}
+        .msg-wa-header.c3{background:#eff6ff;color:#2563eb}
+        .wa-dot{width:8px;height:8px;border-radius:50%}
+        .msg-bubble-wrap{padding:.875rem 1rem 1rem;background:#f9fafb}
+        .msg-bubble{background:#fff;border:1px solid #e4e4e7;border-radius:1rem 1rem 1rem .25rem;padding:.875rem 1rem;font-size:.9375rem;color:#18181b;line-height:1.6;white-space:pre-line}
+        .msg-copy-btn{width:100%;background:#f4f4f5;border:none;border-top:1px solid #e4e4e7;padding:.625rem;font-size:.8125rem;font-weight:700;color:#52525b;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:.375rem}
+        .msg-copy-btn:hover{background:#e4e4e7;color:#18181b}
+        .msg-copy-btn.copied{background:#f0fdfa;color:#0d9488}
+        .msg-tip{background:#fafafa;border:1px solid #e4e4e7;border-radius:0 0 .875rem .875rem;border-top:none;padding:.75rem 1rem;font-size:.8125rem;color:#52525b;line-height:1.55}
+        .msg-tip strong{color:#18181b}
+
+        /* Resultados esperados */
+        .results-section{background:#18181b;border-radius:1rem;padding:1.5rem;margin-bottom:2rem;color:#fff}
+        .results-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#6ee7b7;margin-bottom:1rem}
+        .results-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+        .r-item{background:rgba(255,255,255,.06);border-radius:.75rem;padding:.875rem}
+        .r-num{font-size:1.375rem;font-weight:900;color:#6ee7b7}
+        .r-text{font-size:.8125rem;color:#a1a1aa;margin-top:.125rem;line-height:1.4}
+
+        /* Nota sobre Lía */
+        .lia-note{background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:1rem;padding:1.25rem 1.375rem;margin-bottom:2rem}
+        .lia-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0d9488;margin-bottom:.5rem}
+        .lia-text{font-size:.9375rem;color:#18181b;line-height:1.6}
+        .lia-text strong{color:#0d9488}
+
+        /* CTA */
+        .cta-wa{display:flex;align-items:center;justify-content:center;gap:.625rem;background:#25D366;color:#fff;font-weight:800;font-size:1rem;padding:1rem 1.5rem;border-radius:.875rem;text-decoration:none;transition:background .15s;margin-bottom:.75rem}
+        .cta-wa:hover{background:#1ebe5d}
+        .cta-sub{text-align:center;font-size:.75rem;color:#a1a1aa;margin-bottom:2rem}
+        footer-bar{display:block;text-align:center;font-size:.75rem;color:#a1a1aa;padding:1.25rem}
+
+        @media print{
+            body{background:#fff;padding:0}
+            .msg-copy-btn{display:none}
+            .cta-wa,.cta-sub{display:none}
+        }
+        @media(max-width:480px){
+            .stat-strip{grid-template-columns:1fr 1fr}
+            .results-grid{grid-template-columns:1fr 1fr}
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <div class="page-header">
+        <div class="page-tag">📋 Script gratuito · Vetly</div>
+        <h1 class="page-title">El script de 3 mensajes que elimina los no-shows en tu clínica</h1>
+        <p class="page-sub">Copia, pega y envía. Con el timing exacto y el tono que hace que los clientes confirmen — o avisen a tiempo para reasignar el horario.</p>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-item">
+            <div class="stat-num">−90%</div>
+            <div class="stat-label">menos no-shows con recordatorios</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num">3</div>
+            <div class="stat-label">mensajes en momentos clave</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num">0</div>
+            <div class="stat-label">no-shows · Animalgrace mayo 2026</div>
+        </div>
+    </div>
+
+    <!-- Mensaje 1 -->
+    <div class="msg-section">
+        <div class="msg-header">
+            <div class="msg-badge m1">1</div>
+            <div class="msg-meta">
+                <div class="msg-num m1">Mensaje 1 · La noche anterior</div>
+                <div class="msg-timing">Enviar a las 7–8pm del día anterior a la cita</div>
+            </div>
+        </div>
+        <div class="msg-card">
+            <div class="msg-wa-header c1">
+                <div class="wa-dot" style="background:#0d9488"></div>
+                Recordatorio 24h antes
+            </div>
+            <div class="msg-bubble-wrap">
+                <div class="msg-bubble">Hola [Nombre] 👋
+
+Te recordamos que mañana tienes una cita para [Mascota] a las [hora].
+
+📍 [Dirección / "Te visitaremos en tu hogar"]
+🐾 [Tipo de servicio]
+
+¿Confirmas que puedes recibirnos? Responde SÍ para confirmar o escríbenos si necesitas cambiar el horario.
+
+¡Nos vemos mañana! 🐕</div>
+            </div>
+            <button class="msg-copy-btn" onclick="copyMsg(this,'Hola [Nombre] 👋\n\nTe recordamos que mañana tienes una cita para [Mascota] a las [hora].\n\n📍 [Dirección / \"Te visitaremos en tu hogar\"]\n🐾 [Tipo de servicio]\n\n¿Confirmas que puedes recibirnos? Responde SÍ para confirmar o escríbenos si necesitas cambiar el horario.\n\n¡Nos vemos mañana! 🐕')">
+                📋 Copiar mensaje
+            </button>
+            <div class="msg-tip">
+                <strong>Por qué funciona:</strong> la noche anterior es cuando el cliente aún puede reorganizar el día siguiente. Un recordatorio en ese momento da tiempo real para confirmar o reagendar — sin presión.
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensaje 2 -->
+    <div class="msg-section">
+        <div class="msg-header">
+            <div class="msg-badge m2">2</div>
+            <div class="msg-meta">
+                <div class="msg-num m2">Mensaje 2 · El mismo día</div>
+                <div class="msg-timing">Enviar 2 horas antes de la cita</div>
+            </div>
+        </div>
+        <div class="msg-card">
+            <div class="msg-wa-header c2">
+                <div class="wa-dot" style="background:#7c3aed"></div>
+                Confirmación 2h antes
+            </div>
+            <div class="msg-bubble-wrap">
+                <div class="msg-bubble">Hola [Nombre] 🐾
+
+¡Hoy es el día de [Mascota]! En aproximadamente 2 horas pasaremos por allá.
+
+Si necesitas avisarnos algo o cambiar la hora, escríbenos ahora — aún hay tiempo.
+
+¡Hasta pronto! 🚐</div>
+            </div>
+            <button class="msg-copy-btn" onclick="copyMsg(this,'Hola [Nombre] 🐾\n\n¡Hoy es el día de [Mascota]! En aproximadamente 2 horas pasaremos por allá.\n\nSi necesitas avisarnos algo o cambiar la hora, escríbenos ahora — aún hay tiempo.\n\n¡Hasta pronto! 🚐')">
+                📋 Copiar mensaje
+            </button>
+            <div class="msg-tip">
+                <strong>Por qué 2 horas:</strong> es el último momento donde el cliente puede cancelar y tú puedes reasignar ese slot. Más tarde ya no hay tiempo de reaccionar.
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensaje 3 -->
+    <div class="msg-section">
+        <div class="msg-header">
+            <div class="msg-badge m3">3</div>
+            <div class="msg-meta">
+                <div class="msg-num m3">Mensaje 3 · Si no confirmó</div>
+                <div class="msg-timing">Enviar si tras el mensaje 1 no hubo respuesta — 30 min antes</div>
+            </div>
+        </div>
+        <div class="msg-card">
+            <div class="msg-wa-header c3">
+                <div class="wa-dot" style="background:#2563eb"></div>
+                Seguimiento sin respuesta
+            </div>
+            <div class="msg-bubble-wrap">
+                <div class="msg-bubble">Hola [Nombre] 👋
+
+Solo para confirmar que vamos en camino para la cita de [Mascota].
+
+Si hubo algún inconveniente y no puedes recibirnos hoy, avísanos lo antes posible para reagendar sin problema.
+
+¡Gracias! 🐾</div>
+            </div>
+            <button class="msg-copy-btn" onclick="copyMsg(this,'Hola [Nombre] 👋\n\nSolo para confirmar que vamos en camino para la cita de [Mascota].\n\nSi hubo algún inconveniente y no puedes recibirnos hoy, avísanos lo antes posible para reagendar sin problema.\n\n¡Gracias! 🐾')">
+                📋 Copiar mensaje
+            </button>
+            <div class="msg-tip">
+                <strong>Tono clave:</strong> sin presión, sin recriminar. El objetivo es abrir la puerta para que el cliente avise — no hacerlo sentir culpable. El cliente que avisa a tiempo es mejor que el que no aparece sin decir nada.
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados esperados -->
+    <div class="results-section">
+        <div class="results-label">📊 Qué esperar con este protocolo</div>
+        <div class="results-grid">
+            <div class="r-item">
+                <div class="r-num">−80%</div>
+                <div class="r-text">reducción de no-shows en el primer mes</div>
+            </div>
+            <div class="r-item">
+                <div class="r-num">+4</div>
+                <div class="r-text">horas semanales recuperadas para atender</div>
+            </div>
+            <div class="r-item">
+                <div class="r-num">0</div>
+                <div class="r-text">no-shows · Animalgrace mayo 2026 con recordatorios automáticos</div>
+            </div>
+            <div class="r-item">
+                <div class="r-num">89</div>
+                <div class="r-text">recordatorios enviados en un mes · 0 inasistencias</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nota sobre Lía -->
+    <div class="lia-note">
+        <div class="lia-label">✨ El paso siguiente</div>
+        <p class="lia-text">Estos 3 mensajes funcionan. El problema es que enviarlos manualmente para cada cita toma tiempo que podrías dedicar a atender pacientes. <strong>Lía, la recepcionista IA de Vetly, los envía automáticamente</strong> — con el nombre del tutor, el nombre de la mascota y el horario correcto — sin que toques el teléfono.</p>
+    </div>
+
+    <a class="cta-wa" href="https://wa.me/56993089185?text=Hola%21+Vi+el+script+anti+no-shows+y+quiero+saber+c%C3%B3mo+L%C3%ADa+puede+enviarlo+autom%C3%A1ticamente+en+mi+cl%C3%ADnica+%F0%9F%90%BE" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+        Quiero que Lía lo haga automáticamente →
+    </a>
+    <p class="cta-sub">Sin compromiso · Respondemos en minutos por WhatsApp</p>
+
+</div>
+<footer-bar>© 2026 Vetly · Recurso gratuito</footer-bar>
+
+<script>
+function copyMsg(btn, text) {
+    navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = '✓ Copiado';
+        btn.classList.add('copied');
+        setTimeout(function(){ btn.innerHTML = '📋 Copiar mensaje'; btn.classList.remove('copied'); }, 2000);
+    });
+}
+</script>
+</body>
+</html>

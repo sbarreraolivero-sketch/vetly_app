@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico: ¿Tu WhatsApp está frenando tu clínica? · Vetly</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{font-family:'Outfit',sans-serif;box-sizing:border-box;margin:0;padding:0}
+        body{background:#f4f4f5;color:#18181b;-webkit-font-smoothing:antialiased;min-height:100vh;padding:2rem 1rem}
+        .card{background:#fff;border-radius:1.25rem;max-width:520px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.08);overflow:hidden}
+        .card-header{background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:2rem;color:#fff}
+        .header-tag{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#c4b5fd;margin-bottom:.5rem}
+        .header-title{font-size:1.5rem;font-weight:900;letter-spacing:-.02em;line-height:1.2;margin-bottom:.5rem}
+        .header-sub{font-size:.875rem;color:#ddd6fe;line-height:1.5}
+        .card-body{padding:2rem}
+        .progress-bar-wrap{background:#f4f4f5;border-radius:100px;height:6px;margin-bottom:2rem;overflow:hidden}
+        .progress-bar{background:linear-gradient(90deg,#7c3aed,#0d9488);height:100%;border-radius:100px;transition:width .3s ease}
+        .q-count{font-size:.8125rem;color:#a1a1aa;text-align:right;margin-top:.375rem}
+
+        /* Pregunta */
+        .question-block{display:none}
+        .question-block.active{display:block}
+        .q-num{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#7c3aed;margin-bottom:.5rem}
+        .q-text{font-size:1.0625rem;font-weight:700;color:#18181b;line-height:1.45;margin-bottom:1.25rem}
+        .q-options{display:flex;flex-direction:column;gap:.625rem}
+        .q-btn{border:2px solid #e4e4e7;background:#fff;border-radius:.75rem;padding:.875rem 1.125rem;text-align:left;font-size:.9375rem;font-weight:600;color:#27272a;cursor:pointer;transition:border-color .15s,background .15s;display:flex;align-items:center;gap:.75rem}
+        .q-btn:hover{border-color:#7c3aed;background:#faf5ff;color:#7c3aed}
+        .q-btn.selected{border-color:#7c3aed;background:#faf5ff;color:#7c3aed}
+        .q-btn .opt-icon{font-size:1.125rem;flex-shrink:0}
+        .nav-row{display:flex;justify-content:space-between;margin-top:1.5rem}
+        .btn-back{background:none;border:1px solid #e4e4e7;color:#71717a;font-size:.875rem;font-weight:600;padding:.625rem 1.25rem;border-radius:.625rem;cursor:pointer;transition:border-color .15s}
+        .btn-back:hover{border-color:#a1a1aa}
+        .btn-next{background:#7c3aed;color:#fff;font-size:.9375rem;font-weight:800;padding:.75rem 1.75rem;border-radius:.625rem;border:none;cursor:pointer;transition:background .15s}
+        .btn-next:hover{background:#6d28d9}
+        .btn-next:disabled{background:#d8b4fe;cursor:not-allowed}
+
+        /* Resultado */
+        .result-block{display:none}
+        .result-block.active{display:block}
+        .result-header{text-align:center;margin-bottom:1.75rem}
+        .result-score{font-size:3.5rem;font-weight:900;letter-spacing:-.05em;margin-bottom:.375rem}
+        .result-level{font-size:.8125rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:.3rem .875rem;border-radius:100px;display:inline-block;margin-bottom:.75rem}
+        .result-title{font-size:1.25rem;font-weight:900;color:#18181b;letter-spacing:-.02em;margin-bottom:.5rem}
+        .result-desc{font-size:.9375rem;color:#52525b;line-height:1.65}
+
+        .level-green .result-score{color:#16a34a}
+        .level-green .result-level{background:#dcfce7;color:#16a34a}
+        .level-amber .result-score{color:#d97706}
+        .level-amber .result-level{background:#fef3c7;color:#d97706}
+        .level-red .result-score{color:#dc2626}
+        .level-red .result-level{background:#fee2e2;color:#dc2626}
+
+        .actions{margin:1.5rem 0}
+        .actions-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#52525b;margin-bottom:.875rem}
+        .action-item{display:flex;gap:.875rem;align-items:flex-start;padding:.875rem 0;border-bottom:1px solid #f4f4f5}
+        .action-item:last-child{border-bottom:none}
+        .action-num{width:24px;height:24px;border-radius:50%;background:#7c3aed;color:#fff;font-size:.75rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.125rem}
+        .action-text{font-size:.9rem;color:#27272a;line-height:1.55}
+        .action-text strong{color:#18181b}
+
+        .cta-wa{display:flex;align-items:center;justify-content:center;gap:.625rem;background:#25D366;color:#fff;font-weight:800;font-size:1rem;padding:1rem 1.5rem;border-radius:.875rem;text-decoration:none;transition:background .15s;margin-bottom:.75rem}
+        .cta-wa:hover{background:#1ebe5d}
+        .cta-sub{text-align:center;font-size:.75rem;color:#a1a1aa}
+        footer-bar{display:block;text-align:center;font-size:.75rem;color:#a1a1aa;padding:1.25rem}
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="card-header">
+        <div class="header-tag">🔍 Diagnóstico gratuito · Vetly</div>
+        <h1 class="header-title">¿Tu WhatsApp está frenando el crecimiento de tu clínica?</h1>
+        <p class="header-sub">7 preguntas. Resultado en 2 minutos. Sin registro.</p>
+    </div>
+    <div class="card-body">
+
+        <div class="progress-bar-wrap">
+            <div class="progress-bar" id="progress" style="width:0%"></div>
+        </div>
+        <div class="q-count" id="q-count">Pregunta 1 de 7</div>
+
+        <!-- PREGUNTAS -->
+        <div class="question-block active" id="q0">
+            <div class="q-num">Pregunta 1 · Respuesta</div>
+            <div class="q-text">¿Cuánto tiempo tardas normalmente en responder un mensaje de WhatsApp de un cliente?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(0,0)"><span class="opt-icon">⚡</span> Menos de 5 minutos</button>
+                <button class="q-btn" onclick="answer(0,1)"><span class="opt-icon">🕐</span> Entre 5 y 30 minutos</button>
+                <button class="q-btn" onclick="answer(0,2)"><span class="opt-icon">🕑</span> Entre 30 minutos y 2 horas</button>
+                <button class="q-btn" onclick="answer(0,3)"><span class="opt-icon">🕰️</span> Más de 2 horas (o al final del día)</button>
+            </div>
+        </div>
+
+        <div class="question-block" id="q1">
+            <div class="q-num">Pregunta 2 · No-shows</div>
+            <div class="q-text">¿Con qué frecuencia tienes clientes que no llegan a su cita sin avisar?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(1,0)"><span class="opt-icon">✅</span> Casi nunca (envío recordatorios siempre)</button>
+                <button class="q-btn" onclick="answer(1,1)"><span class="opt-icon">📉</span> 1–2 por mes</button>
+                <button class="q-btn" onclick="answer(1,2)"><span class="opt-icon">📊</span> 1–2 por semana</button>
+                <button class="q-btn" onclick="answer(1,3)"><span class="opt-icon">🚨</span> Más de 2 por semana</button>
+            </div>
+        </div>
+
+        <div class="question-block" id="q2">
+            <div class="q-num">Pregunta 3 · Disponibilidad</div>
+            <div class="q-text">¿Qué pasa con los mensajes que llegan fuera de tu horario de trabajo?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(2,0)"><span class="opt-icon">🤖</span> Un sistema los atiende automáticamente</button>
+                <button class="q-btn" onclick="answer(2,1)"><span class="opt-icon">🌙</span> Los respondo yo cuando puedo (incluso de noche)</button>
+                <button class="q-btn" onclick="answer(2,2)"><span class="opt-icon">📲</span> Se acumulan y los respondo al día siguiente</button>
+                <button class="q-btn" onclick="answer(2,3)"><span class="opt-icon">💔</span> Muchos clientes no esperan y buscan otra clínica</button>
+            </div>
+        </div>
+
+        <div class="question-block" id="q3">
+            <div class="q-num">Pregunta 4 · Agenda</div>
+            <div class="q-text">¿Cómo gestionas el agendamiento de citas actualmente?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(3,0)"><span class="opt-icon">⚙️</span> Sistema automático (agenda online o IA)</button>
+                <button class="q-btn" onclick="answer(3,1)"><span class="opt-icon">📱</span> WhatsApp + agenda digital (yo coordino todo)</button>
+                <button class="q-btn" onclick="answer(3,2)"><span class="opt-icon">📒</span> WhatsApp + cuaderno o Excel</button>
+                <button class="q-btn" onclick="answer(3,3)"><span class="opt-icon">🧠</span> De memoria y WhatsApp personal</button>
+            </div>
+        </div>
+
+        <div class="question-block" id="q4">
+            <div class="q-num">Pregunta 5 · Desconexión</div>
+            <div class="q-text">¿Puedes desconectarte del teléfono un fin de semana completo sin sentir que estás perdiendo clientes?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(4,0)"><span class="opt-icon">😎</span> Sí, el sistema funciona solo</button>
+                <button class="q-btn" onclick="answer(4,1)"><span class="opt-icon">😬</span> Con dificultad — reviso el teléfono igual</button>
+                <button class="q-btn" onclick="answer(4,2)"><span class="opt-icon">😰</span> No, respondo aunque sea fin de semana</button>
+                <button class="q-btn" onclick="answer(4,3)"><span class="opt-icon">😩</span> Nunca me desconecto realmente</button>
+            </div>
+        </div>
+
+        <div class="question-block" id="q5">
+            <div class="q-num">Pregunta 6 · Datos</div>
+            <div class="q-text">¿Sabes cuántas consultas de WhatsApp recibes al mes que no terminan en cita agendada?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(5,0)"><span class="opt-icon">📊</span> Sí, lo mido con mi sistema</button>
+                <button class="q-btn" onclick="answer(5,1)"><span class="opt-icon">🤔</span> Aproximadamente, pero sin datos exactos</button>
+                <button class="q-btn" onclick="answer(5,2)"><span class="opt-icon">🙈</span> No lo sé con precisión</button>
+                <button class="q-btn" onclick="answer(5,3)"><span class="opt-icon">❓</span> Nunca lo pensé</button>
+            </div>
+        </div>
+
+        <div class="question-block" id="q6">
+            <div class="q-num">Pregunta 7 · Crecimiento</div>
+            <div class="q-text">¿Sientes que no puedes crecer más porque ya no tienes capacidad de atender más mensajes?</div>
+            <div class="q-options">
+                <button class="q-btn" onclick="answer(6,0)"><span class="opt-icon">🚀</span> No, tengo capacidad de escalar</button>
+                <button class="q-btn" onclick="answer(6,1)"><span class="opt-icon">🤹</span> A veces — estoy al límite en horas pico</button>
+                <button class="q-btn" onclick="answer(6,2)"><span class="opt-icon">⚠️</span> Sí, me cuesta manejar el volumen actual</button>
+                <button class="q-btn" onclick="answer(6,3)"><span class="opt-icon">🛑</span> Estoy frenado por el WhatsApp, no por la demanda</button>
+            </div>
+        </div>
+
+        <!-- RESULTADO -->
+        <div class="question-block" id="result">
+            <div class="result-header" id="result-header">
+                <div class="result-score" id="res-score">--</div>
+                <div class="result-level" id="res-level">--</div>
+                <div class="result-title" id="res-title">--</div>
+                <p class="result-desc" id="res-desc">--</p>
+            </div>
+            <div class="actions">
+                <div class="actions-label">Tus 3 acciones inmediatas</div>
+                <div id="res-actions"></div>
+            </div>
+            <a class="cta-wa" id="res-cta" href="#" target="_blank" rel="noopener">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                <span id="res-cta-text">Hablar con el equipo →</span>
+            </a>
+            <p class="cta-sub">Sin compromiso · Respondemos por WhatsApp en minutos</p>
+        </div>
+
+    </div>
+</div>
+<footer-bar>© 2026 Vetly · Diagnóstico gratuito</footer-bar>
+
+<script>
+var answers = [];
+var current = 0;
+var total = 7;
+
+function answer(q, score) {
+    answers[q] = score;
+    var btns = document.querySelectorAll('#q' + q + ' .q-btn');
+    btns.forEach(function(b){ b.classList.remove('selected'); });
+    btns[score].classList.add('selected');
+    setTimeout(function(){ nextQ(); }, 300);
+}
+
+function nextQ() {
+    if (current < total - 1) {
+        document.getElementById('q' + current).classList.remove('active');
+        current++;
+        document.getElementById('q' + current).classList.add('active');
+        updateProgress();
+    } else {
+        showResult();
+    }
+}
+
+function updateProgress() {
+    var pct = ((current) / total * 100);
+    document.getElementById('progress').style.width = pct + '%';
+    document.getElementById('q-count').textContent = 'Pregunta ' + (current + 1) + ' de ' + total;
+}
+
+function showResult() {
+    var total_score = answers.reduce(function(a, b){ return a + b; }, 0);
+    var max = total * 3;
+    var pct = Math.round(total_score / max * 100);
+
+    document.getElementById('q' + current).classList.remove('active');
+    document.getElementById('progress').style.width = '100%';
+    document.getElementById('q-count').textContent = 'Diagnóstico completado';
+
+    var rh = document.getElementById('result-header');
+    var score_el = document.getElementById('res-score');
+    var level_el = document.getElementById('res-level');
+    var title_el = document.getElementById('res-title');
+    var desc_el = document.getElementById('res-desc');
+    var actions_el = document.getElementById('res-actions');
+    var cta = document.getElementById('res-cta');
+    var cta_text = document.getElementById('res-cta-text');
+
+    score_el.textContent = pct + '%';
+
+    var waBase = 'https://wa.me/56993089185?text=';
+
+    if (total_score <= 5) {
+        rh.classList.add('level-green');
+        level_el.textContent = '✅ Controlado';
+        title_el.textContent = 'Tu gestión de WhatsApp está bien encaminada';
+        desc_el.textContent = 'Tienes buenos hábitos. El próximo paso es automatizar lo que haces bien para liberarte del tiempo que todavía dedicas manualmente — y escalarlo sin esfuerzo extra.';
+        actions_el.innerHTML = makeActions([
+            'Documenta tu protocolo actual de respuesta para que funcione incluso cuando no estés disponible.',
+            'Mide cuántas consultas no terminan en cita — ese número revela oportunidades de conversión.',
+            'Evalúa automatizar los recordatorios: incluso con buena gestión, el tiempo de envío manual acumula horas al mes.'
+        ]);
+        cta.href = waBase + 'Hola%21+Hice+el+diagn%C3%B3stico+de+WhatsApp+y+qued%C3%A9+en+nivel+controlado.+Quiero+ver+c%C3%B3mo+automatizar+lo+que+hago+bien+%F0%9F%90%BE';
+        cta_text.textContent = 'Ver cómo automatizar mi gestión →';
+    } else if (total_score <= 13) {
+        rh.classList.add('level-amber');
+        level_el.textContent = '⚠️ En riesgo';
+        title_el.textContent = 'Tu WhatsApp está limitando tu crecimiento';
+        desc_el.textContent = 'Estás manejando el volumen actual, pero al límite. Cualquier aumento de demanda — o una semana más ocupada — probablemente te desborda. El sistema necesita refuerzo antes de que el problema sea peor.';
+        actions_el.innerHTML = makeActions([
+            'Implementa recordatorios automáticos esta semana. El protocolo de 3 mensajes reduce los no-shows en más del 80%.',
+            'Separa el WhatsApp de la clínica de tu teléfono personal — mezclarlos amplifica el estrés.',
+            'Calcula cuántas horas semanales dedicas a coordinar citas por WhatsApp. El número te va a sorprender.'
+        ]);
+        cta.href = waBase + 'Hola%21+Hice+el+diagn%C3%B3stico+y+estoy+en+riesgo+con+mi+WhatsApp.+Quiero+ver+c%C3%B3mo+Vetly+puede+ayudarme+%F0%9F%90%BE';
+        cta_text.textContent = 'Quiero solucionar esto →';
+    } else {
+        rh.classList.add('level-red');
+        level_el.textContent = '🚨 Crítico';
+        title_el.textContent = 'El WhatsApp te está costando clientes y energía';
+        desc_el.textContent = 'Tu situación es la que más nos encontramos en clínicas que llevan tiempo así: el sistema no escala, el WhatsApp no para y la energía se va en tareas repetitivas. La buena noticia es que tiene solución — y no requiere contratar a nadie.';
+        actions_el.innerHTML = makeActions([
+            'Esta semana: deja de responder WhatsApp fuera de horario. Configura un mensaje automático de "estamos fuera de horario, te respondemos a las 9am".',
+            'Esta semana: implementa el script de 3 mensajes anti no-shows — recupera esas horas de inmediato.',
+            'Este mes: evalúa un sistema que atienda WhatsApp automáticamente. El costo mensual es menor que una semana de tu tiempo.'
+        ]);
+        cta.href = waBase + 'Hola%21+Hice+el+diagn%C3%B3stico+y+mi+resultado+es+cr%C3%ADtico.+El+WhatsApp+me+est%C3%A1+frenando.+Quiero+ver+c%C3%B3mo+Vetly+puede+ayudarme+%F0%9F%90%BE';
+        cta_text.textContent = 'Necesito solucionar esto hoy →';
+    }
+
+    document.getElementById('result').classList.add('active');
+}
+
+function makeActions(list) {
+    return list.map(function(t, i) {
+        return '<div class="action-item"><div class="action-num">' + (i+1) + '</div><div class="action-text">' + t + '</div></div>';
+    }).join('');
+}
+</script>
+</body>
+</html>

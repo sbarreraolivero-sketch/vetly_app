@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora: ¿Cuántas horas pierdes en WhatsApp? · Vetly</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{font-family:'Outfit',sans-serif;box-sizing:border-box;margin:0;padding:0}
+        body{background:#f4f4f5;color:#18181b;-webkit-font-smoothing:antialiased;min-height:100vh;padding:2rem 1rem}
+        .card{background:#fff;border-radius:1.25rem;max-width:520px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.08);overflow:hidden}
+        .card-header{background:linear-gradient(135deg,#0d9488,#0891b2);padding:2rem 2rem 1.5rem;color:#fff}
+        .header-tag{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#99f6e4;margin-bottom:.5rem}
+        .header-title{font-size:1.5rem;font-weight:900;letter-spacing:-.02em;line-height:1.2;margin-bottom:.5rem}
+        .header-sub{font-size:.875rem;color:#ccfbf1;line-height:1.5}
+        .card-body{padding:2rem}
+        .question{margin-bottom:1.75rem}
+        .q-label{font-size:.9375rem;font-weight:700;color:#18181b;margin-bottom:.25rem}
+        .q-hint{font-size:.8125rem;color:#71717a;margin-bottom:.75rem}
+        .q-row{display:flex;align-items:center;gap:1rem}
+        .q-slider{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:100px;background:#e4e4e7;outline:none;cursor:pointer}
+        .q-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#0d9488;cursor:pointer;box-shadow:0 2px 6px rgba(13,148,136,.35)}
+        .q-val{font-size:1.125rem;font-weight:900;color:#0d9488;min-width:3rem;text-align:right}
+        .divider{border:none;border-top:1px solid #f4f4f5;margin:0 0 1.75rem}
+        .result-box{background:#f0fdfa;border:2px solid #0d9488;border-radius:1rem;padding:1.5rem;margin-bottom:1.5rem;text-align:center}
+        .result-label{font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#0d9488;margin-bottom:.375rem}
+        .result-num{font-size:3rem;font-weight:900;color:#18181b;letter-spacing:-.04em;line-height:1}
+        .result-unit{font-size:.9375rem;color:#52525b;margin-top:.25rem}
+        .result-sub{font-size:.8125rem;color:#71717a;margin-top:.5rem;line-height:1.5}
+        .results-grid{display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:1.5rem}
+        .res-card{background:#fafafa;border:1px solid #e4e4e7;border-radius:.75rem;padding:1rem;text-align:center}
+        .res-card .label{font-size:.75rem;color:#71717a;margin-bottom:.25rem}
+        .res-card .num{font-size:1.25rem;font-weight:900;color:#18181b}
+        .res-card.accent{background:#fff7ed;border-color:#fed7aa}
+        .res-card.accent .num{color:#c2410c}
+        .insight{background:#18181b;border-radius:.875rem;padding:1.25rem 1.375rem;margin-bottom:1.5rem}
+        .insight-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#6ee7b7;margin-bottom:.5rem}
+        .insight-text{font-size:.9375rem;color:#fff;line-height:1.6}
+        .insight-text strong{color:#6ee7b7}
+        .cta-wa{display:flex;align-items:center;justify-content:center;gap:.625rem;background:#25D366;color:#fff;font-weight:800;font-size:1rem;padding:1rem 1.5rem;border-radius:.875rem;text-decoration:none;transition:background .15s,transform .15s;margin-bottom:.75rem}
+        .cta-wa:hover{background:#1ebe5d;transform:translateY(-1px)}
+        .cta-sub{font-size:.75rem;color:#a1a1aa;text-align:center}
+        .vetly-note{text-align:center;margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid #f4f4f5}
+        .vetly-note p{font-size:.8125rem;color:#71717a;margin-bottom:.5rem}
+        .vetly-link{font-size:.8125rem;font-weight:700;color:#0d9488;text-decoration:none}
+        .vetly-link:hover{text-decoration:underline}
+        footer-bar{display:block;text-align:center;font-size:.75rem;color:#a1a1aa;padding:1.25rem}
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="card-header">
+        <div class="header-tag">🧮 Herramienta gratuita · Vetly</div>
+        <h1 class="header-title">¿Cuántas horas pierdes en WhatsApp cada mes?</h1>
+        <p class="header-sub">Mueve los controles según tu clínica. El resultado es tuyo — y probablemente te va a sorprender.</p>
+    </div>
+    <div class="card-body">
+
+        <div class="question">
+            <div class="q-label">Citas que agendas por semana</div>
+            <div class="q-hint">Incluyendo las que coordinas por WhatsApp manualmente</div>
+            <div class="q-row">
+                <input class="q-slider" type="range" id="s1" min="5" max="60" value="20">
+                <span class="q-val" id="v1">20</span>
+            </div>
+        </div>
+
+        <div class="question">
+            <div class="q-label">Minutos que demoras en coordinar cada cita</div>
+            <div class="q-hint">Ida y vuelta de mensajes hasta confirmar horario, datos, dirección</div>
+            <div class="q-row">
+                <input class="q-slider" type="range" id="s2" min="2" max="20" value="8">
+                <span class="q-val" id="v2">8 min</span>
+            </div>
+        </div>
+
+        <div class="question">
+            <div class="q-label">Consultas de precio / disponibilidad que no agendan</div>
+            <div class="q-hint">Mensajes que respondes pero que no terminan en cita esa semana</div>
+            <div class="q-row">
+                <input class="q-slider" type="range" id="s3" min="0" max="40" value="15">
+                <span class="q-val" id="v3">15</span>
+            </div>
+        </div>
+
+        <div class="question">
+            <div class="q-label">No-shows por semana (citas que no llegan)</div>
+            <div class="q-hint">Clientes que no avisaron y no aparecieron</div>
+            <div class="q-row">
+                <input class="q-slider" type="range" id="s4" min="0" max="15" value="3">
+                <span class="q-val" id="v4">3</span>
+            </div>
+        </div>
+
+        <div class="question">
+            <div class="q-label">Recordatorios que envías manualmente antes de cada cita</div>
+            <div class="q-hint">Minutos por semana buscando contactos y escribiendo recordatorios</div>
+            <div class="q-row">
+                <input class="q-slider" type="range" id="s5" min="0" max="60" value="20">
+                <span class="q-val" id="v5">20 min</span>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Resultado principal -->
+        <div class="result-box">
+            <div class="result-label">Horas perdidas en WhatsApp cada mes</div>
+            <div class="result-num" id="r-horas">--</div>
+            <div class="result-unit">horas / mes</div>
+            <div class="result-sub" id="r-sub">Calculando...</div>
+        </div>
+
+        <!-- Grid de métricas secundarias -->
+        <div class="results-grid">
+            <div class="res-card">
+                <div class="label">Horas / año</div>
+                <div class="num" id="r-anual">--</div>
+            </div>
+            <div class="res-card accent">
+                <div class="label">Citas perdidas por no-shows / mes</div>
+                <div class="num" id="r-noshows">--</div>
+            </div>
+            <div class="res-card">
+                <div class="label">Mensajes sin respuesta (fines de semana)</div>
+                <div class="num" id="r-fds">--</div>
+            </div>
+            <div class="res-card accent">
+                <div class="label">Días completos de trabajo / año</div>
+                <div class="num" id="r-dias">--</div>
+            </div>
+        </div>
+
+        <!-- Insight personalizado -->
+        <div class="insight">
+            <div class="insight-label">💡 Lo que podrías hacer con ese tiempo</div>
+            <p class="insight-text" id="r-insight">Calculando...</p>
+        </div>
+
+        <!-- CTA -->
+        <a class="cta-wa" href="https://wa.me/56993089185?text=Hola%21+Hice+la+calculadora+y+estoy+perdiendo+mucho+tiempo+en+WhatsApp.+Quiero+saber+c%C3%B3mo+Vetly+puede+ayudarme+%F0%9F%90%BE" target="_blank" rel="noopener">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+            Quiero recuperar esas horas →
+        </a>
+        <p class="cta-sub">Te contactamos por WhatsApp en minutos · Sin compromiso</p>
+
+        <div class="vetly-note">
+            <p>Lía, la recepcionista IA de Vetly, elimina el 85% de estas horas automáticamente.</p>
+            <a href="https://vetly.pro" class="vetly-link">Conocer Vetly →</a>
+        </div>
+    </div>
+</div>
+
+<footer-bar>© 2026 Vetly · Recurso gratuito</footer-bar>
+
+<script>
+(function(){
+    var sliders = [
+        {id:'s1',val:'v1',suffix:''},
+        {id:'s2',val:'v2',suffix:' min'},
+        {id:'s3',val:'v3',suffix:''},
+        {id:'s4',val:'v4',suffix:''},
+        {id:'s5',val:'v5',suffix:' min'}
+    ];
+
+    sliders.forEach(function(s){
+        var el = document.getElementById(s.id);
+        var vEl = document.getElementById(s.val);
+        el.addEventListener('input',function(){
+            vEl.textContent = el.value + s.suffix;
+            calc();
+        });
+    });
+
+    function calc(){
+        var citasSem = +document.getElementById('s1').value;
+        var minCita  = +document.getElementById('s2').value;
+        var consultas= +document.getElementById('s3').value;
+        var noShows  = +document.getElementById('s4').value;
+        var recMin   = +document.getElementById('s5').value;
+
+        // Minutos por semana
+        var minSem = (citasSem * minCita) + (consultas * 3) + (noShows * 10) + recMin;
+        var horasSem = minSem / 60;
+        var horasMes = horasSem * 4.3;
+        var horasAnual = horasMes * 12;
+        var diasAnual = (horasAnual / 8).toFixed(1);
+        var noShowsMes = noShows * 4.3;
+        var fdsMensajes = Math.round(consultas * 0.3 * 4.3);
+
+        document.getElementById('r-horas').textContent = horasMes.toFixed(1);
+        document.getElementById('r-anual').textContent = Math.round(horasAnual) + 'h';
+        document.getElementById('r-noshows').textContent = Math.round(noShowsMes);
+        document.getElementById('r-fds').textContent = fdsMensajes;
+        document.getElementById('r-dias').textContent = diasAnual;
+
+        // Insight dinámico
+        var insight = '';
+        if(horasMes < 10){
+            insight = 'Estás en el rango bajo — pero son <strong>' + horasMes.toFixed(1) + ' horas</strong> que podrías dedicar a atender más pacientes o simplemente descansar el fin de semana sin culpa.';
+        } else if(horasMes < 25){
+            insight = 'En <strong>' + horasMes.toFixed(1) + ' horas/mes</strong> podrías atender <strong>' + Math.round(horasMes / 0.75) + ' citas adicionales</strong> — o trabajar una semana menos al año. Ese tiempo hoy lo pasa el WhatsApp.';
+        } else {
+            insight = 'Son <strong>' + horasMes.toFixed(1) + ' horas al mes</strong> — casi <strong>' + diasAnual + ' días completos de trabajo al año</strong> — dedicados a gestionar mensajes. Es tiempo que el WhatsApp te está cobrando sin que lo sientas.';
+        }
+        document.getElementById('r-insight').innerHTML = insight;
+
+        // Subtítulo resultado principal
+        var sub = 'Eso equivale a ' + horasAnual.toFixed(0) + ' horas al año — o ' + diasAnual + ' días completos de trabajo.';
+        document.getElementById('r-sub').textContent = sub;
+    }
+
+    calc();
+})();
+</script>
+</body>
+</html>
