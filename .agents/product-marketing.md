@@ -502,36 +502,64 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - Schema: Article + FAQPage + BreadcrumbList + HowTo (6 pasos)
 - Sección "Próximamente" del blog index actualizada: ART-08 inventario + 2 futuros artículos
 
-### Estado del blog — 2026-05-30
+### Estado del blog — 2026-05-31 (18 artículos publicados)
 
-| # | Artículo | URL | Tag |
-|---|----------|-----|-----|
-| 1 | Cómo Animalgrace ahorra 84h/mes | `/blog/como-animalgrace-ahorra-84-horas-al-mes` | Caso de estudio |
-| 2 | Recepcionista virtual veterinaria | `/blog/recepcionista-virtual-veterinaria` | Guía |
-| 3 | WhatsApp para clínicas veterinarias | `/blog/whatsapp-clinica-veterinaria` | Guía |
-| 4 | Ruta clínica veterinaria móvil | `/blog/ruta-clinica-veterinaria-movil` | Logística |
-| 5 | Recordatorios citas veterinarias | `/blog/recordatorios-citas-veterinarias` | Guía |
-| 6 | Gestionar dos clínicas veterinarias | `/blog/gestionar-dos-clinicas-veterinarias` | Gestión |
-| 7 | Software de gestión veterinaria | `/blog/software-gestion-veterinaria` | Guía de compra |
-| 8 | Agente IA para veterinarias | `/blog/agente-ia-veterinaria` | Guía |
-| 9 | Agenda veterinaria online | `/blog/agenda-veterinaria-online` | Guía práctica |
-| 10 | Fidelización clientes veterinaria | `/blog/fidelizacion-clientes-veterinaria` | Marketing |
-| 11 | Métricas de rentabilidad veterinaria | `/blog/metricas-rentabilidad-clinica-veterinaria` | Gestión y Finanzas |
-| 12 | Burnout veterinario | `/blog/burnout-veterinario` | Bienestar |
-| 13 | Precios clínica veterinaria | `/blog/precios-clinica-veterinaria` | Gestión |
-| 14 | Clínica veterinaria móvil a domicilio | `/blog/clinica-veterinaria-movil-a-domicilio` | Guía práctica |
+| # | Artículo | URL | Tag | GSC |
+|---|----------|-----|-----|-----|
+| 1 | Cómo Animalgrace ahorra 84h/mes | `/blog/como-animalgrace-ahorra-84-horas-al-mes` | Caso de estudio | — |
+| 2 | Recepcionista virtual veterinaria | `/blog/recepcionista-virtual-veterinaria` | Guía | ✅ Indexación solicitada |
+| 3 | WhatsApp para clínicas veterinarias | `/blog/whatsapp-clinica-veterinaria` | Guía | ⏳ Solicitar semana 2026-06-07 |
+| 4 | Ruta clínica veterinaria móvil | `/blog/ruta-clinica-veterinaria-movil` | Logística | — |
+| 5 | Recordatorios citas veterinarias | `/blog/recordatorios-citas-veterinarias` | Guía | — |
+| 6 | Gestionar dos clínicas veterinarias | `/blog/gestionar-dos-clinicas-veterinarias` | Gestión | — |
+| 7 | Software de gestión veterinaria | `/blog/software-gestion-veterinaria` | Guía de compra | ✅ Indexación solicitada |
+| 8 | Agente IA para veterinarias | `/blog/agente-ia-veterinaria` | Guía | ⏳ Solicitar semana 2026-06-07 |
+| 9 | Agenda veterinaria online | `/blog/agenda-veterinaria-online` | Guía práctica | — |
+| 10 | Fidelización clientes veterinaria | `/blog/fidelizacion-clientes-veterinaria` | Marketing | — |
+| 11 | Métricas de rentabilidad veterinaria | `/blog/metricas-rentabilidad-clinica-veterinaria` | Gestión y Finanzas | — |
+| 12 | Burnout veterinario | `/blog/burnout-veterinario` | Bienestar | — |
+| 13 | Precios clínica veterinaria | `/blog/precios-clinica-veterinaria` | Gestión | — |
+| 14 | Clínica veterinaria móvil a domicilio | `/blog/clinica-veterinaria-movil-a-domicilio` | Guía práctica | ⏳ Solicitar semana 2026-06-07 |
+| 15 | Inventario clínica veterinaria | `/blog/inventario-clinica-veterinaria` | Gestión | — |
+| 16 | Cobros veterinaria domicilio | `/blog/cobros-veterinaria-domicilio` | Gestión y Finanzas | — |
+| 17 | Conseguir clientes veterinaria | `/blog/conseguir-clientes-veterinaria` | Marketing | ✅ Indexación solicitada |
+| 18 | (próximamente) | — | — | — |
 
-**ART-08 pendiente:** "Inventario para clínica veterinaria: cómo controlar tu stock y no perder dinero" — conecta directamente con Sesión 30 (análisis ABC, facturas con IA, registro por visita).
+**Leyenda GSC:** ✅ Indexación solicitada en GSC · ⏳ Pendiente solicitar semana 2026-06-07 · — Sin prioridad inmediata
 
-### Pendiente — Próxima sesión
+### Completado sesión 2026-05-31
 
-**1. Outreach a comunidades veterinarias** ← PRÓXIMO
+**Google Search Console configurado:**
+- Dominio `vetly.pro` verificado vía registro TXT en Cloudflare
+- Sitemap `https://vetly.pro/sitemap.xml` enviado → estado: **Correcto · 20 páginas descubiertas**
+- Indexación solicitada manualmente para los 3 artículos de mayor prioridad:
+  1. `/blog/recepcionista-virtual-veterinaria` — 0 competidores en keyword exacta
+  2. `/blog/software-gestion-veterinaria` — alta intención de compra
+  3. `/blog/conseguir-clientes-veterinaria` — volumen alto, problema universal
+
+**Artículos nuevos publicados (sesión 2026-05-31):**
+- ART-08: Inventario clínica veterinaria (ABC, facturas IA, van vs. sede)
+- Cobros veterinaria domicilio (métodos de pago, pendientes, comprobante WA)
+- Conseguir clientes veterinaria (7 estrategias, embudo, regla de los 5 minutos)
+
+### Pendiente — Semana 2026-06-07
+
+**1. Solicitar indexación en GSC para 3 artículos:**
+- `/blog/whatsapp-clinica-veterinaria` — altísimo volumen, problema cotidiano
+- `/blog/agente-ia-veterinaria` — keyword emergente, 0 competencia real hoy
+- `/blog/clinica-veterinaria-movil-a-domicilio` — intención transaccional fuerte
+- Ir a GSC → Inspección de URLs → pegar cada URL → "Solicitar indexación"
+
+**2. Revisar en GSC → Indexación → Páginas:**
+- Verificar cuántas de las 20 URLs del sitemap quedaron indexadas
+- Identificar si alguna tiene error de cobertura
+
+**3. Outreach a comunidades veterinarias**
 - **Colmevet Chile** — Facebook 33.955 seguidores
 - **VEPA Colombia** — Facebook 13.658 seguidores + 19 capítulos regionales
 - Formato: versión "post de comunidad" de cada artículo — más corto, conversacional, pregunta abierta al final
 - No vender directamente; compartir el artículo más útil para el grupo
 
-**3. También pendiente (sin orden fijo):**
+**4. También pendiente (sin orden fijo):**
 - Segundo caso de estudio (nueva clínica cliente)
-- Paginación del blog index cuando supere 12 artículos
-- Google Search Console: verificar indexación de los 10 artículos publicados
+- Paginación del blog index cuando supere 20 artículos
