@@ -2223,3 +2223,79 @@ Añadido en el tab Análisis antes de la tabla ABC. Explica en lenguaje de negoc
 - **B** (amber): 15% → llevar según agenda del día
 - **C** (red): 5% → guardar en sede, llevar solo si hay cita que lo requiera
 - Tip al pie: cómo usar la clasificación para decidir qué cargar en el vehículo cada día
+
+---
+
+## Cambios realizados — mayo 2026 (sesión 33, 2026-05-31)
+
+### Sistema de lead magnets — implementación completa
+
+#### Arquitectura
+
+**`public/lm-popup.js`** — sistema de exit intent global:
+- Se incluye vía `<script src="/lm-popup.js" defer></script>` en los 18 artículos del blog y en `landing.html`
+- Integrado via Python script (no modifica el código React)
+- No se muestra en `/demo`, `/recursos/`, `/r/`, `/p/`
+- Solo se muestra **una vez por sesión** (`sessionStorage.lm_shown`)
+- Espera **20 segundos** en la página antes de activarse
+- **Desktop:** exit intent — detección de `mouseleave` con `clientY <= 5`
+- **Mobile:** timeout de 40 segundos (no hay exit intent en touch)
+- Selecciona el lead magnet según el slug del artículo (`MAP` object) — fallback aleatorio si no hay match
+- Landing principal → siempre muestra el Diagnóstico
+
+**Mapeo de relevancia artículo → lead magnet:**
+| Lead Magnet | Artículos donde aparece |
+|---|---|
+| 🧮 Calculadora de horas | whatsapp-clinica, recepcionista-virtual, agente-ia, burnout, conseguir-clientes |
+| 📋 Script anti no-shows | recordatorios, metricas-rentabilidad, agenda-veterinaria, cobros |
+| 🗺️ Plantilla ruta móvil | movil, inventario, ruta-clinica |
+| 🔍 Diagnóstico WhatsApp | Landing + software-gestion, gestionar-dos, fidelizacion, precios-clinica |
+
+#### 4 recursos en `public/recursos/`
+
+| Archivo | Descripción |
+|---|---|
+| `calculadora.html` | 5 sliders interactivos → calcula horas perdidas/mes en WhatsApp en tiempo real. Slider de consultas de precio: máx 200. |
+| `script-no-shows.html` | Protocolo de 3 mensajes con botón "Copiar" por cada uno. Stats de referencia. Nota de Lía al pie. |
+| `ruta-movil.html` | Día "Ejemplo" fijo con buffers. Lunes–Sábado con `<input type="time">` + `<input type="text">` editables. Botones Agregar/Eliminar cita. Botón Imprimir/PDF (`window.print()`). Botón Limpiar todo. Checklist del van con "Desmarcar todo". |
+| `diagnostico.html` | Quiz de 7 preguntas. Resultado con nivel (Controlado/En riesgo/Crítico), puntaje %, y 3 acciones personalizadas. **Guarda en Supabase** al terminar + marca `wa_clicked=true` al hacer clic en el CTA. |
+
+**Regla permanente:** los recursos son páginas HTML estáticas en `public/recursos/`. No son rutas de React. No tienen auth. Tienen `<meta name="robots" content="noindex">`.
+
+#### Tabla `diagnostic_leads` (Supabase)
+
+```sql
+CREATE TABLE diagnostic_leads (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    score       INTEGER NOT NULL,      -- 0-21 raw
+    score_pct   INTEGER NOT NULL,      -- 0-100 porcentaje
+    level       TEXT NOT NULL,         -- 'controlado' | 'en_riesgo' | 'critico'
+    answers     JSONB NOT NULL,        -- array de 7 respuestas [0,2,1,3,0,1,2]
+    wa_clicked  BOOLEAN DEFAULT false,
+    source_url  TEXT,
+    referrer    TEXT
+);
+```
+
+**RLS:**
+- `anon INSERT` — permite captura pública sin auth
+- `anon UPDATE` — solo permite `wa_clicked = true` (no puede cambiar otros campos)
+- `authenticated SELECT` — cualquier usuario autenticado puede leer (para el dashboard HQ)
+- `service_role ALL` — acceso total
+
+**Flujo de captura en `diagnostico.html`:**
+1. Al terminar la pregunta 7 → `saveLead()` hace POST al endpoint REST de Supabase con anon key (fire-and-forget, sin bloquear UI)
+2. Guarda `leadId` del registro creado en variable JS
+3. Al hacer clic en el CTA de WhatsApp → `markWaClicked()` hace PATCH con `wa_clicked: true`
+4. El mensaje de WhatsApp lleva el nivel y porcentaje pre-escrito para que Andrés llegue con contexto
+
+**Prompt de Andrés actualizado (en DB, sin deploy):** sección `LEAD MAGNETS — RECURSOS GRATUITOS` añadida al `hq_sales_agent_prompt`. Para cada recurso: cómo detectar el mensaje, qué link entregar, y qué pregunta de cierre hacer. Regla: primero entregar el recurso, luego una sola pregunta de seguimiento.
+
+#### Vista de leads en `AdminDashboard.tsx`
+
+Sección añadida debajo de "Validación y Activación":
+- **5 stats chips:** Total leads · 🚨 Crítico · ⚠️ En riesgo · ✅ Controlado · % WA clicked
+- **Tabla** (últimos 100): fecha/hora · badge de nivel coloreado · barra de progreso con % · ✓ WA clicked · fuente (helper `sourceLabel()` convierte la URL a nombre legible)
+- Botón refresh manual
+- Fetch via `supabase.from('diagnostic_leads')` — usa la policy `authenticated_select`

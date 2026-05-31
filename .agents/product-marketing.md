@@ -563,3 +563,48 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 **4. También pendiente (sin orden fijo):**
 - Segundo caso de estudio (nueva clínica cliente)
 - Paginación del blog index cuando supere 20 artículos
+
+---
+
+## Sistema de Lead Magnets — implementado 2026-05-31
+
+### Arquitectura de captación
+
+**Mecanismo:** pop-up de exit intent (`public/lm-popup.js`) integrado en los 18 artículos del blog y en la landing. Activa a los 20 segundos de lectura en desktop (exit intent por cursor) y a los 40 segundos en mobile.
+
+**Flujo completo:**
+1. Visitante lee artículo → intenta cerrar
+2. Pop-up muestra el LM relevante al artículo (sin aleatorio si hay match por slug)
+3. CTA → `wa.me/56993089185` con texto pre-escrito que identifica el recurso pedido
+4. Andrés recibe el mensaje → entrega el link del recurso → hace una pregunta de cierre según el recurso → califica naturalmente
+5. Si completan el diagnóstico → se guarda en DB `diagnostic_leads` con nivel y puntaje
+
+**Los 4 lead magnets y su gancho:**
+
+| # | Recurso | URL | Gancho principal | Artículos que lo muestran |
+|---|---------|-----|-----------------|--------------------------|
+| 🧮 | Calculadora de horas perdidas | `/recursos/calculadora` | Resultado personalizado con las horas exactas de cada clínica | WhatsApp, Recepcionista virtual, Agente IA, Burnout, Conseguir clientes |
+| 📋 | Script anti no-shows (3 mensajes) | `/recursos/script-no-shows` | Protocolo con copy listo para copiar-pegar hoy mismo | Recordatorios, Métricas, Agenda, Cobros |
+| 🗺️ | Plantilla de ruta semanal | `/recursos/ruta-movil` | Editable, imprimible, con checklist del van | Clínica móvil, Ruta, Inventario |
+| 🔍 | Diagnóstico WhatsApp (7 preguntas) | `/recursos/diagnostico` | Resultado en 3 niveles (Controlado/En riesgo/Crítico) con acciones específicas | Landing principal, Software, Gestionar 2 clínicas, Fidelización, Precios |
+
+### Captura de datos del Diagnóstico
+
+Los resultados del quiz se guardan en Supabase (`diagnostic_leads`) con:
+- Nivel del resultado (controlado/en_riesgo/critico)
+- Puntaje porcentual (0-100%)
+- Las 7 respuestas individuales
+- Si hicieron clic en el CTA de WhatsApp (`wa_clicked`)
+- URL del artículo desde donde llegaron (`source_url`)
+
+**Vista de seguimiento:** tabla en el AdminDashboard de HQ (`/admin/dashboard`) con stats de conversión WA y desglose por nivel.
+
+### Instrucciones de Andrés (prompt actualizado en DB)
+
+Cuando detecta una de estas frases en WhatsApp → entrega el link inmediatamente → hace una pregunta de cierre específica:
+- "calculadora" / "calcular horas" → `vetly.pro/recursos/calculadora` → "¿Cuántas citas agendas por semana?"
+- "script no-shows" / "script 3 mensajes" → `vetly.pro/recursos/script-no-shows` → "¿Cuántos no-shows tienes por mes?"
+- "plantilla ruta" / "ruta semanal" → `vetly.pro/recursos/ruta-movil` → "¿Tu clínica es móvil o tiene sede fija?"
+- "diagnóstico" / "diagnóstico WhatsApp" → `vetly.pro/recursos/diagnostico` → "¿Cómo te fue? ¿Saliste en zona roja o ámbar?"
+
+**Regla permanente de Andrés para LM:** primero entrega el recurso sin hacer preguntas previas. Una sola pregunta de seguimiento. El recurso es la puerta — el objetivo es llegar a `registrar_lead` o `agendar_videollamada`.
