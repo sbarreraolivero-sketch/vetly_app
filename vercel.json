@@ -20,6 +20,7 @@
     { "src": "/blog/precios-clinica-veterinaria", "dest": "/blog/precios-clinica-veterinaria.html" },
     { "src": "/blog/clinica-veterinaria-movil-a-domicilio", "dest": "/blog/clinica-veterinaria-movil-a-domicilio.html" },
     { "src": "/blog/inventario-clinica-veterinaria", "dest": "/blog/inventario-clinica-veterinaria.html" },
+    { "src": "/blog/cobros-veterinaria-domicilio", "dest": "/blog/cobros-veterinaria-domicilio.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }
