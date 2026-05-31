@@ -133,6 +133,9 @@ export default function Settings() {
     const [currency, setCurrency] = useState('CLP')
     const [timezone, setTimezone] = useState('America/Santiago')
     const [templateSurvey, setTemplateSurvey] = useState('')
+    // IVA
+    const [ivaEnabled, setIvaEnabled] = useState(false)
+    const [ivaRate, setIvaRate] = useState(19)
 
     const currencySymbols: Record<string, string> = {
         'MXN': '$',
@@ -346,6 +349,8 @@ export default function Settings() {
                     setCurrency(data.currency || 'CLP')
                     setTimezone(data.timezone || 'America/Santiago')
                     setTemplateSurvey(data.template_survey || '')
+                    setIvaEnabled(data.iva_enabled ?? false)
+                    setIvaRate(data.iva_rate ?? 19)
 
 
                     setYCloudApiKey(data.ycloud_api_key || '')
@@ -850,6 +855,8 @@ export default function Settings() {
                     timezone,
                     business_model: businessModel,
                     template_survey: templateSurvey,
+                    iva_enabled: ivaEnabled,
+                    iva_rate: ivaRate,
 
                     updated_at: new Date().toISOString()
                 })
@@ -1659,6 +1666,37 @@ export default function Settings() {
                                         </select>
                                     </div>
                                 </div>
+
+                                    {/* IVA / Impuestos */}
+                                    <div className="mt-2 border border-silk-beige rounded-xl p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm font-semibold text-charcoal">Incluir IVA en ventas</p>
+                                                <p className="text-xs text-charcoal/50 mt-0.5">
+                                                    Muestra el desglose IVA incluido en comprobantes y cierres de visita
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIvaEnabled(v => !v)}
+                                                className={`relative w-12 h-6 rounded-full transition-colors ${ivaEnabled ? 'bg-primary-500' : 'bg-charcoal/20'}`}
+                                            >
+                                                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${ivaEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                                            </button>
+                                        </div>
+                                        {ivaEnabled && (
+                                            <div className="flex items-center gap-3 pt-1">
+                                                <label className="text-sm text-charcoal/70 shrink-0">Tasa de IVA (%)</label>
+                                                <input
+                                                    type="number" min="0" max="100" step="0.1"
+                                                    className="input-soft w-28 text-right"
+                                                    value={ivaRate}
+                                                    onChange={e => setIvaRate(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                                                />
+                                                <span className="text-xs text-charcoal/40">Chile 19% · México 16% · Argentina 21%</span>
+                                            </div>
+                                        )}
+                                    </div>
 
                                 {/* Clinic Templates */}
                                 <div className="mt-8 space-y-6">

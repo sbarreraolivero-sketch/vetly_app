@@ -239,6 +239,7 @@ export const inventoryService = {
         items: VisitItem[]
         discount?: number
         discountReason?: string
+        ivaAmount?: number
         finalTotal?: number
         paymentMethod: string
         paymentStatus: 'paid' | 'pending'
@@ -258,6 +259,7 @@ export const inventoryService = {
                 price:           totalPrice,
                 discount,
                 discount_reason: params.discountReason ?? null,
+                iva_amount:      params.ivaAmount ?? null,
                 payment_method:  params.paymentMethod,
                 payment_status:  params.paymentStatus,
             })

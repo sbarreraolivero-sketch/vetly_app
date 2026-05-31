@@ -107,7 +107,7 @@ export const financeService = {
         return data as Income[]
     },
 
-    async addIncome(income: Omit<Income, 'id' | 'created_at'> & { notes?: string; discount_reason?: string }) {
+    async addIncome(income: Omit<Income, 'id' | 'created_at'> & { notes?: string; discount_reason?: string; iva_amount?: number }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any).rpc('create_clinic_income', {
             p_clinic_id:       income.clinic_id,
@@ -120,13 +120,14 @@ export const financeService = {
             p_discount:        income.discount || 0,
             p_notes:           income.notes || null,
             p_discount_reason: income.discount_reason || null,
+            p_iva_amount:      income.iva_amount ?? null,
         })
 
         if (error) throw error
         return data?.[0] as Income
     },
 
-    async updateIncome(id: string, income: Partial<Omit<Income, 'id' | 'clinic_id' | 'created_at'>> & { notes?: string; payment_method?: string; discount_reason?: string }) {
+    async updateIncome(id: string, income: Partial<Omit<Income, 'id' | 'clinic_id' | 'created_at'>> & { notes?: string; payment_method?: string; discount_reason?: string; iva_amount?: number }) {
         const { data, error } = await (supabase as any).rpc('update_clinic_income', {
             p_income_id:       id,
             p_description:     income.description,
@@ -139,6 +140,7 @@ export const financeService = {
             p_notes:           (income as any).notes || null,
             p_payment_method:  (income as any).payment_method || null,
             p_discount_reason: (income as any).discount_reason || null,
+            p_iva_amount:      (income as any).iva_amount ?? null,
         })
         if (error) throw error
         return data?.[0] as Income
@@ -161,6 +163,7 @@ export const financeService = {
         discount: number,
         paymentMethod: string | null,
         discountReason?: string | null,
+        ivaAmount?: number | null,
     ) {
         const { error } = await (supabase as any).rpc('save_transaction_items', {
             p_appointment_id:  appointmentId,
@@ -170,6 +173,7 @@ export const financeService = {
             p_discount:        discount,
             p_payment_method:  paymentMethod,
             p_discount_reason: discountReason || null,
+            p_iva_amount:      ivaAmount ?? null,
         })
         if (error) throw error
     },

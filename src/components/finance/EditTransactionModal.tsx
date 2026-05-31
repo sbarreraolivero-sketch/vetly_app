@@ -47,6 +47,8 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
     const [discountType, setDiscountType]   = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(tx.discount ?? 0)
     const [discountReason, setDiscountReason] = useState<string>((tx as any).discount_reason ?? '')
+    const [ivaEnabled, setIvaEnabled]    = useState(false)
+    const [ivaRate, setIvaRate]          = useState(19)
     const [saving, setSaving]           = useState(false)
 
     const [services, setServices]       = useState<ServiceOption[]>([])
@@ -65,7 +67,7 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
                 financeService.getTransactionItems(tx.id).catch(() => []),
                 (supabase as any).from('clinic_services').select('id,name,price').eq('clinic_id', clinicId).order('name'),
                 (supabase as any).from('inventory_products').select('id,name,sale_price').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
-                (supabase as any).from('clinic_settings').select('currency').eq('id', clinicId).single(),
+                (supabase as any).from('clinic_settings').select('currency, iva_enabled, iva_rate').eq('id', clinicId).single(),
             ])
 
             // Si no hay ítems, crear sintético desde el servicio de la cita
@@ -81,6 +83,8 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
                 setProducts(p); setFilteredProducts(p)
             }
             if (clinicRes.data?.currency) setCurrency(clinicRes.data.currency)
+            setIvaEnabled(clinicRes.data?.iva_enabled ?? false)
+            setIvaRate(clinicRes.data?.iva_rate ?? 19)
         }
         load()
     }, [])
@@ -95,6 +99,10 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
         ? Math.round(subtotal * discountValue / 100)
         : Math.min(discountValue, subtotal)
     const finalTotal = Math.max(0, subtotal - discountAmount)
+    const ivaAmount = ivaEnabled && finalTotal > 0
+        ? Math.round(finalTotal * ivaRate / (100 + ivaRate))
+        : 0
+    const netAmount = finalTotal - ivaAmount
 
     const updateQty = (idx: number, qty: number) => {
         setItems(prev => prev.map((it, i) => i === idx
@@ -124,7 +132,7 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
         if (items.length === 0) { toast.error('Agrega al menos un servicio o producto'); return }
         setSaving(true)
         try {
-            await financeService.saveTransactionItems(tx.id, clinicId, items, finalTotal, discountAmount, paymentMethod || null, discountReason.trim() || null)
+            await financeService.saveTransactionItems(tx.id, clinicId, items, finalTotal, discountAmount, paymentMethod || null, discountReason.trim() || null, ivaAmount || null)
             toast.success('Transacción actualizada')
             onSuccess()
             onClose()
@@ -275,6 +283,13 @@ export function EditTransactionModal({ transaction: tx, clinicId, onClose, onSuc
                                     <span>Total</span>
                                     <span className="text-primary-600">{formatMoney(finalTotal)}</span>
                                 </div>
+                                {ivaEnabled && ivaAmount > 0 && (
+                                    <div className="mt-1 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Desglose IVA incluido</p>
+                                        <div className="flex justify-between text-xs text-charcoal/70"><span>Neto</span><span>{formatMoney(netAmount)}</span></div>
+                                        <div className="flex justify-between text-xs text-amber-700 font-semibold"><span>IVA ({ivaRate}%)</span><span>{formatMoney(ivaAmount)}</span></div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

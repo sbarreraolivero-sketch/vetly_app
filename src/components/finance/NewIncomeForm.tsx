@@ -49,6 +49,7 @@ interface NewIncomeFormProps {
         amount: number
         discount: number
         discount_reason?: string
+        iva_amount?: number
         category: string
         date: string
         tutor_id?: string
@@ -92,6 +93,9 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(editingIncome?.discount ?? 0)
     const [discountReason, setDiscountReason] = useState<string>(editingIncome?.discount_reason ?? '')
+    // IVA
+    const [ivaEnabled, setIvaEnabled] = useState(false)
+    const [ivaRate, setIvaRate] = useState(19)
 
     const formatMoney = (n: number) =>
         new Intl.NumberFormat('es-CL', {
@@ -107,7 +111,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
                 supabase.from('tutors').select('id, name').eq('clinic_id', clinicId).order('name'),
                 (supabase as any).from('clinic_services').select('id, name, price').eq('clinic_id', clinicId).order('name'),
                 (supabase as any).from('inventory_products').select('id, name, sale_price').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
-                (supabase as any).from('clinic_settings').select('currency').eq('id', clinicId).single(),
+                (supabase as any).from('clinic_settings').select('currency, iva_enabled, iva_rate').eq('id', clinicId).single(),
             ])
             if (tutorsRes.data) { setTutors(tutorsRes.data as TutorOption[]); setFilteredTutors(tutorsRes.data as TutorOption[]) }
             if (servicesRes.data) setAvailableServices(servicesRes.data as ServiceOption[])
@@ -117,6 +121,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
                 setFilteredProducts(prods)
             }
             if (clinicRes.data?.currency) setCurrency(clinicRes.data.currency)
+            setIvaEnabled(clinicRes.data?.iva_enabled ?? false)
+            setIvaRate(clinicRes.data?.iva_rate ?? 19)
         }
         loadData()
     }, [clinicId])
@@ -139,6 +145,10 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
         ? Math.round(subtotal * discountValue / 100)
         : Math.min(discountValue, subtotal)
     const finalAmount = Math.max(0, subtotal - discountAmount)
+    const ivaAmount = ivaEnabled && finalAmount > 0
+        ? Math.round(finalAmount * ivaRate / (100 + ivaRate))
+        : 0
+    const netAmount = finalAmount - ivaAmount
 
     // Categoría auto-calculada
     const autoCategory = selectedProducts.length > 0 && selectedServices.length === 0 ? 'product' : 'service'
@@ -201,15 +211,16 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
         ]
         onSuccess({
             description,
-            amount: finalAmount,
-            discount: discountAmount,
+            amount:          finalAmount,
+            discount:        discountAmount,
             discount_reason: discountReason.trim() || undefined,
-            category: autoCategory,
+            iva_amount:      ivaAmount || undefined,
+            category:        autoCategory,
             date,
-            tutor_id: selectedTutor?.id,
-            services: allServices.length > 0 ? allServices : undefined,
-            notes: notes.trim() || undefined,
-            payment_method: paymentMethod || undefined,
+            tutor_id:        selectedTutor?.id,
+            services:        allServices.length > 0 ? allServices : undefined,
+            notes:           notes.trim() || undefined,
+            payment_method:  paymentMethod || undefined,
         })
     }
 
@@ -469,6 +480,17 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: N
                                     <span>Total a registrar</span>
                                     <span className="text-primary-600">{formatMoney(finalAmount)}</span>
                                 </div>
+                                {ivaEnabled && ivaAmount > 0 && (
+                                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Desglose IVA incluido</p>
+                                        <div className="flex justify-between text-xs text-charcoal/70">
+                                            <span>Neto</span><span>{formatMoney(netAmount)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs text-amber-700 font-semibold">
+                                            <span>IVA ({ivaRate}%)</span><span>{formatMoney(ivaAmount)}</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

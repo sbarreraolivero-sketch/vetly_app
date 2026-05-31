@@ -390,7 +390,7 @@ const Finance = () => {
     }
 
     // ── Income handlers ──
-    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
         if (!clinicId) { toast.error('No se pudo identificar la clínica'); return }
         try {
             await financeService.addIncome({
@@ -399,6 +399,7 @@ const Finance = () => {
                 amount:          incomeData.amount,
                 discount:        incomeData.discount ?? 0,
                 discount_reason: incomeData.discount_reason,
+                iva_amount:      incomeData.iva_amount,
                 category:        incomeData.category as any,
                 date:            incomeData.date,
                 tutor_id:        incomeData.tutor_id,
@@ -415,7 +416,7 @@ const Finance = () => {
         }
     }
 
-    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
         if (!editingIncome?.id) return
         try {
             await financeService.updateIncome(editingIncome.id, {
@@ -423,6 +424,7 @@ const Finance = () => {
                 amount:          incomeData.amount,
                 discount:        incomeData.discount ?? 0,
                 discount_reason: incomeData.discount_reason,
+                iva_amount:      incomeData.iva_amount,
                 category:        incomeData.category as any,
                 date:            incomeData.date,
                 tutor_id:        incomeData.tutor_id,
@@ -953,6 +955,11 @@ const Finance = () => {
                                                             {(tx as any).discount_reason && (
                                                                 <span className="ml-1 italic text-emerald-500">· {(tx as any).discount_reason}</span>
                                                             )}
+                                                        </span>
+                                                    )}
+                                                    {(tx as any).iva_amount > 0 && (
+                                                        <span className="text-xs text-amber-600">
+                                                            IVA: {formatCurrency((tx as any).iva_amount)}
                                                         </span>
                                                     )}
                                                 </div>

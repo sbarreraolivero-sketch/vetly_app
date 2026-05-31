@@ -26,6 +26,9 @@ interface VisitReceiptProps {
         price?: number
         payment_status?: string
         payment_method?: string
+        iva_amount?: number | null
+        discount?: number | null
+        discount_reason?: string | null
     }
     items: ReceiptItem[]
     clinicName: string
@@ -57,6 +60,8 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
             : []
 
     const total = displayItems.reduce((sum, i) => sum + i.subtotal, 0) || (tx.price ?? 0)
+    const ivaAmount = tx.iva_amount ?? 0
+    const netAmount = total - ivaAmount
 
     useEffect(() => {
         // Carga ítems en background — sin spinner para evitar estado colgado
@@ -125,10 +130,17 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
                         `).join('')}
                     </tbody>
                 </table>
+                ${ivaAmount > 0 ? `
+                <div style="margin:8px 0 4px;padding:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px">
+                    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#d97706;margin-bottom:4px">Desglose IVA incluido</div>
+                    <div style="display:flex;justify-content:space-between;color:#666;margin-bottom:2px"><span>Neto</span><span>${formatCLP(netAmount)}</span></div>
+                    <div style="display:flex;justify-content:space-between;font-weight:600;color:#b45309"><span>IVA</span><span>${formatCLP(ivaAmount)}</span></div>
+                </div>` : ''}
                 <div class="total-row">
                     <span class="total-label">Total</span>
                     <span class="total-value">${formatCLP(total)}</span>
                 </div>
+                ${tx.discount && tx.discount > 0 ? `<div style="margin-top:4px;font-size:12px;color:#059669">Descuento aplicado: −${formatCLP(tx.discount)}${tx.discount_reason ? ` · ${tx.discount_reason}` : ''}</div>` : ''}
                 ${tx.payment_method ? `<div style="margin-top:8px;font-size:12px;color:#666">Método de pago: <strong>${PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method}</strong></div>` : ''}
                 <div style="margin-top:4px;font-size:12px">Estado: <span class="${tx.payment_status === 'paid' ? 'status-paid' : 'status-pending'}">${STATUS_LABELS[tx.payment_status ?? 'pending']}</span></div>
                 <div class="footer">¡Gracias por su confianza! 🐾</div>
@@ -246,6 +258,30 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
                             <span className="font-bold text-charcoal">Total</span>
                             <span className="text-2xl font-extrabold text-primary-600">{formatCLP(total)}</span>
                         </div>
+
+                        {/* Descuento */}
+                        {tx.discount != null && tx.discount > 0 && (
+                            <div className="mt-1 text-xs text-emerald-600">
+                                Descuento aplicado: −{formatCLP(tx.discount)}
+                                {tx.discount_reason && <span className="italic ml-1">· {tx.discount_reason}</span>}
+                            </div>
+                        )}
+
+                        {/* Desglose IVA */}
+                        {ivaAmount > 0 && (
+                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-500">Desglose IVA incluido</p>
+                                <div className="flex justify-between text-xs text-charcoal/70">
+                                    <span>Neto</span><span>{formatCLP(netAmount)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs text-amber-700 font-semibold">
+                                    <span>IVA</span><span>{formatCLP(ivaAmount)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-charcoal border-t border-amber-200 pt-1">
+                                    <span>Total</span><span>{formatCLP(total)}</span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Payment info */}
                         <div className="mt-3 flex gap-3 text-sm">

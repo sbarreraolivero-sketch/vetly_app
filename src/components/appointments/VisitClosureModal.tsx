@@ -40,6 +40,8 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
     const [saving, setSaving] = useState(false)
     const [currency, setCurrency] = useState('CLP')
     const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
+    const [ivaEnabled, setIvaEnabled] = useState(false)
+    const [ivaRate, setIvaRate] = useState(19)
     // Descuento
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(0)
@@ -62,13 +64,17 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
             .then(loc => { if (loc) setActiveLocationId(loc.id) })
             .catch(() => {})
 
-        // Moneda de la clínica
+        // Moneda e IVA de la clínica
         ;(supabase as any)
             .from('clinic_settings')
-            .select('currency')
+            .select('currency, iva_enabled, iva_rate')
             .eq('id', clinicId)
             .single()
-            .then(({ data }: any) => { if (data?.currency) setCurrency(data.currency) })
+            .then(({ data }: any) => {
+                if (data?.currency) setCurrency(data.currency)
+                setIvaEnabled(data?.iva_enabled ?? false)
+                setIvaRate(data?.iva_rate ?? 19)
+            })
 
         if (appointment.service) {
             setItems([{
@@ -98,6 +104,11 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
         ? Math.round(subtotal * discountValue / 100)
         : discountValue
     const finalTotal = Math.max(0, subtotal - discountAmount)
+    // IVA incluido en el precio (neto + IVA = finalTotal)
+    const ivaAmount = ivaEnabled && finalTotal > 0
+        ? Math.round(finalTotal * ivaRate / (100 + ivaRate))
+        : 0
+    const netAmount = finalTotal - ivaAmount
 
     // ── Item handlers ──────────────────────────────────────────────────
 
@@ -148,6 +159,7 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                 items,
                 discount:       discountAmount,
                 discountReason: discountReason.trim() || undefined,
+                ivaAmount:      ivaAmount || undefined,
                 finalTotal,
                 paymentMethod,
                 paymentStatus,
@@ -378,6 +390,25 @@ const VisitClosureModal = ({ appointment, clinicId, onSaved, onCancel }: VisitCl
                                 <span className="font-bold text-charcoal">Total a cobrar</span>
                                 <p className="text-2xl font-extrabold text-charcoal">{formatMoney(finalTotal)}</p>
                             </div>
+
+                            {/* Desglose IVA */}
+                            {ivaEnabled && ivaAmount > 0 && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Desglose IVA incluido</p>
+                                    <div className="flex justify-between text-xs text-charcoal/70">
+                                        <span>Neto</span>
+                                        <span>{formatMoney(netAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-amber-700 font-semibold">
+                                        <span>IVA ({ivaRate}%)</span>
+                                        <span>{formatMoney(ivaAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold text-charcoal border-t border-amber-200 pt-1 mt-0.5">
+                                        <span>Total</span>
+                                        <span>{formatMoney(finalTotal)}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
