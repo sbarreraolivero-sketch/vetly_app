@@ -459,16 +459,19 @@
 <section id="stats" class="bg-neutral text-white py-16">
     <div class="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
         <div>
-            <p class="text-4xl font-extrabold tracking-tighter text-teal-400">+3.000</p>
-            <p class="text-sm text-zinc-400 mt-1.5">citas agendadas por IA</p>
+            <p class="text-4xl font-extrabold tracking-tighter text-teal-400">84h</p>
+            <p class="text-sm text-zinc-400 mt-1.5">ahorradas al mes en WhatsApp</p>
+            <p class="text-xs text-zinc-600 mt-1">Animalgrace · mayo 2026</p>
         </div>
         <div>
             <p class="text-4xl font-extrabold tracking-tighter text-teal-400">&lt;5 seg</p>
-            <p class="text-sm text-zinc-400 mt-1.5">tiempo de respuesta promedio</p>
+            <p class="text-sm text-zinc-400 mt-1.5">de respuesta — incluso a las 3am</p>
+            <p class="text-xs text-zinc-600 mt-1">los 365 días del año</p>
         </div>
         <div>
-            <p class="text-4xl font-extrabold tracking-tighter text-teal-400">−40%</p>
-            <p class="text-sm text-zinc-400 mt-1.5">tiempo administrativo ahorrado</p>
+            <p class="text-4xl font-extrabold tracking-tighter text-teal-400">0</p>
+            <p class="text-sm text-zinc-400 mt-1.5">no-shows con recordatorios IA</p>
+            <p class="text-xs text-zinc-600 mt-1">Animalgrace · mayo 2026</p>
         </div>
         <div>
             <p class="text-4xl font-extrabold tracking-tighter text-teal-400">24/7</p>
@@ -762,31 +765,97 @@
                     </div>
                     <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">💰</div>
                 </div>
-                <p class="text-sm text-emerald-100 font-light">Control total de ingresos y gastos. Métricas en tiempo real para decisiones inteligentes.</p>
+                <p class="text-sm text-emerald-100 font-light">Ticket promedio, cobrados vs. pendientes, top servicios y comprobante por WhatsApp en cada visita.</p>
             </div>
             <div class="p-5">
+                <!-- Ticket promedio real -->
                 <div class="flex items-baseline justify-between mb-1">
-                    <p class="text-xs text-muted font-medium">Ingresos · Mayo 2025</p>
-                    <p class="text-xs text-emerald-600 font-bold">+18% vs abril</p>
+                    <p class="text-xs text-muted font-medium">Ticket promedio · Animalgrace mayo 2026</p>
                 </div>
-                <p class="text-3xl font-extrabold tracking-tight text-neutral mb-4">$1.840.000</p>
-                <div class="flex items-end gap-1 mb-4 h-16">
-                    <div class="flex-1 bg-emerald-100 rounded-t-md" style="height:40%"></div>
-                    <div class="flex-1 bg-emerald-200 rounded-t-md" style="height:55%"></div>
-                    <div class="flex-1 bg-emerald-300 rounded-t-md" style="height:48%"></div>
-                    <div class="flex-1 bg-emerald-400 rounded-t-md" style="height:70%"></div>
-                    <div class="flex-1 bg-emerald-500 rounded-t-md" style="height:62%"></div>
-                    <div class="flex-1 bg-emerald-600 rounded-t-md" style="height:85%"></div>
-                    <div class="flex-1 bg-emerald-700 rounded-t-md" style="height:100%"></div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-zinc-50 rounded-xl p-3 border border-zinc-100">
-                        <p class="text-xs text-muted mb-0.5">Gastos totales</p>
-                        <p class="font-extrabold text-neutral">$420.000</p>
-                    </div>
+                <p class="text-3xl font-extrabold tracking-tight text-neutral mb-1">$37 <span class="text-lg font-semibold text-muted">USD / visita</span></p>
+                <p class="text-xs text-emerald-600 font-bold mb-4">79 citas · $2.923 USD generados en el mes</p>
+                <!-- Estado de cobros -->
+                <div class="grid grid-cols-2 gap-2 mb-4">
                     <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                        <p class="text-xs text-muted mb-0.5">Ganancia neta</p>
-                        <p class="font-extrabold text-emerald-700">$1.420.000</p>
+                        <p class="text-xs text-muted mb-0.5">Cobradas</p>
+                        <p class="font-extrabold text-emerald-700">71 citas</p>
+                    </div>
+                    <div class="bg-amber-50 rounded-xl p-3 border border-amber-100">
+                        <p class="text-xs text-muted mb-0.5">Pendientes</p>
+                        <p class="font-extrabold text-amber-700">8 citas</p>
+                    </div>
+                </div>
+                <!-- Features nuevas -->
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <span class="text-brand font-bold shrink-0">✓</span>
+                        <span>Desglose de ítems por cita (servicios + productos)</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <span class="text-brand font-bold shrink-0">✓</span>
+                        <span>Comprobante enviado por WhatsApp al cerrar la visita</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <span class="text-brand font-bold shrink-0">✓</span>
+                        <span>Top servicios y ranking de ingresos del período</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4b: Inventario -->
+        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
+            <div class="bg-gradient-to-br from-amber-500 to-amber-700 p-5 text-white">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">04b</p>
+                        <h3 class="text-xl font-extrabold tracking-tight">Inventario Inteligente</h3>
+                    </div>
+                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">📦</div>
+                </div>
+                <p class="text-sm text-amber-100 font-light">ABC automático, control del van por separado y análisis de facturas con IA. Sin hoja de cálculo.</p>
+            </div>
+            <div class="p-5">
+                <!-- ABC visual -->
+                <p class="text-xs font-bold text-muted uppercase tracking-widest mb-2">Clasificación ABC automática</p>
+                <div class="space-y-1.5 mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-black text-emerald-600 w-4">A</span>
+                        <div class="flex-1 bg-zinc-100 rounded-full h-5 overflow-hidden">
+                            <div class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full flex items-center pl-2" style="width:80%">
+                                <span class="text-white text-[10px] font-bold">80% ingresos</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-black text-violet-600 w-4">B</span>
+                        <div class="flex-1 bg-zinc-100 rounded-full h-5 overflow-hidden">
+                            <div class="bg-violet-400 h-full rounded-full flex items-center pl-2" style="width:15%">
+                            </div>
+                        </div>
+                        <span class="text-[10px] text-muted">15%</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-black text-rose-500 w-4">C</span>
+                        <div class="flex-1 bg-zinc-100 rounded-full h-5 overflow-hidden">
+                            <div class="bg-rose-400 h-full rounded-full" style="width:5%"></div>
+                        </div>
+                        <span class="text-[10px] text-muted">5%</span>
+                    </div>
+                </div>
+                <!-- Features -->
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <span class="text-brand font-bold shrink-0">✓</span>
+                        <span>Stock del <strong>van y sede por separado</strong> — para clínicas móviles</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <span class="text-brand font-bold shrink-0">✓</span>
+                        <span>Escanea facturas del proveedor con <strong>IA</strong> — stock actualizado en 3 min</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                        <span class="text-brand font-bold shrink-0">✓</span>
+                        <span>Alerta cuando un producto A cae bajo el mínimo</span>
                     </div>
                 </div>
             </div>
@@ -1307,6 +1376,32 @@
         </div>
     </div>
 </section>
+
+<!-- ══════════════════════════════════════
+     FUNDADOR
+══════════════════════════════════════ -->
+<section class="max-w-4xl mx-auto px-6 py-20">
+    <div class="bg-zinc-50 border border-zinc-200 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
+        <div class="shrink-0 w-20 h-20 bg-gradient-to-br from-teal-500 to-teal-700 rounded-full flex items-center justify-center text-white text-2xl font-black">SB</div>
+        <div>
+            <p class="text-xs font-black text-brand uppercase tracking-widest mb-2">Por qué existe Vetly</p>
+            <p class="text-base text-neutral leading-relaxed">
+                <strong>Sebastián Barrera fundó Movilvets</strong>, una clínica veterinaria móvil a domicilio en Chile. Vivió exactamente lo mismo que describe Claudia: dos WhatsApp, rutas imposibles y el domingo en la noche sin poder descansar. Construyó Vetly porque necesitaba esa herramienta y no existía.
+            </p>
+            <p class="text-sm text-muted mt-2 font-medium">Fundador · ex-dueño de clínica veterinaria móvil · construyó el producto que necesitaba y no encontró.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Strip de garantía -->
+<div class="bg-emerald-50 border-y border-emerald-200 py-4">
+    <div class="max-w-4xl mx-auto px-6 flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-emerald-800 font-semibold">
+        <span class="flex items-center gap-1.5">🔒 7 días gratis sin riesgo</span>
+        <span class="flex items-center gap-1.5">✓ Sin tarjeta de crédito</span>
+        <span class="flex items-center gap-1.5">✓ Implementación incluida</span>
+        <span class="flex items-center gap-1.5">✓ Cancela cuando quieras</span>
+    </div>
+</div>
 
 <!-- ══════════════════════════════════════
      PRICING
