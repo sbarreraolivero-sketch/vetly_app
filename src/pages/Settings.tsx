@@ -300,19 +300,34 @@ export default function Settings() {
         const fetchSettings = async () => {
             if (!profile?.clinic_id) return
 
+            const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+            const safe = (p: Promise<any>) => p.catch(() => ({ data: null, error: null }))
+
             try {
-                // Fetch notification preferences
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: notifData, error: notifError } = await (supabase as any)
-                    .from('notification_preferences')
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .single()
+                // Wave 1: todas las queries independientes en paralelo (~9 round trips → 1)
+                const [
+                    { data: notifData, error: notifError },
+                    { data: clinicData, error: clinicError },
+                    { data: subData },
+                    { data: servicesData, error: servicesError },
+                    { data: profData, error: profError },
+                    { data: webhooksData },
+                    { data: poolData },
+                ] = await Promise.all([
+                    safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', profile.clinic_id).single()),
+                    safe((supabase as any).from('clinic_settings').select('*').eq('id', profile.clinic_id).single()),
+                    safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', profile.clinic_id).single()),
+                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description').eq('clinic_id', profile.clinic_id)),
+                    safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: profile.clinic_id })),
+                    safe((supabase as any).from('webhooks').select('*').eq('clinic_id', profile.clinic_id).order('created_at', { ascending: true })),
+                    safe((supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: profile.clinic_id })),
+                ])
 
-                if (notifError && notifError.code !== 'PGRST116') {
-                    throw notifError
-                }
+                // Blocked dates tiene su propio loading state — corre en background
+                fetchBlockedDates()
 
+                // --- Procesar notificaciones ---
+                if (notifError && notifError.code !== 'PGRST116') throw notifError
                 if (notifData) {
                     setNotifPrefs({
                         new_appointment: notifData.new_appointment,
@@ -325,81 +340,107 @@ export default function Settings() {
                     })
                 }
 
-                // Fetch clinic settings with auto-creation for stability (Vetly pattern)
-                const { data, error } = await (supabase as any)
-                    .from('clinic_settings')
-                    .select('*')
-                    .eq('id', profile.clinic_id)
-                    .single()
-
-                if (error && error.code !== 'PGRST116') {
-                    throw error
+                // --- Procesar clinic_settings ---
+                if (clinicError && clinicError.code !== 'PGRST116') throw clinicError
+                if (clinicData) {
+                    setClinicName(clinicData.clinic_name || '')
+                    setClinicAddress(clinicData.clinic_address || '')
+                    setAddressReferences(clinicData.address_references || '')
+                    setGoogleMapsUrl(clinicData.google_maps_url || '')
+                    setInstagramUrl(clinicData.instagram_url || '')
+                    setFacebookUrl(clinicData.facebook_url || '')
+                    setTiktokUrl(clinicData.tiktok_url || '')
+                    setWebsiteUrl(clinicData.website_url || '')
+                    setContactPhone(clinicData.contact_phone || '')
+                    setCurrency(clinicData.currency || 'CLP')
+                    setTimezone(clinicData.timezone || 'America/Santiago')
+                    setTemplateSurvey(clinicData.template_survey || '')
+                    setIvaEnabled(clinicData.iva_enabled ?? false)
+                    setIvaRate(clinicData.iva_rate ?? 19)
+                    setYCloudApiKey(clinicData.ycloud_api_key || '')
+                    setYCloudPhoneNumber(clinicData.ycloud_phone_number || '')
+                    setYCloudWebhookSecret(clinicData.ycloud_webhook_secret || '')
+                    setAiCreditsMonthlyLimit(clinicData.ai_credits_monthly_limit || 500)
+                    setAiCreditsExtraBalance(clinicData.ai_credits_extra_balance || 0)
+                    setAiCreditsExtra4o(clinicData.ai_credits_extra_4o || 0)
+                    setAiActiveModel(clinicData.ai_active_model || 'hybrid')
+                    setAiAutoRespond(clinicData.ai_auto_respond !== false)
+                    setBusinessModel(clinicData.business_model || 'physical')
+                    setPaymentRegion(clinicData.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
+                    if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
                 }
 
-                if (data) {
-                    setClinicName(data.clinic_name || '')
-                    setClinicAddress(data.clinic_address || '')
-                    setAddressReferences(data.address_references || '')
-                    setGoogleMapsUrl(data.google_maps_url || '')
-                    setInstagramUrl(data.instagram_url || '')
-                    setFacebookUrl(data.facebook_url || '')
-                    setTiktokUrl(data.tiktok_url || '')
-                    setWebsiteUrl(data.website_url || '')
-                    setContactPhone(data.contact_phone || '')
-                    setCurrency(data.currency || 'CLP')
-                    setTimezone(data.timezone || 'America/Santiago')
-                    setTemplateSurvey(data.template_survey || '')
-                    setIvaEnabled(data.iva_enabled ?? false)
-                    setIvaRate(data.iva_rate ?? 19)
-
-
-                    setYCloudApiKey(data.ycloud_api_key || '')
-                    setYCloudPhoneNumber(data.ycloud_phone_number || '')
-                    setYCloudWebhookSecret(data.ycloud_webhook_secret || '')
-
-                    setAiCreditsMonthlyLimit(data.ai_credits_monthly_limit || 500)
-                    setAiCreditsExtraBalance(data.ai_credits_extra_balance || 0)
-                    setAiCreditsExtra4o(data.ai_credits_extra_4o || 0)
-
-                    // If this clinic is a child branch, load credit limits from parent
-                    if (data.parent_clinic_id) {
-                        const { data: parentData } = await (supabase as any)
-                            .from('clinic_settings')
-                            .select('ai_credits_monthly_limit, ai_credits_extra_balance, ai_credits_extra_4o')
-                            .eq('id', data.parent_clinic_id)
-                            .single()
-                        if (parentData) {
-                            setAiCreditsMonthlyLimit(parentData.ai_credits_monthly_limit || 500)
-                            setAiCreditsExtraBalance(parentData.ai_credits_extra_balance || 0)
-                            setAiCreditsExtra4o(parentData.ai_credits_extra_4o || 0)
-                        }
-                    }
-                    setAiActiveModel(data.ai_active_model || 'hybrid')
-
-                    setAiAutoRespond(data.ai_auto_respond !== false) 
-                    setBusinessModel(data.business_model || 'physical')
-                    setPaymentRegion(data.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
-                    if (data.working_hours) setWorkingHours(data.working_hours)
+                // --- Procesar servicios ---
+                if (servicesError) console.error('Error fetching services:', servicesError)
+                if (servicesData) {
+                    setServices(servicesData.map((s: any) => ({
+                        id: s.id,
+                        name: s.name,
+                        duration: s.duration,
+                        price: s.price,
+                        aiDescription: s.ai_description
+                    })))
                 }
 
-                // Fetch subscription data
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: subData } = await (supabase as any)
-                    .from('subscriptions')
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .single()
+                // --- Procesar profesionales ---
+                if (profError) console.error('Error fetching professionals:', profError)
+                if (profData) setClinicProfessionals(profData)
 
+                // --- Procesar webhooks ---
+                if (webhooksData) setWebhooks(webhooksData)
+
+                // Pool de créditos IA
+                let poolClinicIds = [profile.clinic_id]
+                if (poolData && poolData.length > 0) {
+                    poolClinicIds = poolData.map((r: any) => r)
+                }
+
+                // Wave 2: queries condicionales + 4 conteos IA en paralelo
+                const needsParent = !!(clinicData?.parent_clinic_id)
+                const needsPlanFallback = !!(subData && (!subData.plan_id || subData.plan_id === ''))
+
+                const [
+                    { count: countStandard, error: errStd },
+                    { count: countPro, error: errPro },
+                    { count: countLegacy, error: errLeg },
+                    { count: countMini, error: errMini },
+                    { data: parentData },
+                    { data: planFallbackData },
+                ] = await Promise.all([
+                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o_standard').gte('created_at', startOfMonth)),
+                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o_pro').gte('created_at', startOfMonth)),
+                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o').gte('created_at', startOfMonth)),
+                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).or('ai_model.eq.mini,ai_model.is.null').gte('created_at', startOfMonth)),
+                    needsParent
+                        ? safe((supabase as any).from('clinic_settings').select('ai_credits_monthly_limit, ai_credits_extra_balance, ai_credits_extra_4o').eq('id', clinicData.parent_clinic_id).single())
+                        : Promise.resolve({ data: null }),
+                    needsPlanFallback
+                        ? safe((supabase as any).from('clinic_settings').select('subscription_plan').eq('id', profile.clinic_id).single())
+                        : Promise.resolve({ data: null }),
+                ])
+
+                // --- Procesar conteos IA ---
+                if (errStd) console.error('Count Standard error:', errStd)
+                setAiMessagesUsedStandard(countStandard || 0)
+                if (errPro) console.error('Count Pro error:', errPro)
+                setAiMessagesUsedPro(countPro || 0)
+                if (errLeg) console.error('Count Legacy error:', errLeg)
+                setAiMessagesUsedLegacy4o(countLegacy || 0)
+                if (errMini) console.error('Count Mini error:', errMini)
+                setAiMessagesUsed(countMini || 0)
+
+                // --- Procesar parent clinic (sucursal) ---
+                if (parentData) {
+                    setAiCreditsMonthlyLimit(parentData.ai_credits_monthly_limit || 500)
+                    setAiCreditsExtraBalance(parentData.ai_credits_extra_balance || 0)
+                    setAiCreditsExtra4o(parentData.ai_credits_extra_4o || 0)
+                }
+
+                // --- Procesar suscripción ---
                 if (subData) {
-                    // Fallback: if subscriptions.plan_id is blank, read from clinic_settings
                     let planName = subData.plan_id
                     if (!planName || planName === '') {
-                        const { data: csData } = await (supabase as any)
-                            .from('clinic_settings')
-                            .select('subscription_plan')
-                            .eq('id', profile.clinic_id)
-                            .single()
-                        planName = normalizePlanId(csData?.subscription_plan || 'starter')
+                        planName = normalizePlanId(planFallbackData?.subscription_plan || 'starter')
                     }
                     setSubscription({
                         plan: planName,
@@ -412,131 +453,6 @@ export default function Settings() {
                 }
             } catch (error) {
                 console.error('Error loading settings:', error)
-            }
-
-            try {
-                // Fetch AI messages count for current month across ALL branches in the credit pool
-                const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-
-                // Get all clinic IDs that share this credit pool
-                let poolClinicIds = [profile.clinic_id]
-                try {
-                    const { data: poolData } = await (supabase as any).rpc('get_credit_pool_clinic_ids', {
-                        p_clinic_id: profile.clinic_id
-                    })
-                    if (poolData && poolData.length > 0) {
-                        poolClinicIds = poolData.map((r: any) => r)
-                    }
-                } catch (poolErr) {
-                    console.warn('Credit pool lookup failed, using single clinic:', poolErr)
-                }
-
-                // 1. GPT-4o Standard (ai_model = '4o_standard')
-                const { count: countStandard, error: errStd } = await (supabase as any)
-                    .from('messages')
-                    .select('*', { count: 'exact', head: true })
-                    .in('clinic_id', poolClinicIds)
-                    .eq('ai_generated', true)
-                    .eq('ai_model', '4o_standard')
-                    .gte('created_at', startOfMonth)
-                if (errStd) console.error('Count Standard error:', errStd)
-                setAiMessagesUsedStandard(countStandard || 0)
-
-                // 2. GPT-4o Pro (ai_model = '4o_pro')
-                const { count: countPro, error: errPro } = await (supabase as any)
-                    .from('messages')
-                    .select('*', { count: 'exact', head: true })
-                    .in('clinic_id', poolClinicIds)
-                    .eq('ai_generated', true)
-                    .eq('ai_model', '4o_pro')
-                    .gte('created_at', startOfMonth)
-                if (errPro) console.error('Count Pro error:', errPro)
-                setAiMessagesUsedPro(countPro || 0)
-
-                // 3. Legacy GPT-4o (ai_model = '4o')
-                const { count: countLegacy, error: errLeg } = await (supabase as any)
-                    .from('messages')
-                    .select('*', { count: 'exact', head: true })
-                    .in('clinic_id', poolClinicIds)
-                    .eq('ai_generated', true)
-                    .eq('ai_model', '4o')
-                    .gte('created_at', startOfMonth)
-                if (errLeg) console.error('Count Legacy error:', errLeg)
-                setAiMessagesUsedLegacy4o(countLegacy || 0)
-
-                // 4. GPT-4o-mini (ai_model = 'mini' OR null)
-                const { count: countMini, error: errMini } = await (supabase as any)
-                    .from('messages')
-                    .select('*', { count: 'exact', head: true })
-                    .in('clinic_id', poolClinicIds)
-                    .eq('ai_generated', true)
-                    .or('ai_model.eq.mini,ai_model.is.null')
-                    .gte('created_at', startOfMonth)
-                if (errMini) console.error('Count Mini error:', errMini)
-                setAiMessagesUsed(countMini || 0)
-            } catch (error) {
-                console.error('Error counting AI messages:', error)
-            }
-
-            try {
-                // Fetch services directly from the table to ensure we get the latest schema (bypassing RPC cache)
-                const { data: servicesData, error: servicesError } = await (supabase as any)
-                    .from("clinic_services")
-                    .select("id, name, duration, price, ai_description")
-                    .eq("clinic_id", profile.clinic_id);
-
-                if (servicesError) {
-                    console.error('Error fetching services:', servicesError)
-                }
-
-                if (servicesData) {
-                    setServices(servicesData.map((s: any) => ({
-                        id: s.id,
-                        name: s.name,
-                        duration: s.duration,
-                        price: s.price,
-                        aiDescription: s.ai_description
-                    })))
-                }
-
-                // Fetch blocked dates
-                await fetchBlockedDates()
-            } catch (error) {
-                console.error('Error loading settings:', error)
-            }
-
-            try {
-                // Fetch clinic professionals for service assignment
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: profData, error: profError } = await (supabase as any).rpc('get_clinic_professionals', {
-                    p_clinic_id: profile.clinic_id
-                })
-
-                if (profError) {
-                    console.error('Error fetching professionals:', profError)
-                }
-
-                if (profData) {
-                    setClinicProfessionals(profData)
-                }
-            } catch (error) {
-                console.error('Error loading professionals:', error)
-            }
-
-            // Fetch webhooks
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: webhooksData } = await (supabase as any)
-                    .from('webhooks')
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .order('created_at', { ascending: true })
-
-                if (webhooksData) {
-                    setWebhooks(webhooksData)
-                }
-            } catch (error) {
-                console.error('Error loading webhooks:', error)
             }
         }
 
