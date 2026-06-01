@@ -122,13 +122,16 @@ export default function AdminDashboard() {
     }, [])
 
     const fetchProspects = useCallback(async () => {
+        type StageRow = { id: string; name: string; color: string; position: number }
+        type ProspectRow = { id: string; name: string | null; phone: string | null; address: string | null; prospect_type: string | null; score: number; stage_id: string }
+
         try {
             const { data: stagesData } = await supabase
                 .from('crm_pipeline_stages')
                 .select('id, name, color, position')
                 .eq('clinic_id', '00000000-0000-0000-0000-000000000000')
 
-            const stages = stagesData || []
+            const stages = (stagesData || []) as StageRow[]
             const stageMap = Object.fromEntries(stages.map(s => [s.id, s]))
             const newStage = stages.find(s => s.position === 0)
             const contactadoStage = stages.find(s => s.position === 1)
@@ -144,7 +147,9 @@ export default function AdminDashboard() {
 
             if (!data) return
 
-            const enriched: ProspectSummary[] = data.map(p => ({
+            const rows = data as ProspectRow[]
+
+            const enriched: ProspectSummary[] = rows.map(p => ({
                 ...p,
                 stage_name: stageMap[p.stage_id]?.name ?? 'Sin etapa',
                 stage_color: stageMap[p.stage_id]?.color ?? '#94a3b8',
@@ -152,10 +157,10 @@ export default function AdminDashboard() {
 
             setProspects(enriched.slice(0, 6))
             setProspectStats({
-                total: data.length,
-                sinContactar: data.filter(p => p.stage_id === newStage?.id).length,
-                enDialogo: data.filter(p => p.stage_id === contactadoStage?.id || p.stage_id === dialogoStage?.id).length,
-                convertidos: data.filter(p => p.stage_id === convertidoStage?.id).length,
+                total: rows.length,
+                sinContactar: rows.filter(p => p.stage_id === newStage?.id).length,
+                enDialogo: rows.filter(p => p.stage_id === contactadoStage?.id || p.stage_id === dialogoStage?.id).length,
+                convertidos: rows.filter(p => p.stage_id === convertidoStage?.id).length,
             })
         } catch { /* silencioso */ }
     }, [])
