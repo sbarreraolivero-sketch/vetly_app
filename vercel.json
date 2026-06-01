@@ -27,6 +27,7 @@
     { "src": "/recursos/script-no-shows", "dest": "/recursos/script-no-shows.html" },
     { "src": "/recursos/ruta-movil", "dest": "/recursos/ruta-movil.html" },
     { "src": "/recursos/diagnostico", "dest": "/recursos/diagnostico.html" },
+    { "src": "/links", "dest": "/links.html" },
     { "src": "/((?!landing|demo|.*\\.).*)", "dest": "/index.html" }
   ]
 }

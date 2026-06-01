@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vetly · Links</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { outfit: ['Outfit', 'sans-serif'] },
+                    colors: {
+                        teal: {
+                            400: '#2dd4bf',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            800: '#115e59',
+                            900: '#134e4a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Outfit', sans-serif; }
+        body {
+            background: #0a1628;
+            min-height: 100vh;
+        }
+        /* Animated gradient background */
+        .bg-animated {
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(13,148,136,0.25) 0%, transparent 70%),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(8,145,178,0.12) 0%, transparent 60%),
+                #0a1628;
+        }
+        .link-btn {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .link-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .link-btn:hover::before { opacity: 1; }
+        .link-btn:hover { transform: translateY(-2px); }
+        .link-btn:active { transform: scale(0.98) translateY(0); }
+
+        /* Shimmer on logo */
+        @keyframes shimmer {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.85; }
+        }
+        .logo-glow {
+            filter: drop-shadow(0 0 20px rgba(13,148,136,0.6));
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        /* Pulse dot */
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+        .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-animated flex flex-col items-center justify-start min-h-screen py-12 px-4">
+
+    <!-- Blur decorativo -->
+    <div class="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-teal-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="w-full max-w-sm flex flex-col items-center gap-6 relative z-10">
+
+        <!-- Logo + identidad -->
+        <div class="flex flex-col items-center gap-3 mb-2">
+            <img
+                src="/logo.png"
+                alt="Vetly logo"
+                class="w-20 h-20 logo-glow"
+            >
+            <div class="text-center">
+                <h1 class="text-2xl font-black text-white tracking-tight">Vetly</h1>
+                <p class="text-teal-400 text-sm font-medium mt-0.5">La IA que gestiona tu clínica veterinaria</p>
+            </div>
+
+            <!-- Badge activo -->
+            <div class="flex items-center gap-1.5 bg-teal-600/20 border border-teal-500/30 rounded-full px-3 py-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-teal-400 pulse-dot"></span>
+                <span class="text-teal-300 text-xs font-semibold">Lía activa · responde 24/7</span>
+            </div>
+        </div>
+
+        <!-- Links -->
+        <div class="w-full flex flex-col gap-3">
+
+            <!-- Sitio web -->
+            <a href="https://vetly.pro"
+               target="_blank"
+               rel="noopener"
+               class="link-btn flex items-center gap-4 bg-teal-600 hover:bg-teal-500 rounded-2xl px-5 py-4 text-white shadow-lg shadow-teal-900/40">
+                <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-800 font-bold text-base leading-tight">Visita vetly.pro</div>
+                    <div class="text-teal-200 text-xs font-medium mt-0.5">Conoce el sistema completo</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/60 flex-shrink-0">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+
+            <!-- WhatsApp -->
+            <a href="https://wa.me/56993089185?text=Hola%21+Vi+tu+Instagram+y+quiero+saber+m%C3%A1s+sobre+Vetly+%F0%9F%90%BE"
+               target="_blank"
+               rel="noopener"
+               class="link-btn flex items-center gap-4 bg-[#1a2e1a] hover:bg-[#1e361e] border border-[#25D366]/30 hover:border-[#25D366]/60 rounded-2xl px-5 py-4 text-white shadow-lg shadow-black/30">
+                <div class="w-10 h-10 bg-[#25D366]/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#25D366">
+                        <path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-base leading-tight">Hablar con Andrés</div>
+                    <div class="text-[#25D366]/80 text-xs font-medium mt-0.5">WhatsApp directo · Sin compromiso</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/60 flex-shrink-0">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+
+            <!-- Recursos gratis -->
+            <a href="https://vetly.pro/recursos"
+               target="_blank"
+               rel="noopener"
+               class="link-btn flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl px-5 py-4 text-white shadow-lg shadow-black/20">
+                <div class="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-base leading-tight">Recursos gratis</span>
+                        <span class="bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Nuevo</span>
+                    </div>
+                    <div class="text-white/50 text-xs font-medium mt-0.5">Calculadora, scripts y diagnóstico</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/60 flex-shrink-0">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+
+            <!-- Blog -->
+            <a href="https://vetly.pro/blog"
+               target="_blank"
+               rel="noopener"
+               class="link-btn flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl px-5 py-4 text-white shadow-lg shadow-black/20">
+                <div class="w-10 h-10 bg-violet-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-base leading-tight">Blog para veterinarios</div>
+                    <div class="text-white/50 text-xs font-medium mt-0.5">Guías y casos de éxito reales</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/60 flex-shrink-0">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+
+        </div>
+
+        <!-- Social proof -->
+        <div class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 flex items-center gap-4">
+            <div class="flex -space-x-2 flex-shrink-0">
+                <div class="w-8 h-8 rounded-full bg-teal-600 border-2 border-[#0a1628] flex items-center justify-center text-white text-xs font-black">C</div>
+                <div class="w-8 h-8 rounded-full bg-cyan-600 border-2 border-[#0a1628] flex items-center justify-center text-white text-xs font-black">A</div>
+                <div class="w-8 h-8 rounded-full bg-emerald-600 border-2 border-[#0a1628] flex items-center justify-center text-white text-xs font-black">+</div>
+            </div>
+            <div>
+                <div class="text-white text-xs font-bold leading-tight">Clínicas ahorrando +80h/mes</div>
+                <div class="text-white/40 text-xs mt-0.5">Caso real: Animalgrace · Linares y Santiago</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <p class="text-white/25 text-xs font-medium text-center pb-4">
+            vetly.pro · La IA veterinaria de LATAM
+        </p>
+
+    </div>
+
+</body>
+</html>
