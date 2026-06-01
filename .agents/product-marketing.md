@@ -652,11 +652,28 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 
 ### Hitos pendientes
 - [ ] Confirmar con Claudia uso de foto/nombre en LinkedIn
-- [ ] Iniciar outreach directo a 20 veterinarios (esta semana)
-- [ ] Post 2 LinkedIn — jueves
+- [ ] Post 2 LinkedIn — jueves (el del dato que duele)
 - [ ] Primer post en Colmevet Chile (Facebook)
 - [ ] Crear cuenta TikTok/Instagram @vetly.pro
 - [ ] Product Hunt — cuando haya 3–5 clientes pagos
+
+### Pipeline de outreach directo — 15 prospectos identificados (2026-05-31)
+
+Prospección digital de clínicas veterinarias Chile completada. Todos en HQ CRM (`/hq/crm`, `source = 'Prospección Digital'`).
+
+**Top prioridad (contactar esta semana):**
+| # | Clínica | WhatsApp | Email | Score |
+|---|---------|----------|-------|-------|
+| 1 | Belevet – Vet. Domicilio Temuco | +56964365525 | — | 96 |
+| 2 | Dra. Aurora Shen (Santiago) | +56938762482 | draaurorashen@gmail.com | 95 |
+| 3 | Dra. Fernanda Sasso (Rancagua) | +56954047440 | f.sassovet@hotmail.com | 93 |
+| 4 | Vetsana (Ñuñoa/Las Condes) | +56981590333 | moralespaulavero@gmail.com | 92 |
+| 5 | CatDog Veterinaria a Domicilio | +56993516487 | contacto@catdog.cl | 88 |
+
+**Hook de Movilvets (incluir en mensajes a clínicas móviles/domicilio):**
+> *"Antes de fundar Vetly, operé Movilvets, una clínica móvil. Ese problema lo viví en carne propia: los mensajes se acumulaban y los clientes llamaban a otra veterinaria."*
+
+Los mensajes completos personalizados para cada prospecto están en `prospeccion-veterinarias-chile.html` (raíz del proyecto). Abre en el browser y usa el botón "Copiar mensaje" por cada uno.
 
 ---
 

@@ -2387,3 +2387,48 @@ WHERE cm.user_id = auth.uid() AND cm.clinic_id = p_clinic_id AND cm.status = 'ac
 4. Confirmar con Claudia uso de foto/nombre en LinkedIn → Post 3
 5. Crear cuenta TikTok/Instagram @vetly.pro
 6. Product Hunt — cuando haya 3–5 clientes pagos
+
+---
+
+## Prospección digital de clínicas — implementado 2026-05-31
+
+### Informe de prospección
+
+**Archivo:** `prospeccion-veterinarias-chile.html` en la raíz del proyecto. Abre directamente en el browser.
+
+**Contenido:** 15 clínicas veterinarias reales de Chile analizadas con datos de contacto verificados, score de oportunidad (0-100), 5 fichas detalladas con mensajes de WhatsApp listos para enviar, exportación CSV/JSON, y plan de acción semana a semana.
+
+**Hallazgo clave:** el 100% de las clínicas usa WhatsApp manual. Ninguna tiene IA. Score promedio del lote: 82/100.
+
+### 15 prospectos en HQ CRM
+
+Todos los prospectos están insertados en `crm_prospects` con `clinic_id = HQ_ID` y `source = 'Prospección Digital'`. Se gestionan desde `/hq/crm`.
+
+**Top 5 por score:**
+| Score | Nombre | Ciudad | Tipo |
+|-------|--------|--------|------|
+| 96 | Belevet – Vet. Domicilio Temuco | Temuco | Móvil individual |
+| 95 | Dra. Aurora Shen | Santiago | Móvil individual |
+| 93 | Dra. Fernanda Sasso | Rancagua | Móvil individual |
+| 92 | Vetsana | Santiago | Móvil individual |
+| 88 | CatDog Veterinaria a Domicilio | Santiago | Móvil equipo |
+
+### Integración HQ — cambios técnicos
+
+**DB (migración `add_website_and_type_to_crm_prospects`):**
+- `crm_prospects.website TEXT` — URL del sitio web del prospecto
+- `crm_prospects.prospect_type TEXT` — tipo de clínica ("Móvil Individual", "Móvil Equipo", "Física Pequeña", "Física Mediana", "Especialista")
+
+**`AdminDashboard.tsx`:** sección "Pipeline de Ventas — Prospección Digital" añadida debajo de los Leads del Diagnóstico:
+- 4 stats chips: Total / Sin contactar / En diálogo / Convertidos
+- Lista top 6 prospectos por score con badge de color (rojo ≥90, ámbar ≥80, verde <80), stage actual, botón WA directo
+- Link "Ver CRM completo" → `/hq/crm`
+
+**Regla permanente:** los prospectos de prospección se identifican por `source = 'Prospección Digital'`. No cambiar este valor — el `fetchProspects` en AdminDashboard lo usa para filtrar.
+
+### Hook de Movilvets en outreach
+
+Los mensajes de WhatsApp del informe incluyen la historia del fundador donde tiene mayor impacto (clínicas móviles/domicilio):
+> *"Antes de fundar Vetly, operé Movilvets, una clínica móvil. Ese problema lo viví en carne propia..."*
+
+Este hook diferencia el outreach de cualquier otro vendedor de SaaS. Úsarlo siempre al contactar prospectos de tipo móvil/domicilio.
