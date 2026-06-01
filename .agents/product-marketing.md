@@ -573,6 +573,93 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 
 ---
 
+## LinkedIn — configurado y activo (2026-05-31)
+
+### Perfil de Sebastián Barrera
+
+**Estado:** perfil actualizado y primer post publicado.
+
+**Lo que se configuró:**
+- **Banner:** imagen 4:1 generada con ChatGPT usando `dashboard2.png` (datos reales Animalgrace: 112 citas, 102h 12m ahorradas) + logo Vetly. Fondo degradado teal oscuro, texto "La IA que gestiona tu clínica veterinaria", badge "✓ 102h ahorradas/mes · caso real Animalgrace"
+- **Headline:** `Fundador de Vetly · IA que gestiona tu clínica veterinaria: WhatsApp, citas y rutas · Antes fundé Movilvets`
+- **Acerca de:** historia del fundador como administrador de empresas que operó Movilvets, construyó Vetly desde la experiencia real de dueño
+- **Experiencia:** Vetly (2024–presente) + Movilvets como credencial de operador
+- **URL del perfil:** actualizada a formato limpio
+- **Rol cajero BancoEstado:** corregido/ocultado (era el mayor bloqueador de credibilidad)
+
+### Estrategia de contenido LinkedIn
+
+**Cadencia:** martes y jueves · 8:30–9:00 am Chile · texto puro (sin imagen salvo excepciones)
+
+**Regla de formato:**
+- Posts de historia personal → solo texto (mayor alcance orgánico)
+- Posts con caso de estudio → texto + foto real (Claudia, van Animalgrace)
+- Posts educativos → solo texto o carrusel PDF
+
+**4 posts preparados:**
+
+| # | Tipo | Formato | Estado |
+|---|------|---------|--------|
+| Post 1 | Historia del fundador — "Soy administrador de empresas. No veterinario." | Solo texto | ✅ **Publicado** |
+| Post 2 | Dato que duele — "El 70% gestiona citas por WhatsApp personal" | Solo texto | ⏳ Jueves próximo |
+| Post 3 | Historia de Claudia — Animalgrace, 84h/mes | Texto + foto Claudia/van | ⏳ Semana 2 (confirmar con Claudia primero) |
+| Post 4 | Perspectiva de negocio — el decisor es el dueño, no el clínico | Solo texto | ⏳ Semana 2 |
+
+### Próximos pasos — LinkedIn
+
+1. **Jueves** → publicar Post 2 (el del dato que duele)
+2. **Confirmar con Claudia** que está OK usar su nombre y foto en LinkedIn
+3. **Semana 2** → Post 3 (Claudia) + Post 4 (perspectiva negocio)
+4. **Semana 3** → Armar 4 posts nuevos para mantener la cadencia
+
+---
+
+## Estrategia de primeras ventas — plan de ejecución (2026-05-31)
+
+### Canales activos en orden de prioridad
+
+**1. LinkedIn (Sebastián — perfil personal)**
+- Perfil listo, primer post publicado
+- Cadencia: martes y jueves
+
+**2. Outreach directo WhatsApp (Sebastián, no Andrés)**
+- 20 veterinarios contactados directamente por Sebastián con mensaje de investigación
+- Mensaje de apertura: no vende, pregunta cómo gestionan el WhatsApp hoy
+- Meta: 20 outreach → 8 demos → 3–5 ventas
+- **Pendiente iniciar**
+
+**3. Claudia como embajadora**
+- Pedirle que postee en sus grupos vet de Facebook con sus palabras
+- Que mencione Vetly cuando alguien pregunte por organización/WhatsApp
+- **Pendiente activar**
+
+**4. Comunidades Facebook**
+- Colmevet Chile (33.955 seg.) + VEPA Colombia (13.658 seg. + 19 capítulos)
+- Semana 1: artículo de valor (no venta)
+- Semana 2: caso de Claudia
+- Semana 3: recurso gratuito (calculadora)
+- **Pendiente iniciar**
+
+**5. TikTok + Instagram Reels**
+- Cuenta única, contenido cruzado
+- 3 videos/semana durante 60 días
+- Formatos: screen recording de Lía, antes/después, historia del fundador, tip práctico
+- **Pendiente configurar**
+
+### Pipeline de demos — meta mes 1
+- 20 outreach → 8 conversaciones → 3–5 demos → 1–3 ventas cerradas
+- Demo: 20 min por Zoom, Lía agendando una cita real en vivo, cierre con caso Claudia
+
+### Hitos pendientes
+- [ ] Confirmar con Claudia uso de foto/nombre en LinkedIn
+- [ ] Iniciar outreach directo a 20 veterinarios (esta semana)
+- [ ] Post 2 LinkedIn — jueves
+- [ ] Primer post en Colmevet Chile (Facebook)
+- [ ] Crear cuenta TikTok/Instagram @vetly.pro
+- [ ] Product Hunt — cuando haya 3–5 clientes pagos
+
+---
+
 ## Sistema de Lead Magnets — implementado 2026-05-31
 
 ### Arquitectura de captación

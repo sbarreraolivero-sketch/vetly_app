@@ -2357,3 +2357,33 @@ WHERE user_id = auth.uid() AND clinic_id = p_clinic_id AND status = 'active'
 FROM public.clinic_members cm
 WHERE cm.user_id = auth.uid() AND cm.clinic_id = p_clinic_id AND cm.status = 'active'
 ```
+
+---
+
+## Marketing y ventas — estado al 2026-05-31
+
+> El detalle completo de estrategia, posts y plan de acción vive en `.agents/product-marketing.md`. Este CLAUDE.md registra solo los cambios técnicos del sitio relacionados con marketing.
+
+### Cambios técnicos de marketing (sesión 33)
+- `public/lm-popup.js` — sistema de exit intent con 4 lead magnets según artículo
+- `public/recursos/` — 4 recursos interactivos: calculadora, script no-shows, ruta móvil, diagnóstico
+- `public/recursos/index.html` — página índice de recursos con navbar propio
+- Navbar landing + 18 artículos del blog: enlace "Recursos" añadido
+- `vercel.json` — rutas explícitas para `/recursos/*` (evitaba caer en React SPA)
+- `src/App.tsx` — `Route path="/"` cambiada de `<Landing />` a `<Navigate to="/login">` — landing antigua de React eliminada del router
+- `diagnostic_leads` — tabla Supabase para capturar resultados del diagnóstico
+- `AdminDashboard.tsx` — sección "Leads del Diagnóstico" con stats y tabla
+
+### LinkedIn (2026-05-31)
+- Perfil de Sebastián Barrera actualizado: banner, headline, Acerca de, experiencia
+- Banner: imagen 4:1 generada con ChatGPT usando `public/dashboard2.png` + logo Vetly
+- **Post 1 publicado** — historia del fundador ("Soy administrador de empresas. No veterinario.")
+- Post 2, 3 y 4 escritos y listos (cadencia: martes y jueves, 8:30am Chile)
+
+### Próximos pasos de marketing
+1. Post 2 LinkedIn — jueves (el del dato que duele)
+2. Outreach directo a 20 veterinarios por WhatsApp (Sebastián)
+3. Primer post en Colmevet Chile (Facebook) — artículo de valor, sin venta
+4. Confirmar con Claudia uso de foto/nombre en LinkedIn → Post 3
+5. Crear cuenta TikTok/Instagram @vetly.pro
+6. Product Hunt — cuando haya 3–5 clientes pagos
