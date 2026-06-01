@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Informe Inteligencia Competitiva — Vetly Instagram</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --teal: #0d9488;
+    --teal-light: #ccfbf1;
+    --teal-dark: #0f766e;
+    --sky: #0ea5e9;
+    --charcoal: #1a1a2e;
+    --ivory: #fafafa;
+    --emerald: #10b981;
+    --emerald-light: #d1fae5;
+    --amber: #f59e0b;
+    --amber-light: #fef3c7;
+    --red: #ef4444;
+    --red-light: #fee2e2;
+    --gray: #6b7280;
+    --gray-light: #f3f4f6;
+    --border: #e5e7eb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: #fff;
+    color: var(--charcoal);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* PORTADA */
+  .cover {
+    background: linear-gradient(135deg, var(--charcoal) 0%, #0f172a 50%, var(--teal-dark) 100%);
+    color: #fff;
+    padding: 80px 60px;
+    min-height: 260px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: var(--teal);
+    opacity: 0.08;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 40%;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: var(--sky);
+    opacity: 0.06;
+  }
+  .cover-tag {
+    display: inline-block;
+    background: var(--teal);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+  .cover h1 {
+    font-size: 36px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 8px;
+    max-width: 600px;
+  }
+  .cover h1 span { color: var(--teal); }
+  .cover p {
+    font-size: 15px;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 32px;
+  }
+  .cover-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .cover-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cover-meta-item .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+  }
+  .cover-meta-item .value {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+  }
+
+  /* CONTENIDO */
+  .content { padding: 0 60px 60px; }
+
+  /* SECCIONES */
+  .section { margin-top: 48px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-number {
+    width: 32px; height: 32px;
+    background: var(--teal);
+    color: #fff;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--charcoal);
+    letter-spacing: -0.02em;
+  }
+  .section-sub {
+    font-size: 12px;
+    color: var(--gray);
+    font-weight: 500;
+    margin-left: auto;
+  }
+
+  /* SUBSECCIÓN */
+  .subsection { margin-top: 28px; }
+  .subsection-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--charcoal);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .subsection-title::before {
+    content: '';
+    width: 3px; height: 16px;
+    background: var(--teal);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* MÉTRICAS GRID */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .metric-card {
+    background: var(--gray-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .metric-card.danger { background: var(--red-light); border-color: #fca5a5; }
+  .metric-card.warning { background: var(--amber-light); border-color: #fcd34d; }
+  .metric-card.success { background: var(--emerald-light); border-color: #6ee7b7; }
+  .metric-card .metric-val {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--charcoal);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .metric-card.danger .metric-val { color: var(--red); }
+  .metric-card.warning .metric-val { color: #b45309; }
+  .metric-card.success .metric-val { color: var(--teal-dark); }
+  .metric-card .metric-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* TABLAS */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  thead th {
+    background: var(--charcoal);
+    color: #fff;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  thead th:first-child { border-radius: 8px 0 0 0; }
+  thead th:last-child { border-radius: 0 8px 0 0; }
+  tbody td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tbody tr:nth-child(even) { background: var(--gray-light); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:last-child td:first-child { border-radius: 0 0 0 8px; }
+  tbody tr:last-child td:last-child { border-radius: 0 0 8px 0; }
+  .table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  /* BADGES */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .badge-green { background: var(--emerald-light); color: #065f46; }
+  .badge-red { background: var(--red-light); color: #991b1b; }
+  .badge-amber { background: var(--amber-light); color: #92400e; }
+  .badge-gray { background: var(--gray-light); color: #374151; }
+  .badge-teal { background: var(--teal-light); color: var(--teal-dark); }
+
+  /* CARDS DE PUNTOS */
+  .points-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .point-card {
+    border-radius: 10px;
+    padding: 16px;
+    border: 1px solid transparent;
+  }
+  .point-card.strong {
+    background: var(--emerald-light);
+    border-color: #a7f3d0;
+  }
+  .point-card.weak {
+    background: var(--red-light);
+    border-color: #fca5a5;
+  }
+  .point-card .point-num {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .point-card.strong .point-num { color: #065f46; }
+  .point-card.weak .point-num { color: #991b1b; }
+  .point-card .point-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--charcoal);
+  }
+  .point-card .point-desc {
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.5;
+  }
+
+  /* COMPETITOR CARDS */
+  .competitor-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .competitor-header {
+    background: var(--charcoal);
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .competitor-header .handle {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .competitor-header .handle span { color: var(--teal); }
+  .competitor-header .type {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .competitor-body { padding: 16px 20px; }
+  .competitor-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .comp-metric {
+    text-align: center;
+    background: var(--gray-light);
+    border-radius: 8px;
+    padding: 10px 8px;
+  }
+  .comp-metric .val {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--charcoal);
+    display: block;
+  }
+  .comp-metric .lbl {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .comp-section { margin-bottom: 12px; }
+  .comp-section-title {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--teal-dark);
+    margin-bottom: 6px;
+  }
+  .comp-section p {
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.6;
+  }
+  .comp-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .comp-tag {
+    background: var(--teal-light);
+    color: var(--teal-dark);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+  .comp-tag.red { background: var(--red-light); color: #991b1b; }
+  .brecha-box {
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 12px;
+  }
+  .brecha-box .brecha-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--teal-dark);
+    margin-bottom: 4px;
+  }
+  .brecha-box p {
+    font-size: 12px;
+    color: #064e3b;
+    line-height: 1.5;
+  }
+
+  /* TABLA COMPARATIVA */
+  .comp-table th:first-child { width: 160px; }
+  .check-yes { color: var(--emerald); font-weight: 700; font-size: 14px; }
+  .check-no { color: var(--red); font-weight: 700; font-size: 14px; }
+  .check-partial { color: var(--amber); font-weight: 700; font-size: 12px; }
+  .highlight-row td { background: var(--teal-light) !important; font-weight: 600; }
+
+  /* VENTAJAS */
+  .ventaja-card {
+    background: var(--gray-light);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--teal);
+    border-radius: 0 10px 10px 0;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .ventaja-card .ventaja-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--charcoal);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ventaja-card .ventaja-num {
+    width: 20px; height: 20px;
+    background: var(--teal);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .ventaja-card p {
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.6;
+  }
+
+  /* DIAGNÓSTICO */
+  .diagnostic-box {
+    background: linear-gradient(135deg, var(--charcoal), #0f172a);
+    color: #fff;
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin: 20px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .diagnostic-box::before {
+    content: '';
+    position: absolute;
+    right: -30px; top: -30px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: var(--teal);
+    opacity: 0.1;
+  }
+  .diagnostic-box p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.85);
+  }
+  .diagnostic-box strong { color: #fff; }
+
+  /* PLAN DE ACCIÓN */
+  .week-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .week-header {
+    background: var(--teal);
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .week-header .week-num {
+    background: rgba(255,255,255,0.2);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .week-body { padding: 14px 16px; }
+  .action-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.5;
+  }
+  .action-item:last-child { margin-bottom: 0; }
+  .action-checkbox {
+    width: 16px; height: 16px;
+    border: 2px solid var(--teal);
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* RECOMENDACIÓN */
+  .rec-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .rec-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    background: var(--gray-light);
+  }
+  .rec-card .rec-num {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--teal);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .rec-card .rec-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--charcoal);
+    margin-bottom: 8px;
+  }
+  .rec-card p {
+    font-size: 11px;
+    color: #374151;
+    line-height: 1.6;
+  }
+
+  /* FOOTER */
+  .footer {
+    margin-top: 48px;
+    padding: 20px 60px;
+    background: var(--gray-light);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer p {
+    font-size: 11px;
+    color: var(--gray);
+  }
+  .footer strong { color: var(--teal-dark); }
+
+  /* PRINT */
+  @media print {
+    body { font-size: 11px; }
+    .cover { padding: 50px 40px; }
+    .content { padding: 0 40px 40px; }
+    .section { margin-top: 32px; }
+    .competitor-card { break-inside: avoid; }
+    .week-card { break-inside: avoid; }
+    .metrics-grid { grid-template-columns: repeat(4, 1fr); }
+    .points-grid { grid-template-columns: 1fr 1fr; }
+    .rec-grid { grid-template-columns: repeat(3, 1fr); }
+    @page {
+      margin: 0;
+      size: A4;
+    }
+  }
+
+  /* DIVIDER */
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* TEXT UTILITIES */
+  .text-teal { color: var(--teal); }
+  .text-gray { color: var(--gray); font-size: 12px; }
+  .font-bold { font-weight: 700; }
+  .mt-4 { margin-top: 16px; }
+  .mt-2 { margin-top: 8px; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 5px; font-size: 12px; color: #374151; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="cover">
+  <div class="cover-tag">Inteligencia Competitiva · Instagram</div>
+  <h1>Informe de Perfil<br><span>@vetly.ai</span></h1>
+  <p>Análisis del perfil propio + 5 competidores del sector veterinario LATAM</p>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <span class="label">Fecha</span>
+      <span class="value">1 de junio de 2026</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="label">Perfil analizado</span>
+      <span class="value">@vetly.ai</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="label">Competidores</span>
+      <span class="value">5 perfiles</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="label">Marca</span>
+      <span class="value">Vetly · vetly.pro</span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- PARTE I — ESTADO ACTUAL -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-number">I</div>
+    <div class="section-title">Estado actual del perfil @vetly.ai</div>
+    <div class="section-sub">Datos al 1 de junio de 2026</div>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card danger">
+      <div class="metric-val">62</div>
+      <div class="metric-label">Seguidores</div>
+    </div>
+    <div class="metric-card warning">
+      <div class="metric-val">170</div>
+      <div class="metric-label">Seguidos</div>
+    </div>
+    <div class="metric-card danger">
+      <div class="metric-val">3</div>
+      <div class="metric-label">Publicaciones</div>
+    </div>
+    <div class="metric-card danger">
+      <div class="metric-val">0.36x</div>
+      <div class="metric-label">Ratio seg/seg</div>
+    </div>
+    <div class="metric-card danger">
+      <div class="metric-val">0</div>
+      <div class="metric-label">Reels</div>
+    </div>
+    <div class="metric-card danger">
+      <div class="metric-val">No</div>
+      <div class="metric-label">Link en bio</div>
+    </div>
+    <div class="metric-card warning">
+      <div class="metric-val">4</div>
+      <div class="metric-label">Mejor engagement (likes)</div>
+    </div>
+    <div class="metric-card warning">
+      <div class="metric-val">21d</div>
+      <div class="metric-label">Sin publicar</div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Puntos fuertes detectados</div>
+    <div class="points-grid">
+      <div class="point-card strong">
+        <div class="point-num">✦ Fortaleza 1</div>
+        <div class="point-title">Propuesta de valor única y diferenciada</div>
+        <div class="point-desc">La bio comunica inmediatamente a quién va dirigida (veterinarios), qué problema resuelve y el tono emocional correcto. Es raro ver esa claridad en perfiles tan nuevos.</div>
+      </div>
+      <div class="point-card strong">
+        <div class="point-num">✦ Fortaleza 2</div>
+        <div class="point-title">Identidad visual sólida</div>
+        <div class="point-desc">El logo (gato robot verde con auriculares) es memorable y coherente con el nicho tech-veterinario. La paleta consistente genera reconocimiento inmediato desde el primer vistazo.</div>
+      </div>
+      <div class="point-card strong">
+        <div class="point-num">✦ Fortaleza 3</div>
+        <div class="point-title">Calidad de copy orientada al dolor</div>
+        <div class="point-desc">Los 3 posts abordan el pain point central con storytelling emocional bien ejecutado: culpa del domingo, contradicción del crecimiento, agotamiento mental. Nivel muy superior al promedio del sector.</div>
+      </div>
+      <div class="point-card strong">
+        <div class="point-num">✦ Fortaleza 4</div>
+        <div class="point-title">Estrategia de lead magnet con keywords</div>
+        <div class="point-desc">Los CTAs "comenta SISTEMA", "comenta QUIERO LIBERTAD" activan DM automation coherente con el producto. Highlights organizados estratégicamente.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Puntos débiles críticos</div>
+    <div class="points-grid">
+      <div class="point-card weak">
+        <div class="point-num">⚠ Debilidad 1</div>
+        <div class="point-title">Consistencia nula</div>
+        <div class="point-desc">3 posts del mismo día (12 de mayo) y 21 días sin publicar genera percepción de cuenta abandonada. El algoritmo penaliza la inconsistencia; los nuevos visitantes no ven actividad reciente.</div>
+      </div>
+      <div class="point-card weak">
+        <div class="point-num">⚠ Debilidad 2</div>
+        <div class="point-title">Cero Reels en 2025–2026</div>
+        <div class="point-desc">Instagram prioriza fuertemente Reels para distribución orgánica. Los 3 posts son carruseles estáticos con menor alcance potencial. Sin Reels, el perfil no aprovecha el principal mecanismo de crecimiento.</div>
+      </div>
+      <div class="point-card weak">
+        <div class="point-num">⚠ Debilidad 3</div>
+        <div class="point-title">Feed demasiado homogéneo</div>
+        <div class="point-desc">Los 3 posts atacan el mismo ángulo emocional con estructuras visuales similares. Falta diversidad de formatos y ángulos: resultados reales, detrás de escenas, educativo, fundador.</div>
+      </div>
+      <div class="point-card weak">
+        <div class="point-num">⚠ Debilidad 4</div>
+        <div class="point-title">Sin link en bio activo</div>
+        <div class="point-desc">Ningún enlace visible en el momento del análisis. Para una empresa de SaaS/automatización, este es el punto de conversión central que no está siendo aprovechado.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PARTE II — ANÁLISIS COMPETIDORES -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-number">II</div>
+    <div class="section-title">Análisis de competidores</div>
+    <div class="section-sub">5 perfiles analizados · sector veterinario LATAM</div>
+  </div>
+
+  <!-- COMPETIDOR 1 -->
+  <div class="competitor-card">
+    <div class="competitor-header">
+      <div>
+        <div class="handle"><span>@squendamx</span> — Squenda</div>
+        <div class="type">Software de gestión veterinaria · México/LATAM · SmartZooft + PixanCloud</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">COMPETIDOR DIRECTO</div>
+        <span class="badge badge-amber">★★★★★ Alta relevancia</span>
+      </div>
+    </div>
+    <div class="competitor-body">
+      <div class="competitor-metrics">
+        <div class="comp-metric"><span class="val">19.200</span><span class="lbl">Seguidores</span></div>
+        <div class="comp-metric"><span class="val">22.589</span><span class="lbl">Posts</span></div>
+        <div class="comp-metric"><span class="val">1.995</span><span class="lbl">Seguidos</span></div>
+        <div class="comp-metric"><span class="val">9.6x</span><span class="lbl">Ratio</span></div>
+        <div class="comp-metric"><span class="val">Alta</span><span class="lbl">Frecuencia</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div class="comp-section">
+            <div class="comp-section-title">Propuesta de valor</div>
+            <p>Software veterinario todo-en-uno con WhatsApp automatizado, SMS, facturación y logística. Licencia vitalicia (SmartZooft) y en la nube (PixanCloud). Operan principalmente en México.</p>
+          </div>
+          <div class="comp-section">
+            <div class="comp-section-title">Contenido en redes</div>
+            <p>Orientado a features de producto y publicidad directa. Feed corporativo/defensivo. Posts esencialmente banners de producto. Alto volumen (22.5k posts), equipo dedicado.</p>
+          </div>
+          <div class="comp-tags">
+            <span class="comp-tag">Sin storytelling</span>
+            <span class="comp-tag">Sin historia fundador</span>
+            <span class="comp-tag">Sin Reels activos</span>
+          </div>
+        </div>
+        <div class="brecha-box">
+          <div class="brecha-label">🟢 Brecha vs. Vetly</div>
+          <p>Squenda no tiene propuesta emocional ni historia de origen. Su contenido es técnico y publicitario, sin storytelling. Vetly tiene aquí una ventaja narrativa enorme. Además, Squenda no tiene diferenciación específica para clínicas móviles — no hay nada equivalente a <strong>Goldi</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPETIDOR 2 -->
+  <div class="competitor-card">
+    <div class="competitor-header">
+      <div>
+        <div class="handle"><span>@petindustrymag</span> — Pet Industry Magazine</div>
+        <div class="type">Comunidad empresarial del sector pet/veterinario · No es software</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">ALIADO/CANAL</div>
+        <span class="badge badge-teal">★★★★★ Oportunidad</span>
+      </div>
+    </div>
+    <div class="competitor-body">
+      <div class="competitor-metrics">
+        <div class="comp-metric"><span class="val">14.600</span><span class="lbl">Seguidores</span></div>
+        <div class="comp-metric"><span class="val">4.249</span><span class="lbl">Posts</span></div>
+        <div class="comp-metric"><span class="val">264</span><span class="lbl">Seguidos</span></div>
+        <div class="comp-metric"><span class="val">55x</span><span class="lbl">Ratio ★</span></div>
+        <div class="comp-metric"><span class="val">Diaria</span><span class="lbl">Frecuencia</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div class="comp-section">
+            <div class="comp-section-title">Propuesta de valor</div>
+            <p>La comunidad empresarial más grande del sector en español. Audiencia: gerentes de clínicas, dueños de pet shops, emprendedores. Capacitación, premios, eventos, entrevistas, proveedores. Ratio 55x — el mejor del análisis.</p>
+          </div>
+          <div class="comp-tags">
+            <span class="comp-tag">Reels activos</span>
+            <span class="comp-tag">Link en bio activo</span>
+            <span class="comp-tag">Audiencia exacta de Vetly</span>
+          </div>
+        </div>
+        <div class="brecha-box">
+          <div class="brecha-label">🟢 Oportunidad para Vetly</div>
+          <p>No compiten en producto — es un <strong>canal de distribución</strong>. Aparecer en Pet Industry Magazine como proveedor, en una entrevista o en su sección de proveedores expone Vetly ante <strong>14.600 decisores del sector</strong> con un solo post.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPETIDOR 3 -->
+  <div class="competitor-card">
+    <div class="competitor-header">
+      <div>
+        <div class="handle"><span>@vetpraxis</span> — VetPraxis App</div>
+        <div class="type">Sistema integral de gestión veterinaria con IA · Perú/Ecuador · Competidor directo</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">COMPETIDOR DIRECTO</div>
+        <span class="badge badge-amber">★★★★★ Competencia activa</span>
+      </div>
+    </div>
+    <div class="competitor-body">
+      <div class="competitor-metrics">
+        <div class="comp-metric"><span class="val">13.900</span><span class="lbl">Seguidores</span></div>
+        <div class="comp-metric"><span class="val">272</span><span class="lbl">Posts</span></div>
+        <div class="comp-metric"><span class="val">4.273</span><span class="lbl">Seguidos</span></div>
+        <div class="comp-metric"><span class="val">3.3x</span><span class="lbl">Ratio</span></div>
+        <div class="comp-metric"><span class="val">3-5/sem</span><span class="lbl">Frecuencia</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div class="comp-section">
+            <div class="comp-section-title">Propuesta de valor</div>
+            <p>Sistema integral de gestión veterinaria con IA: pacientes, administración, marketing y facturación. Activos en congresos (LAVC 2026, Guayaquil). Teléfono visible (+51 918 867 213, Perú).</p>
+          </div>
+          <div class="comp-section">
+            <div class="comp-section-title">Contenido en redes</div>
+            <p>Presentadora con cara visible genera confianza. Mezclan Reels de demo del producto, humor situacional, preguntas y contenido de autoridad. El competidor mejor posicionado en Instagram del sector.</p>
+          </div>
+          <div class="comp-tags">
+            <span class="comp-tag">Reels con presentadora</span>
+            <span class="comp-tag">Link en bio activo</span>
+            <span class="comp-tag comp-tag red">Follow-back inflado</span>
+          </div>
+        </div>
+        <div class="brecha-box">
+          <div class="brecha-label">🟢 Brecha vs. Vetly</div>
+          <p>VetPraxis no tiene diferenciación para clínicas móviles. Su ratio seguidos/seguidores (4.273 siguiendo para 13.900) sugiere estrategia follow-back artificial. No tienen la historia del fundador-operador ni casos de estudio con <strong>números reales publicados en redes</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPETIDOR 4 -->
+  <div class="competitor-card">
+    <div class="competitor-header">
+      <div>
+        <div class="handle"><span>@mkvet_marketing_veterinario</span> — MKVET</div>
+        <div class="type">Agencia de marketing digital para clínicas veterinarias · Madrid, España</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">COMPETENCIA INDIRECTA</div>
+        <span class="badge badge-gray">★★★ Referente editorial</span>
+      </div>
+    </div>
+    <div class="competitor-body">
+      <div class="competitor-metrics">
+        <div class="comp-metric"><span class="val">1.010</span><span class="lbl">Seguidores</span></div>
+        <div class="comp-metric"><span class="val">723</span><span class="lbl">Posts</span></div>
+        <div class="comp-metric"><span class="val">1.171</span><span class="lbl">Seguidos</span></div>
+        <div class="comp-metric"><span class="val">0.86x</span><span class="lbl">Ratio ↓</span></div>
+        <div class="comp-metric"><span class="val">Diaria</span><span class="lbl">Frecuencia</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div class="comp-section">
+            <div class="comp-section-title">Propuesta de valor</div>
+            <p>Agencia española especializada 100% en veterinarias: SEO, web, redes sociales, SEM y ahora integración IA. Diferenciador: especialización total en el sector. Tienen Reels con frecuencia alta.</p>
+          </div>
+          <div class="comp-tags">
+            <span class="comp-tag">AI / KIT DIGITAL / Social Media</span>
+            <span class="comp-tag">Reels activos</span>
+            <span class="comp-tag comp-tag red">Ratio desfavorable</span>
+          </div>
+        </div>
+        <div class="brecha-box">
+          <div class="brecha-label">🟢 Brecha vs. Vetly</div>
+          <p>MKVET tiene el problema opuesto: mucho volumen de contenido, audiencia pequeña con ratio muy ineficiente (0.86x). Vetly, con mejor storytelling y formato Reels, podría superarlos rápidamente en audiencia. Son agencia de servicios, no SaaS — no están en el mismo plano de competencia.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPETIDOR 5 -->
+  <div class="competitor-card">
+    <div class="competitor-header">
+      <div>
+        <div class="handle"><span>@veterclick</span> — Veterclick</div>
+        <div class="type">Agencia de marketing digital creada por una veterinaria · Cádiz, España</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">REFERENTE DE NICHO</div>
+        <span class="badge badge-teal">★★★ Referente editorial</span>
+      </div>
+    </div>
+    <div class="competitor-body">
+      <div class="competitor-metrics">
+        <div class="comp-metric"><span class="val">699</span><span class="lbl">Seguidores</span></div>
+        <div class="comp-metric"><span class="val">99</span><span class="lbl">Posts</span></div>
+        <div class="comp-metric"><span class="val">110</span><span class="lbl">Seguidos</span></div>
+        <div class="comp-metric"><span class="val">6.4x</span><span class="lbl">Ratio ★</span></div>
+        <div class="comp-metric"><span class="val">Diaria</span><span class="lbl">Frecuencia</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div class="comp-section">
+            <div class="comp-section-title">Propuesta de valor</div>
+            <p>"No vendemos servicios. Diseñamos estrategias que consiguen citas." Diferenciador: autoridad del sector (fundadora es veterinaria) y promesa de resultados medibles. El perfil más parecido editorialmente a lo que debería ser @vetly.ai.</p>
+          </div>
+          <div class="comp-tags">
+            <span class="comp-tag">6.4x ratio — mejor del grupo pequeño</span>
+            <span class="comp-tag">Consistencia diaria</span>
+            <span class="comp-tag">Copy directo al dolor</span>
+          </div>
+        </div>
+        <div class="brecha-box">
+          <div class="brecha-label">🟢 Brecha vs. Vetly</div>
+          <p>Veterclick no tiene producto propio — es una agencia de servicios, no un SaaS. Vetly tiene una propuesta más escalable. Sin embargo, su modelo de contenido (consistencia + Reels + copy directo al dolor) es <strong>exactamente lo que Vetly necesita replicar</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PARTE III — TABLA COMPARATIVA -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-number">III</div>
+    <div class="section-title">Tabla comparativa general</div>
+  </div>
+  <div class="table-wrap">
+    <table class="comp-table">
+      <thead>
+        <tr>
+          <th>Criterio</th>
+          <th>@vetly.ai</th>
+          <th>@squendamx</th>
+          <th>@vetpraxis</th>
+          <th>@mkvet</th>
+          <th>@veterclick</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="font-bold">Seguidores</td>
+          <td><span class="badge badge-red">62</span></td>
+          <td><span class="badge badge-green">19.200</span></td>
+          <td><span class="badge badge-green">13.900</span></td>
+          <td>1.010</td>
+          <td>699</td>
+        </tr>
+        <tr>
+          <td class="font-bold">Publicaciones</td>
+          <td><span class="badge badge-red">3</span></td>
+          <td>22.589</td>
+          <td>272</td>
+          <td>723</td>
+          <td>99</td>
+        </tr>
+        <tr>
+          <td class="font-bold">Seguidos</td>
+          <td>170</td>
+          <td>1.995</td>
+          <td>4.273</td>
+          <td>1.171</td>
+          <td>110</td>
+        </tr>
+        <tr>
+          <td class="font-bold">Ratio seg/seg</td>
+          <td><span class="badge badge-red">0.36x</span></td>
+          <td><span class="badge badge-green">9.6x</span></td>
+          <td>3.3x</td>
+          <td><span class="badge badge-red">0.86x</span></td>
+          <td><span class="badge badge-green">6.4x</span></td>
+        </tr>
+        <tr>
+          <td class="font-bold">Frecuencia</td>
+          <td><span class="badge badge-red">Muy baja</span></td>
+          <td><span class="badge badge-green">Alta</span></td>
+          <td><span class="badge badge-green">Alta</span></td>
+          <td>Diaria</td>
+          <td>Diaria</td>
+        </tr>
+        <tr>
+          <td class="font-bold">Reels</td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-partial">▲ Pocos</span></td>
+          <td><span class="check-yes">✓</span></td>
+          <td><span class="check-yes">✓</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td class="font-bold">Link en bio</td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-yes">✓</span></td>
+          <td><span class="check-yes">✓</span></td>
+          <td><span class="check-yes">✓</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td class="font-bold">Cara visible</td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-yes">✓ Parcial</span></td>
+          <td><span class="check-partial">▲ Parcial</span></td>
+          <td><span class="check-no">✗</span></td>
+        </tr>
+        <tr>
+          <td class="font-bold">Storytelling emocional</td>
+          <td><span class="badge badge-teal">Muy alto</span></td>
+          <td><span class="badge badge-red">Bajo</span></td>
+          <td>Medio</td>
+          <td>Medio</td>
+          <td>Medio</td>
+        </tr>
+        <tr>
+          <td class="font-bold">Historia de origen</td>
+          <td><span class="badge badge-amber">Sin explotar</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-partial">▲ Parcial</span></td>
+        </tr>
+        <tr class="highlight-row">
+          <td class="font-bold">Diferenciación móvil</td>
+          <td><span class="check-yes">✓ Goldi</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+        </tr>
+        <tr>
+          <td class="font-bold">Prueba social real</td>
+          <td><span class="badge badge-green">3 casos reales</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td>Testimonios</td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+        </tr>
+        <tr>
+          <td class="font-bold">Precios visibles</td>
+          <td><span class="badge badge-green">✓ Web</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+          <td><span class="check-no">✗</span></td>
+        </tr>
+        <tr class="highlight-row">
+          <td class="font-bold">Multi-país LATAM</td>
+          <td><span class="badge badge-teal">✓ 5 países</span></td>
+          <td>México</td>
+          <td>Perú/Ecuador</td>
+          <td>España</td>
+          <td>España</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- PARTE IV — VENTAJAS COMPETITIVAS -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-number">IV</div>
+    <div class="section-title">Ventajas competitivas de Vetly sin explotar en redes</div>
+  </div>
+
+  <div class="ventaja-card">
+    <div class="ventaja-title">
+      <div class="ventaja-num">1</div>
+      Historia del fundador — el activo más poderoso
+    </div>
+    <p>Sebastián Barrera vivió exactamente el problema que resuelve Vetly: dos WhatsApps, rutas imposibles, domingos sin descanso. Ningún competidor tiene una historia de origen así de auténtica. Fundó Movilvets, una clínica veterinaria móvil, antes de crear Vetly — habla desde el dueño que operó el negocio, no desde el técnico. Un Reel de 60 segundos contando esto podría ser el post más viral del nicho.</p>
+  </div>
+
+  <div class="ventaja-card">
+    <div class="ventaja-title">
+      <div class="ventaja-num">2</div>
+      Goldi — diferenciación sin competencia
+    </div>
+    <p>El módulo Goldi es el único coordinador logístico específico para veterinarios móviles que integra Google Maps en tiempo real en todo LATAM. Ninguna otra plataforma tiene esto. Calcula el orden óptimo de visitas con buffer de viaje real. Este es un ángulo de contenido completamente inexplotado que diferencia a Vetly de absolutamente todos los competidores analizados.</p>
+  </div>
+
+  <div class="ventaja-card">
+    <div class="ventaja-title">
+      <div class="ventaja-num">3</div>
+      Prueba social con datos reales publicables
+    </div>
+    <p>Dra. Claudia Barrera O. (Animalgrace, Linares): <strong>84h ahorradas/mes · 79 citas agendadas por IA</strong>. Dr. Carlos V. (VetMóvil Santiago): <strong>−44% km recorridos</strong>. Dra. Rosa M. (PetHome Valparaíso): <strong>+18 citas en 7 días</strong> tras campaña. Ningún competidor está publicando números así de concretos en redes. Son el tipo de datos que generan capturas de pantalla y compartidos espontáneos.</p>
+  </div>
+
+  <div class="ventaja-card">
+    <div class="ventaja-title">
+      <div class="ventaja-num">4</div>
+      Comparativa de precios como copy de ventas
+    </div>
+    <p>La comparativa "$89 USD vs. $650 USD de una recepcionista = ahorro del 86%" es un copy de ventas listo para un Reel. Ningún competidor en Instagram está haciendo esto de forma tan directa y visual. El Plan Core desde $39 USD/mes da además un entry point bajo que facilita el primer paso de conversión.</p>
+  </div>
+
+  <div class="ventaja-card">
+    <div class="ventaja-title">
+      <div class="ventaja-num">5</div>
+      Cobertura de 5 países LATAM
+    </div>
+    <p>Chile, Argentina, Colombia, México y Perú — escala que ni MKVET ni Veterclick (ambas españolas) ni VetPraxis (Perú/Ecuador) pueden proponer como referente panregional. Posiciona a Vetly como la solución de categoría en lugar de una solución local.</p>
+  </div>
+</div>
+
+<!-- PARTE V — DIAGNÓSTICO EJECUTIVO -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-number">V</div>
+    <div class="section-title">Diagnóstico ejecutivo</div>
+  </div>
+
+  <div class="diagnostic-box">
+    <p><strong>Vetly tiene la mejor propuesta de valor del sector y el peor perfil de Instagram del grupo analizado.</strong> La brecha entre producto y presencia en redes es la mayor oportunidad disponible.</p>
+    <br>
+    <p>El perfil tiene una base muy sólida en identidad visual, copy y posicionamiento. El problema principal es la falta de consistencia, la ausencia de Reels y la carencia del link en bio activo. Con un ritmo sostenido de publicación y diversificando los formatos, el perfil tiene todo lo necesario para crecer rápido en un nicho con muy poca competencia digital de calidad.</p>
+    <br>
+    <p><strong>Los tres movimientos más importantes:</strong> activar el link en bio con la landing, publicar el primer Reel con la historia del fundador mostrando los números reales de Animalgrace, y contactar a @petindustrymag para aparecer como proveedor — exposición ante 14.600 decisores del sector con un solo post.</p>
+  </div>
+</div>
+
+<!-- PARTE VI — RECOMENDACIÓN ESTRATÉGICA -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-number">VI</div>
+    <div class="section-title">Recomendación estratégica</div>
+    <div class="section-sub">3 movimientos prioritarios por impacto esperado</div>
+  </div>
+  <div class="rec-grid">
+    <div class="rec-card">
+      <div class="rec-num">01</div>
+      <div class="rec-title">Link en bio + Reel del fundador</div>
+      <p>Activar el link en bio con la landing de vetly.pro y publicar el primer Reel con la historia de Sebastián mostrando los números reales de Animalgrace (84h/79 citas). Con esos dos movimientos, @vetly.ai ya compite en calidad narrativa con los mejores del sector, independientemente del número de seguidores.</p>
+    </div>
+    <div class="rec-card">
+      <div class="rec-num">02</div>
+      <div class="rec-title">Contactar @petindustrymag</div>
+      <p>Aparecer como proveedor en una entrevista o en su sección de proveedores expone Vetly ante 14.600 decisores del sector con un solo acción. Es la palanca de distribución más eficiente disponible hoy sin invertir en publicidad pagada.</p>
+    </div>
+    <div class="rec-card">
+      <div class="rec-num">03</div>
+      <div class="rec-title">Monitorear @vetpraxis y @squendamx</div>
+      <p>Son los dos competidores con mayor presencia activa. Revisar semanalmente qué publican, qué formatos usan y cuáles tienen más interacción. Son la fuente de datos más directa para aprender qué funciona en este nicho antes de invertir más recursos.</p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>Informe generado para <strong>Vetly · @vetly.ai · vetly.pro</strong></p>
+  <p>Análisis sobre datos públicos de Instagram al <strong>1 de junio de 2026</strong></p>
+  <p>5 perfiles analizados: @squendamx · @petindustrymag · @vetpraxis · @mkvet · @veterclick</p>
+</div>
+
+<!-- BOTÓN DESCARGAR (solo visible en pantalla, no en PDF) -->
+<div style="position:fixed;bottom:24px;right:24px;z-index:999;display:flex;gap:10px;" class="no-print">
+  <button onclick="window.print()"
+    style="background:linear-gradient(135deg,#0d9488,#0ea5e9);color:#fff;border:none;padding:14px 24px;border-radius:12px;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(13,148,136,0.4);letter-spacing:0.02em;">
+    ⬇ Guardar como PDF
+  </button>
+</div>
+<style>
+  @media print { .no-print { display: none !important; } }
+</style>
+
+</body>
+</html>
