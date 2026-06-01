@@ -1,6 +1,33 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Vetly — Guía para Claude
 
 SaaS veterinario para clínicas móviles a domicilio. Permite agendar citas vía WhatsApp con un AI agent, gestionar pacientes, enviar recordatorios y campañas, y procesar pagos.
+
+---
+
+## Comandos de desarrollo
+
+```bash
+npm run dev          # Servidor local (Vite, puerto 5173+)
+npm run build        # tsc -b && vite build — lo que corre en Vercel
+npx tsc --noEmit     # Verificar tipos sin generar archivos
+npm run lint         # ESLint sobre todo el proyecto
+npm run preview      # Preview del build de producción local
+```
+
+**Edge Functions Supabase:**
+```bash
+supabase functions deploy <nombre>          # Deploy de una función específica
+supabase functions deploy --no-verify-jwt <nombre>  # Para webhooks externos
+supabase db push                            # Aplicar migraciones pendientes
+```
+
+**Regla de build:** `npm run build` es la única forma de detectar errores TS que `--noEmit` a veces pasa. Correr antes de cada PR importante.
+
+**No hay test suite configurado.** La verificación es manual + TypeScript estricto.
 
 ---
 

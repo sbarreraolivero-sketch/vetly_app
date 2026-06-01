@@ -16,7 +16,6 @@ import {
     Calendar,
     CalendarRange,
     Lightbulb,
-    Edit2,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
@@ -28,9 +27,10 @@ import {
 import { es as esLocale } from 'date-fns/locale'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
-import { financeService, type FinanceStats, type Expense, type Income } from '@/services/financeService'
+import { financeService, type FinanceStats, type Expense, type Income, type CashRegister } from '@/services/financeService'
 import VisitReceipt from '@/components/finance/VisitReceipt'
 import { EditTransactionModal } from '@/components/finance/EditTransactionModal'
+import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
@@ -67,7 +67,7 @@ const translateStatus = (st: string) => STATUS_LABELS[st] ?? st
 
 // ── Component ────────────────────────────────────────────────────────
 const Finance = () => {
-    const { profile, member } = useAuth()
+    const { profile, member, user } = useAuth()
     const clinicId = member?.clinic_id || profile?.clinic_id
     const clinicName = (member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica'
 
@@ -86,9 +86,11 @@ const Finance = () => {
     const [transactions, setTransactions] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [itemMetrics, setItemMetrics] = useState<any>(null)
-    const [expandedTx, setExpandedTx] = useState<string | null>(null)
     const [txItems, setTxItems] = useState<Record<string, any[]>>({})
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'expenses' | 'incomes' | 'analysis'>('dashboard')
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'cajas' | 'expenses' | 'analysis'>('dashboard')
+    const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
+    const [cajaToClose, setCajaToClose] = useState<string | null>(null)  // date 'YYYY-MM-DD'
+    const [closingCaja, setClosingCaja] = useState(false)
     const [showExpenseModal, setShowExpenseModal] = useState(false)
     const [showIncomeModal, setShowIncomeModal] = useState(false)
     const [filterType, setFilterType] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
@@ -154,20 +156,21 @@ const Finance = () => {
                 end   = range.end
             }
 
-            const [statsData, expensesData, incomesData, transactionsData, metricsData] = await Promise.all([
+            const [statsData, expensesData, incomesData, transactionsData, metricsData, cashRegistersData] = await Promise.all([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
                 financeService.getTransactions(clinicId, start, end),
                 financeService.getItemMetrics(clinicId, start, end).catch(() => null),
+                financeService.getCashRegisters(clinicId, start, end).catch(() => []),
             ])
 
             setStats(statsData)
             setExpenses(expensesData)
             setIncomes(incomesData)
             setTransactions(transactionsData || [])
+            setCashRegisters(cashRegistersData)
             setItemMetrics(metricsData)
-            setExpandedTx(null)
             setTxItems({})
         } catch (error) {
             console.error('Error loading finance data:', error)
@@ -179,21 +182,6 @@ const Finance = () => {
     const [receiptTx, setReceiptTx]   = useState<any | null>(null)
     const [editTx, setEditTx]         = useState<any | null>(null)
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
-
-    const loadTxItems = async (appointmentId: string) => {
-        if (txItems[appointmentId]) {
-            setExpandedTx(prev => prev === appointmentId ? null : appointmentId)
-            return
-        }
-        try {
-            const items = await financeService.getTransactionItems(appointmentId)
-            setTxItems(prev => ({ ...prev, [appointmentId]: items }))
-            setExpandedTx(appointmentId)
-        } catch {
-            // silently ignore — appointment_items may not exist yet
-            setExpandedTx(appointmentId)
-        }
-    }
 
     // ── Currency formatter ──
     const formatCurrency = (amount: number) => {
@@ -441,57 +429,6 @@ const Finance = () => {
         }
     }
 
-    const handleDeleteIncome = async (incomeId: string, description: string) => {
-        if (!confirm(`¿Estás seguro de que deseas eliminar el ingreso "${description}"?`)) return
-
-        try {
-            await financeService.deleteIncome(incomeId)
-            toast.success('Ingreso eliminado')
-            loadData()
-        } catch (error) {
-            console.error('Error deleting income:', error)
-            toast.error('Error al eliminar el ingreso')
-        }
-    }
-
-    const handleRegisterPayment = async (appointmentId: string) => {
-        try {
-            await financeService.updatePaymentStatus(appointmentId, 'paid')
-            toast.success('Pago registrado')
-            loadData()
-        } catch (error) {
-            console.error('Error registering payment:', error)
-            toast.error('Error al registrar el pago')
-        }
-    }
-
-    const handleDeletePayment = async (appointmentId: string) => {
-        if (!confirm('¿Estás seguro de que deseas eliminar este pago? La transacción volverá a estado pendiente y se descontará de los ingresos.')) return
-        try {
-            await financeService.updatePaymentStatus(appointmentId, 'pending')
-            toast.success('Pago eliminado')
-            loadData()
-        } catch (error) {
-            console.error('Error deleting payment:', error)
-            toast.error('Error al eliminar el pago')
-        }
-    }
-
-    const handleClearTransaction = async (appointmentId: string) => {
-        if (!confirm('¿Estás seguro de que deseas eliminar esta transacción pendiente? Esto pondrá el precio en $0 para que no afecte tus reportes ni deudas.')) return
-        try {
-            setLoading(true)
-            await financeService.updateTransactionPrice(appointmentId, 0)
-            toast.success('Transacción eliminada de finanzas')
-            loadData()
-        } catch (error) {
-            console.error('Error clearing transaction:', error)
-            toast.error('Error al eliminar la transacción')
-        } finally {
-            setLoading(false)
-        }
-    }
-
     // ── Mini calendario de rango ──────────────────────────────────────────
     function MiniCalendar() {
         const [calMonth, setCalMonth] = useState(() => customRange?.start ?? new Date())
@@ -584,6 +521,43 @@ const Finance = () => {
                 </p>
             </div>
         )
+    }
+
+    // ── Agrupar transacciones e ingresos por fecha para la vista de Cajas ──
+    const cajasByDate = useMemo(() => {
+        const map: Record<string, { transactions: typeof transactions; incomes: typeof incomes }> = {}
+        for (const tx of transactions) {
+            const d = tx.appointment_date?.split('T')[0]
+            if (!d) continue
+            if (!map[d]) map[d] = { transactions: [], incomes: [] }
+            map[d].transactions.push(tx)
+        }
+        for (const inc of incomes) {
+            const d = inc.date?.split('T')[0] ?? inc.date
+            if (!d) continue
+            if (!map[d]) map[d] = { transactions: [], incomes: [] }
+            map[d].incomes.push(inc)
+        }
+        return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
+    }, [transactions, incomes])
+
+    const handleCloseCaja = async (date: string, notes: string) => {
+        if (!clinicId || !user?.id) return
+        setClosingCaja(true)
+        try {
+            const result = await financeService.closeCaja(clinicId, date, notes, user.id)
+            setCashRegisters(prev => {
+                const filtered = prev.filter(c => c.date !== date)
+                return [...filtered, result]
+            })
+            setCajaToClose(null)
+            toast.success('Caja cerrada correctamente')
+        } catch (err) {
+            console.error('Error cerrando caja:', err)
+            toast.error('No se pudo cerrar la caja')
+        } finally {
+            setClosingCaja(false)
+        }
     }
 
     // ── Render ──
@@ -824,15 +798,15 @@ const Finance = () => {
                         Resumen
                     </button>
                     <button
-                        onClick={() => setActiveTab('transactions')}
+                        onClick={() => setActiveTab('cajas')}
                         className={cn(
                             "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                            activeTab === 'transactions'
+                            activeTab === 'cajas'
                                 ? "border-emerald-500 text-emerald-600"
                                 : "border-transparent text-charcoal/60 hover:text-charcoal"
                         )}
                     >
-                        Transacciones
+                        Cajas
                     </button>
                     <button
                         onClick={() => setActiveTab('expenses')}
@@ -844,17 +818,6 @@ const Finance = () => {
                         )}
                     >
                         Gastos
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('incomes')}
-                        className={cn(
-                            "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                            activeTab === 'incomes'
-                                ? "border-emerald-500 text-emerald-600"
-                                : "border-transparent text-charcoal/60 hover:text-charcoal"
-                        )}
-                    >
-                        Otros Ingresos
                     </button>
                     <button
                         onClick={() => setActiveTab('analysis')}
@@ -913,138 +876,47 @@ const Finance = () => {
                     </div>
                 )}
 
-                {activeTab === 'transactions' && (
-                    <div className="card-soft overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-silk-beige/30 text-charcoal/70 uppercase text-xs">
-                                    <tr>
-                                        <th className="px-6 py-3 font-medium">Fecha</th>
-                                        <th className="px-6 py-3 font-medium">Paciente</th>
-                                        <th className="px-6 py-3 font-medium">Servicio / Ítems</th>
-                                        <th className="px-6 py-3 font-medium">Monto</th>
-                                        <th className="px-6 py-3 font-medium">Estado</th>
-                                        <th className="px-6 py-3 font-medium text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-silk-beige">
-                                    {transactions.map((tx) => (
-                                        <>
-                                        <tr key={tx.id} className="hover:bg-ivory/50">
-                                            <td className="px-6 py-3 text-charcoal/80">
-                                                {formatInTz(tx.appointment_date, 'dd/MM/yyyy HH:mm')}
-                                            </td>
-                                            <td className="px-6 py-3 font-medium text-charcoal">
-                                                {tx.patient_name}
-                                            </td>
-                                            <td className="px-6 py-3 text-charcoal/60">
-                                                <button
-                                                    onClick={() => loadTxItems(tx.id)}
-                                                    className="flex items-center gap-1 hover:text-primary-600 transition-colors"
-                                                >
-                                                    <span>{tx.service || '-'}</span>
-                                                    <ChevronDown className={cn("w-3 h-3 transition-transform", expandedTx === tx.id && "rotate-180")} />
-                                                </button>
-                                            </td>
-                                            <td className="px-6 py-3 font-medium text-charcoal">
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span>{formatCurrency(tx.price || 0)}</span>
-                                                    {(tx as any).discount > 0 && (
-                                                        <span className="text-xs text-emerald-600">
-                                                            −{formatCurrency((tx as any).discount)}
-                                                            {(tx as any).discount_reason && (
-                                                                <span className="ml-1 italic text-emerald-500">· {(tx as any).discount_reason}</span>
-                                                            )}
-                                                        </span>
-                                                    )}
-                                                    {(tx as any).iva_amount > 0 && (
-                                                        <span className="text-xs text-amber-600">
-                                                            IVA: {formatCurrency((tx as any).iva_amount)}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-3">
-                                                <span className={cn(
-                                                    "px-2 py-1 rounded-full text-xs font-medium",
-                                                    tx.payment_status === 'paid' ? "bg-emerald-100 text-emerald-700" :
-                                                        tx.payment_status === 'pending' ? "bg-amber-100 text-amber-700" :
-                                                            "bg-silk-beige text-charcoal/60"
-                                                )}>
-                                                    {translateStatus(tx.payment_status)}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-3 text-right">
-                                                <div className="flex flex-col items-end gap-1">
-                                                    {tx.payment_status === 'pending' && (
-                                                        <button onClick={() => handleRegisterPayment(tx.id)}
-                                                            className="text-xs text-emerald-600 font-semibold hover:underline">
-                                                            Registrar Pago
-                                                        </button>
-                                                    )}
-                                                    {tx.payment_status === 'paid' && (
-                                                        <button onClick={() => handleDeletePayment(tx.id)}
-                                                            className="text-xs text-amber-600 font-semibold hover:underline">
-                                                            Deshacer Pago
-                                                        </button>
-                                                    )}
-                                                    <button onClick={() => setEditTx(tx)}
-                                                        className="text-xs text-primary-600 font-medium hover:underline flex items-center gap-1">
-                                                        <Edit2 className="w-3 h-3" /> Editar
-                                                    </button>
-                                                    <button onClick={() => setReceiptTx(tx)}
-                                                        className="text-xs text-charcoal/60 font-medium hover:underline flex items-center gap-1">
-                                                        <FileText className="w-3 h-3" /> Comprobante
-                                                    </button>
-                                                    <button onClick={() => handleClearTransaction(tx.id)}
-                                                        className="text-xs text-red-500 font-medium hover:underline flex items-center gap-1">
-                                                        <Trash2 className="w-3 h-3" /> Eliminar
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {expandedTx === tx.id && (
-                                            <tr key={`${tx.id}-items`} className="bg-primary-50/30">
-                                                <td colSpan={6} className="px-8 py-3">
-                                                    {(txItems[tx.id] ?? []).length === 0 ? (
-                                                        <p className="text-xs text-charcoal/40 italic">Sin desglose de ítems (cita anterior al sistema de inventario)</p>
-                                                    ) : (
-                                                        <div className="space-y-1">
-                                                            {(txItems[tx.id] ?? []).map((item: any) => (
-                                                                <div key={item.id} className="flex items-center justify-between text-xs py-0.5">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={cn(
-                                                                            "px-1.5 py-0.5 rounded text-[10px] font-semibold",
-                                                                            item.item_type === 'service' ? "bg-primary-100 text-primary-600" : "bg-violet-100 text-violet-600"
-                                                                        )}>
-                                                                            {item.item_type === 'service' ? 'Servicio' : 'Producto'}
-                                                                        </span>
-                                                                        <span className="text-charcoal/80">{item.name}</span>
-                                                                        <span className="text-charcoal/40">×{item.quantity}</span>
-                                                                    </div>
-                                                                    <span className="font-semibold text-charcoal">{formatCurrency(item.subtotal)}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        )}
-                                        </>
-                                    ))}
-                                    {transactions.length === 0 && (
-                                        <tr>
-                                            <td colSpan={6} className="px-6 py-8 text-center text-charcoal/50">
-                                                No se encontraron transacciones en este período
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                {activeTab === 'cajas' && (
+                    <div className="space-y-3">
+                        {loading ? (
+                            <div className="card-soft p-8 text-center text-charcoal/40">Cargando cajas...</div>
+                        ) : cajasByDate.length === 0 ? (
+                            <div className="card-soft p-10 text-center">
+                                <p className="text-charcoal/50 font-medium">No hay ingresos en este período</p>
+                                <p className="text-sm text-charcoal/30 mt-1">Las cajas aparecen cuando hay citas o ingresos en el período seleccionado</p>
+                            </div>
+                        ) : (
+                            cajasByDate.map(([date, { transactions: dayTx, incomes: dayInc }]) => {
+                                const cashReg = cashRegisters.find(c => c.date === date) ?? null
+                                const dayLabel = (() => {
+                                    try {
+                                        return new Date(date + 'T12:00:00').toLocaleDateString('es-CL', {
+                                            weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+                                        })
+                                    } catch { return date }
+                                })()
+                                return (
+                                    <CajaDelDia
+                                        key={date}
+                                        date={date}
+                                        dateLabel={dayLabel}
+                                        transactions={dayTx}
+                                        incomes={dayInc}
+                                        cashRegister={cashReg}
+                                        currency="$"
+                                        onCloseCaja={(d) => setCajaToClose(d)}
+                                        onAddIncome={() => {
+                                            setShowIncomeModal(true)
+                                        }}
+                                        isClosing={closingCaja && cajaToClose === date}
+                                    />
+                                )
+                            })
+                        )}
                     </div>
                 )}
 
+                {/* ── TAB GASTOS ── */}
                 {activeTab === 'expenses' && (
                     <div className="card-soft overflow-hidden">
                         <div className="overflow-x-auto">
@@ -1052,7 +924,7 @@ const Finance = () => {
                                 <thead className="bg-silk-beige/30 text-charcoal/70 uppercase text-xs">
                                     <tr>
                                         <th className="px-6 py-3 font-medium">Fecha</th>
-                                        <th className="px-6 py-3 font-medium">Concepto</th>
+                                        <th className="px-6 py-3 font-medium">Descripción</th>
                                         <th className="px-6 py-3 font-medium">Categoría</th>
                                         <th className="px-6 py-3 font-medium text-right">Monto</th>
                                         <th className="px-6 py-3 font-medium text-right">Acciones</th>
@@ -1078,10 +950,9 @@ const Finance = () => {
                                             <td className="px-6 py-3 text-right">
                                                 <button
                                                     onClick={() => handleDeleteExpense(expense.id, expense.description)}
-                                                    className="text-charcoal/40 hover:text-red-500 transition-colors inline-flex items-center gap-1 text-xs"
+                                                    className="text-red-500 hover:underline inline-flex items-center gap-1 text-xs font-medium"
                                                 >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                    Eliminar
+                                                    <Trash2 className="w-3 h-3" /> Eliminar
                                                 </button>
                                             </td>
                                         </tr>
@@ -1090,77 +961,6 @@ const Finance = () => {
                                         <tr>
                                             <td colSpan={5} className="px-6 py-8 text-center text-charcoal/50">
                                                 No hay gastos registrados en este período
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'incomes' && (
-                    <div className="card-soft overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-silk-beige/30 text-charcoal/70 uppercase text-xs">
-                                    <tr>
-                                        <th className="px-6 py-3 font-medium">Fecha</th>
-                                        <th className="px-6 py-3 font-medium">Concepto</th>
-                                        <th className="px-6 py-3 font-medium">Categoría</th>
-                                        <th className="px-6 py-3 font-medium text-right">Monto</th>
-                                        <th className="px-6 py-3 font-medium text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-silk-beige">
-                                    {incomes.map((income) => (
-                                        <tr key={income.id} className="hover:bg-ivory/50">
-                                            <td className="px-6 py-3 text-charcoal/80">
-                                                {formatInTz(income.date, 'dd/MM/yyyy')}
-                                            </td>
-                                            <td className="px-6 py-3 font-medium text-charcoal">
-                                                {income.description}
-                                            </td>
-                                            <td className="px-6 py-3">
-                                                <span className="bg-silk-beige text-charcoal/70 px-2 py-1 rounded text-xs capitalize">
-                                                    {translateCategoryIncome(income.category)}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-3 font-medium text-right text-emerald-600">
-                                                <div className="flex flex-col items-end gap-0.5">
-                                                    <span>+{formatCurrency(income.amount)}</span>
-                                                    {(income as any).discount > 0 && (
-                                                        <span className="text-xs text-emerald-500">
-                                                            −{formatCurrency((income as any).discount)}
-                                                            {(income as any).discount_reason && (
-                                                                <span className="ml-1 italic">· {(income as any).discount_reason}</span>
-                                                            )}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-3 text-right">
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <button
-                                                        onClick={() => setEditingIncome(income)}
-                                                        className="text-primary-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"
-                                                    >
-                                                        <Edit2 className="w-3 h-3" /> Editar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteIncome(income.id, income.description)}
-                                                        className="text-red-500 hover:underline inline-flex items-center gap-1 text-xs font-medium"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" /> Eliminar
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {incomes.length === 0 && (
-                                        <tr>
-                                            <td colSpan={5} className="px-6 py-8 text-center text-charcoal/50">
-                                                No hay ingresos registrados en este período
                                             </td>
                                         </tr>
                                     )}
@@ -1402,6 +1202,38 @@ const Finance = () => {
                     onSuccess={loadData}
                 />
             )}
+
+            {/* Modal cerrar caja */}
+            {cajaToClose && (() => {
+                const dayTxForModal = transactions.filter(t => t.appointment_date?.split('T')[0] === cajaToClose)
+                const dayIncForModal = incomes.filter(i => (i.date?.split('T')[0] ?? i.date) === cajaToClose)
+                const totalCobrado = dayTxForModal
+                    .filter(t => t.payment_status === 'paid' || t.payment_status === 'partial')
+                    .reduce((s: number, t: any) => s + (t.price ?? 0), 0)
+                    + dayIncForModal.reduce((s: number, i: any) => s + ((i.amount ?? 0) - (i.discount ?? 0)), 0)
+                const totalPendiente = dayTxForModal
+                    .filter(t => t.payment_status === 'pending')
+                    .reduce((s: number, t: any) => s + (t.price ?? 0), 0)
+                const label = (() => {
+                    try {
+                        return new Date(cajaToClose + 'T12:00:00').toLocaleDateString('es-CL', {
+                            weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+                        })
+                    } catch { return cajaToClose }
+                })()
+                return (
+                    <CloseCajaModal
+                        date={cajaToClose}
+                        dateLabel={label}
+                        totalCobrado={totalCobrado}
+                        totalPendiente={totalPendiente}
+                        currency="$"
+                        loading={closingCaja}
+                        onConfirm={(notes) => handleCloseCaja(cajaToClose, notes)}
+                        onCancel={() => setCajaToClose(null)}
+                    />
+                )
+            })()}
         </div>
     )
 }

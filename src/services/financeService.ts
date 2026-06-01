@@ -1,6 +1,24 @@
 
 import { supabase } from '@/lib/supabase'
 
+export interface CashRegister {
+    id: string
+    clinic_id: string
+    date: string
+    status: 'open' | 'closed'
+    total_cobrado: number
+    total_pendiente: number
+    total_efectivo: number
+    total_transferencia: number
+    total_tarjeta: number
+    total_debito: number
+    income_count: number
+    notes: string | null
+    closed_by: string | null
+    closed_at: string | null
+    created_at: string
+}
+
 export interface Expense {
     id: string
     clinic_id: string
@@ -249,5 +267,32 @@ export const financeService = {
             top_products: Array<{ name: string; revenue: number; units: number }> | null
             appt_metrics: { total_appts: number; appts_with_products: number; avg_ticket: number } | null
         } | null
+    },
+
+    // ---- Cajas Registradoras ----
+
+    async getCashRegisters(clinicId: string, startDate: Date, endDate: Date) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .from('cash_registers')
+            .select('*')
+            .eq('clinic_id', clinicId)
+            .gte('date', startDate.toISOString().split('T')[0])
+            .lte('date', endDate.toISOString().split('T')[0])
+            .order('date', { ascending: false })
+        if (error) throw error
+        return (data ?? []) as CashRegister[]
+    },
+
+    async closeCaja(clinicId: string, date: string, notes: string, closedBy: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).rpc('close_cash_register', {
+            p_clinic_id: clinicId,
+            p_date: date,
+            p_notes: notes || null,
+            p_closed_by: closedBy,
+        })
+        if (error) throw error
+        return data as CashRegister
     },
 }
