@@ -105,6 +105,8 @@ export default function Appointments() {
     const [googleEvents] = useState<CalendarEvent[]>([])
     const [newAppointment, setNewAppointment] = useState(INITIAL_FORM_STATE)
     const [services, setServices] = useState<any[]>([])
+    const [selectedServices, setSelectedServices] = useState<string[]>([])
+    const [serviceDropdownVal, setServiceDropdownVal] = useState('')
     const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
     const [tutors, setTutors] = useState<any[]>([])
     const [filteredTutors, setFilteredTutors] = useState<any[]>([])
@@ -123,6 +125,19 @@ export default function Appointments() {
     // Hour Blocking state
     const [showActionChoiceModal, setShowActionChoiceModal] = useState(false)
     const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null)
+
+    // Sincronizar servicios seleccionados cuando el modal abre (edición) o cierra
+    useEffect(() => {
+        if (showModal && editingId) {
+            const appt = appointments.find(a => a.id === editingId)
+            if (appt?.service) {
+                setSelectedServices(appt.service.split(' + ').filter(s => s.trim()))
+            }
+        } else if (!showModal) {
+            setSelectedServices([])
+            setServiceDropdownVal('')
+        }
+    }, [showModal, editingId])
 
     // Fetch services and professionals
     // Consolidated Fetch Function
@@ -571,7 +586,7 @@ export default function Appointments() {
                     patient_name: newAppointment.patient_name,
                     tutor_name: newAppointment.tutor_name,
                     phone_number: newAppointment.phone_number,
-                    service: newAppointment.service,
+                    service: selectedServices.join(' + '),
                     appointment_date: appointmentDate,
                     notes: newAppointment.notes,
                     professional_id: (newAppointment.professional_id && newAppointment.professional_id.length > 20) ? newAppointment.professional_id : null,
@@ -601,7 +616,7 @@ export default function Appointments() {
                     patient_name: newAppointment.patient_name,
                     tutor_name: newAppointment.tutor_name,
                     phone_number: newAppointment.phone_number,
-                    service: newAppointment.service,
+                    service: selectedServices.join(' + '),
                     appointment_date: appointmentDate,
                     status: 'pending',
                     notes: newAppointment.notes,
@@ -626,10 +641,11 @@ export default function Appointments() {
 
             // Sync with Google Calendar (Create or Update)
             let durationMinutes = 60
-            const selectedServiceObj = services.find(s => s.name === newAppointment.service)
-            if (selectedServiceObj) {
-                durationMinutes = selectedServiceObj.duration
-            }
+            const totalDuration = selectedServices.reduce((sum, svcName) => {
+                const svcObj = services.find(s => s.name === svcName)
+                return sum + (svcObj ? svcObj.duration : 0)
+            }, 0)
+            if (totalDuration > 0) durationMinutes = totalDuration
 
             const endDate = new Date(new Date(appointmentDate).getTime() + durationMinutes * 60 * 1000).toISOString()
 
@@ -1814,28 +1830,80 @@ export default function Appointments() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-charcoal mb-2">
-                                        Servicio *
+                                        Servicios *
+                                        {selectedServices.length > 0 && (
+                                            <span className="ml-2 text-xs font-normal text-charcoal/50">
+                                                {selectedServices.length} seleccionado{selectedServices.length > 1 ? 's' : ''} · {selectedServices.reduce((sum, svcName) => {
+                                                    const svcObj = services.find(s => s.name === svcName)
+                                                    return sum + (svcObj ? svcObj.duration : 0)
+                                                }, 0)} min total
+                                            </span>
+                                        )}
                                     </label>
-                                    <div className="relative">
-                                        <select
-                                            value={newAppointment.service}
-                                            onChange={(e) => {
-                                                setNewAppointment({
-                                                    ...newAppointment,
-                                                    service: e.target.value
-                                                })
+
+                                    {/* Picker: dropdown + botón agregar */}
+                                    <div className="flex gap-2 mb-2">
+                                        <div className="relative flex-1">
+                                            <select
+                                                value={serviceDropdownVal}
+                                                onChange={(e) => setServiceDropdownVal(e.target.value)}
+                                                className="input-soft w-full appearance-none"
+                                            >
+                                                <option value="">Selecciona un servicio</option>
+                                                {services
+                                                    .filter(s => !selectedServices.includes(s.name))
+                                                    .map((service) => (
+                                                        <option key={service.id} value={service.name}>
+                                                            {service.name} ({service.duration} min) - ${service.price}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                            <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40 rotate-90 pointer-events-none" />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (serviceDropdownVal && !selectedServices.includes(serviceDropdownVal)) {
+                                                    setSelectedServices([...selectedServices, serviceDropdownVal])
+                                                    setServiceDropdownVal('')
+                                                }
                                             }}
-                                            className="input-soft w-full appearance-none"
+                                            disabled={!serviceDropdownVal}
+                                            className="px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-700 transition-colors flex items-center gap-1.5 shrink-0"
                                         >
-                                            <option value="">Selecciona un servicio</option>
-                                            {services.map((service) => (
-                                                <option key={service.id} value={service.name}>
-                                                    {service.name} ({service.duration} min) - ${service.price}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40 rotate-90 pointer-events-none" />
+                                            <Plus className="w-3.5 h-3.5" />
+                                            Agregar
+                                        </button>
                                     </div>
+
+                                    {/* Chips de servicios seleccionados */}
+                                    {selectedServices.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {selectedServices.map((svcName) => {
+                                                const svcObj = services.find(s => s.name === svcName)
+                                                return (
+                                                    <div
+                                                        key={svcName}
+                                                        className="flex items-center gap-1.5 bg-primary-50 border border-primary-200 text-primary-800 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+                                                    >
+                                                        <span>{svcName}</span>
+                                                        {svcObj && (
+                                                            <span className="text-primary-500 font-normal">
+                                                                {svcObj.duration}min
+                                                            </span>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedServices(selectedServices.filter(s => s !== svcName))}
+                                                            className="ml-0.5 text-primary-400 hover:text-primary-700 transition-colors"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div>
@@ -2066,7 +2134,7 @@ export default function Appointments() {
                                     </button>
                                     <button
                                         onClick={handleSaveAppointment}
-                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.phone_number || !newAppointment.service || !newAppointment.appointment_date || !newAppointment.appointment_time}
+                                        disabled={saving || !newAppointment.tutor_name || !newAppointment.phone_number || !selectedServices.length || !newAppointment.appointment_date || !newAppointment.appointment_time}
                                         className="btn-primary flex-1 sm:px-8 flex items-center justify-center gap-2 text-sm whitespace-nowrap min-w-[160px]"
                                     >
                                         {saving ? (
