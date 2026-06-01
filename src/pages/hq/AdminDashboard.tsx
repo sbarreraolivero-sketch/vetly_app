@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, Search, Loader2, RefreshCw, ShieldCheck, Mail, Calendar as CalendarIcon, AlertCircle, MessageCircle, TrendingUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CheckCircle, Search, Loader2, RefreshCw, ShieldCheck, Mail, Calendar as CalendarIcon, AlertCircle, MessageCircle, TrendingUp, Target, ArrowRight, Phone } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,17 @@ interface DiagnosticLead {
     wa_clicked: boolean
     source_url: string | null
     referrer: string | null
+}
+
+interface ProspectSummary {
+    id: string
+    name: string | null
+    phone: string | null
+    address: string | null
+    prospect_type: string | null
+    score: number
+    stage_name: string
+    stage_color: string
 }
 
 interface PendingClinic {
@@ -44,6 +56,8 @@ export default function AdminDashboard() {
     const [error, setError] = useState<string | null>(null)
     const [leads, setLeads] = useState<DiagnosticLead[]>([])
     const [leadsLoading, setLeadsLoading] = useState(true)
+    const [prospects, setProspects] = useState<ProspectSummary[]>([])
+    const [prospectStats, setProspectStats] = useState({ total: 0, sinContactar: 0, enDialogo: 0, convertidos: 0 })
 
     const fetchPendingClinics = useCallback(async () => {
         setLoading(true)
@@ -107,10 +121,50 @@ export default function AdminDashboard() {
         }
     }, [])
 
+    const fetchProspects = useCallback(async () => {
+        try {
+            const { data: stagesData } = await supabase
+                .from('crm_pipeline_stages')
+                .select('id, name, color, position')
+                .eq('clinic_id', '00000000-0000-0000-0000-000000000000')
+
+            const stages = stagesData || []
+            const stageMap = Object.fromEntries(stages.map(s => [s.id, s]))
+            const newStage = stages.find(s => s.position === 0)
+            const contactadoStage = stages.find(s => s.position === 1)
+            const dialogoStage = stages.find(s => s.position === 2)
+            const convertidoStage = stages.find(s => s.position === 3)
+
+            const { data } = await supabase
+                .from('crm_prospects')
+                .select('id, name, phone, address, prospect_type, score, stage_id')
+                .eq('clinic_id', '00000000-0000-0000-0000-000000000000')
+                .eq('source', 'Prospección Digital')
+                .order('score', { ascending: false })
+
+            if (!data) return
+
+            const enriched: ProspectSummary[] = data.map(p => ({
+                ...p,
+                stage_name: stageMap[p.stage_id]?.name ?? 'Sin etapa',
+                stage_color: stageMap[p.stage_id]?.color ?? '#94a3b8',
+            }))
+
+            setProspects(enriched.slice(0, 6))
+            setProspectStats({
+                total: data.length,
+                sinContactar: data.filter(p => p.stage_id === newStage?.id).length,
+                enDialogo: data.filter(p => p.stage_id === contactadoStage?.id || p.stage_id === dialogoStage?.id).length,
+                convertidos: data.filter(p => p.stage_id === convertidoStage?.id).length,
+            })
+        } catch { /* silencioso */ }
+    }, [])
+
     useEffect(() => {
         fetchPendingClinics()
         fetchLeads()
-    }, [fetchPendingClinics, fetchLeads])
+        fetchProspects()
+    }, [fetchPendingClinics, fetchLeads, fetchProspects])
 
     const handleActivate = async (clinic: PendingClinic) => {
         const msg = (clinic.subscription_plan === 'enterprise' || clinic.subscription_plan === 'prestige')
@@ -414,6 +468,90 @@ export default function AdminDashboard() {
                             </table>
                         </div>
                     )}
+                </div>
+            </div>
+            {/* ── Pipeline de Ventas ── */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
+                            <Target className="w-5 h-5 text-teal-600" />
+                            Pipeline de Ventas — Prospección Digital
+                        </h2>
+                        <p className="text-xs text-gray-400 font-medium mt-0.5">Clínicas veterinarias encontradas vía scraping. Gestión completa en CRM Prospectos.</p>
+                    </div>
+                    <Link
+                        to="/hq/crm"
+                        className="flex items-center gap-1.5 text-xs font-black text-teal-600 hover:text-teal-700 transition-colors"
+                    >
+                        Ver CRM completo <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
+
+                {/* Stats del pipeline */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-4 text-center">
+                        <div className="text-2xl font-black text-gray-900">{prospectStats.total}</div>
+                        <div className="text-xs text-gray-400 font-bold mt-0.5">Total prospectos</div>
+                    </div>
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
+                        <div className="text-2xl font-black text-indigo-600">{prospectStats.sinContactar}</div>
+                        <div className="text-xs text-indigo-400 font-bold mt-0.5">🆕 Sin contactar</div>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center">
+                        <div className="text-2xl font-black text-amber-600">{prospectStats.enDialogo}</div>
+                        <div className="text-xs text-amber-400 font-bold mt-0.5">💬 En diálogo</div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
+                        <div className="text-2xl font-black text-emerald-600">{prospectStats.convertidos}</div>
+                        <div className="text-xs text-emerald-400 font-bold mt-0.5">✅ Convertidos</div>
+                    </div>
+                </div>
+
+                {/* Top prospectos por score */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Top prospectos por oportunidad</p>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                        {prospects.length === 0 ? (
+                            <div className="p-8 text-center text-sm text-gray-400">Sin prospectos cargados</div>
+                        ) : prospects.map(p => (
+                            <div key={p.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+                                {/* Score badge */}
+                                <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0"
+                                    style={{ background: p.score >= 90 ? '#ef4444' : p.score >= 80 ? '#f59e0b' : '#10b981' }}
+                                >
+                                    {p.score}
+                                </div>
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-black text-gray-900 truncate">{p.name}</p>
+                                    <p className="text-xs text-gray-400 font-medium truncate">{p.address} · {p.prospect_type}</p>
+                                </div>
+                                {/* Stage pill */}
+                                <span
+                                    className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full text-white shrink-0"
+                                    style={{ background: p.stage_color }}
+                                >
+                                    {p.stage_name}
+                                </span>
+                                {/* WA link */}
+                                {p.phone && (
+                                    <a
+                                        href={`https://wa.me/${p.phone.replace(/\D/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors shrink-0"
+                                        title="Abrir WhatsApp"
+                                    >
+                                        <Phone className="w-3.5 h-3.5" />
+                                    </a>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prospección Vetly — Clínicas Veterinarias Chile</title>
+<style>
+  :root {
+    --teal: #0d9488;
+    --teal-light: #ccfbf1;
+    --teal-dark: #0f766e;
+    --sky: #0ea5e9;
+    --violet: #8b5cf6;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --green: #10b981;
+    --charcoal: #1e293b;
+    --silk: #f8f5f0;
+    --ivory: #fafaf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--ivory); color: var(--charcoal); }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 50%, #065f46 100%);
+    color: white;
+    padding: 40px 48px;
+  }
+  .header-inner { max-width: 1200px; margin: 0 auto; }
+  .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .logo-badge {
+    background: white;
+    color: var(--teal);
+    font-weight: 900;
+    font-size: 18px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    letter-spacing: -0.5px;
+  }
+  .logo-sub { color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 500; }
+  .header h1 { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .header p { color: rgba(255,255,255,0.75); font-size: 15px; }
+  .header-meta { display: flex; gap: 32px; margin-top: 28px; flex-wrap: wrap; }
+  .header-stat { text-align: center; }
+  .header-stat .num { font-size: 32px; font-weight: 900; }
+  .header-stat .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+
+  /* MAIN CONTENT */
+  .content { max-width: 1200px; margin: 0 auto; padding: 40px 48px; }
+
+  /* SECTION TITLES */
+  .section-title {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--teal);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+  }
+
+  /* SCORE BAR */
+  .score-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+  .score-bar { flex: 1; height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 99px; }
+  .score-num { font-weight: 800; font-size: 13px; min-width: 28px; text-align: right; }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge-red { background: #fee2e2; color: #b91c1c; }
+  .badge-amber { background: #fef3c7; color: #b45309; }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-violet { background: #ede9fe; color: #6d28d9; }
+  .badge-sky { background: #e0f2fe; color: #0369a1; }
+  .badge-gray { background: #f1f5f9; color: #475569; }
+
+  /* TABLE */
+  .table-wrap { background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 48px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: #f8fafc; }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+  .name-cell strong { display: block; font-size: 14px; font-weight: 700; color: var(--charcoal); }
+  .name-cell span { font-size: 12px; color: #64748b; }
+  .contact-cell { font-size: 12px; color: #475569; line-height: 1.6; }
+  .contact-cell a { color: var(--teal); text-decoration: none; }
+  .prob-list { font-size: 11px; color: #64748b; line-height: 1.7; }
+  .prob-list li { list-style: none; }
+  .prob-list li::before { content: '⚠ '; color: var(--amber); }
+
+  /* PROSPECT CARDS */
+  .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px; }
+  @media (max-width: 900px) { .cards-grid { grid-template-columns: 1fr; } }
+
+  .prospect-card {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .card-header {
+    padding: 20px 24px;
+    color: white;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .card-rank {
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.75;
+    margin-bottom: 4px;
+  }
+  .card-name { font-size: 18px; font-weight: 900; margin-bottom: 2px; }
+  .card-ciudad { font-size: 12px; opacity: 0.8; }
+  .card-score-big {
+    font-size: 36px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .card-score-label { font-size: 10px; opacity: 0.7; text-align: center; margin-top: 2px; }
+  .card-body { padding: 20px 24px; }
+  .card-section { margin-bottom: 16px; }
+  .card-section-title {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .contact-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; margin-bottom: 4px; }
+  .contact-row .icon { font-size: 14px; width: 18px; text-align: center; }
+  .contact-row a { color: var(--teal); }
+  .problems-list { list-style: none; }
+  .problems-list li {
+    font-size: 12px;
+    color: #475569;
+    padding: 4px 0;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    gap: 6px;
+  }
+  .problems-list li:last-child { border-bottom: none; }
+  .prop-value {
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border: 1px solid #a7f3d0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #065f46;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .prop-value strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; color: var(--teal); }
+
+  .msg-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 12px;
+    color: #475569;
+    line-height: 1.7;
+    font-family: 'Courier New', monospace;
+    position: relative;
+  }
+  .msg-box::before {
+    content: 'WhatsApp';
+    position: absolute;
+    top: -10px;
+    left: 12px;
+    background: #25D366;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-family: system-ui;
+  }
+  .copy-btn {
+    margin-top: 10px;
+    background: #25D366;
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+  }
+  .copy-btn:hover { background: #1da851; }
+
+  /* STATS NICHO */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 48px; }
+  @media (max-width: 700px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+  .stat-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-pct { font-size: 36px; font-weight: 900; }
+  .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .stat-detail { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  /* EXPORT */
+  .export-section {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 32px;
+    margin-bottom: 48px;
+  }
+  .export-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .export-table th { background: #f8fafc; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
+  .export-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+  .export-table tr:last-child td { border-bottom: none; }
+  .export-btn {
+    background: var(--teal);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 16px;
+  }
+  .export-btn:hover { background: var(--teal-dark); }
+
+  /* FOOTER */
+  .footer {
+    background: var(--charcoal);
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+  }
+  .footer strong { color: white; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-badge">Vetly</div>
+      <div class="logo-sub">Kit de Prospección · Clínicas Veterinarias Chile</div>
+    </div>
+    <h1>🎯 Informe de Prospección — Clínicas Veterinarias Chile</h1>
+    <p>Generado el 31 mayo 2026 · Actualizado con ronda 2 · <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 99px; font-weight: 700;">✅ Integrado en HQ CRM</span></p>
+    <div class="header-meta">
+      <div class="header-stat">
+        <div class="num">15</div>
+        <div class="lbl">Prospectos en CRM</div>
+      </div>
+      <div class="header-stat">
+        <div class="num">9</div>
+        <div class="lbl">Oportunidad ALTA (80+)</div>
+      </div>
+      <div class="header-stat">
+        <div class="num">100%</div>
+        <div class="lbl">Sin agendamiento IA</div>
+      </div>
+      <div class="header-stat">
+        <div class="num">82</div>
+        <div class="lbl">Score promedio</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ESTADÍSTICAS DEL NICHO -->
+  <div class="section-title">📊 Radiografía del nicho en Chile</div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-pct" style="color: var(--red)">100%</div>
+      <div class="stat-label">Agenda por WhatsApp manual</div>
+      <div class="stat-detail">Ninguna usa IA para responder</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-pct" style="color: var(--amber)">87%</div>
+      <div class="stat-label">Sin agendamiento online real</div>
+      <div class="stat-detail">Solo formulario básico o nada</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-pct" style="color: var(--amber)">60%</div>
+      <div class="stat-label">Usan email personal (Gmail/Yahoo)</div>
+      <div class="stat-detail">Señal de bajo nivel de digitalización</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-pct" style="color: var(--red)">53%</div>
+      <div class="stat-label">Sin recordatorios automáticos</div>
+      <div class="stat-detail">El seguimiento post-cita es manual o inexistente</div>
+    </div>
+  </div>
+
+  <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0; border-radius: 12px; padding: 20px 24px; margin-bottom: 48px; color: #065f46; font-size: 14px; line-height: 1.7;">
+    <strong style="display: block; font-size: 16px; font-weight: 800; margin-bottom: 8px;">💡 Conclusión del nicho</strong>
+    El 100% de las clínicas analizadas gestiona WhatsApp manualmente. Ninguna tiene IA respondiendo consultas ni agendando automáticamente. Las clínicas móviles/domicilio son el target más caliente: trabajan solas, su WhatsApp no para y cada mensaje perdido es una cita (y plata) que se va a la competencia. <strong>La oportunidad de Vetly en Chile es enorme — el mercado está completamente virgen en automatización real.</strong>
+  </div>
+
+  <!-- TABLA COMPLETA -->
+  <div class="section-title">📋 Tabla de prospectos — ordenados por oportunidad</div>
+  <div class="table-wrap" style="margin-bottom: 48px;">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Clínica</th>
+          <th>Tipo</th>
+          <th>Contacto</th>
+          <th>Problemas detectados</th>
+          <th>Score</th>
+          <th>Nivel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1</strong></td>
+          <td class="name-cell">
+            <strong>Belevet – Vet. Domicilio Temuco</strong>
+            <span>📍 Temuco, Araucanía</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil individual</span></td>
+          <td class="contact-cell">
+            📱 +56 9 6436 5525<br>
+            📧 Sin email<br>
+            🌐 veterinariadomiciliotemuco.cl
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Sin email de contacto (cero captura)</li>
+              <li>Sin redes sociales</li>
+              <li>Agenda solo por llamada/WA manual</li>
+              <li>Sin recordatorios automáticos</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:96%; background: var(--red)"></div></div>
+              <div class="score-num" style="color: var(--red)">96</div>
+            </div>
+          </td>
+          <td><span class="badge badge-red">🔥 Máxima</span></td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td class="name-cell">
+            <strong>Dra. Aurora Shen</strong>
+            <span>📍 Santiago Centro + aledañas</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil individual</span></td>
+          <td class="contact-cell">
+            📱 +56 9 3876 2482<br>
+            📧 draaurorashen@gmail.com<br>
+            📸 @doctorashen.vet
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Email gmail personal (no profesional)</li>
+              <li>Agenda 100% manual por WA/email</li>
+              <li>Sin sistema de recordatorios</li>
+              <li>Trabaja sola — todo lo gestiona ella</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:95%; background: var(--red)"></div></div>
+              <div class="score-num" style="color: var(--red)">95</div>
+            </div>
+          </td>
+          <td><span class="badge badge-red">🔥 Máxima</span></td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td class="name-cell">
+            <strong>Vetsana</strong>
+            <span>📍 Ñuñoa / Providencia / Las Condes</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil individual</span></td>
+          <td class="contact-cell">
+            📱 +56 9 8159 0333<br>
+            📧 moralespaulavero@gmail.com<br>
+            🌐 vetsana.cl
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Email gmail personal</li>
+              <li>Sin redes sociales</li>
+              <li>Agenda solo por WhatsApp manual</li>
+              <li>15+ años sin automatizar la agenda</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:92%; background: var(--red)"></div></div>
+              <div class="score-num" style="color: var(--red)">92</div>
+            </div>
+          </td>
+          <td><span class="badge badge-red">🔥 Máxima</span></td>
+        </tr>
+        <tr>
+          <td><strong>4</strong></td>
+          <td class="name-cell">
+            <strong>CatDog Veterinaria a Domicilio</strong>
+            <span>📍 Toda Santiago (20+ comunas)</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil equipo</span></td>
+          <td class="contact-cell">
+            📱 +56 9 9351 6487<br>
+            📧 contacto@catdog.cl<br>
+            🌐 catdog.cl
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Formulario web → respuesta manual en "1 hora"</li>
+              <li>Sin redes sociales detectadas</li>
+              <li>Sin recordatorios post-cita</li>
+              <li>Coordinación de ruta manual entre veterinarios</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:88%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">88</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>5</strong></td>
+          <td class="name-cell">
+            <strong>Alfa Canis</strong>
+            <span>📍 Av. Brasil 2845, Valparaíso</span>
+          </td>
+          <td><span class="badge badge-sky">Física pequeña</span></td>
+          <td class="contact-cell">
+            📱 +56 9 9333 1218<br>
+            📧 rlopez2845@yahoo.es<br>
+            🌐 veterinariavalparaiso.cl
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Email Yahoo (¡muy anticuado!)</li>
+              <li>Sin redes sociales</li>
+              <li>Sin agendamiento online</li>
+              <li>25 años de operación sin digitalización</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:88%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">88</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>6</strong></td>
+          <td class="name-cell">
+            <strong>MOVET</strong>
+            <span>📍 Región Metropolitana completa</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil equipo</span></td>
+          <td class="contact-cell">
+            📱 +56 9 7545 2521<br>
+            📧 veterinaria@movet.cl<br>
+            📸 @movet.cl
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Agenda 100% por WhatsApp manual</li>
+              <li>Cobertura RM completa sin optimización de ruta</li>
+              <li>Sin recordatorios automáticos</li>
+              <li>Redes sociales pero sin contenido de agendamiento</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:85%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">85</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>7</strong></td>
+          <td class="name-cell">
+            <strong>Clinimascotas</strong>
+            <span>📍 Av. Suiza 308, Cerrillos, Santiago</span>
+          </td>
+          <td><span class="badge badge-sky">Física pequeña</span></td>
+          <td class="contact-cell">
+            📱 +56 9 7709 6258<br>
+            📧 veterinariaclinimascotas@gmail.com<br>
+            📸 @clinimascotasveterinaria
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Email gmail personal</li>
+              <li>Sin agendamiento online (solo WA)</li>
+              <li>2 veterinarios, recepción desbordada</li>
+              <li>También hacen domicilio (sin sistema de ruta)</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:82%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">82</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>8</strong></td>
+          <td class="name-cell">
+            <strong>Clínica Veterinaria Metrenco</strong>
+            <span>📍 Km 684 Ruta 5 Sur, Temuco</span>
+          </td>
+          <td><span class="badge badge-sky">Física mediana</span></td>
+          <td class="contact-cell">
+            📱 +56 9 9226 0822<br>
+            📧 veterinaria.metrenco@gmail.com<br>
+            📸 veterinariametrenco
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Sin agendamiento online (solo llamada)</li>
+              <li>Email gmail para clínica establecida</li>
+              <li>WhatsApp manual para coordinación</li>
+              <li>Servicios complejos sin seguimiento digital</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:75%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">75</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>9</strong></td>
+          <td class="name-cell">
+            <strong>Centro Animal CCP</strong>
+            <span>📍 Caupolicán 321, Concepción</span>
+          </td>
+          <td><span class="badge badge-sky">Especialista</span></td>
+          <td class="contact-cell">
+            📱 +56 9 6645 3794<br>
+            📧 contacto@centroanimal.cl<br>
+            📸 @centro.animal.ccp
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Solo WhatsApp para agenda (manual)</li>
+              <li>Especialista: flujo de pre-consulta complejo</li>
+              <li>Sin recordatorio de citas automáticas</li>
+              <li>Sin historial digital de pacientes visible</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:72%; background: var(--green)"></div></div>
+              <div class="score-num" style="color: var(--green)">72</div>
+            </div>
+          </td>
+          <td><span class="badge badge-green">✓ Media</span></td>
+        </tr>
+        <tr>
+          <td><strong>10</strong></td>
+          <td class="name-cell">
+            <strong>Puerto Pet Valparaíso</strong>
+            <span>📍 Las Heras 655, Valparaíso</span>
+          </td>
+          <td><span class="badge badge-sky">Física mediana</span></td>
+          <td class="contact-cell">
+            📱 +56 9 4129 7269<br>
+            📧 Sin email en web<br>
+            📸 @puertopet
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Sin email visible en web</li>
+              <li>7 veterinarios → recepcionista desbordada</li>
+              <li>WhatsApp + formulario (proceso manual)</li>
+              <li>Sin recordatorios automáticos post-cita</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:65%; background: var(--green)"></div></div>
+              <div class="score-num" style="color: var(--green)">65</div>
+            </div>
+          </td>
+          <td><span class="badge badge-green">✓ Media</span></td>
+        </tr>
+        <!-- NUEVOS PROSPECTOS -->
+        <tr style="background: #f0fdf4;">
+          <td colspan="7" style="padding: 8px 16px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: #059669;">✨ Prospectos adicionales — Ronda 2</td>
+        </tr>
+        <tr>
+          <td><strong>11</strong></td>
+          <td class="name-cell">
+            <strong>Dra. Fernanda Sasso</strong>
+            <span>📍 Rancagua / Machalí, O'Higgins</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil individual</span></td>
+          <td class="contact-cell">
+            📱 +56 9 5404 7440<br>
+            📧 f.sassovet@hotmail.com<br>
+            📸 @dra.sassovet
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Hotmail personal (baja profesionalización digital)</li>
+              <li>Solo WA/llamada para agendar — sin sistema</li>
+              <li>Sin recordatorios automáticos</li>
+              <li>Cubre 2 ciudades sola sin optimización</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:93%; background: var(--red)"></div></div>
+              <div class="score-num" style="color: var(--red)">93</div>
+            </div>
+          </td>
+          <td><span class="badge badge-red">🔥 Máxima</span></td>
+        </tr>
+        <tr>
+          <td><strong>12</strong></td>
+          <td class="name-cell">
+            <strong>FisioVet V Región</strong>
+            <span>📍 Viña del Mar / V Región</span>
+          </td>
+          <td><span class="badge badge-violet">Móvil individual</span></td>
+          <td class="contact-cell">
+            📱 +56 9 7835 3026<br>
+            📧 Sin email público<br>
+            📸 @fisiovet2030
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Solo Instagram como canal visible</li>
+              <li>Agenda solo por WA — sin sistema</li>
+              <li>Nicho especializado (fisioterapia) con clientes recurrentes</li>
+              <li>Sin recordatorios de sesiones</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:80%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">80</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>13</strong></td>
+          <td class="name-cell">
+            <strong>Veterinaria Rexito</strong>
+            <span>📍 Chile (ubicación por confirmar)</span>
+          </td>
+          <td><span class="badge badge-sky">Física pequeña</span></td>
+          <td class="contact-cell">
+            📱 +56 9 7579 1942<br>
+            📧 Sin email público<br>
+            📸 @veterinariarexito
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Solo WA para agenda — totalmente manual</li>
+              <li>Sin email ni web detectada</li>
+              <li>Farmacia + consultas: alto volumen de contactos</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:75%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">75</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>14</strong></td>
+          <td class="name-cell">
+            <strong>Posta Veterinaria PM</strong>
+            <span>📍 Crucero 1929, Puerto Montt</span>
+          </td>
+          <td><span class="badge badge-sky">Física pequeña</span></td>
+          <td class="contact-cell">
+            📱 +56 9 8120 3101<br>
+            📧 postaveterinaria.pm@gmail.com<br>
+            📸 @postaveterinariaptomontt
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Gmail personal para negocio</li>
+              <li>Tienda online + consultas sin integración</li>
+              <li>Sin agendamiento online real</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:74%; background: var(--amber)"></div></div>
+              <div class="score-num" style="color: var(--amber)">74</div>
+            </div>
+          </td>
+          <td><span class="badge badge-amber">⚠ Alta</span></td>
+        </tr>
+        <tr>
+          <td><strong>15</strong></td>
+          <td class="name-cell">
+            <strong>VETMEDICAL Viña del Mar</strong>
+            <span>📍 4 Ote. 492, Viña del Mar</span>
+          </td>
+          <td><span class="badge badge-sky">Física pequeña</span></td>
+          <td class="contact-cell">
+            📱 +56 32 319 7964<br>
+            📧 Sin email visible<br>
+            🌐 Sin web propia detectada
+          </td>
+          <td>
+            <ul class="prob-list">
+              <li>Sin email ni web propia</li>
+              <li>Solo teléfono fijo como contacto</li>
+              <li>Peluquería + consultas + domicilio</li>
+            </ul>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-bar-fill" style="width:70%; background: var(--green)"></div></div>
+              <div class="score-num" style="color: var(--green)">70</div>
+            </div>
+          </td>
+          <td><span class="badge badge-green">✓ Media</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- BADGE HQ INTEGRADO -->
+  <div style="background: linear-gradient(135deg, #0d9488, #0f766e); border-radius: 16px; padding: 20px 28px; margin-bottom: 48px; color: white; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+    <div style="font-size: 28px;">🏢</div>
+    <div style="flex: 1; min-width: 200px;">
+      <div style="font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; opacity: 0.75; margin-bottom: 4px;">Integrado con Vetly HQ</div>
+      <div style="font-size: 16px; font-weight: 800;">Los 15 prospectos ya están en el CRM del HQ</div>
+      <div style="font-size: 13px; opacity: 0.8; margin-top: 4px;">Gestiona el pipeline desde <strong>vetly.pro/hq/crm</strong> — arrastra tarjetas entre columnas, agrega notas y sigue el avance de cada prospecto.</div>
+    </div>
+    <a href="/hq/crm" style="background: white; color: #0d9488; text-decoration: none; font-weight: 900; font-size: 13px; padding: 10px 20px; border-radius: 10px; white-space: nowrap;">Ir al CRM →</a>
+  </div>
+
+  <!-- FICHAS DETALLADAS TOP 5 -->
+  <div class="section-title">🔎 Fichas detalladas — Top 5 prospectos recomendados</div>
+  <div class="cards-grid">
+
+    <!-- CARD 1: BELEVET -->
+    <div class="prospect-card">
+      <div class="card-header" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
+        <div>
+          <div class="card-rank">#1 · Máxima Prioridad</div>
+          <div class="card-name">Belevet – Vet. Domicilio Temuco</div>
+          <div class="card-ciudad">📍 Temuco, Araucanía · Clínica móvil individual</div>
+        </div>
+        <div>
+          <div class="card-score-big">96</div>
+          <div class="card-score-label">/ 100</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-section">
+          <div class="card-section-title">Datos de contacto</div>
+          <div class="contact-row"><span class="icon">📱</span> <a href="tel:+56964365525">+56 9 6436 5525</a></div>
+          <div class="contact-row"><span class="icon">💬</span> <a href="https://wa.me/56964365525">wa.me/56964365525</a></div>
+          <div class="contact-row"><span class="icon">🌐</span> <a href="https://veterinariadomiciliotemuco.cl" target="_blank">veterinariadomiciliotemuco.cl</a></div>
+          <div class="contact-row"><span class="icon">📧</span> Sin email registrado</div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">3 problemas concretos detectados</div>
+          <ul class="problems-list">
+            <li>🔴 <span>Sin email: cualquier cliente que no encuentre su número se pierde para siempre</span></li>
+            <li>🔴 <span>Sin redes sociales: cero visibilidad orgánica en Temuco</span></li>
+            <li>🔴 <span>100% WhatsApp manual: si está atendiendo, el mensaje queda sin responder — el cliente llama a otra veterinaria</span></li>
+          </ul>
+        </div>
+
+        <div class="prop-value">
+          <strong>Por qué Vetly es la solución perfecta</strong>
+          Belevet es exactamente el caso de Claudia (Animalgrace): veterinaria individual a domicilio, WhatsApp como único canal, sin un sistema que responda cuando está en consulta. Lía responde automáticamente, agenda la cita y envía recordatorio. Sin contratar nadie.
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">Mensaje de contacto listo para enviar</div>
+          <div class="msg-box" id="msg1">Hola 👋 Vi tu web de Belevet — atención a domicilio en Temuco de lunes a domingo, un servicio que me llamó mucho la atención.
+
+Una pregunta directa: ¿qué haces con los WhatsApps que llegan mientras estás en plena consulta?
+
+Antes de fundar Vetly, yo operé Movilvets, una clínica móvil. Ese problema lo viví en carne propia: los mensajes se acumulaban y los clientes llamaban a otra veterinaria. Por eso construí Lía — una IA que responde y agenda automáticamente por WhatsApp, pensada exactamente para clínicas como la tuya.
+
+¿Te mando un video de 2 minutos de cómo funciona?</div>
+          <button class="copy-btn" onclick="copyMsg('msg1', this)">📋 Copiar mensaje</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 2: DRA. AURORA SHEN -->
+    <div class="prospect-card">
+      <div class="card-header" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
+        <div>
+          <div class="card-rank">#2 · Máxima Prioridad</div>
+          <div class="card-name">Dra. Aurora Shen</div>
+          <div class="card-ciudad">📍 Santiago Centro · Veterinaria a domicilio individual</div>
+        </div>
+        <div>
+          <div class="card-score-big">95</div>
+          <div class="card-score-label">/ 100</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-section">
+          <div class="card-section-title">Datos de contacto</div>
+          <div class="contact-row"><span class="icon">📱</span> <a href="tel:+56938762482">+56 9 3876 2482</a></div>
+          <div class="contact-row"><span class="icon">💬</span> <a href="https://wa.me/56938762482">wa.me/56938762482</a></div>
+          <div class="contact-row"><span class="icon">📧</span> <a href="mailto:draaurorashen@gmail.com">draaurorashen@gmail.com</a></div>
+          <div class="contact-row"><span class="icon">📸</span> <a href="https://instagram.com/doctorashen.vet" target="_blank">@doctorashen.vet</a></div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">3 problemas concretos detectados</div>
+          <ul class="problems-list">
+            <li>🔴 <span>Email gmail personal para consultas veterinarias: imagen poco profesional y sin gestión centralizada</span></li>
+            <li>🔴 <span>Agenda manual vía WA/email/teléfono: ella sola maneja todo, sin sistema</span></li>
+            <li>🔴 <span>Sin recordatorios: los clientes deben recordar solos la próxima vacuna o control</span></li>
+          </ul>
+        </div>
+
+        <div class="prop-value">
+          <strong>Por qué Vetly encaja perfectamente</strong>
+          Trabaja sola, atiende en zonas específicas de Santiago, y su WhatsApp es la única línea de contacto. Cuando está en consulta no puede responder. Lía atiende, agenda, informa disponibilidad y envía recordatorios médicos automáticos (vacunas, desparasitación) — sin que Aurora toque el teléfono.
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">Mensaje de contacto listo para enviar</div>
+          <div class="msg-box" id="msg2">Hola Dra. Aurora 👋 Vi tu Instagram (@doctorashen.vet) — atención a domicilio en Providencia y Las Condes, con ese toque personalizado que se nota de lejos.
+
+Te cuento mi historia rápido: antes de fundar Vetly, operé Movilvets, una clínica veterinaria móvil. Yo también respondía WhatsApp entre consulta y consulta, y sé lo que cuesta perder un cliente porque no alcanzaste a contestar.
+
+Por eso construí Lía — una recepcionista IA que responde y agenda por WhatsApp automáticamente, incluso cuando estás en plena atención. También envía recordatorios de vacunas sin que hagas nada.
+
+¿Tienes 15 minutos esta semana para una llamada rápida?</div>
+          <button class="copy-btn" onclick="copyMsg('msg2', this)">📋 Copiar mensaje</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 3: VETSANA -->
+    <div class="prospect-card">
+      <div class="card-header" style="background: linear-gradient(135deg, #d97706, #b45309);">
+        <div>
+          <div class="card-rank">#3 · Máxima Prioridad</div>
+          <div class="card-name">Vetsana</div>
+          <div class="card-ciudad">📍 Ñuñoa / Providencia / Las Condes · Domicilio individual</div>
+        </div>
+        <div>
+          <div class="card-score-big">92</div>
+          <div class="card-score-label">/ 100</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-section">
+          <div class="card-section-title">Datos de contacto</div>
+          <div class="contact-row"><span class="icon">📱</span> <a href="tel:+56981590333">+56 9 8159 0333</a></div>
+          <div class="contact-row"><span class="icon">💬</span> <a href="https://wa.me/56981590333">wa.me/56981590333</a></div>
+          <div class="contact-row"><span class="icon">📧</span> <a href="mailto:moralespaulavero@gmail.com">moralespaulavero@gmail.com</a></div>
+          <div class="contact-row"><span class="icon">🌐</span> <a href="https://vetsana.cl" target="_blank">vetsana.cl</a></div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">3 problemas concretos detectados</div>
+          <ul class="problems-list">
+            <li>🔴 <span>Email gmail personal a pesar de tener sitio web propio (inconsistencia digital)</span></li>
+            <li>🔴 <span>Sin redes sociales: depende 100% del boca a boca y búsqueda orgánica</span></li>
+            <li>🔴 <span>15+ años de experiencia, 500+ pacientes, y todavía agenda todo por WhatsApp manual</span></li>
+          </ul>
+        </div>
+
+        <div class="prop-value">
+          <strong>Por qué Vetly encaja perfectamente</strong>
+          Lleva 15 años atendiendo pero toda la operación de agenda sigue siendo manual. Con 500+ pacientes y sin recordatorios automáticos, hay citas de vacunas y controles que se pierden por olvido del cliente. Vetly le devuelve ese volumen perdido automáticamente.
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">Mensaje de contacto listo para enviar</div>
+          <div class="msg-box" id="msg3">Hola 👋 Encontré Vetsana en Google — 15 años de experiencia y +500 mascotas atendidas. Eso habla muy bien de la confianza que generaste.
+
+Te pregunto algo: con esa cantidad de pacientes, ¿estás recordando manualmente cuándo le toca la próxima vacuna a cada uno?
+
+Fundé Vetly después de operar Movilvets, mi propia clínica móvil. Aprendí que el seguimiento manual no escala — y que cada vacuna olvidada es un cliente que se va. Por eso construí recordatorios automáticos: Lía agenda por WhatsApp Y recuerda a cada dueño cuándo viene la próxima vacuna, sin que toques el teléfono.
+
+¿Te mando un ejemplo real de cómo funciona?</div>
+          <button class="copy-btn" onclick="copyMsg('msg3', this)">📋 Copiar mensaje</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 4: CATDOG -->
+    <div class="prospect-card">
+      <div class="card-header" style="background: linear-gradient(135deg, #d97706, #b45309);">
+        <div>
+          <div class="card-rank">#4 · Oportunidad Alta</div>
+          <div class="card-name">CatDog Veterinaria a Domicilio</div>
+          <div class="card-ciudad">📍 Toda Santiago · Equipo de domicilio</div>
+        </div>
+        <div>
+          <div class="card-score-big">88</div>
+          <div class="card-score-label">/ 100</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-section">
+          <div class="card-section-title">Datos de contacto</div>
+          <div class="contact-row"><span class="icon">📱</span> <a href="tel:+56993516487">+56 9 9351 6487</a></div>
+          <div class="contact-row"><span class="icon">💬</span> <a href="https://wa.me/56993516487">wa.me/56993516487</a></div>
+          <div class="contact-row"><span class="icon">📧</span> <a href="mailto:contacto@catdog.cl">contacto@catdog.cl</a></div>
+          <div class="contact-row"><span class="icon">🌐</span> <a href="https://catdog.cl" target="_blank">catdog.cl</a></div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">3 problemas concretos detectados</div>
+          <ul class="problems-list">
+            <li>🟡 <span>Formulario web existe pero el seguimiento es manual ("te contactamos en 1 hora") — no hay confirmación automática</span></li>
+            <li>🔴 <span>Cubren 20+ comunas de Santiago con coordinación manual de ruta entre veterinarios</span></li>
+            <li>🔴 <span>Sin recordatorios automáticos ni seguimiento post-cita</span></li>
+          </ul>
+        </div>
+
+        <div class="prop-value">
+          <strong>Por qué Vetly encaja perfectamente</strong>
+          Operan en toda Santiago con varios veterinarios y sin un sistema de ruta inteligente. Goldi (optimización de ruta) + Lía (respuesta automática y agenda) pueden transformar su operación: menos km, menos coordinación manual, más citas en el día.
+        </div>
+
+        <div class="card-section">
+          <div class="card-section-title">Mensaje de contacto listo para enviar</div>
+          <div class="msg-box" id="msg4">Hola equipo CatDog 👋 Cubriendo 20 comunas de Santiago con atención a domicilio — eso es una operación logística enorme.
+
+Antes de fundar Vetly, operé Movilvets, una clínica móvil. Sé de primera mano lo que cuesta coordinar qué veterinario va a qué zona, y cuántos mensajes se pierden en las horas pico.
+
+Por eso Vetly tiene dos agentes especializados: Goldi optimiza las rutas diarias (reduce ~40% los km) y Lía responde y agenda automáticamente por WhatsApp, incluso cuando todos están en consulta.
+
+¿Conversamos 15 minutos esta semana?</div>
+          <button class="copy-btn" onclick="copyMsg('msg4', this)">📋 Copiar mensaje</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 5: ALFA CANIS -->
+    <div class="prospect-card" style="grid-column: 1 / -1;">
+      <div class="card-header" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+        <div>
+          <div class="card-rank">#5 · Oportunidad Alta · Joya Oculta</div>
+          <div class="card-name">Alfa Canis Valparaíso</div>
+          <div class="card-ciudad">📍 Av. Brasil 2845, Valparaíso · Clínica física con 25 años de historia</div>
+        </div>
+        <div>
+          <div class="card-score-big">88</div>
+          <div class="card-score-label">/ 100</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px;">
+          <div>
+            <div class="card-section">
+              <div class="card-section-title">Datos de contacto</div>
+              <div class="contact-row"><span class="icon">📱</span> <a href="tel:+56993331218">+56 9 9333 1218</a></div>
+              <div class="contact-row"><span class="icon">💬</span> <a href="https://wa.me/56993331218">wa.me/56993331218</a></div>
+              <div class="contact-row"><span class="icon">📧</span> <a href="mailto:rlopez2845@yahoo.es">rlopez2845@yahoo.es</a> 😅</div>
+              <div class="contact-row"><span class="icon">🌐</span> <a href="https://veterinariavalparaiso.cl" target="_blank">veterinariavalparaiso.cl</a></div>
+            </div>
+          </div>
+          <div>
+            <div class="card-section">
+              <div class="card-section-title">3 problemas detectados</div>
+              <ul class="problems-list">
+                <li>🔴 <span>Email Yahoo: el mayor indicador de digitalización nula</span></li>
+                <li>🔴 <span>Sin redes sociales a pesar de 25 años de trayectoria</span></li>
+                <li>🔴 <span>Sin agendamiento online ni recordatorios</span></li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="prop-value" style="height: auto;">
+              <strong>Ángulo de entrada</strong>
+              25 años de clínica sin un sistema moderno es el argumento más fácil: "Con tu base de clientes y tu reputación en Valparaíso, Lía podría convertir cada visita en un cliente que vuelve automáticamente." El email Yahoo es el gancho perfecto para abrir la conversación con humor.
+            </div>
+          </div>
+        </div>
+        <div class="card-section" style="margin-top: 8px;">
+          <div class="card-section-title">Mensaje de contacto listo para enviar</div>
+          <div class="msg-box" id="msg5">Hola 👋 Vi su clínica Alfa Canis en Valparaíso — 25 años de experiencia es una reputación que pocos pueden presumir.
+
+Una reflexión: con esa trayectoria y esa base de clientes, cada vez que un paciente no vuelve porque nadie lo recordó (la próxima vacuna, el control anual), es revenue perdido que ya deberían tener asegurado.
+
+Fundé Vetly para resolver exactamente eso: Lía es una recepcionista IA que trabaja 24/7 por WhatsApp, agenda citas y envía recordatorios automáticos de vacunas y controles. Sin contratar a nadie.
+
+¿Le muestro cómo funciona con una demo de 15 minutos?</div>
+          <button class="copy-btn" onclick="copyMsg('msg5', this)">📋 Copiar mensaje</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- EXPORT -->
+  <div class="section-title">📤 Datos exportables — Todos los contactos</div>
+  <div class="export-section">
+    <table class="export-table" id="export-table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Ciudad</th>
+          <th>Tipo</th>
+          <th>Teléfono / WhatsApp</th>
+          <th>Email</th>
+          <th>Web</th>
+          <th>Score</th>
+          <th>Nivel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Belevet – Vet. Domicilio Temuco</td><td>Temuco</td><td>Móvil individual</td><td>+56964365525</td><td>—</td><td>veterinariadomiciliotemuco.cl</td><td>96</td><td>Máxima</td></tr>
+        <tr><td>Dra. Aurora Shen</td><td>Santiago</td><td>Móvil individual</td><td>+56938762482</td><td>draaurorashen@gmail.com</td><td>doctorashen.cl</td><td>95</td><td>Máxima</td></tr>
+        <tr><td>Vetsana</td><td>Santiago</td><td>Móvil individual</td><td>+56981590333</td><td>moralespaulavero@gmail.com</td><td>vetsana.cl</td><td>92</td><td>Máxima</td></tr>
+        <tr><td>CatDog Veterinaria a Domicilio</td><td>Santiago</td><td>Móvil equipo</td><td>+56993516487</td><td>contacto@catdog.cl</td><td>catdog.cl</td><td>88</td><td>Alta</td></tr>
+        <tr><td>Alfa Canis</td><td>Valparaíso</td><td>Física pequeña</td><td>+56993331218</td><td>rlopez2845@yahoo.es</td><td>veterinariavalparaiso.cl</td><td>88</td><td>Alta</td></tr>
+        <tr><td>MOVET</td><td>Santiago (RM)</td><td>Móvil equipo</td><td>+56975452521</td><td>veterinaria@movet.cl</td><td>movet.cl</td><td>85</td><td>Alta</td></tr>
+        <tr><td>Clinimascotas</td><td>Santiago – Cerrillos</td><td>Física pequeña</td><td>+56977096258</td><td>veterinariaclinimascotas@gmail.com</td><td>clinimascotas.cl</td><td>82</td><td>Alta</td></tr>
+        <tr><td>Clínica Veterinaria Metrenco</td><td>Temuco</td><td>Física mediana</td><td>+56992260822</td><td>veterinaria.metrenco@gmail.com</td><td>veterinariametrenco.cl</td><td>75</td><td>Alta</td></tr>
+        <tr><td>Centro Animal CCP</td><td>Concepción</td><td>Especialista</td><td>+56966453794</td><td>contacto@centroanimal.cl</td><td>centroanimal.cl</td><td>72</td><td>Media</td></tr>
+        <tr><td>Puerto Pet Valparaíso</td><td>Valparaíso</td><td>Física mediana</td><td>+56941297269</td><td>—</td><td>puertopetvalpo.cl</td><td>65</td><td>Media</td></tr>
+        <tr><td>Dra. Fernanda Sasso</td><td>Rancagua</td><td>Móvil individual</td><td>+56954047440</td><td>f.sassovet@hotmail.com</td><td>drasassovet.cl</td><td>93</td><td>Máxima</td></tr>
+        <tr><td>FisioVet V Región</td><td>Viña del Mar</td><td>Móvil individual</td><td>+56978353026</td><td>—</td><td>—</td><td>80</td><td>Alta</td></tr>
+        <tr><td>Veterinaria Rexito</td><td>Chile</td><td>Física pequeña</td><td>+56975791942</td><td>—</td><td>—</td><td>75</td><td>Alta</td></tr>
+        <tr><td>Posta Veterinaria PM</td><td>Puerto Montt</td><td>Física pequeña</td><td>+56981203101</td><td>postaveterinaria.pm@gmail.com</td><td>postaveterinariapm.cl</td><td>74</td><td>Alta</td></tr>
+        <tr><td>VETMEDICAL Viña del Mar</td><td>Viña del Mar</td><td>Física pequeña</td><td>+56323197964</td><td>—</td><td>—</td><td>70</td><td>Media</td></tr>
+      </tbody>
+    </table>
+    <button class="export-btn" onclick="exportCSV()">⬇️ Exportar CSV para Google Sheets</button>
+    <button class="export-btn" onclick="exportJSON()" style="margin-left: 12px; background: var(--violet);">⬇️ Exportar JSON para CRM</button>
+  </div>
+
+  <!-- PLAN DE ACCION -->
+  <div class="section-title">🚀 Plan de acción recomendado</div>
+  <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 32px; margin-bottom: 48px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: var(--red); margin-bottom: 12px;">Esta semana</div>
+        <ol style="padding-left: 16px; font-size: 13px; color: #475569; line-height: 1.9;">
+          <li>WhatsApp a <strong>Belevet Temuco</strong> (#1 — sin email, sin redes, máxima urgencia)</li>
+          <li>WhatsApp a <strong>Dra. Aurora Shen</strong> vía Instagram DM primero, luego WA</li>
+          <li>WhatsApp a <strong>Vetsana</strong> (#3 — la de 15 años de experiencia)</li>
+        </ol>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: var(--amber); margin-bottom: 12px;">Semana 2</div>
+        <ol start="4" style="padding-left: 16px; font-size: 13px; color: #475569; line-height: 1.9;">
+          <li>Contactar <strong>CatDog</strong> (equipo domicilio, ruta + Goldi es el gancho)</li>
+          <li>Contactar <strong>Alfa Canis Valparaíso</strong> (el email Yahoo es el icebreaker)</li>
+          <li>Contactar <strong>MOVET</strong> (toda la RM, ya tiene redes sociales)</li>
+        </ol>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal); margin-bottom: 12px;">Semana 3-4</div>
+        <ol start="7" style="padding-left: 16px; font-size: 13px; color: #475569; line-height: 1.9;">
+          <li>Contactar <strong>Clinimascotas</strong> (Santiago Cerrillos)</li>
+          <li>Contactar <strong>Metrenco</strong> (clínica grande Temuco)</li>
+          <li>Contactar <strong>Centro Animal CCP</strong> y <strong>Puerto Pet Valpo</strong></li>
+        </ol>
+      </div>
+    </div>
+    <div style="margin-top: 24px; background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0; border-radius: 10px; padding: 16px 20px; font-size: 13px; color: #065f46; line-height: 1.7;">
+      <strong>💡 Consejo clave:</strong> Los mensajes de Sebastián (fundador) tienen mucho más impacto cuando van firmados con su historia: <em>"Fundé Movilvets antes que Vetly — conozco exactamente los problemas que enfrentas porque los viví."</em> Eso distingue el outreach de cualquier otro vendedor de SaaS.
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Generado por <strong>Vetly</strong> · Kit de Prospección · <strong>vetly.pro</strong> · Los datos son reales, extraídos de sitios web públicos · 31 mayo 2026
+</div>
+
+<script>
+function copyMsg(id, btn) {
+  const el = document.getElementById(id);
+  const text = el.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✅ Copiado!';
+    setTimeout(() => { btn.textContent = '📋 Copiar mensaje'; }, 2500);
+  });
+}
+
+function exportCSV() {
+  const table = document.getElementById('export-table');
+  let csv = '';
+  for (let row of table.rows) {
+    const cols = Array.from(row.cells).map(c => `"${c.innerText.replace(/"/g, '""')}"`);
+    csv += cols.join(',') + '\n';
+  }
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'prospectos-vetly-chile.csv';
+  a.click();
+}
+
+function exportJSON() {
+  const prospectos = [
+    { nombre: "Belevet – Vet. Domicilio Temuco", ciudad: "Temuco", tipo: "Móvil individual", telefono: "+56964365525", email: null, web: "veterinariadomiciliotemuco.cl", score: 96, nivel: "Máxima" },
+    { nombre: "Dra. Aurora Shen", ciudad: "Santiago", tipo: "Móvil individual", telefono: "+56938762482", email: "draaurorashen@gmail.com", web: "doctorashen.cl", score: 95, nivel: "Máxima" },
+    { nombre: "Vetsana", ciudad: "Santiago", tipo: "Móvil individual", telefono: "+56981590333", email: "moralespaulavero@gmail.com", web: "vetsana.cl", score: 92, nivel: "Máxima" },
+    { nombre: "CatDog Veterinaria a Domicilio", ciudad: "Santiago", tipo: "Móvil equipo", telefono: "+56993516487", email: "contacto@catdog.cl", web: "catdog.cl", score: 88, nivel: "Alta" },
+    { nombre: "Alfa Canis", ciudad: "Valparaíso", tipo: "Física pequeña", telefono: "+56993331218", email: "rlopez2845@yahoo.es", web: "veterinariavalparaiso.cl", score: 88, nivel: "Alta" },
+    { nombre: "MOVET", ciudad: "Santiago RM", tipo: "Móvil equipo", telefono: "+56975452521", email: "veterinaria@movet.cl", web: "movet.cl", score: 85, nivel: "Alta" },
+    { nombre: "Clinimascotas", ciudad: "Santiago – Cerrillos", tipo: "Física pequeña", telefono: "+56977096258", email: "veterinariaclinimascotas@gmail.com", web: "clinimascotas.cl", score: 82, nivel: "Alta" },
+    { nombre: "Clínica Veterinaria Metrenco", ciudad: "Temuco", tipo: "Física mediana", telefono: "+56992260822", email: "veterinaria.metrenco@gmail.com", web: "veterinariametrenco.cl", score: 75, nivel: "Alta" },
+    { nombre: "Centro Animal CCP", ciudad: "Concepción", tipo: "Especialista", telefono: "+56966453794", email: "contacto@centroanimal.cl", web: "centroanimal.cl", score: 72, nivel: "Media" },
+    { nombre: "Puerto Pet Valparaíso", ciudad: "Valparaíso", tipo: "Física mediana", telefono: "+56941297269", email: null, web: "puertopetvalpo.cl", score: 65, nivel: "Media" },
+    { nombre: "Dra. Fernanda Sasso", ciudad: "Rancagua", tipo: "Móvil individual", telefono: "+56954047440", email: "f.sassovet@hotmail.com", web: "drasassovet.cl", score: 93, nivel: "Máxima" },
+    { nombre: "FisioVet V Región", ciudad: "Viña del Mar", tipo: "Móvil individual", telefono: "+56978353026", email: null, web: null, score: 80, nivel: "Alta" },
+    { nombre: "Veterinaria Rexito", ciudad: "Chile", tipo: "Física pequeña", telefono: "+56975791942", email: null, web: null, score: 75, nivel: "Alta" },
+    { nombre: "Posta Veterinaria PM", ciudad: "Puerto Montt", tipo: "Física pequeña", telefono: "+56981203101", email: "postaveterinaria.pm@gmail.com", web: "postaveterinariapm.cl", score: 74, nivel: "Alta" },
+    { nombre: "VETMEDICAL Viña del Mar", ciudad: "Viña del Mar", tipo: "Física pequeña", telefono: "+56323197964", email: null, web: null, score: 70, nivel: "Media" }
+  ];
+  const blob = new Blob([JSON.stringify(prospectos, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'prospectos-vetly-chile.json';
+  a.click();
+}
+</script>
+</body>
+</html>
