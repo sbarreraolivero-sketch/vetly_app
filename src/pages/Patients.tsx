@@ -66,22 +66,24 @@ export default function Patients() {
 
     const filteredPatients = useMemo(() => {
         return patients.filter(p => {
-            const matchesSearch = 
-                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            const nameLower = (p.name ?? '').toLowerCase()
+            const speciesLower = (p.species ?? '').toLowerCase()
+            const matchesSearch =
+                nameLower.includes(searchQuery.toLowerCase()) ||
                 p.tutors?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-            
-            const matchesSpecies = 
-                speciesFilter === 'all' || 
-                (speciesFilter === 'dog' && (p.species.toLowerCase().includes('canino') || p.species.toLowerCase().includes('perro') || p.species.toLowerCase().includes('can'))) ||
-                (speciesFilter === 'cat' && (p.species.toLowerCase().includes('felino') || p.species.toLowerCase().includes('gato') || p.species.toLowerCase().includes('michi'))) ||
-                (speciesFilter === 'other' && !['canino', 'perro', 'can', 'felino', 'gato', 'michi'].some(s => p.species.toLowerCase().includes(s)))
+
+            const matchesSpecies =
+                speciesFilter === 'all' ||
+                (speciesFilter === 'dog' && (speciesLower.includes('canino') || speciesLower.includes('perro') || speciesLower.includes('can'))) ||
+                (speciesFilter === 'cat' && (speciesLower.includes('felino') || speciesLower.includes('gato') || speciesLower.includes('michi'))) ||
+                (speciesFilter === 'other' && !['canino', 'perro', 'can', 'felino', 'gato', 'michi'].some(s => speciesLower.includes(s)))
 
             return matchesSearch && matchesSpecies
         })
     }, [patients, searchQuery, speciesFilter])
 
-    const formatSpecies = (species: string) => {
-        const s = species?.toLowerCase()
+    const formatSpecies = (species: string | null | undefined) => {
+        const s = (species ?? '').toLowerCase()
         if (s.includes('canin') || s.includes('perr') || s.includes('dog')) return 'CANINO'
         if (s.includes('felin') || s.includes('gat') || s.includes('michi')) return 'FELINO'
         return species?.toUpperCase() || '-'
@@ -118,14 +120,14 @@ export default function Patients() {
                             <div className="w-px h-8 bg-white/15" />
                             <div>
                                 <p className="text-2xl font-black text-white">
-                                    {patients.filter(p => p.species.toLowerCase().includes('canin') || p.species.toLowerCase().includes('perr')).length}
+                                    {patients.filter(p => { const s = (p.species ?? '').toLowerCase(); return s.includes('canin') || s.includes('perr') }).length}
                                 </p>
                                 <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Caninos</p>
                             </div>
                             <div className="w-px h-8 bg-white/15" />
                             <div>
                                 <p className="text-2xl font-black text-white">
-                                    {patients.filter(p => p.species.toLowerCase().includes('felin') || p.species.toLowerCase().includes('gat')).length}
+                                    {patients.filter(p => { const s = (p.species ?? '').toLowerCase(); return s.includes('felin') || s.includes('gat') }).length}
                                 </p>
                                 <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Felinos</p>
                             </div>
