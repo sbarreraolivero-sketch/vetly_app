@@ -11,6 +11,8 @@ import {
     CreditCard,
     ArrowRightLeft,
     X,
+    Pencil,
+    Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CashRegister } from '@/services/financeService'
@@ -45,6 +47,8 @@ interface CajaDelDiaProps {
     currency: string
     onCloseCaja: (date: string) => void
     onAddIncome: (date: string) => void
+    onEditIncome?: (incomeId: string) => void
+    onDeleteIncome?: (incomeId: string, description: string) => void
     isClosing?: boolean
 }
 
@@ -92,6 +96,8 @@ export function CajaDelDia({
     currency,
     onCloseCaja,
     onAddIncome,
+    onEditIncome,
+    onDeleteIncome,
     isClosing = false,
 }: CajaDelDiaProps) {
     const [expanded, setExpanded] = useState(false)
@@ -216,7 +222,7 @@ export function CajaDelDia({
 
                         {/* Ingresos manuales */}
                         {incomes.map(inc => (
-                            <div key={inc.id} className="flex items-center gap-3 py-2 border-b border-silk-beige last:border-0">
+                            <div key={inc.id} className="flex items-center gap-3 py-2 border-b border-silk-beige last:border-0 group">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-charcoal truncate">{inc.description}</p>
                                     <p className="text-[11px] text-charcoal/50">
@@ -233,6 +239,28 @@ export function CajaDelDia({
                                 <span className="text-xs font-bold text-charcoal shrink-0">
                                     {fmt((inc.amount ?? 0) - (inc.discount ?? 0))}
                                 </span>
+                                {!isClosed && (onEditIncome || onDeleteIncome) && (
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        {onEditIncome && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onEditIncome(inc.id) }}
+                                                className="p-1 text-charcoal/40 hover:text-primary-600 transition-colors rounded"
+                                                title="Editar ingreso"
+                                            >
+                                                <Pencil className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                        {onDeleteIncome && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onDeleteIncome(inc.id, inc.description) }}
+                                                className="p-1 text-charcoal/40 hover:text-red-500 transition-colors rounded"
+                                                title="Eliminar ingreso"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

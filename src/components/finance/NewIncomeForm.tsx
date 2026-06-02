@@ -44,6 +44,7 @@ interface NewIncomeFormProps {
     clinicId: string
     onClose: () => void
     editingIncome?: EditingIncome
+    defaultDate?: string
     onSuccess: (incomeData: {
         description: string
         amount: number
@@ -59,10 +60,10 @@ interface NewIncomeFormProps {
     }) => void
 }
 
-export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome }: NewIncomeFormProps) {
+export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, defaultDate }: NewIncomeFormProps) {
     const isEdit = !!editingIncome
     const [description, setDescription] = useState(editingIncome?.description ?? '')
-    const [date, setDate] = useState(editingIncome?.date ?? new Date().toISOString().split('T')[0])
+    const [date, setDate] = useState(editingIncome?.date ?? defaultDate ?? new Date().toISOString().split('T')[0])
     const [currency, setCurrency] = useState('CLP')
     const [notes, setNotes] = useState(editingIncome?.notes ?? '')
     const [paymentMethod, setPaymentMethod] = useState(editingIncome?.payment_method ?? '')

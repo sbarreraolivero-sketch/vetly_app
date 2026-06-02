@@ -182,6 +182,7 @@ const Finance = () => {
     const [receiptTx, setReceiptTx]   = useState<any | null>(null)
     const [editTx, setEditTx]         = useState<any | null>(null)
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
+    const [incomeDefaultDate, setIncomeDefaultDate] = useState<string | undefined>(undefined)
 
     // ── Currency formatter ──
     const formatCurrency = (amount: number) => {
@@ -429,6 +430,18 @@ const Finance = () => {
         }
     }
 
+    const handleDeleteIncome = async (incomeId: string, description: string) => {
+        if (!confirm(`¿Eliminar el ingreso "${description}"?`)) return
+        try {
+            await financeService.deleteIncome(incomeId)
+            toast.success('Ingreso eliminado')
+            loadData()
+        } catch (error) {
+            console.error('Error deleting income:', error)
+            toast.error('Error al eliminar el ingreso')
+        }
+    }
+
     // ── Mini calendario de rango ──────────────────────────────────────────
     function MiniCalendar() {
         const [calMonth, setCalMonth] = useState(() => customRange?.start ?? new Date())
@@ -525,19 +538,28 @@ const Finance = () => {
 
     // ── Agrupar transacciones e ingresos por fecha para la vista de Cajas ──
     const cajasByDate = useMemo(() => {
+        const todayStr = new Date().toISOString().split('T')[0]
         const map: Record<string, { transactions: typeof transactions; incomes: typeof incomes }> = {}
+
+        // Solo incluir fechas hasta hoy (no citas futuras pendientes de ser atendidas)
         for (const tx of transactions) {
             const d = tx.appointment_date?.split('T')[0]
-            if (!d) continue
+            if (!d || d > todayStr) continue
             if (!map[d]) map[d] = { transactions: [], incomes: [] }
             map[d].transactions.push(tx)
         }
         for (const inc of incomes) {
             const d = inc.date?.split('T')[0] ?? inc.date
-            if (!d) continue
+            if (!d || d > todayStr) continue
             if (!map[d]) map[d] = { transactions: [], incomes: [] }
             map[d].incomes.push(inc)
         }
+
+        // Siempre mostrar la caja de hoy aunque esté vacía
+        if (!map[todayStr]) {
+            map[todayStr] = { transactions: [], incomes: [] }
+        }
+
         return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
     }, [transactions, incomes])
 
@@ -905,9 +927,15 @@ const Finance = () => {
                                         cashRegister={cashReg}
                                         currency="$"
                                         onCloseCaja={(d) => setCajaToClose(d)}
-                                        onAddIncome={() => {
+                                        onAddIncome={(d) => {
+                                            setIncomeDefaultDate(d)
                                             setShowIncomeModal(true)
                                         }}
+                                        onEditIncome={(incomeId) => {
+                                            const inc = incomes.find(i => i.id === incomeId)
+                                            if (inc) setEditingIncome(inc)
+                                        }}
+                                        onDeleteIncome={handleDeleteIncome}
                                         isClosing={closingCaja && cajaToClose === date}
                                     />
                                 )
@@ -1178,7 +1206,8 @@ const Finance = () => {
             {showIncomeModal && clinicId && (
                 <NewIncomeForm
                     clinicId={clinicId}
-                    onClose={() => setShowIncomeModal(false)}
+                    defaultDate={incomeDefaultDate}
+                    onClose={() => { setShowIncomeModal(false); setIncomeDefaultDate(undefined) }}
                     onSuccess={handleAddIncome}
                 />
             )}

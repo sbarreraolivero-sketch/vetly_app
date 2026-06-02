@@ -39,6 +39,8 @@ export interface Income {
     date: string
     tutor_id?: string | null
     services?: any[] | null
+    notes?: string | null
+    payment_method?: string | null
     created_at: string
 }
 
