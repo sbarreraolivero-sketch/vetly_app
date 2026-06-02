@@ -2459,3 +2459,43 @@ Los mensajes de WhatsApp del informe incluyen la historia del fundador donde tie
 > *"Antes de fundar Vetly, operé Movilvets, una clínica móvil. Ese problema lo viví en carne propia..."*
 
 Este hook diferencia el outreach de cualquier otro vendedor de SaaS. Úsarlo siempre al contactar prospectos de tipo móvil/domicilio.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 34, 2026-06-02)
+
+### Finance — ítem libre en "Registrar Nuevo Ingreso"
+
+**Motivación:** el formulario solo permitía agregar servicios del catálogo (`clinic_services`) o productos del inventario. Para servicios esporádicos o cobros puntuales sin configurar, no había forma de ingresar un ítem libre.
+
+**Cambio en `src/components/finance/NewIncomeForm.tsx`:**
+- Nueva sección **"Ítem libre (servicio esporádico)"** entre "Productos del Inventario" y "Descripción"
+- Dos inputs en línea: nombre (texto libre) + monto (número)
+- Botón `+` en amber — se activa solo cuando ambos campos tienen valor válido
+- Soporta Enter desde cualquiera de los dos inputs para agregar rápido
+- Lista de ítems agregados con fondo `amber-50` (diferenciado: servicios en teal, productos en violet, libres en amber)
+- Cada ítem libre suma al subtotal automáticamente junto con los demás
+- Al guardar, se incluyen en el array `services` con `type: 'custom'` para trazabilidad
+- La descripción del ingreso se auto-completa incluyendo el nombre del ítem libre
+
+**Estado `customItems`:** `Array<{ name: string; price: number }>`. El subtotal es `customSubtotal = customItems.reduce(...)`. El flag `hasItems` ahora incluye `customItems.length > 0`.
+
+### Finance — fix badge "Por Cobrar"
+
+**Problema:** la tarjeta "Por Cobrar" mostraba un badge "5 Citas" que usaba `stats?.appointments_count` — el conteo de citas **pagadas/parciales** (calculado en `get_finance_stats`), no de pendientes. Era una métrica incorrecta para ese contexto.
+
+**Fix en `src/pages/Finance.tsx`:**
+```tsx
+// Antes (conteo de citas pagadas — incorrecto):
+{stats?.appointments_count || 0} Citas
+
+// Después (conteo real de pendientes del período — correcto):
+{transactions.filter(tx => tx.payment_status === 'pending').length} Pendientes
+```
+Se deriva del array `transactions` ya cargado, sin query adicional.
+
+### Comportamiento confirmado — transacciones sin precio no aparecen
+
+**Diagnóstico:** `get_clinic_transactions_secure` filtra `status != 'cancelled' AND price > 0`. Las citas agendadas hoy con `price = NULL` o `price = 0` (antes de cerrar la visita) no aparecen en la lista de transacciones.
+
+**Decisión:** mantener este comportamiento. La lista de Finance muestra solo transacciones con monto real asignado. Las citas sin precio aparecen cuando se cierra la visita desde el modal de Finance y se registra el cobro.
