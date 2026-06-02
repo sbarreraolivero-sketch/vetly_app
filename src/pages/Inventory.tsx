@@ -148,8 +148,12 @@ const Inventory = () => {
     const activeLocation = locations.find(l => l.id === activeLocationId) ?? null
 
     // ── Stock de la ubicación activa ───────────────────────────────────
-    const getLocStock = (productId: string): number =>
-        locationStockMap.get(productId) ?? 0
+    // Si el mapa está vacío (inventory_stock sin entradas para esta ubicación),
+    // cae de vuelta al stock_quantity total del producto como medida de seguridad.
+    const getLocStock = (p: InventoryProduct): number => {
+        if (!locationStockMap.size) return p.stock_quantity
+        return locationStockMap.get(p.id) ?? 0
+    }
 
     // ── Stats calculados desde el mapa de ubicación ────────────────────
     const displayStats = useMemo(() => {
@@ -159,13 +163,13 @@ const Inventory = () => {
         const active = products.filter(p => p.is_active)
         return {
             total: active.length,
-            lowStock: active.filter(p => getLocStock(p.id) <= p.min_stock_alert).length,
+            lowStock: active.filter(p => getLocStock(p) <= p.min_stock_alert).length,
             expiringSoon: active.filter(p => {
                 if (!p.expiry_date) return false
                 const exp = new Date(p.expiry_date)
                 return exp >= today && exp <= in30
             }).length,
-            totalValue: active.reduce((sum, p) => sum + getLocStock(p.id) * p.purchase_price, 0),
+            totalValue: active.reduce((sum, p) => sum + getLocStock(p) * p.purchase_price, 0),
         }
     }, [products, locationStockMap, stats, hasMultipleLocations])
 
@@ -466,7 +470,7 @@ const Inventory = () => {
         }
     }
 
-    const fromLocStock = transferProduct ? (locationStockMap.get(transferProduct.id) ?? 0) : 0
+    const fromLocStock = transferProduct ? getLocStock(transferProduct) : 0
 
     // ── Stock badge ────────────────────────────────────────────────────
 
@@ -590,7 +594,7 @@ const Inventory = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-silk-beige/40 p-1 rounded-xl border border-silk-beige w-fit">
+            <div className="flex gap-1 bg-silk-beige/40 p-1 rounded-xl border border-silk-beige w-full sm:w-fit overflow-x-auto no-scrollbar">
                 {([
                     { id: 'catalog', label: 'Catálogo', icon: Boxes },
                     { id: 'movements', label: 'Movimientos', icon: ArrowDownCircle },
@@ -659,40 +663,41 @@ const Inventory = () => {
                         </div>
                     )}
 
-                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                        <div className="flex gap-2 flex-1">
-                            <div className="relative flex-1 max-w-sm">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
                                 <input
                                     className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-silk-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                    placeholder={catalogView === 'materials' ? 'Buscar material...' : 'Buscar por nombre o SKU...'}
+                                    placeholder={catalogView === 'materials' ? 'Buscar material...' : 'Buscar producto...'}
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                 />
                             </div>
-                            <select
-                                value={categoryFilter}
-                                onChange={e => setCategoryFilter(e.target.value)}
-                                className="text-sm bg-white border border-silk-beige rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                            <button
+                                onClick={openCreate}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors shrink-0",
+                                    catalogView === 'materials'
+                                        ? "bg-amber-500 hover:bg-amber-600 text-white"
+                                        : "bg-primary-500 hover:bg-primary-600 text-white"
+                                )}
                             >
-                                <option value="all">Todas las categorías</option>
-                                {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                                    <option key={k} value={k}>{v}</option>
-                                ))}
-                            </select>
+                                <Plus className="w-4 h-4" />
+                                <span className="hidden sm:inline">{catalogView === 'materials' ? 'Nuevo material' : 'Nuevo producto'}</span>
+                                <span className="sm:hidden">Nuevo</span>
+                            </button>
                         </div>
-                        <button
-                            onClick={openCreate}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors shrink-0",
-                                catalogView === 'materials'
-                                    ? "bg-amber-500 hover:bg-amber-600 text-white"
-                                    : "bg-primary-500 hover:bg-primary-600 text-white"
-                            )}
+                        <select
+                            value={categoryFilter}
+                            onChange={e => setCategoryFilter(e.target.value)}
+                            className="w-full sm:w-auto text-sm bg-white border border-silk-beige rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300"
                         >
-                            <Plus className="w-4 h-4" />
-                            {catalogView === 'materials' ? 'Nuevo material' : 'Nuevo producto'}
-                        </button>
+                            <option value="all">Todas las categorías</option>
+                            {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                                <option key={k} value={k}>{v}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {loading ? (
@@ -714,8 +719,66 @@ const Inventory = () => {
                                 }
                             </p>
                         </div>
-                    ) : (
-                        <div className="bg-white rounded-2xl border border-silk-beige overflow-hidden">
+                    ) : (<>
+                        {/* ── Vista mobile: tarjetas ── */}
+                        <div className="sm:hidden space-y-2">
+                            {filteredProducts.map(p => {
+                                const Icon = CATEGORY_ICONS[p.category] ?? Package
+                                const locQty = getLocStock(p)
+                                return (
+                                    <div key={p.id} className="bg-white rounded-2xl border border-silk-beige p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
+                                                    <Icon className="w-4 h-4 text-primary-500" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-charcoal truncate">{p.name}</p>
+                                                    <p className="text-xs text-charcoal/40">{CATEGORY_LABELS[p.category]}{p.sku ? ` · ${p.sku}` : ''}</p>
+                                                </div>
+                                            </div>
+                                            <StockBadge p={p} locQty={locQty} />
+                                        </div>
+                                        <div className="mt-3 flex items-center justify-between">
+                                            <div className="flex items-center gap-4 text-sm">
+                                                <div>
+                                                    <p className="text-xs text-charcoal/40 mb-0.5">Stock</p>
+                                                    <p className={cn("font-bold text-base", locQty <= 0 ? "text-red-500" : locQty <= p.min_stock_alert ? "text-amber-600" : "text-charcoal")}>
+                                                        {locQty} <span className="text-xs font-normal text-charcoal/40">{UNIT_LABELS[p.unit]}</span>
+                                                    </p>
+                                                </div>
+                                                {catalogView === 'products' && (
+                                                    <div>
+                                                        <p className="text-xs text-charcoal/40 mb-0.5">P. Venta</p>
+                                                        <p className="font-semibold text-charcoal">{formatCLP(p.sale_price)}</p>
+                                                    </div>
+                                                )}
+                                                {p.expiry_date && (
+                                                    <div>
+                                                        <p className="text-xs text-charcoal/40 mb-0.5">Vence</p>
+                                                        <p className="text-sm text-charcoal/60">{format(new Date(p.expiry_date), 'dd MMM yy', { locale: es })}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => openRestock(p)} className="p-2 hover:bg-emerald-50 text-charcoal/40 hover:text-emerald-600 rounded-xl transition-colors">
+                                                    <ArrowDownCircle className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => openEdit(p)} className="p-2 hover:bg-primary-50 text-charcoal/40 hover:text-primary-600 rounded-xl transition-colors">
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => handleArchive(p)} className="p-2 hover:bg-red-50 text-charcoal/40 hover:text-red-500 rounded-xl transition-colors">
+                                                    <Archive className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        {/* ── Vista desktop: tabla ── */}
+                        <div className="hidden sm:block bg-white rounded-2xl border border-silk-beige overflow-hidden">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-silk-beige bg-ivory">
@@ -738,7 +801,7 @@ const Inventory = () => {
                                 <tbody className="divide-y divide-silk-beige/40">
                                     {filteredProducts.map(p => {
                                         const Icon = CATEGORY_ICONS[p.category] ?? Package
-                                        const locQty = getLocStock(p.id)
+                                        const locQty = getLocStock(p)
                                         return (
                                             <tr key={p.id} className="hover:bg-ivory/50 transition-colors">
                                                 <td className="px-4 py-3">
@@ -814,7 +877,7 @@ const Inventory = () => {
                                 </tbody>
                             </table>
                         </div>
-                    )}
+                    </>)}
                 </div>
             )}
 
@@ -1583,7 +1646,7 @@ const Inventory = () => {
             ══════════════════════════════════════════════════════════ */}
             {showRestockModal && restockProduct && (() => {
                 const isOut = restockDirection === 'out'
-                const currentLocStock = getLocStock(restockProduct.id)
+                const currentLocStock = getLocStock(restockProduct)
                 const stockAfter = currentLocStock + (isOut ? -restockQty : restockQty)
                 const belowZero = stockAfter < 0
                 const belowMin = stockAfter >= 0 && stockAfter <= restockProduct.min_stock_alert
