@@ -177,7 +177,16 @@ const Inventory = () => {
 
     const loadLocations = useCallback(async () => {
         if (!clinicId) return
-        const locs = await inventoryService.getLocations(clinicId)
+        let locs = await inventoryService.getLocations(clinicId)
+        // Si la clínica no tiene ninguna ubicación, crearla automáticamente
+        if (locs.length === 0) {
+            await inventoryService.createLocation(clinicId, 'Inventario Principal', 'warehouse')
+            await inventoryService.setActiveForSales(
+                (await inventoryService.getLocations(clinicId))[0].id,
+                clinicId
+            )
+            locs = await inventoryService.getLocations(clinicId)
+        }
         setLocations(locs)
         if (locs.length > 0) {
             setActiveLocationId(prev => {
