@@ -114,16 +114,40 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 (supabase as any).from('inventory_products').select('id, name, sale_price').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
                 (supabase as any).from('clinic_settings').select('currency, iva_enabled, iva_rate').eq('id', clinicId).single(),
             ])
-            if (tutorsRes.data) { setTutors(tutorsRes.data as TutorOption[]); setFilteredTutors(tutorsRes.data as TutorOption[]) }
+
+            if (tutorsRes.data) {
+                setTutors(tutorsRes.data as TutorOption[])
+                setFilteredTutors(tutorsRes.data as TutorOption[])
+                // Pre-rellenar tutor en modo edición
+                if (editingIncome?.tutor_id) {
+                    const found = (tutorsRes.data as TutorOption[]).find(t => t.id === editingIncome.tutor_id)
+                    if (found) { setSelectedTutor(found); setTutorSearch(found.name) }
+                }
+            }
+
             if (servicesRes.data) setAvailableServices(servicesRes.data as ServiceOption[])
+
             if (productsRes.data) {
                 const prods = productsRes.data.map((p: any) => ({ id: p.id, name: p.name, price: p.sale_price ?? 0 }))
                 setAvailableProducts(prods)
                 setFilteredProducts(prods)
             }
+
             if (clinicRes.data?.currency) setCurrency(clinicRes.data.currency)
             setIvaEnabled(clinicRes.data?.iva_enabled ?? false)
             setIvaRate(clinicRes.data?.iva_rate ?? 19)
+
+            // Pre-rellenar servicios/productos en modo edición
+            if (editingIncome?.services && editingIncome.services.length > 0) {
+                const svc = editingIncome.services.filter((s: any) => s.type === 'service')
+                const prd = editingIncome.services.filter((s: any) => s.type === 'product')
+                if (svc.length > 0) setSelectedServices(svc.map((s: any) => ({ id: s.id, name: s.name, price: s.price })))
+                if (prd.length > 0) setSelectedProducts(prd.map((p: any) => ({ id: p.id, name: p.name, price: p.price })))
+            } else if (editingIncome) {
+                // Sin servicios guardados — reconstruir monto bruto (amount en DB ya es neto)
+                const gross = (editingIncome.amount ?? 0) + (editingIncome.discount ?? 0)
+                setManualAmount(String(gross))
+            }
         }
         loadData()
     }, [clinicId])
