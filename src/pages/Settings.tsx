@@ -92,6 +92,8 @@ const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'satur
 
 export default function Settings() {
     const { user, profile, member, refreshClinics } = useAuth()
+    // Usar la sucursal activa seleccionada (member.clinic_id) en lugar de la clínica raíz del perfil
+    const clinicId = member?.clinic_id || profile?.clinic_id
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
 
@@ -298,7 +300,7 @@ export default function Settings() {
     // Load existing settings
     useEffect(() => {
         const fetchSettings = async () => {
-            if (!profile?.clinic_id) return
+            if (!clinicId) return
 
             const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
             const safe = (p: Promise<any>) => p.catch(() => ({ data: null, error: null }))
@@ -314,13 +316,13 @@ export default function Settings() {
                     { data: webhooksData },
                     { data: poolData },
                 ] = await Promise.all([
-                    safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', profile.clinic_id).single()),
-                    safe((supabase as any).from('clinic_settings').select('*').eq('id', profile.clinic_id).single()),
-                    safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', profile.clinic_id).single()),
-                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description').eq('clinic_id', profile.clinic_id)),
-                    safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: profile.clinic_id })),
-                    safe((supabase as any).from('webhooks').select('*').eq('clinic_id', profile.clinic_id).order('created_at', { ascending: true })),
-                    safe((supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: profile.clinic_id })),
+                    safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', clinicId).single()),
+                    safe((supabase as any).from('clinic_settings').select('*').eq('id', clinicId).single()),
+                    safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', clinicId).single()),
+                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description').eq('clinic_id', clinicId)),
+                    safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: clinicId })),
+                    safe((supabase as any).from('webhooks').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: true })),
+                    safe((supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: clinicId })),
                 ])
 
                 // Blocked dates tiene su propio loading state — corre en background
@@ -390,7 +392,7 @@ export default function Settings() {
                 if (webhooksData) setWebhooks(webhooksData)
 
                 // Pool de créditos IA
-                let poolClinicIds = [profile.clinic_id]
+                let poolClinicIds = [clinicId]
                 if (poolData && poolData.length > 0) {
                     poolClinicIds = poolData.map((r: any) => r)
                 }
@@ -415,7 +417,7 @@ export default function Settings() {
                         ? safe((supabase as any).from('clinic_settings').select('ai_credits_monthly_limit, ai_credits_extra_balance, ai_credits_extra_4o').eq('id', clinicData.parent_clinic_id).single())
                         : Promise.resolve({ data: null }),
                     needsPlanFallback
-                        ? safe((supabase as any).from('clinic_settings').select('subscription_plan').eq('id', profile.clinic_id).single())
+                        ? safe((supabase as any).from('clinic_settings').select('subscription_plan').eq('id', clinicId).single())
                         : Promise.resolve({ data: null }),
                 ])
 
@@ -457,7 +459,7 @@ export default function Settings() {
         }
 
         fetchSettings()
-    }, [profile?.clinic_id])
+    }, [clinicId])
 
 
     // Webhook URL for YCloud
@@ -470,12 +472,12 @@ export default function Settings() {
     }
 
     const handleBuyCredits = async (packId: string) => {
-        if (!profile?.clinic_id || !user?.email) return
+        if (!clinicId || !user?.email) return
         try {
             if (paymentRegion === 'international') {
-                await redirectToLemonCreditsCheckout(profile.clinic_id, user.email, packId, selectedAiModel)
+                await redirectToLemonCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
             } else {
-                await redirectToCreditsCheckout(profile.clinic_id, user.email, packId, selectedAiModel)
+                await redirectToCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
             }
         } catch (error: any) {
             console.error('Error buying credits:', error)
@@ -484,7 +486,7 @@ export default function Settings() {
     }
 
     const saveIntegrations = async () => {
-        if (!profile?.clinic_id) return
+        if (!clinicId) return
         setIsSavingIntegrations(true)
         setSaveStatus('idle')
         try {
@@ -503,7 +505,7 @@ export default function Settings() {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .update(updatePayload)
-                .eq('id', profile.clinic_id)
+                .eq('id', clinicId)
 
             if (error) {
                 console.error('Supabase integration save error:', error)
@@ -541,7 +543,7 @@ export default function Settings() {
     }
 
     const handleSaveWebhook = async () => {
-        if (!profile?.clinic_id || !webhookForm.url.trim() || !webhookForm.name.trim()) return
+        if (!clinicId || !webhookForm.url.trim() || !webhookForm.name.trim()) return
         setSavingWebhook(true)
         try {
             if (editingWebhook?.id) {
@@ -563,7 +565,7 @@ export default function Settings() {
                 const { error } = await (supabase as any)
                     .from('webhooks')
                     .insert({
-                        clinic_id: profile.clinic_id,
+                        clinic_id: clinicId,
                         name: webhookForm.name.trim(),
                         url: webhookForm.url.trim(),
                         events: webhookForm.events,
@@ -578,7 +580,7 @@ export default function Settings() {
             const { data } = await (supabase as any)
                 .from('webhooks')
                 .select('*')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', clinicId)
                 .order('created_at', { ascending: true })
             if (data) setWebhooks(data)
         } catch (error) {
@@ -590,7 +592,7 @@ export default function Settings() {
     }
 
     const handleDeleteWebhook = async (id: string) => {
-        if (!profile?.clinic_id) return
+        if (!clinicId) return
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any).from('webhooks').delete().eq('id', id)
@@ -602,7 +604,7 @@ export default function Settings() {
     }
 
     const handleToggleWebhook = async (id: string, currentActive: boolean) => {
-        if (!profile?.clinic_id) return
+        if (!clinicId) return
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
@@ -662,7 +664,7 @@ export default function Settings() {
     }
 
     const handleSaveNotifications = async () => {
-        if (!profile?.clinic_id) return
+        if (!clinicId) return
 
         setSavingNotifications(true)
         setNotificationsSaved(false)
@@ -672,7 +674,7 @@ export default function Settings() {
             const { error } = await (supabase as any)
                 .from('notification_preferences')
                 .upsert({
-                    clinic_id: profile.clinic_id,
+                    clinic_id: clinicId,
                     ...notifPrefs,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'clinic_id' })
@@ -731,14 +733,14 @@ export default function Settings() {
         setSavingClinic(true)
         setClinicSaved(false)
 
-        if (!profile?.clinic_id) {
+        if (!clinicId) {
             setSavingClinic(false)
             return
         }
 
         try {
             console.log('UPDATING CLINIC SETTINGS:', {
-                id: profile.clinic_id,
+                id: clinicId,
                 clinic_name: clinicName,
                 clinic_address: clinicAddress,
                 address_references: addressReferences,
@@ -776,7 +778,7 @@ export default function Settings() {
 
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id)
+                .eq('id', clinicId)
                 .select();
 
             if (error) {
@@ -803,7 +805,7 @@ export default function Settings() {
     }
 
     const handleSaveSchedule = async () => {
-        if (!profile?.clinic_id) return
+        if (!clinicId) return
         setSavingSchedule(true)
         setScheduleSaved(false)
 
@@ -814,7 +816,7 @@ export default function Settings() {
                     working_hours: workingHours,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', profile.clinic_id);
+                .eq('id', clinicId);
 
 
             if (error) throw error;
@@ -831,13 +833,13 @@ export default function Settings() {
     }
 
     const fetchBlockedDates = async () => {
-        if (!profile?.clinic_id) return
+        if (!clinicId) return
         setLoadingBlockedDates(true)
         try {
             const { data, error } = await (supabase as any)
                 .from('clinic_blocked_dates')
                 .select('*')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', clinicId)
                 .gte('blocked_date', new Date().toISOString().split('T')[0])
                 .order('blocked_date', { ascending: true })
 
@@ -851,13 +853,13 @@ export default function Settings() {
     }
 
     const handleAddBlockedDate = async () => {
-        if (!profile?.clinic_id || !newBlockedDate) return
+        if (!clinicId || !newBlockedDate) return
         setIsAddingBlockedDate(true)
         try {
             const { error } = await (supabase as any)
                 .from('clinic_blocked_dates')
                 .insert({
-                    clinic_id: profile.clinic_id,
+                    clinic_id: clinicId,
                     blocked_date: newBlockedDate,
                     reason: newBlockedReason
                 })
@@ -893,21 +895,21 @@ export default function Settings() {
 
 
     const handleSaveAI = async () => {
-        if (!profile?.clinic_id) {
+        if (!clinicId) {
             toast.error('No se encontró el ID de la clínica')
             return
         }
         setSavingModel(true)
         
         const payload = { 
-            id: profile.clinic_id,
+            id: clinicId,
             ai_active_model: aiActiveModel, 
             ai_auto_respond: aiAutoRespond,
             updated_at: new Date().toISOString() 
         }
         
         console.log('--- AI PERISTENCE DEBUG ---')
-        console.log('Clinic ID:', profile.clinic_id)
+        console.log('Clinic ID:', clinicId)
         console.log('Payload:', payload)
 
         try {
@@ -950,7 +952,7 @@ export default function Settings() {
         console.log('User:', user)
 
         // Validate clinic ID
-        if (!profile?.clinic_id) {
+        if (!clinicId) {
             console.error('Missing clinic_id')
             alert('Error: No se encontró la información de la clínica. Por favor recarga la página.')
             return
@@ -965,10 +967,10 @@ export default function Settings() {
 
         try {
             if (paymentRegion === 'international') {
-                await redirectToLemonCheckout(profile.clinic_id, user.email, planId as LSPlanId)
+                await redirectToLemonCheckout(clinicId, user.email, planId as LSPlanId)
             } else {
                 await redirectToCheckout({
-                    clinicId: profile.clinic_id,
+                    clinicId: clinicId,
                     planId: planId as "core" | "starter" | "pro" | "enterprise",
                     email: user.email,
                 })
@@ -1015,11 +1017,11 @@ export default function Settings() {
     }
 
     const handleSaveService = async () => {
-        if (!newServiceName.trim() || !profile?.clinic_id) return
+        if (!newServiceName.trim() || !clinicId) return
 
         try {
             const serviceData = {
-                clinic_id: profile.clinic_id,
+                clinic_id: clinicId,
                 name: newServiceName.trim(),
                 duration: parseInt(newServiceDuration) || 0,
                 price: parseFloat(newServicePrice) || 0
@@ -1960,7 +1962,7 @@ export default function Settings() {
                                                     const { error: cancelError } = await (supabase as any)
                                                         .from('subscriptions')
                                                         .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-                                                        .eq('clinic_id', profile?.clinic_id)
+                                                        .eq('clinic_id', clinicId)
                                                     if (cancelError) throw cancelError
                                                     setSubscription(prev => prev ? { ...prev, status: 'cancelled' } : null)
                                                     toast.success('Suscripci\u00f3n cancelada. Tendr\u00e1s acceso hasta el fin del per\u00edodo actual.')
@@ -1994,8 +1996,8 @@ export default function Settings() {
                                         <button
                                             onClick={async () => {
                                                 setPaymentRegion('chile');
-                                                if (profile?.clinic_id) {
-                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'mercadopago' }).eq('id', profile.clinic_id);
+                                                if (clinicId) {
+                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'mercadopago' }).eq('id', clinicId);
                                                 }
                                             }}
                                             className={cn(
@@ -2010,8 +2012,8 @@ export default function Settings() {
                                         <button
                                             onClick={async () => {
                                                 setPaymentRegion('international');
-                                                if (profile?.clinic_id) {
-                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'lemonsqueezy' }).eq('id', profile.clinic_id);
+                                                if (clinicId) {
+                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'lemonsqueezy' }).eq('id', clinicId);
                                                 }
                                             }}
                                             className={cn(
