@@ -32,7 +32,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { GuideBox } from '@/components/ui/GuideBox'
-import VisitClosureModal from '@/components/appointments/VisitClosureModal'
 
 interface Appointment {
     id: string
@@ -99,7 +98,6 @@ export default function Appointments() {
     // Modal state
     const [showModal, setShowModal] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [visitClosureAppointment, setVisitClosureAppointment] = useState<any | null>(null)
     const [editingId, setEditingId] = useState<string | null>(null)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [googleEvents] = useState<CalendarEvent[]>([])
@@ -409,10 +407,12 @@ export default function Appointments() {
         const appointment = appointments.find(a => a.id === id)
         if (!appointment) return
 
-        // Completar → abrir modal de cierre de visita en lugar de actualizar directamente
         if (newStatus === 'completed') {
-            setVisitClosureAppointment(appointment)
-            return
+            const ok = confirm(
+                `¿Marcar la cita de ${appointment.patient_name} como completada?\n\n` +
+                `El tutor y la mascota se agregarán automáticamente a la base de datos si no existen todavía.`
+            )
+            if (!ok) return
         }
 
         try {
@@ -455,12 +455,6 @@ export default function Appointments() {
         }
     }
 
-    const handleVisitClosed = (appointmentId: string) => {
-        setVisitClosureAppointment(null)
-        setAppointments(prev => prev.map(a =>
-            a.id === appointmentId ? { ...a, status: 'completed', payment_status: 'paid' } : a
-        ))
-    }
 
     // Send WhatsApp Reminder
     const handleSendReminder = async (appointment: any) => {
@@ -2209,15 +2203,6 @@ export default function Appointments() {
             )}
         </div >
 
-        {/* Modal de cierre de visita */}
-        {visitClosureAppointment && (
-            <VisitClosureModal
-                appointment={visitClosureAppointment}
-                clinicId={profile?.clinic_id || member?.clinic_id || ''}
-                onSaved={handleVisitClosed}
-                onCancel={() => setVisitClosureAppointment(null)}
-            />
-        )}
         </>
     )
 }

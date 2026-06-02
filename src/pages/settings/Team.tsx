@@ -47,6 +47,7 @@ const PAGE_SECTIONS: { label: string; items: { key: PageKey; label: string }[] }
             { key: 'appointments', label: 'Citas Médicas' },
             { key: 'reminders', label: 'Recordatorios' },
             { key: 'finance', label: 'Finanzas' },
+            { key: 'inventory', label: 'Inventario' },
         ],
     },
     {

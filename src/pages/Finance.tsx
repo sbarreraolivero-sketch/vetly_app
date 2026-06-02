@@ -442,6 +442,29 @@ const Finance = () => {
         }
     }
 
+    const handleMarkPaid = async (txId: string) => {
+        try {
+            await financeService.updatePaymentStatus(txId, 'paid')
+            toast.success('Pago registrado')
+            loadData()
+        } catch (error) {
+            console.error('Error marking as paid:', error)
+            toast.error('Error al registrar el pago')
+        }
+    }
+
+    const handleDeleteTransaction = async (txId: string) => {
+        if (!confirm('¿Eliminar esta transacción? Se pondrá el precio en $0.')) return
+        try {
+            await financeService.updateTransactionPrice(txId, 0)
+            toast.success('Transacción eliminada')
+            loadData()
+        } catch (error) {
+            console.error('Error deleting transaction:', error)
+            toast.error('Error al eliminar la transacción')
+        }
+    }
+
     // ── Mini calendario de rango ──────────────────────────────────────────
     function MiniCalendar() {
         const [calMonth, setCalMonth] = useState(() => customRange?.start ?? new Date())
@@ -936,6 +959,8 @@ const Finance = () => {
                                             if (inc) setEditingIncome(inc)
                                         }}
                                         onDeleteIncome={handleDeleteIncome}
+                                        onMarkPaid={handleMarkPaid}
+                                        onDeleteTransaction={handleDeleteTransaction}
                                         isClosing={closingCaja && cajaToClose === date}
                                     />
                                 )
@@ -1236,13 +1261,21 @@ const Finance = () => {
             {cajaToClose && (() => {
                 const dayTxForModal = transactions.filter(t => t.appointment_date?.split('T')[0] === cajaToClose)
                 const dayIncForModal = incomes.filter(i => (i.date?.split('T')[0] ?? i.date) === cajaToClose)
-                const totalCobrado = dayTxForModal
-                    .filter(t => t.payment_status === 'paid' || t.payment_status === 'partial')
-                    .reduce((s: number, t: any) => s + (t.price ?? 0), 0)
-                    + dayIncForModal.reduce((s: number, i: any) => s + ((i.amount ?? 0) - (i.discount ?? 0)), 0)
-                const totalPendiente = dayTxForModal
-                    .filter(t => t.payment_status === 'pending')
-                    .reduce((s: number, t: any) => s + (t.price ?? 0), 0)
+                const cobradas = dayTxForModal.filter((t: any) => t.payment_status === 'paid' || t.payment_status === 'partial')
+                const pendientes = dayTxForModal.filter((t: any) => t.payment_status === 'pending')
+                const totalCobrado = cobradas.reduce((s: number, t: any) => s + (t.price ?? 0), 0)
+                    + dayIncForModal.reduce((s: number, i: any) => s + (i.amount ?? 0), 0)
+                const totalPendiente = pendientes.reduce((s: number, t: any) => s + (t.price ?? 0), 0)
+                // Desglose por método de pago
+                const byMethod: Record<string, number> = {}
+                for (const t of cobradas as any[]) {
+                    const k = (t.payment_method ?? 'otro').toLowerCase()
+                    byMethod[k] = (byMethod[k] ?? 0) + (t.price ?? 0)
+                }
+                for (const i of dayIncForModal as any[]) {
+                    const k = (i.payment_method ?? 'otro').toLowerCase()
+                    byMethod[k] = (byMethod[k] ?? 0) + (i.amount ?? 0)
+                }
                 const label = (() => {
                     try {
                         return new Date(cajaToClose + 'T12:00:00').toLocaleDateString('es-CL', {
@@ -1256,6 +1289,9 @@ const Finance = () => {
                         dateLabel={label}
                         totalCobrado={totalCobrado}
                         totalPendiente={totalPendiente}
+                        byMethod={byMethod}
+                        citasAtendidas={cobradas.length + dayIncForModal.length}
+                        pendingList={pendientes.map((t: any) => ({ name: t.patient_name ?? t.service, amount: t.price ?? 0 }))}
                         currency="$"
                         loading={closingCaja}
                         onConfirm={(notes) => handleCloseCaja(cajaToClose, notes)}
