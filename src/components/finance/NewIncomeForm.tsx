@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard } from 'lucide-react'
+import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
@@ -87,6 +87,11 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const [selectedProducts, setSelectedProducts] = useState<ProductOption[]>([])
     const [showProductDropdown, setShowProductDropdown] = useState(false)
 
+    // Ítems libres (servicios esporádicos sin catálogo)
+    const [customItems, setCustomItems] = useState<{ name: string; price: number }[]>([])
+    const [customItemName, setCustomItemName] = useState('')
+    const [customItemPrice, setCustomItemPrice] = useState<string>('')
+
     // Monto manual (cuando no hay ítems seleccionados)
     const [manualAmount, setManualAmount] = useState<string>('')
 
@@ -164,8 +169,9 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
 
     const serviceSubtotal = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
     const productSubtotal = selectedProducts.reduce((sum, p) => sum + Number(p.price || 0), 0)
-    const hasItems = selectedServices.length > 0 || selectedProducts.length > 0
-    const subtotal = hasItems ? serviceSubtotal + productSubtotal : Number(manualAmount || 0)
+    const customSubtotal = customItems.reduce((sum, i) => sum + Number(i.price || 0), 0)
+    const hasItems = selectedServices.length > 0 || selectedProducts.length > 0 || customItems.length > 0
+    const subtotal = hasItems ? serviceSubtotal + productSubtotal + customSubtotal : Number(manualAmount || 0)
     const discountAmount = discountType === 'percentage'
         ? Math.round(subtotal * discountValue / 100)
         : Math.min(discountValue, subtotal)
@@ -216,8 +222,9 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         updateDescription(selectedServices, newList)
     }
 
-    const updateDescription = (services: ServiceOption[], products: ProductOption[]) => {
-        const allItems = [...services.map(s => s.name), ...products.map(p => p.name)]
+    const updateDescription = (services: ServiceOption[], products: ProductOption[], custom?: { name: string; price: number }[]) => {
+        const used = custom ?? customItems
+        const allItems = [...services.map(s => s.name), ...products.map(p => p.name), ...used.map(i => i.name)]
         if (allItems.length > 0) {
             setDescription(allItems.join(', '))
         } else if (selectedTutor) {
@@ -227,12 +234,31 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         }
     }
 
+    const addCustomItem = () => {
+        const name = customItemName.trim()
+        const price = Number(customItemPrice)
+        if (!name || !price || price <= 0) return
+        const newList = [...customItems, { name, price }]
+        setCustomItems(newList)
+        setCustomItemName('')
+        setCustomItemPrice('')
+        updateDescription(selectedServices, selectedProducts, newList)
+    }
+
+    const removeCustomItem = (index: number) => {
+        const newList = [...customItems]
+        newList.splice(index, 1)
+        setCustomItems(newList)
+        updateDescription(selectedServices, selectedProducts, newList)
+    }
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (finalAmount <= 0 && subtotal <= 0) return
         const allServices = [
             ...selectedServices.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'service' })),
             ...selectedProducts.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'product' })),
+            ...customItems.map(i => ({ id: `custom-${Date.now()}-${Math.random()}`, name: i.name, price: i.price, type: 'custom' })),
         ]
         onSuccess({
             description,
@@ -393,6 +419,58 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                         )}
                     </div>
 
+                    {/* Ítems libres — servicios esporádicos */}
+                    <div>
+                        <label className="block text-sm font-medium text-charcoal mb-1 flex items-center gap-1.5">
+                            <PenLine className="w-3.5 h-3.5 text-amber-500" />
+                            Ítem libre (servicio esporádico)
+                        </label>
+                        <p className="text-xs text-charcoal/40 mb-2">Para servicios que no están en tu catálogo. Escribe el nombre y el monto.</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={customItemName}
+                                onChange={e => setCustomItemName(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomItem() } }}
+                                className="input-soft flex-1"
+                                placeholder="Ej: Consulta de urgencia"
+                            />
+                            <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={customItemPrice}
+                                onChange={e => setCustomItemPrice(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomItem() } }}
+                                className="input-soft w-28 text-right"
+                                placeholder="Monto"
+                            />
+                            <button
+                                type="button"
+                                onClick={addCustomItem}
+                                disabled={!customItemName.trim() || !customItemPrice || Number(customItemPrice) <= 0}
+                                className="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                        {customItems.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                                {customItems.map((item, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-amber-50 px-3 py-2 rounded-md text-sm">
+                                        <span className="text-charcoal">{item.name}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-medium text-amber-700">{formatMoney(item.price)}</span>
+                                            <button type="button" onClick={() => removeCustomItem(idx)} className="text-red-400 hover:text-red-500">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Descripción */}
                     <div className="pt-1 border-t border-silk-beige">
                         <label className="block text-sm font-medium text-charcoal mb-1">Descripción <span className="text-red-500">*</span></label>
@@ -413,7 +491,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                             </label>
                             {hasItems ? (
                                 <div className="input-soft bg-silk-beige/30 font-semibold text-primary-700 flex items-center">
-                                    {formatMoney(serviceSubtotal + productSubtotal)}
+                                    {formatMoney(serviceSubtotal + productSubtotal + customSubtotal)}
                                     <span className="ml-1 text-xs text-charcoal/40">(auto)</span>
                                 </div>
                             ) : (

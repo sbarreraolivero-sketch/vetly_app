@@ -818,7 +818,7 @@ const Finance = () => {
                             <CreditCard className="w-5 h-5 text-amber-600" />
                         </div>
                         <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                            {stats?.appointments_count || 0} Citas
+                            {transactions.filter(tx => tx.payment_status === 'pending').length} Pendientes
                         </span>
                     </div>
                     <p className="text-sm text-charcoal/60">Por Cobrar</p>
