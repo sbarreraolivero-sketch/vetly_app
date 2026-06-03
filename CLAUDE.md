@@ -2499,3 +2499,62 @@ Se deriva del array `transactions` ya cargado, sin query adicional.
 **Diagnóstico:** `get_clinic_transactions_secure` filtra `status != 'cancelled' AND price > 0`. Las citas agendadas hoy con `price = NULL` o `price = 0` (antes de cerrar la visita) no aparecen en la lista de transacciones.
 
 **Decisión:** mantener este comportamiento. La lista de Finance muestra solo transacciones con monto real asignado. Las citas sin precio aparecen cuando se cierra la visita desde el modal de Finance y se registra el cobro.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 35, 2026-06-03)
+
+### Bug crítico: Settings no cargaba ningún dato — `src/pages/Settings.tsx`
+
+**Síntoma:** la página de Configuración mostraba siempre campos vacíos y "Físico" seleccionado aunque la DB tuviera datos correctos (`business_model = 'mobile'`, servicios, nombre de clínica). Si el usuario hacía clic en "Guardar Cambios" en ese estado, sobreescribía la DB con valores vacíos/por defecto — que es lo que le ocurrió a Animalgrace.
+
+**Causa raíz:** el helper `safe()` dentro de `fetchSettings` hacía `p.catch(...)`, pero los query builders de Supabase son **thenables** (implementan `.then()`) pero **no Promises nativas** (no tienen `.catch()`). La primera query lanzaba `TypeError: c.catch is not a function`, rompía todo el `Promise.all`, el form quedaba en defaults, y el error se tragaba silenciosamente en el `try/catch` externo.
+
+**Fix:**
+```typescript
+// ANTES (roto — Supabase builders no tienen .catch()):
+const safe = (p: Promise<any>) => p.catch(() => ({ data: null, error: null }))
+
+// DESPUÉS (correcto — Promise.resolve normaliza cualquier thenable):
+const safe = (p: any) => Promise.resolve(p).then((r: any) => r, () => ({ data: null, error: null }))
+```
+
+**Regla permanente:** nunca llamar `.catch()` directamente sobre un query builder de Supabase. Siempre usar `Promise.resolve(query).then(ok, err)` o `await query` dentro de un try/catch.
+
+### Race condition en Settings — botón "Guardar Cambios" prematuro
+
+**Problema adicional:** incluso con el fetch funcionando, si el usuario hacía clic en "Guardar Cambios" durante los ~200-500ms que tarda el fetch en completarse, el form guardaba defaults vacíos.
+
+**Fix en `src/pages/Settings.tsx`:** nuevo estado `loadingSettings` (boolean):
+- Se activa con `setLoadingSettings(true)` al inicio de `fetchSettings`
+- Se desactiva en el bloque `finally`
+- El botón "Guardar Cambios" queda `disabled={savingClinic || loadingSettings}` y muestra "Cargando..." mientras el fetch está en vuelo
+
+### AuthContext — desajuste de `member` en cuentas multi-sucursal
+
+**Bug en `src/contexts/AuthContext.tsx`:** en el handler de `onAuthStateChange`, al cambiar de clínica activa, `member` y `subscription` se cargaban usando `data.clinic_id` (el valor crudo de `user_profiles` en DB) en vez de `resolvedClinicId` (que ya incorpora la clínica guardada en `localStorage`). Esto causaba que el `member` no correspondiera a la clínica activa en pantalla.
+
+**Fix:** reemplazado `data.clinic_id` por `resolvedClinicId` en las queries de `clinic_members` y `fetchSubscription` dentro del bloque `onAuthStateChange`.
+
+### DashboardLayout — error 400 por columna inexistente
+
+**Bug en `src/components/layout/DashboardLayout.tsx:165`:** la query de chequeo de trial pedía `subscriptions.trial_ends_at`, columna que **no existe** en la tabla (confirmado en logs de Postgres). Generaba error 400 repetido en cada carga del dashboard.
+
+**Fix:**
+- `select('status, trial_ends_at')` → `select('status, current_period_end, manually_active')`
+- La lógica de expiración ahora usa `current_period_end`
+- **Crítico:** se agregó `&& !subData.manually_active` a la condición de redirect — sin esto, Animalgrace (que tiene `manually_active = true` y `current_period_end` en el pasado) habría sido redirigida en loop a la pantalla de suscripción expirada
+
+### Restauración de datos — DB producción
+
+**Datos recuperados directamente en la DB:**
+- `clinic_settings.clinic_name` de Linares/Talca: restaurado a `"AnimalGrace Linares/Talca"` (se había vaciado al guardar el form con el bug activo)
+- Los 21 servicios de Linares y 37 de Santiago **nunca se perdieron** — estaban intactos en `clinic_services`; simplemente no aparecían en la UI por el bug del fetch
+- `clinic_settings.instagram_url`, `facebook_url`, `contact_phone`, `clinic_address`: estos sí se vaciaron y **no se recuperaron** (no hay backup accesible sin restaurar toda la DB). Claudia debe reingresar esos campos desde Configuración
+
+### Citas Médicas — orden y filtros
+
+**Cambios en `src/pages/Appointments.tsx`:**
+- **Orden corregido:** `ascending: false` → `ascending: true` — las citas más próximas aparecen arriba, las más futuras abajo (era al revés)
+- **Botón "Filtros" eliminado:** el panel de radios de ordenamiento no estaba conectado a ninguna lógica de estado — era UI muerta. Eliminado junto con el import de `Filter` (lucide) y el estado `showFilters`
+- **"Este Mes" agregado:** nueva opción en el filtro de Fecha. Tipo `dateFilter` expandido a `'all' | 'today' | 'tomorrow' | 'week' | 'month'`. Lógica: `appointmentDate >= monthStart && appointmentDate <= monthEnd` (mes calendario actual)
