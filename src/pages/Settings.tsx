@@ -305,7 +305,8 @@ export default function Settings() {
             setLoadingSettings(true)
 
             const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-            const safe = (p: Promise<any>) => p.catch(() => ({ data: null, error: null }))
+            // Los query builders de Supabase son thenables sin .catch(); Promise.resolve los normaliza
+            const safe = (p: any) => Promise.resolve(p).then((r: any) => r, () => ({ data: null, error: null }))
 
             try {
                 // Wave 1: todas las queries independientes en paralelo (~9 round trips → 1)

@@ -162,13 +162,13 @@ export default function DashboardLayout() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: subData } = await (supabase as any)
                     .from('subscriptions')
-                    .select('status, trial_ends_at')
+                    .select('status, current_period_end, manually_active')
                     .eq('clinic_id', profile.clinic_id)
                     .single()
 
                 if (subData) {
-                    const trialExpired = subData.trial_ends_at && new Date(subData.trial_ends_at) < new Date()
-                    const notActive = subData.status !== 'active'
+                    const trialExpired = subData.current_period_end && new Date(subData.current_period_end) < new Date()
+                    const notActive = subData.status !== 'active' && !subData.manually_active
                     if (trialExpired && notActive && location.pathname !== '/app/settings') {
                         console.warn('DashboardLayout: Trial expired, redirecting to settings/plan')
                         navigate('/app/settings?tab=subscription&expired=1', { replace: true })

@@ -332,8 +332,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             
                             fetchUserClinics() 
 
-                            if (data.clinic_id) {
-                                fetchSubscription(data.clinic_id).then(sub => {
+                            if (resolvedClinicId) {
+                                fetchSubscription(resolvedClinicId).then(sub => {
                                     if (mounted) {
                                         setSubscription(prev => {
                                             if (JSON.stringify(prev) === JSON.stringify(sub)) return prev
@@ -345,7 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                 supabase.from('clinic_members')
                                     .select('*')
                                     .eq('user_id', currentUser.id)
-                                    .eq('clinic_id', data.clinic_id)
+                                    .eq('clinic_id', resolvedClinicId)
                                     .single()
                                     .then(({ data: memberData }) => {
                                         if (memberData && mounted) {
