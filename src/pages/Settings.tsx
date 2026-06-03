@@ -220,6 +220,7 @@ export default function Settings() {
     const [notificationsSaved, setNotificationsSaved] = useState(false)
 
     // Clinic settings state
+    const [loadingSettings, setLoadingSettings] = useState(false)
     const [savingClinic, setSavingClinic] = useState(false)
     const [clinicSaved, setClinicSaved] = useState(false)
 
@@ -301,6 +302,7 @@ export default function Settings() {
     useEffect(() => {
         const fetchSettings = async () => {
             if (!clinicId) return
+            setLoadingSettings(true)
 
             const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
             const safe = (p: Promise<any>) => p.catch(() => ({ data: null, error: null }))
@@ -455,6 +457,8 @@ export default function Settings() {
                 }
             } catch (error) {
                 console.error('Error loading settings:', error)
+            } finally {
+                setLoadingSettings(false)
             }
         }
 
@@ -1284,10 +1288,12 @@ export default function Settings() {
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={handleSaveClinic}
-                                            disabled={savingClinic}
+                                            disabled={savingClinic || loadingSettings}
                                             className="btn-primary flex items-center gap-2 shadow-sm w-full sm:w-auto justify-center"
                                         >
-                                            {savingClinic ? (
+                                            {loadingSettings ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> Cargando...</>
+                                            ) : savingClinic ? (
                                                 <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
                                             ) : (
                                                 <><Save className="w-4 h-4" /> Guardar Cambios</>
