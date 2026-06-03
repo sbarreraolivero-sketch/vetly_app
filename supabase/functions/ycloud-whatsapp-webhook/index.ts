@@ -1917,20 +1917,23 @@ const confirmAppt = async (
   response: string,
 ) => {
   const normalizedPhone = normalizePhone(phone);
-  const { data: appt } = await sb.from("appointments").select("*").eq(
-    "clinic_id",
-    clinicId,
-  ).eq("phone_number", normalizedPhone).eq("status", "pending").gte(
-    "appointment_date",
-    new Date().toISOString(),
-  ).order("appointment_date", { ascending: true }).limit(1).single();
+  // Buscar con y sin "+" para cubrir citas ingresadas manualmente con distintos formatos
+  const phoneVariants = `phone_number.eq.${normalizedPhone},phone_number.eq.+${normalizedPhone}`;
+
+  const { data: appt } = await sb.from("appointments").select("*")
+    .eq("clinic_id", clinicId)
+    .or(phoneVariants)
+    .eq("status", "pending")
+    .gte("appointment_date", new Date().toISOString())
+    .order("appointment_date", { ascending: true })
+    .limit(1).maybeSingle();
 
   if (!appt) {
     // Si el cliente ya confirmó antes (otro clic en template duplicado), responder con gracia
     if (response === "yes") {
       const { data: confirmedAppt } = await sb.from("appointments").select("id")
         .eq("clinic_id", clinicId)
-        .eq("phone_number", normalizedPhone)
+        .or(phoneVariants)
         .eq("status", "confirmed")
         .gte("appointment_date", new Date().toISOString())
         .order("appointment_date", { ascending: true })
