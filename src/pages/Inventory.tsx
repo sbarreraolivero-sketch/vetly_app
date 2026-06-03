@@ -137,7 +137,7 @@ const Inventory = () => {
     const [productForm, setProductForm] = useState(EMPTY_PRODUCT)
     const [showRestockModal, setShowRestockModal] = useState(false)
     const [restockProduct, setRestockProduct] = useState<InventoryProduct | null>(null)
-    const [restockQty, setRestockQty] = useState(1)
+    const [restockQty, setRestockQty] = useState(0)
     const [restockCost, setRestockCost] = useState(0)
     const [restockNotes, setRestockNotes] = useState('')
     const [restockDirection, setRestockDirection] = useState<'in' | 'out'>('in')
@@ -303,7 +303,7 @@ const Inventory = () => {
 
     const openRestock = (p: InventoryProduct) => {
         setRestockProduct(p)
-        setRestockQty(1)
+        setRestockQty(0)
         setRestockCost(p.purchase_price)
         setRestockNotes('')
         setRestockDirection('in')
@@ -1732,8 +1732,8 @@ const Inventory = () => {
                                         isOut ? "border-red-200 focus:ring-red-300" : "border-silk-beige focus:ring-primary-300"
                                     )}
                                     value={restockQty || ''}
-                                    placeholder="1"
-                                    onChange={e => setRestockQty(Number(e.target.value) || 1)}
+                                    placeholder="0"
+                                    onChange={e => setRestockQty(Number(e.target.value) || 0)}
                                 />
                             </div>
 
