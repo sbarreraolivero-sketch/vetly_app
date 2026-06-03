@@ -8,7 +8,6 @@ import {
     User,
     Phone,
     Search,
-    Filter,
     Plus,
     MoreVertical,
     CheckCircle2,
@@ -115,9 +114,8 @@ export default function Appointments() {
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
 
     // Date filter state
-    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week'>('all')
+    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week' | 'month'>('all')
     const [showDatePicker, setShowDatePicker] = useState(false)
-    const [showFilters, setShowFilters] = useState(false)
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
     // Hour Blocking state
@@ -156,7 +154,7 @@ export default function Appointments() {
                     .select('*')
                     .eq('clinic_id', profile.clinic_id)
                     .gte('appointment_date', threeMonthsAgo.toISOString())
-                    .order('appointment_date', { ascending: false })
+                    .order('appointment_date', { ascending: true })
                 if (data) setAppointments(data)
             }
 
@@ -312,6 +310,8 @@ export default function Appointments() {
             tomorrow.setDate(tomorrow.getDate() + 1)
             const weekEnd = new Date(today)
             weekEnd.setDate(weekEnd.getDate() + 7)
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+            const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59)
 
             let matchesDate = true
             if (dateFilter === 'today') {
@@ -324,6 +324,8 @@ export default function Appointments() {
                 matchesDate = appointmentDay.getTime() === tomorrow.getTime()
             } else if (dateFilter === 'week') {
                 matchesDate = appointmentDate >= today && appointmentDate <= weekEnd
+            } else if (dateFilter === 'month') {
+                matchesDate = appointmentDate >= monthStart && appointmentDate <= monthEnd
             }
 
             return matchesSearch && matchesTab && matchesDate && matchesProfessional
@@ -964,7 +966,8 @@ export default function Appointments() {
                             <Calendar className="w-4 h-4" />
                             {dateFilter === 'all' ? 'Fecha' :
                                 dateFilter === 'today' ? 'Hoy' :
-                                    dateFilter === 'tomorrow' ? 'Mañana' : 'Esta Semana'}
+                                dateFilter === 'tomorrow' ? 'Mañana' :
+                                dateFilter === 'week' ? 'Esta Semana' : 'Este Mes'}
                         </button>
 
                         {showDatePicker && (
@@ -1005,45 +1008,19 @@ export default function Appointments() {
                                 >
                                     Esta Semana
                                 </button>
+                                <button
+                                    onClick={() => { setDateFilter('month'); setShowDatePicker(false); }}
+                                    className={cn(
+                                        "w-full px-4 py-2 text-left text-sm hover:bg-ivory transition-colors",
+                                        dateFilter === 'month' && "bg-primary-50 text-primary-700"
+                                    )}
+                                >
+                                    Este Mes
+                                </button>
                             </div>
                         )}
                     </div>
 
-                    {/* More Filters */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2.5 border rounded-soft text-sm transition-colors",
-                                showFilters
-                                    ? "bg-primary-50 border-primary-300 text-primary-700"
-                                    : "bg-ivory border-silk-beige text-charcoal/70 hover:bg-silk-beige/50"
-                            )}
-                        >
-                            <Filter className="w-4 h-4" />
-                            Filtros
-                        </button>
-
-                        {showFilters && (
-                            <div className="absolute top-full right-0 mt-2 bg-white rounded-soft shadow-premium-lg border border-silk-beige p-4 min-w-[200px] z-10">
-                                <p className="text-xs font-medium text-charcoal/50 uppercase mb-3">Ordenar por</p>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-sm text-charcoal cursor-pointer">
-                                        <input type="radio" name="sort" defaultChecked className="accent-primary-500" />
-                                        Fecha (más reciente)
-                                    </label>
-                                    <label className="flex items-center gap-2 text-sm text-charcoal cursor-pointer">
-                                        <input type="radio" name="sort" className="accent-primary-500" />
-                                        Fecha (más antigua)
-                                    </label>
-                                    <label className="flex items-center gap-2 text-sm text-charcoal cursor-pointer">
-                                        <input type="radio" name="sort" className="accent-primary-500" />
-                                        Nombre (A-Z)
-                                    </label>
-                                </div>
-                            </div>
-                        )}
-                    </div>
 
                     {/* Sync Button - Disabled by user request */}
                     {/* <button
