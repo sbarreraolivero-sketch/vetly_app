@@ -3099,17 +3099,10 @@ export default function Settings() {
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
-                                            <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-700 font-black shadow-inner">8x</div>
+                                            <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">15x</div>
                                             <div>
-                                                <p className="text-sm font-black text-charcoal">N2: Standard — GPT-4o</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento intermedio para ventas y logística avanzada.</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">60x</div>
-                                            <div>
-                                                <p className="text-sm font-black text-charcoal">N3: Sovereign Pro — GPT-4o</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia clínica y quirúrgica extrema de última generación.</p>
+                                                <p className="text-sm font-black text-charcoal">N2: GPT-4o</p>
+                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento avanzado para agendamiento, precios, geo y casos clínicos.</p>
                                             </div>
                                         </div>
                                     </div>

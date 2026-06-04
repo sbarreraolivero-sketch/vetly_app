@@ -482,7 +482,7 @@ export default function AISettings() {
                         </button>
                         <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", open.consumo ? "max-h-[900px]" : "max-h-0")}>
                         <div className="border-t border-silk-beige" />
-                        <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Mini */}
                             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
                                 <div className="flex items-center gap-2 mb-3">
@@ -502,41 +502,22 @@ export default function AISettings() {
                                 </div>
                             </div>
 
-                            {/* Standard */}
-                            <div className="bg-sky-50 border border-sky-100 rounded-2xl p-5">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <div className="w-7 h-7 bg-sky-500 rounded-lg flex items-center justify-center">
-                                        <RefreshCw className="w-3.5 h-3.5 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal">GPT-4o Standard</p>
-                                        <p className="text-[10px] font-bold text-sky-600">×15 créditos / msg</p>
-                                    </div>
-                                </div>
-                                <p className="text-3xl font-black text-charcoal tabular-nums">{standardMessages.toLocaleString()}</p>
-                                <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
-                                <div className="mt-3 pt-3 border-t border-sky-200 flex items-center justify-between">
-                                    <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-sky-600 tabular-nums">{(standardMessages * 15).toLocaleString()}</p>
-                                </div>
-                            </div>
-
-                            {/* Pro */}
+                            {/* Pro (incluye histórico standard) */}
                             <div className="bg-violet-50 border border-violet-100 rounded-2xl p-5">
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-7 h-7 bg-violet-600 rounded-lg flex items-center justify-center">
                                         <Cpu className="w-3.5 h-3.5 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-xs font-black text-charcoal">GPT-4o Pro</p>
+                                        <p className="text-xs font-black text-charcoal">GPT-4o</p>
                                         <p className="text-[10px] font-bold text-violet-600">×15 créditos / msg</p>
                                     </div>
                                 </div>
-                                <p className="text-3xl font-black text-charcoal tabular-nums">{proMessages.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-charcoal tabular-nums">{(proMessages + standardMessages).toLocaleString()}</p>
                                 <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
                                 <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
                                     <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-violet-600 tabular-nums">{(proMessages * 15).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-violet-600 tabular-nums">{((proMessages + standardMessages) * 15).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>
@@ -544,7 +525,7 @@ export default function AISettings() {
                             <div className="flex items-center gap-2 bg-ivory rounded-xl p-3 border border-silk-beige">
                                 <Info className="w-3.5 h-3.5 text-charcoal/30 shrink-0" />
                                 <p className="text-[10px] text-charcoal/40 font-bold leading-relaxed">
-                                    El agente elige el modelo según la complejidad del mensaje. Mini para respuestas simples. Standard para conversaciones con contexto. Pro para casos que requieren máxima precisión.
+                                    El agente elige el modelo según la complejidad del mensaje. Mini para respuestas simples e informativas. GPT-4o para agendamiento, precios, geo y casos que requieren máxima precisión.
                                 </p>
                             </div>
                         </div>
