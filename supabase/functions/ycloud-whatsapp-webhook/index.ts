@@ -630,7 +630,7 @@ const saveMsg = async (
     if (direction === "outbound" && insertPayload.ai_generated) {
       try {
         const model = insertPayload.ai_model;
-        const creditCost = model === "mini" ? 1 : 8;
+        const creditCost = model === "mini" ? 1 : 15;
 
         // Resolve credit pool (parent clinic if this is a branch)
         const creditPoolId: string = await (async () => {
@@ -2593,7 +2593,7 @@ const selectModelTier = (
     text.match(/\d{1,2}[:h]\d{2}/u) !== null || // time patterns: "10:30", "10h30"
     text.match(/\d{1,2}\s*(?:am|pm)/iu) !== null; // "10 am", "3pm"
 
-  // --- 4o required: surgery / urgent medical ---
+  // --- 4o required: surgery / urgent medical / vaccination protocols ---
   const needsMedicalReason =
     hasImage ||
     text.includes("cirug") ||
@@ -2606,7 +2606,15 @@ const selectModelTier = (
     text.includes("sangre") ||
     text.includes("convulsi") ||
     text.includes("envenena") ||
-    text.includes("accidente");
+    text.includes("accidente") ||
+    text.includes("vacun") ||          // "vacuna", "vacunar", "vacunación"
+    text.includes("antirrabi") ||      // "antirrábica" (con o sin acento)
+    text.includes("octuple") ||        // "óctuple" / "octuple"
+    text.includes("sextuple") ||       // "séxtuple" / "sextuple"
+    text.includes("triple felina") ||  // vacuna felina combinada
+    text.includes("puppy") ||          // vacuna puppy DP
+    text.includes("kcnasal") ||        // KC nasal (tos de perreras)
+    text.includes("leucemia felina");  // vacuna leucemia
 
   if (needsSchedulingReason || needsMedicalReason || activeSchedulingFlow) {
     return { model: "gpt-4o", tier: 3 };
@@ -3838,6 +3846,7 @@ ${knowledgeSummary}
             "cita", "agend", "disponib", "horario", "slot", "hora disponible",
             "reserv", "sector", "direcci", "ubicaci", "traslado", "zona",
             "comuna", "cobertura", "recargo", "castr", "cirug", "esteril",
+            "vacun", "antirrabi", "octuple", "sextuple", "triple felina",
           ];
           const activeSchedulingFlow = recentOutbound.some(msg =>
             schedulingSignals.some(s => msg.includes(s))

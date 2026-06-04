@@ -241,7 +241,7 @@ export default function AISettings() {
     // ─── Computed values ──────────────────────────────────────────────────────
 
     // Fuente de verdad: tabla messages (cubre todo el historial, separa costos reales por modelo)
-    const totalUsed = (miniMessages * 1) + (standardMessages * 8) + (proMessages * 60)
+    const totalUsed = (miniMessages * 1) + (standardMessages * 15) + (proMessages * 15)
     const extraExpired = aiCreditsExtraExpiresAt ? new Date(aiCreditsExtraExpiresAt) < new Date() : false
     const extraAvailable = extraExpired ? 0 : (aiCreditsExtraBalance + aiCreditsExtra4o)
     const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
@@ -510,14 +510,14 @@ export default function AISettings() {
                                     </div>
                                     <div>
                                         <p className="text-xs font-black text-charcoal">GPT-4o Standard</p>
-                                        <p className="text-[10px] font-bold text-sky-600">×8 créditos / msg</p>
+                                        <p className="text-[10px] font-bold text-sky-600">×15 créditos / msg</p>
                                     </div>
                                 </div>
                                 <p className="text-3xl font-black text-charcoal tabular-nums">{standardMessages.toLocaleString()}</p>
                                 <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
                                 <div className="mt-3 pt-3 border-t border-sky-200 flex items-center justify-between">
                                     <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-sky-600 tabular-nums">{(standardMessages * 8).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-sky-600 tabular-nums">{(standardMessages * 15).toLocaleString()}</p>
                                 </div>
                             </div>
 
@@ -529,14 +529,14 @@ export default function AISettings() {
                                     </div>
                                     <div>
                                         <p className="text-xs font-black text-charcoal">GPT-4o Pro</p>
-                                        <p className="text-[10px] font-bold text-violet-600">×60 créditos / msg</p>
+                                        <p className="text-[10px] font-bold text-violet-600">×15 créditos / msg</p>
                                     </div>
                                 </div>
                                 <p className="text-3xl font-black text-charcoal tabular-nums">{proMessages.toLocaleString()}</p>
                                 <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
                                 <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
                                     <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-violet-600 tabular-nums">{(proMessages * 60).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-violet-600 tabular-nums">{(proMessages * 15).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>

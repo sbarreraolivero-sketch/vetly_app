@@ -3048,14 +3048,14 @@ export default function Settings() {
                                         </div>
                                         <p className="text-3xl font-black text-red-600">
                                             {(
-                                                aiMessagesUsed + 
-                                                (aiMessagesUsedStandard * 8) + 
-                                                (aiMessagesUsedPro * 60) + 
-                                                (aiMessagesUsedLegacy4o * 60)
+                                                aiMessagesUsed +
+                                                (aiMessagesUsedStandard * 15) +
+                                                (aiMessagesUsedPro * 15) +
+                                                (aiMessagesUsedLegacy4o * 15)
                                             ).toLocaleString()}
                                         </p>
                                         <p className="text-xs font-bold text-red-400 mt-1 uppercase">Créditos Usados</p>
-                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 8) + (aiMessagesUsedPro * 60) + (aiMessagesUsedLegacy4o * 60))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
+                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 15) + (aiMessagesUsedPro * 15) + (aiMessagesUsedLegacy4o * 15))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
                                     </div>
                                 </div>
 
