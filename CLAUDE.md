@@ -682,11 +682,12 @@ Para agregar una nueva clínica de veterinaria móvil con lógica de sectores (t
 ### `_shared/cors.ts` — `*` es intencional
 El CORS de `_shared/cors.ts` usa `Access-Control-Allow-Origin: '*'` por diseño. Lo usan funciones llamadas desde el **browser** (`chat-agent`, `ai-simulator`). Los webhooks externos (YCloud, MercadoPago, LemonSqueezy) definen sus propios headers CORS restrictivos en cada función. No "corregir" este `*`.
 
-### Créditos IA — fuente única de verdad (sesión 23)
+### Créditos IA — fuente única de verdad (sesión 23, actualizado sesión 36)
 - **Tabla `messages`** es la fuente de verdad para calcular créditos consumidos en `AISettings.tsx`:
   ```
-  totalUsed = miniMessages×1 + standardMessages×8 + proMessages×60
+  totalUsed = miniMessages×1 + (standardMessages + proMessages)×15
   ```
+  `4o_standard` es etiqueta histórica (código muerto — nunca se asigna en el routing actual). Todo 4o nuevo se etiqueta `4o_pro`. Ambos cuestan **15 créditos** por mensaje.
 - **`clinic_settings.ai_credits_monthly_mini_used` / `ai_credits_monthly_4o_used`** son contadores auxiliares para el credit check en el webhook. No son retroactivos (empezaron en 0 al deployarse). **No usarlos para mostrar créditos usados en la UI.**
 - **`ai_credit_transactions`** es la fuente de verdad para el historial y los resúmenes de recarga/consumo. Se rellena automáticamente por cada mensaje (webhook v216+) y cada compra de pack.
 - **RPC `get_credit_history_summary(p_clinic_ids, p_month_start, p_month_end)`** — agrega totales server-side. Usar siempre para calcular resúmenes de historial; nunca fetchear filas individuales en el cliente y sumar (PostgREST limita a 1.000 filas en silencio).
@@ -2558,3 +2559,52 @@ const safe = (p: any) => Promise.resolve(p).then((r: any) => r, () => ({ data: n
 - **Orden corregido:** `ascending: false` → `ascending: true` — las citas más próximas aparecen arriba, las más futuras abajo (era al revés)
 - **Botón "Filtros" eliminado:** el panel de radios de ordenamiento no estaba conectado a ninguna lógica de estado — era UI muerta. Eliminado junto con el import de `Filter` (lucide) y el estado `showFilters`
 - **"Este Mes" agregado:** nueva opción en el filtro de Fecha. Tipo `dateFilter` expandido a `'all' | 'today' | 'tomorrow' | 'week' | 'month'`. Lógica: `appointmentDate >= monthStart && appointmentDate <= monthEnd` (mes calendario actual)
+
+---
+
+## Cambios realizados — junio 2026 (sesión 36, 2026-06-04)
+
+### Routing vacunación a GPT-4o — `ycloud-whatsapp-webhook`
+
+**Problema:** preguntas sobre vacunas (ej: "¿se puede poner Óctuple + Antirrábica en la misma visita?") caían a GPT-4o-mini en modo híbrido. Mini simplificó la regla condicional y respondió con una afirmación absoluta incorrecta.
+
+**Fix 1 — `selectModelTier` `needsMedicalReason`:** keywords de vacunación añadidas al grupo que fuerza GPT-4o:
+```typescript
+text.includes("vacun") || text.includes("antirrabi") || text.includes("octuple") ||
+text.includes("sextuple") || text.includes("triple felina") || text.includes("puppy") ||
+text.includes("kcnasal") || text.includes("leucemia felina")
+```
+
+**Fix 2 — `schedulingSignals`:** mismas keywords añadidas al detector de flujo activo. Si la IA mencionó vacunas en respuestas recientes, el siguiente mensaje del usuario también va a GPT-4o.
+
+**Fix 3 — `ai_behavior_rules` Linares y Santiago (DB, efectivo de inmediato):** nueva regla en la sección de vacunación:
+> **FLUJO OBLIGATORIO — PREGUNTA SOBRE 2 VACUNAS EN LA MISMA VISITA:** Si el tutor pregunta si se pueden aplicar 2 vacunas juntas (ej: Óctuple + Antirrábica), NUNCA respondas con una regla absoluta. PRIMERO pregunta: "¿Tu mascota ya ha recibido alguna vacuna anteriormente?" Solo DESPUÉS de recibir esa respuesta, aplica la regla correcta.
+
+**Regla clínica correcta** (ya estaba en el KB y ai_behavior_rules, la instrucción de flujo era lo que faltaba):
+- Si ya fue vacunada antes → PERMITIDO aplicar 2 en la misma visita (Óctuple + Antirrábica)
+- Si es la primera vez → solo UNA vacuna; la segunda en visita posterior
+
+---
+
+### Créditos IA — multiplicadores corregidos a 15x
+
+**Diagnóstico:** había una inconsistencia entre dos sistemas:
+- **Webhook (realidad):** descontaba `-8` para todo 4o en `ai_credit_transactions`
+- **AISettings display:** calculaba `proMessages × 60` desde la tabla `messages` — sobreestimaba 7.5x
+
+Con el volumen real de Animalgrace (52% mensajes 4o, costo OpenAI ~$0.0165/msg), el multiplicador correcto es **15x** para mantener ~51% de margen vs ~8% con 8x.
+
+**Cambios aplicados:**
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/ycloud-whatsapp-webhook/index.ts:633` | `creditCost = model === "mini" ? 1 : 8` → `1 : 15` |
+| `src/pages/AISettings.tsx:244` | fórmula `standardMessages×8 + proMessages×60` → `(standardMessages + proMessages)×15` |
+| `src/pages/Settings.tsx` | N2 Standard (8x) + N3 Sovereign (60x) → un solo N2 GPT-4o (15x) |
+
+**GPT-4o Standard — etiqueta muerta:** `4o_standard` nunca se asigna en el routing actual. El label `modelForTracking` asigna `"4o_pro"` cuando `tierUsed === 3`, que es siempre que se usa GPT-4o (tanto en modo híbrido como pro). Las 372 filas `4o_standard` en `messages` son datos históricos de una versión anterior. La card "Standard" fue eliminada de la UI — solo quedan **Mini (×1)** y **GPT-4o (×15)**.
+
+**Economía con 15x (pack 4.000 créditos, $9 USD):**
+- OpenAI costo/msg 4o: ~$0.0165
+- Cobro al cliente: 15 × $0.00225 = $0.034
+- Margen: ~51%
