@@ -573,6 +573,9 @@ export default function Appointments() {
             const localDate = new Date(year, month - 1, day, hours, minutes)
             const appointmentDate = localDate.toISOString()
 
+            // Normalize phone: strip all non-digit chars so YCloud button replies match
+            const normalizedPhone = (newAppointment.phone_number || '').replace(/\D/g, '')
+
             let appointmentId = editingId
             let googleEventId = null
 
@@ -581,7 +584,7 @@ export default function Appointments() {
                 const updateData = {
                     patient_name: newAppointment.patient_name,
                     tutor_name: newAppointment.tutor_name,
-                    phone_number: newAppointment.phone_number,
+                    phone_number: normalizedPhone,
                     service: selectedServices.join(' + '),
                     appointment_date: appointmentDate,
                     notes: newAppointment.notes,
@@ -611,7 +614,7 @@ export default function Appointments() {
                     clinic_id: profile.clinic_id,
                     patient_name: newAppointment.patient_name,
                     tutor_name: newAppointment.tutor_name,
-                    phone_number: newAppointment.phone_number,
+                    phone_number: normalizedPhone,
                     service: selectedServices.join(' + '),
                     appointment_date: appointmentDate,
                     status: 'pending',
