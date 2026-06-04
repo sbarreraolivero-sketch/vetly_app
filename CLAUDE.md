@@ -2608,3 +2608,24 @@ Con el volumen real de Animalgrace (52% mensajes 4o, costo OpenAI ~$0.0165/msg),
 - OpenAI costo/msg 4o: ~$0.0165
 - Cobro al cliente: 15 × $0.00225 = $0.034
 - Margen: ~51%
+
+---
+
+## Cambios realizados — junio 2026 (sesión 37, 2026-06-04)
+
+### Fix definitivo: "No hay citas pendientes" al confirmar — causa raíz real
+
+**Bug persistente desde sesión 22.** El fix v214 (verificar `confirmed` como fallback) no era suficiente porque la causa raíz era distinta.
+
+**Causa raíz real (encontrada con diagnóstico DB directo):**
+Claudia guarda citas manualmente desde el dashboard con teléfonos en formato chileno con espacios: `"56 9XXXXXXXX"` (14 chars) o `"+56 9XXXXXXXX"` (15 chars). YCloud envía el `from` de mensajes entrantes como dígitos puros: `"56912345678"` (11 chars). `confirmAppt` usa `.or("phone_number.eq.56912345678,phone_number.eq.+56912345678")` — match exacto de strings. `"56 9XXXXXXXX" ≠ "56912345678"` → nunca encontraba la cita → "No hay citas pendientes."
+
+**Evidencia:** 44 de 123 citas de Linares (36%) tenían `phone_len > 11` con caracteres no numéricos. La cita con phone_len=11 (puro dígitos) sí funcionaba correctamente.
+
+**Fix aplicado:**
+1. **Migración DB `normalize_appointment_phone_numbers`**: `REGEXP_REPLACE(phone_number, '[^0-9]', '', 'g')` sobre todas las citas donde `phone_number ~ '[^0-9]'`. Resultado: 44 citas normalizadas, `phones_still_dirty = 0`.
+2. **`src/pages/Appointments.tsx` `handleSaveAppointment`**: `const normalizedPhone = (newAppointment.phone_number || '').replace(/\D/g, '')` — aplicado a CREATE y UPDATE. Las nuevas citas siempre guardan dígitos puros.
+
+**No se modificó el webhook** — `confirmAppt` ya estaba correcto; el problema era el dato.
+
+**Regla permanente:** `appointments.phone_number` debe contener SOLO dígitos (sin +, sin espacios). La función `normalizePhone` del webhook asume esto. Cualquier lugar que guarde teléfonos en appointments debe aplicar `.replace(/\D/g, '')` antes de persistir.
