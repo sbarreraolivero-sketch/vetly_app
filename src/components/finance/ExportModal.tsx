@@ -330,59 +330,59 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 space-y-5">
-
-                    {/* Selector de período */}
-                    <div>
-                        <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider mb-2">Período</p>
-                        <div className="flex gap-1 flex-wrap">
-                            {([
-                                { id: 'day', label: 'Hoy' },
-                                { id: 'week', label: 'Semana' },
-                                { id: 'month', label: 'Este mes' },
-                                { id: 'year', label: 'Este año' },
-                            ] as const).map(r => (
-                                <button key={r.id}
-                                    onClick={() => { setFilterType(r.id); setCustomRange(null) }}
-                                    className={cn(
-                                        'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                                        filterType === r.id
-                                            ? 'bg-primary-500 text-white shadow-sm'
-                                            : 'bg-silk-beige text-charcoal/60 hover:text-charcoal'
-                                    )}
-                                >
-                                    {r.label}
-                                </button>
-                            ))}
-                            {/* Rango personalizado */}
-                            <div className="relative" ref={calRef}>
-                                <button
-                                    onClick={() => setShowCal(v => !v)}
-                                    className={cn(
-                                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-                                        filterType === 'custom'
-                                            ? 'bg-primary-500 text-white border-primary-500'
-                                            : 'bg-white border-silk-beige text-charcoal/60 hover:text-charcoal'
-                                    )}
-                                >
-                                    <CalendarRange className="w-3.5 h-3.5" />
-                                    {filterType === 'custom' && customRange
-                                        ? `${dateFnsFormat(customRange.start, 'd MMM', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM', { locale: esLocale })}`
-                                        : 'Rango'}
-                                    {filterType === 'custom' && customRange && (
-                                        <span onClick={e => { e.stopPropagation(); setFilterType('month'); setCustomRange(null) }}>
-                                            <X className="w-3 h-3" />
-                                        </span>
-                                    )}
-                                </button>
-                                {showCal && (
-                                    <div className="absolute left-0 top-full mt-2 bg-white border border-silk-beige rounded-2xl shadow-xl z-50">
-                                        <MiniCalendar />
-                                    </div>
+                {/* Selector de período — fuera del scroll para que el calendario no quede recortado */}
+                <div className="px-5 py-4 border-b border-silk-beige shrink-0">
+                    <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider mb-2">Período</p>
+                    <div className="flex gap-1 flex-wrap">
+                        {([
+                            { id: 'day', label: 'Hoy' },
+                            { id: 'week', label: 'Semana' },
+                            { id: 'month', label: 'Este mes' },
+                            { id: 'year', label: 'Este año' },
+                        ] as const).map(r => (
+                            <button key={r.id}
+                                onClick={() => { setFilterType(r.id); setCustomRange(null) }}
+                                className={cn(
+                                    'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                                    filterType === r.id
+                                        ? 'bg-primary-500 text-white shadow-sm'
+                                        : 'bg-silk-beige text-charcoal/60 hover:text-charcoal'
                                 )}
-                            </div>
+                            >
+                                {r.label}
+                            </button>
+                        ))}
+                        {/* Rango personalizado */}
+                        <div className="relative" ref={calRef}>
+                            <button
+                                onClick={() => setShowCal(v => !v)}
+                                className={cn(
+                                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                                    filterType === 'custom'
+                                        ? 'bg-primary-500 text-white border-primary-500'
+                                        : 'bg-white border-silk-beige text-charcoal/60 hover:text-charcoal'
+                                )}
+                            >
+                                <CalendarRange className="w-3.5 h-3.5" />
+                                {filterType === 'custom' && customRange
+                                    ? `${dateFnsFormat(customRange.start, 'd MMM', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM', { locale: esLocale })}`
+                                    : 'Rango'}
+                                {filterType === 'custom' && customRange && (
+                                    <span onClick={e => { e.stopPropagation(); setFilterType('month'); setCustomRange(null) }}>
+                                        <X className="w-3 h-3" />
+                                    </span>
+                                )}
+                            </button>
+                            {showCal && (
+                                <div className="absolute left-0 top-full mt-2 bg-white border border-silk-beige rounded-2xl shadow-xl z-[60]">
+                                    <MiniCalendar />
+                                </div>
+                            )}
                         </div>
                     </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
                     {/* Preview de estadísticas */}
                     <div className="bg-ivory rounded-xl border border-silk-beige p-4">
