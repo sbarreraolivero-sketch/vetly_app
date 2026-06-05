@@ -4,58 +4,38 @@ import { cn } from '@/lib/utils'
 
 const plans = [
     {
-        id: 'core',
-        name: 'Core',
-        tagline: 'Gestión completa, sin IA conversacional.',
-        price: 39,
+        id: 'enterprise',
+        name: 'Enterprise',
+        tagline: 'Para redes veterinarias y multi-sucursal.',
+        price: 297,
+        annualTotal: 2851,
         period: '/mes',
-        description: 'Todo lo que necesitas para administrar tu clínica. Sin el agente de WhatsApp.',
+        description: 'Infraestructura completa para escalar múltiples sedes con un solo sistema.',
         highlight: false,
-        icon: LayoutDashboard,
+        icon: Crown,
         features: [
-            '1 usuario',
-            'Dashboard con métricas en tiempo real',
-            'Calendario de citas (gestión manual)',
-            'Fichas médicas e historial animal',
-            'CRM de prospectos',
-            'Sistema de referidos',
-            'Módulo de finanzas y reportes',
+            'Todo lo de Pro, más:',
+            'Usuarios y agendas ilimitados',
+            'Multi-sucursal con dashboard unificado',
+            'Conversaciones IA ilimitadas',
+            'Recordatorios ilimitados',
+            'Hasta 3 sucursales',
+            'Super Administrador',
+            'Soporte prioritario 24/7',
         ],
         upsells: [
-            'Recordatorios automáticos — packs opcionales',
             'Mensajería masiva de marketing segmentada',
         ],
         limitations: [],
-        cta: 'Comenzar con Core',
-        gradient: 'from-zinc-500 to-zinc-700',
-    },
-    {
-        id: 'starter',
-        name: 'Starter',
-        tagline: 'Ideal para veterinarios independientes a domicilio.',
-        price: 89,
-        period: '/mes',
-        description: 'Agrega el agente IA que atiende y agenda por WhatsApp, 24/7.',
-        highlight: false,
-        icon: Sparkles,
-        features: [
-            'Todo lo de Core, más:',
-            'Hasta 2 usuarios',
-            'Agente IA WhatsApp (GPT-4o mini)',
-            'Hasta 50 citas automatizadas/mes',
-            '1 agenda disponible',
-            'Optimización de ruta con Google Maps',
-            'Integración oficial WhatsApp (Meta)',
-        ],
-        limitations: [],
-        cta: 'Comenzar con Starter',
-        gradient: 'from-primary-500 to-primary-700',
+        cta: 'Contactar Ventas',
+        gradient: 'from-zinc-700 to-zinc-900',
     },
     {
         id: 'pro',
         name: 'Pro',
         tagline: 'Para clínicas en pleno crecimiento, móviles o físicas.',
-        price: 149,
+        price: 167,
+        annualTotal: 1603,
         period: '/mes',
         description: 'IA completa, recordatorios, campañas y citas ilimitadas.',
         highlight: true,
@@ -64,7 +44,7 @@ const plans = [
             'Todo lo de Starter, más:',
             'Hasta 5 usuarios (Adm, Prof, Recep)',
             '5 agendas independientes',
-            'IA GPT-4o — citas ilimitadas',
+            'Conversaciones IA ilimitadas',
             'Recordatorios automáticos (250/mes)',
             'Sistema de referidos con IA',
             'Encuestas de satisfacción',
@@ -78,30 +58,55 @@ const plans = [
         badge: 'Popular',
     },
     {
-        id: 'enterprise',
-        name: 'Enterprise',
-        tagline: 'Para redes veterinarias y multi-sucursal.',
-        price: 349,
+        id: 'starter',
+        name: 'Starter',
+        tagline: 'Ideal para veterinarios independientes a domicilio.',
+        price: 97,
+        annualTotal: 931,
         period: '/mes',
-        description: 'Infraestructura completa para escalar múltiples sedes con un solo sistema.',
+        description: 'Agrega el agente IA que atiende y agenda por WhatsApp, 24/7.',
         highlight: false,
-        icon: Crown,
+        icon: Sparkles,
         features: [
-            'Todo lo de Pro, más:',
-            'Usuarios y agendas ilimitados',
-            'Multi-sucursal con dashboard unificado',
-            'IA personalizada por especialidad',
-            'Recordatorios ilimitados',
-            'Benchmark entre sedes',
-            'Super Administrador',
-            'Soporte prioritario 24/7',
+            'Todo lo de Core, más:',
+            'Hasta 2 usuarios',
+            'Agente IA WhatsApp (Lía)',
+            '200 conversaciones IA/mes',
+            '100 citas automatizadas/mes',
+            '1 agenda disponible',
+            'Optimización de ruta con Google Maps',
+            '¿Más de 100 citas/mes? → Plan Pro',
+        ],
+        limitations: [],
+        cta: 'Comenzar con Starter',
+        gradient: 'from-primary-500 to-primary-700',
+    },
+    {
+        id: 'core',
+        name: 'Core',
+        tagline: 'Gestión completa, sin IA conversacional.',
+        price: 39,
+        annualTotal: null,
+        period: '/mes',
+        description: 'Todo lo que necesitas para administrar tu clínica. Sin el agente de WhatsApp.',
+        highlight: false,
+        icon: LayoutDashboard,
+        features: [
+            '1 usuario',
+            'Dashboard con métricas en tiempo real',
+            'Calendario de citas (gestión manual)',
+            'Fichas médicas e historial animal',
+            'CRM de prospectos',
+            'Sistema de referidos',
+            'Sin recordatorios automáticos',
+            'Recordatorios automáticos disponibles desde Plan Starter',
         ],
         upsells: [
             'Mensajería masiva de marketing segmentada',
         ],
         limitations: [],
-        cta: 'Contactar Ventas',
-        gradient: 'from-zinc-700 to-zinc-900',
+        cta: 'Comenzar con Core',
+        gradient: 'from-zinc-500 to-zinc-700',
     },
 ];
 
@@ -133,7 +138,7 @@ export default function Pricing() {
 
     const getPrice = (basePrice: number) => {
         if (billingPeriod === 'annual') {
-            return Math.round(basePrice * 10 / 12) // 2 meses gratis
+            return Math.round(basePrice * 0.8) // 20% off
         }
         return basePrice
     }
@@ -222,8 +227,8 @@ export default function Pricing() {
                                 )}
                             >
                                 Anual
-                                <span className="bg-accent-500 text-charcoal text-xs px-2 py-0.5 rounded-full">
-                                    -17%
+                                <span className="bg-accent-500 text-charcoal text-xs px-2 py-0.5 rounded-full font-semibold">
+                                    2 meses gratis
                                 </span>
                             </button>
                         </div>
@@ -269,9 +274,14 @@ export default function Pricing() {
                                         </span>
                                         <span className="text-charcoal/50">{plan.period}</span>
                                     </div>
-                                    {billingPeriod === 'annual' && (
-                                        <p className="text-sm text-primary-600 mt-1">
-                                            2 meses gratis + Setup bonificado
+                                    {billingPeriod === 'annual' && plan.annualTotal && (
+                                        <p className="text-sm text-primary-600 mt-1 font-medium">
+                                            ${plan.annualTotal}/año · 2 meses gratis
+                                        </p>
+                                    )}
+                                    {billingPeriod === 'annual' && !plan.annualTotal && (
+                                        <p className="text-sm text-charcoal/40 mt-1">
+                                            Sin descuento anual
                                         </p>
                                     )}
                                 </div>
