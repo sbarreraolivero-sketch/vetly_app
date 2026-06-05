@@ -1700,7 +1700,41 @@ Las constantes `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` permanecen en el c
 
 ## Tareas pendientes
 
-✅ **Sin pendientes técnicos activos.** Todos los ítems fueron cerrados en sesiones 23-25.
+### Deuda técnica conocida — no urgente
+
+#### `auto_open_daily_cajas()` — timezone hardcodeado a Chile (jobid 18, pg_cron)
+
+**Ubicación:** `supabase/migrations/20260604000001_caja_v2_improvements.sql` + función en DB.
+
+**Situación actual:** la función que abre cajas automáticamente a las 07:00 usa `'America/Santiago'` hardcodeado:
+```sql
+v_today DATE := (NOW() AT TIME ZONE 'America/Santiago')::DATE;
+```
+
+**Impacto hoy:** ninguno — todos los clientes actuales son chilenos.
+
+**Impacto cuando haya clientes de otro país:** la caja abriría con la fecha chilena, no la fecha local del cliente.
+
+**Fix a aplicar cuando llegue el primer cliente de otro país:**
+```sql
+CREATE OR REPLACE FUNCTION public.auto_open_daily_cajas()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    INSERT INTO public.cash_registers (clinic_id, date, status)
+    SELECT
+        id,
+        (NOW() AT TIME ZONE COALESCE(timezone, 'America/Santiago'))::DATE,
+        'open'
+    FROM public.clinic_settings
+    WHERE id != '00000000-0000-0000-0000-000000000000'
+    ON CONFLICT (clinic_id, date) DO NOTHING;
+END;
+$$;
+```
+
+**Contexto:** el frontend ya está correctamente multi-timezone — `useClinicTimezone` lee `clinic_settings.timezone` y lo usa para calcular "hoy" en cada clínica. El único punto pendiente es este cron del lado del servidor.
+
+---
 
 Los únicos ítems que quedaron intencionalmente sin modificar:
 - **`check_*.js` en raíz** — 0 archivos encontrados. Ya estaba limpio.
@@ -2629,3 +2663,86 @@ Claudia guarda citas manualmente desde el dashboard con teléfonos en formato ch
 **No se modificó el webhook** — `confirmAppt` ya estaba correcto; el problema era el dato.
 
 **Regla permanente:** `appointments.phone_number` debe contener SOLO dígitos (sin +, sin espacios). La función `normalizePhone` del webhook asume esto. Cualquier lugar que guarde teléfonos en appointments debe aplicar `.replace(/\D/g, '')` antes de persistir.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 38, 2026-06-04)
+
+### Sistema de Cajas v2 — implementación completa
+
+#### Nuevas funcionalidades
+
+**1. Saldo inicial del día (`opening_balance`)**
+- Campo editable en cada caja abierta ("Saldo inicial en caja") con botón Guardar
+- Se muestra como stat estático en cajas cerradas
+- Almacenado en `cash_registers.opening_balance NUMERIC DEFAULT 0`
+- RPC `update_caja_opening_balance(clinic_id, date, amount, user_id)` — solo modifica cajas abiertas; verifica acceso vía `clinic_members`
+
+**2. Gastos desde la caja con boleta adjunta**
+- Botón "Gasto" junto a "Ingreso" en cada caja abierta
+- `CajaExpenseModal.tsx`: descripción, monto, 4 medios de pago (toggle), categoría, adjunto de boleta
+- Boleta: drag-and-drop + `capture="environment"` (abre cámara trasera en mobile), acepta JPG/PNG/WEBP/HEIC/PDF, máx 10 MB
+- Las boletas se guardan en bucket privado `expense-receipts` — se almacena el **path** (no URL pública); URL firmada se genera on-demand al ver (TTL 1h)
+- Ícono de clip en la lista de gastos → genera signed URL y abre en nueva pestaña
+- Columnas nuevas en `expenses`: `payment_method TEXT`, `receipt_url TEXT`
+- RPC `create_clinic_expense` actualizado para aceptar los nuevos campos
+
+**3. Apertura automática diaria a las 07:00 Chile**
+- pg_cron jobid 18, schedule `0 11 * * *` (11:00 UTC = 07:00 CLT)
+- Función `auto_open_daily_cajas()`: UPSERT `status='open'` para todas las clínicas activas, usando fecha en zona horaria `America/Santiago`
+- Idempotente: `ON CONFLICT DO NOTHING`
+- **Deuda técnica pendiente:** timezone hardcodeado a Chile — ver sección "Tareas pendientes"
+
+**4. Informe detallado descargable (`CajaReport.tsx`)**
+- Botón "Informe" visible en TODAS las cajas (abiertas y cerradas)
+- Abre ventana imprimible via `window.open()` + `window.print()` (mismo patrón que VisitReceipt)
+- Contenido: saldo inicial, cobrado por ítem, gastos, desglose por método, pendientes, resumen (saldo inicial + cobrado − gastos = **saldo final**), notas
+- Todos los datos de usuario escapados con `esc()` para prevenir XSS
+
+**5. CloseCajaModal mejorado**
+- Muestra saldo inicial + cobrado − gastos = saldo final en card oscura
+- Sección de gastos del día (rose)
+- Botón "PDF" para descargar informe antes/después de cerrar
+
+#### DB — migración `caja_v2_improvements` + `fix_caja_security`
+
+| Objeto | Cambio |
+|---|---|
+| `cash_registers.opening_balance` | Columna nueva NUMERIC DEFAULT 0 |
+| `cash_registers.total_gastos` | Columna nueva NUMERIC DEFAULT 0 |
+| `expenses.payment_method` | Columna nueva TEXT nullable |
+| `expenses.receipt_url` | Columna nueva TEXT nullable (almacena path de Storage, no URL) |
+| `close_cash_register` | Actualizado: preserva `opening_balance`, calcula `total_gastos`, auth incondicional con `auth.uid()` |
+| `open_cash_register` | Nueva RPC con verificación de acceso `auth.uid()` |
+| `update_caja_opening_balance` | Nueva RPC para guardar saldo inicial |
+| `auto_open_daily_cajas` | Nueva función para pg_cron |
+| `create_clinic_expense` | Actualizado: acepta `payment_method` y `receipt_url` |
+| RLS `expenses` | Migrada de policy genérica a `clinic_members` (patrón estándar) |
+| Storage bucket `expense-receipts` | Creado privado, 10MB, con RLS por `clinic_members` |
+
+#### Archivos frontend
+
+| Archivo | Acción |
+|---|---|
+| `src/components/finance/CajaExpenseModal.tsx` | Nuevo — modal de gastos con upload de boleta |
+| `src/components/finance/CajaReport.tsx` | Nuevo — informe imprimible con `esc()` anti-XSS |
+| `src/components/finance/CajaDelDia.tsx` | Modificado — opening balance, gastos, botones Gasto/Informe |
+| `src/pages/Finance.tsx` | Modificado — orquestación completa, signed URL para boletas |
+| `src/services/financeService.ts` | Modificado — nuevos métodos, tenant filter en deleteExpense |
+
+#### Fix timezone de cajas
+
+`new Date().toISOString()` retorna UTC. En Chile (UTC-4), después de las 8pm muestra el día siguiente. Corregido usando `toLocaleDateString('sv-SE', { timeZone: timezone })` donde `timezone` viene de `clinic_settings.timezone` via `useClinicTimezone`. Aplicado en `Finance.tsx` (`todayStr`) y en `CajaDelDia.tsx` (`isToday`). El `'America/Santiago'` es fallback, no valor fijo.
+
+#### Seguridad — hallazgos y fixes (revisión de seguridad sesión 38)
+
+| Severidad | Hallazgo | Fix |
+|---|---|---|
+| ALTO | `open_cash_register` sin verificación de acceso | `auth.uid()` check vía `clinic_members` |
+| ALTO | `close_cash_register` bypasseaba auth cuando `p_closed_by = NULL` | Verificación incondicional con `auth.uid()` |
+| MEDIO | XSS en informe HTML — datos de usuario sin escapar | Función `esc()` en todas las interpolaciones |
+| MEDIO | `getPublicUrl` en bucket privado — URL no funciona con bucket privado | Cambiado a path + `createSignedUrl` on-demand |
+| MEDIO | RLS de `expenses` con policy genérica | Migrada a `clinic_members` |
+| MEDIO | `deleteExpense` sin filtro de `clinic_id` | `.eq('clinic_id', clinicId)` agregado |
+| BAJO | MIME type no validado en drag-and-drop | Validación explícita de `ACCEPTED_MIME` |
+| BAJO | Extensión derivada del nombre del archivo | Derivada del `file.type` via `MIME_TO_EXT` |
