@@ -719,3 +719,201 @@ Cuando detecta una de estas frases en WhatsApp → entrega el link inmediatament
 - "diagnóstico" / "diagnóstico WhatsApp" → `vetly.pro/recursos/diagnostico` → "¿Cómo te fue? ¿Saliste en zona roja o ámbar?"
 
 **Regla permanente de Andrés para LM:** primero entrega el recurso sin hacer preguntas previas. Una sola pregunta de seguimiento. El recurso es la puerta — el objetivo es llegar a `registrar_lead` o `agendar_videollamada`.
+
+---
+
+## Citenly — Producto Hermano (sesión 2026-06-04)
+
+### Qué es
+SaaS de gestión inteligente de citas para negocios de belleza: micropigmentadoras, esteticistas, salones, peluquerías, barberías, nail salons, spas. Mismo stack técnico que Vetly. Agente IA que atiende WhatsApp automáticamente.
+
+**Estado actual:** 1 cliente activa (esposa del fundador, micropigmentadora). Sin lanzamiento público.
+
+### Diferenciación vs competencia
+- **Fresha** (freemium global): da agenda online, no tiene agente IA en WhatsApp. Citenly se diferencia en "la que atiende tu WhatsApp mientras trabajas."
+- **AgendaPro** (US$8.1M ARR, Serie B US$35M): acaba de anunciar IA pero viene de gestión. Citenly nace con IA como núcleo.
+- **Booksy, Salonappy**: sin IA conversacional ni WhatsApp nativo.
+
+**Posicionamiento clave:** "No es solo agenda online — es una recepcionista IA que atiende tu WhatsApp automáticamente."
+
+### Go-to-market: sin marca personal
+La esposa del fundador (micropigmentadora) no construirá marca personal, pero sí aparece como **testimonio real** en los anuncios. El go-to-market es 100% producto + Meta Ads.
+
+**Anuncio más potente disponible hoy:**
+> *"Soy micropigmentadora. Antes respondía WhatsApp entre cliente y cliente, perdía citas y llegaba a casa a seguir contestando mensajes. Hoy mi asistente IA atiende todo automáticamente desde mi número de WhatsApp. Ni siquiera lo configuré yo — me lo dejaron listo."*
+
+### Facebook Page
+- **Nombre:** `Citenly - Recepcionista IA para Belleza`
+- **Por qué:** "Recepcionista IA" diferencia de Fresha/AgendaPro que hablan de "agenda online". "Belleza" cubre todo el mercado sin ser estrecho como "estéticas".
+- **Keywords en el nombre:** intencional — ayuda al SEO de Facebook search y Google para una página nueva sin historial.
+
+### Prioridad vs Vetly
+**Citenly es secundario.** Sin marca personal y compitiendo contra Fresha (gratis), el costo de adquisición será mayor. Activar Citenly con ads cuando Vetly tenga 5–10 clientes y los aprendizajes de Meta Ads ya estén incorporados.
+
+---
+
+## Estrategia Meta Ads — Vetly (sesión 2026-06-04)
+
+### ICP corregido — insight crítico del fundador
+
+**Los veterinarios independientes sin clientela NO son el ICP de Vetly.** Fallan por falta de clientes, no por caos operativo — no tienen el dolor activo que Vetly resuelve. Si se les vende Vetly antes de tener volumen, se pierden en 30 días.
+
+**ICP real:** clínicas ya establecidas con base de clientes activa que sienten el WhatsApp como caos. Clínicas con 3+ años, volumen de mensajes real, y al menos 30–50 citas al mes.
+
+| Estado de la clínica | Dolor activo | ICP correcto |
+|---|---|---|
+| Independiente sin clientes (aspira) | No | ❌ |
+| Independiente establecida (3+ años) | Sí | ✅ |
+| Clínica pequeña desbordada | Sí, alto | ✅ |
+| Clínica móvil con ruta activa | Sí, muy alto | ✅ prioritario |
+
+**Implicación para ads:** nunca apuntar a keywords o intereses de "quiero abrir mi clínica". Apuntar a quien YA tiene el caos encima.
+
+### Avatares por plan
+
+**Avatar Starter — "El Desbordado" ($89 USD) ⭐ target principal ads**
+Veterinario solo o con 1 ayudante. Mezcla WhatsApp personal con el de la clínica. Responde mensajes mientras opera o a las 11pm. No puede pagar recepcionista.
+Trigger emocional: *el domingo por la noche sabiendo que quedaron mensajes del fin de semana sin responder.*
+Mensaje: *"Una recepcionista que trabaja 24/7 por menos de lo que cuesta un desayuno al día."*
+
+**Avatar Pro — "El que quiere escalar" ($169 USD) ⭐ target principal ads**
+Clínica 2–8 personas, recepcionista desbordada en horas pico. Quiere crecer sin contratar más personal administrativo.
+Mensaje: *"Tu recepcionista enfocada en el presencial. Lía maneja el digital."*
+
+**Avatar Móvil — "La Clínica a Domicilio" (Starter/Pro)**
+Atiende en domicilio. WhatsApp explota mientras maneja. Ruta caótica.
+Mensaje: *"Lía atiende. Tú manejas. Goldi guía la ruta."*
+
+**Avatar Enterprise — "El Multi-sucursal" ($349 USD)**
+No se cierra por Meta. Meta lo usa para calificar y llevar a demo con caso Animalgrace.
+
+### Estructura de campañas recomendada
+
+```
+CAMPAÑA 1: TOFU — Awareness (20% presupuesto)
+  Objetivo: Video Views / Traffic
+  Ad Sets: Chile + Colombia/México
+
+CAMPAÑA 2: MOFU — Leads (60% presupuesto) ← FOCO
+  Objetivo: Leads (click a /demo)
+  Ad Set A: Avatar Starter — independientes Chile
+  Ad Set B: Avatar Pro — clínicas en crecimiento Chile
+  Ad Set C: Avatar Móvil — clínicas a domicilio LATAM
+
+CAMPAÑA 3: BOFU — Retargeting (20% presupuesto)
+  Objetivo: Conversiones
+  Ad Set A: Visitantes vetly.pro (30 días)
+  Ad Set B: Visitantes /demo sin convertir (7 días)
+```
+
+**Presupuesto mínimo:** $400 USD/mes. Por debajo, el algoritmo de Meta no tiene datos suficientes para optimizar.
+**CPL objetivo Chile:** $15–35 USD por lead calificado (sin competencia de anunciantes en el nicho).
+**CPA objetivo:** $75–200 USD por demo agendado.
+
+### Copies aprobados — mejores por avatar
+
+**Avatar Starter — Ángulo "domingo por la noche"**
+> El domingo por la noche sabes que quedaron mensajes del fin de semana sin responder. Mañana arrancarás la semana con esa deuda encima. Otra vez. No es falta de esfuerzo — es que nadie puede estar disponible 24/7. Lía sí puede. La Dra. Claudia Barrera ahorró 84 horas al mes. Hoy descansa el domingo sabiendo que Lía está atendiendo.
+> **Headline:** Tu clínica funciona aunque estés durmiendo · **CTA:** vetly.pro/demo
+
+**Avatar Starter — Ángulo "costo vs recepcionista"**
+> Una recepcionista en Chile cuesta entre $600.000 y $800.000 al mes. No trabaja de noche. No trabaja el fin de semana. Lía trabaja 24/7, los 365 días, por $89 USD al mes. Responde en menos de 5 segundos — incluso a las 3am.
+> **Headline:** $89 USD/mes. Tu recepcionista 24/7.
+
+**Avatar Móvil — Ángulo diferenciador**
+> Mientras manejas al próximo paciente, el WhatsApp explota. Lía atiende todos esos mensajes mientras tú manejas. Y Goldi optimiza tu ruta para que llegues a más citas con menos kilómetros. El único sistema de LATAM diseñado específicamente para clínicas veterinarias móviles.
+> **Headline:** Lía atiende. Tú manejas. Goldi guía la ruta.
+
+**Testimonio (social proof)**
+> "Vetly me ha permitido descansar sabiendo que los mensajes están en buenas manos." — Dra. Claudia Barrera O., Animalgrace
+> ✅ +100 citas/mes por IA · ✅ 84h ahorradas/mes · ✅ Rutas 80km→45km/día
+
+### Nota sobre timing
+Meta Ads para Vetly solo en Chile es prematuro (~1.500 clínicas, mercado estrecho para el algoritmo). **El targeting debe ser LATAM completo** (Chile + Colombia + México mínimo) para tener audiencia suficiente. Activar cuando haya 3–5 casos de éxito documentados además de Animalgrace.
+
+---
+
+## Estrategia de Marca Personal — Sebastián (sesión 2026-06-04)
+
+### Decisión permanente: un solo nicho
+
+**Sebastián = veterinarios únicamente.**
+
+No mezclar con belleza/estética aunque Citenly exista. El mensaje específico siempre gana al general. Hablarle a "dueños de negocios de servicio" no convierte — hablarle a "la veterinaria que responde WhatsApp a las 11pm mientras intenta descansar" sí.
+
+### Por qué funciona para Vetly
+La historia de Movilvets es el diferenciador que ningún competidor puede comprar. Ningún otro fundador de software veterinario en LATAM operó una clínica móvil. Eso hace que cada post, clase de Skool y mensaje de outreach aterrice diferente — no está vendiendo, está recordando algo que vivió.
+
+### Regla de contenido
+Todo el contenido de marca personal habla del **problema del cliente**, no del producto. Sebastián no es "el fundador de Vetly" — es "el que operó una clínica móvil y sabe exactamente por qué tu WhatsApp te está matando el negocio."
+
+El producto aparece como consecuencia natural de esa historia, no como el tema central.
+
+### Plataformas
+- **LinkedIn:** contenido de negocio, casos, insights operativos. Audiencia: veterinarios dueños de clínica y comunidad emprendedora LATAM.
+- **Skool:** comunidad + curso (ver sección abajo).
+- **Facebook:** comunidades veterinarias (Colmevet Chile, VEPA Colombia).
+
+---
+
+## Estrategia Skool — Comunidad Veterinarios (sesión 2026-06-04)
+
+### Concepto
+Comunidad + curso pregrabado para veterinarios independientes que quieren conseguir sus propios clientes con Meta Ads. Vetly aparece en el módulo exacto donde el vet siente el dolor que Vetly resuelve.
+
+**El funnel:**
+```
+Vet sin clientes
+    → Skool: aprende Meta Ads
+    → Empieza a recibir prospectos por WhatsApp
+    → Módulo 4: "El WhatsApp se llenó. ¿Ahora qué?" → demo de Vetly
+    → Cliente Vetly con dolor activo y confianza preexistente
+```
+
+### Nombre recomendado
+No usar "Vetly" en el nombre. Opciones: **"Vet Independiente"** / **"La Clínica Sin Límites"** / **"Vets que Crecen"**. El nombre tiene que ser aspiracional para el avatar, no promocional para el producto.
+
+### Estructura de módulos
+- **Módulo 0:** Bienvenida — historia Movilvets, qué lograrán
+- **Módulo 1:** Primera campaña Meta Ads (núcleo del curso)
+- **Módulo 2:** El avatar del tutor — a quién le hablas en el anuncio
+- **Módulo 3:** Instagram como herramienta de venta
+- **Módulo 4:** *"El WhatsApp se llenó. ¿Ahora qué?"* ← Vetly entra aquí, de forma natural
+- **Módulo 5:** Los primeros 30 clientes — plan semana a semana
+- **Módulo 6:** Escalar de 30 a 100 clientes
+
+### Pricing
+Empezar **gratis** los primeros 3 meses para construir masa crítica (100+ miembros). Luego $29 USD/mes a nuevos entrantes. Fundadores con acceso gratuito perpetuo → se convierten en embajadores.
+
+### Regla del Módulo Vetly
+El módulo no se llama "Cómo usar Vetly" — se llama *"El sistema de atención al cliente que trabaja mientras duermes"*. Primero plantea el problema del colapso operativo, luego muestra la solución, luego el caso Animalgrace con números reales.
+
+### Plan de lanzamiento
+1. Semana 1: Crear cuenta Skool, grabar video de bienvenida (historia Movilvets)
+2. Semana 2: Grabar Módulo 1 completo. Lanzar comunidad gratis con ese único módulo.
+3. Semana 3: Post en Colmevet Chile + VEPA Colombia anunciando la comunidad gratuita
+4. Semana 4: Grabar Módulos 2 y 3. Módulo 4 (Vetly) se graba con 30–50 miembros activos.
+
+---
+
+## Análisis competitivo — Mercado Belleza vs Veterinaria (sesión 2026-06-04)
+
+### Datos reales verificados
+- **AgendaPro** (benchmark belleza SaaS LATAM): $8.1M ARR 2024, Serie B US$35M (agosto 2025), 20.000+ negocios activos, 135.000 profesionales, 100M+ citas, Chile/México/Colombia/Perú/Argentina. **También tiene veterinarias como segmento.**
+- **Salones de belleza Chile:** 2.412 "beauty parlours" registrados (solo una categoría — el mercado real suma 15.000–25.000 unidades contando peluquerías, barberías, estéticas, nail salons, spas).
+- **Mercado belleza LATAM:** USD 58.71 billion (2023).
+- **Mercado medicamentos veterinarios Chile:** USD 224M (2023), crece 8.5% anual.
+
+### Comparación para Meta Ads
+
+| Factor | Belleza (Citenly) | Veterinaria (Vetly) |
+|---|---|---|
+| Tamaño audiencia Meta | Muy grande | Pequeña Chile / Media LATAM |
+| Competencia anunciantes | Alta (Fresha, AgendaPro) | Casi nula |
+| CPL estimado | $20–50 USD | $15–35 USD |
+| Ciclo de decisión | 1–3 días | 3–10 días |
+| Diferenciación | Media (Fresha es gratis) | Alta (IA vet + WhatsApp, único) |
+| Defensibilidad | Baja | Alta |
+
+### Conclusión estratégica
+Citenly captura leads más fácil por volumen de mercado. Vetly convierte mejor por diferenciación y confianza construida con marca personal. **Vetly tiene mayor defensibilidad a largo plazo.**
