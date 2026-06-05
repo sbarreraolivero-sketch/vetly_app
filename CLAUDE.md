@@ -2746,3 +2746,48 @@ Claudia guarda citas manualmente desde el dashboard con teléfonos en formato ch
 | MEDIO | `deleteExpense` sin filtro de `clinic_id` | `.eq('clinic_id', clinicId)` agregado |
 | BAJO | MIME type no validado en drag-and-drop | Validación explícita de `ACCEPTED_MIME` |
 | BAJO | Extensión derivada del nombre del archivo | Derivada del `file.type` via `MIME_TO_EXT` |
+
+---
+
+## Cambios realizados — junio 2026 (sesión 39, 2026-06-05)
+
+### Fixes post-cajas v2
+
+#### Fecha de caja en zona horaria correcta
+`new Date().toISOString()` retorna UTC — en Chile (UTC-4) después de las 8pm mostraba el día siguiente. Reemplazado por `toLocaleDateString('sv-SE', { timeZone: timezone })` donde `timezone` viene de `clinic_settings.timezone` via `useClinicTimezone`. Aplicado en `Finance.tsx` (`todayLocalStr`) y en `CajaDelDia.tsx` (`localToday`). El `'America/Santiago'` es fallback, no valor fijo — se adapta automáticamente a clínicas de otros países cuando tengan `timezone` configurado.
+
+#### Nombre real de la sucursal en informe PDF
+`clinicName` en Finance.tsx se obtenía de `member.clinic_name` (siempre undefined — esa columna no existe en `clinic_members`). Corregido: se fetch desde `clinic_settings.clinic_name` en el `loadData()` usando `Promise.resolve(query).then(ok, err)` — nunca `.catch()` directo sobre query builders de Supabase (regla de sesión 35).
+
+#### Bug crítico: Finance mostraba $0.00 en todos los KPIs
+**Causa raíz:** se usó `.catch(() => null)` directo sobre un query builder de Supabase (violación de la regla de sesión 35). El thenable lanzaba `TypeError`, reventando todo el `Promise.all` → stats, transactions, incomes y expenses sin setear → $0 en todo. Fix: `Promise.resolve(query).then(ok, err)`.
+
+**Regla permanente (refuerzo):** nunca llamar `.catch()` directamente sobre un query builder de Supabase. Usar siempre `Promise.resolve(query).then(ok, err)` o `await query` dentro de try/catch.
+
+#### Estilo saldo inicial — revertido a colores originales
+El usuario rechazó los colores amber. El saldo inicial volvió al fondo `ivory/60` con borde `silk-beige` original. El texto del monto y el placeholder ahora son `text-charcoal` (negro) en vez del gris apagado previo.
+
+### Modal de Exportación (`ExportModal.tsx`)
+
+**Motivación:** el dropdown de exportación solo ofrecía CSV/JSON sin control de fechas. El usuario quería poder filtrar el reporte por cualquier período antes de descargar.
+
+**Implementación (`src/components/finance/ExportModal.tsx`):**
+- Abre desde el botón "Exportar" en el banner de Finanzas
+- **Selector de período propio** (independiente del filtro de la vista): Hoy / Semana / Este mes / Este año + rango personalizado con mini calendario
+- **Preview en tiempo real**: al cambiar el período, hace fetch de `get_finance_stats` y muestra ingresos, gastos, ganancia neta y por cobrar antes de descargar
+- **Formato**: CSV (con BOM UTF-8 para compatibilidad Excel) o JSON
+- **Fetch independiente al descargar**: obtiene transactions + expenses + incomes para el período seleccionado, no usa los datos del filtro de la vista
+- CSV incluye columna de método de pago en gastos e ingresos manuales
+
+**Fix de calendario recortado:** el selector de período se movió **fuera** del `div overflow-y-auto` del modal a su propia sección con `shrink-0`. El dropdown del calendario usa `z-[60]` para superar el `z-50` del overlay. Patrón permanente: cualquier dropdown que abra dentro de un modal debe estar en una sección fuera del overflow scrolleable, o usar un portal.
+
+**Limpieza:** eliminados `handleExport`, `showExportMenu`, `exportMenuRef`, el useEffect de click-outside del menú, y constantes `CATEGORY_LABELS_INCOME`, `STATUS_LABELS` que solo usaba `handleExport`.
+
+### Patrón de dropdowns dentro de modales (regla permanente)
+
+Un `position: absolute` dentro de un contenedor con `overflow-y-auto` queda recortado por el overflow. Opciones:
+1. **Mover el trigger fuera del overflow** (solución aplicada aquí — más simple)
+2. Usar un portal React (`createPortal`) para renderizar el dropdown en el body
+3. `overflow: visible` + scroll manual (frágil, no recomendado)
+
+Preferir opción 1 cuando la sección con el dropdown puede estar en un área fija (header, sección separada). Preferir opción 2 (portal) cuando el trigger debe estar dentro del scroll.
