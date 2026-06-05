@@ -75,6 +75,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import { SubscriptionGuard } from './components/auth/SubscriptionGuard'
 import { AdminProtectedRoute } from './components/auth/AdminProtectedRoute'
 import { RoleGuard } from './components/auth/RoleGuard'
+import { PermissionGuard } from './components/auth/PermissionGuard'
 
 // Loading component
 const PageLoader = () => (
@@ -229,9 +230,9 @@ function MainRoutes() {
                         } />
                         <Route path="inventory" element={
                             <SubscriptionGuard>
-                                <RoleGuard allowedRoles={['owner', 'admin']}>
+                                <PermissionGuard pageKey="inventory">
                                     <Inventory />
-                                </RoleGuard>
+                                </PermissionGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="templates" element={
