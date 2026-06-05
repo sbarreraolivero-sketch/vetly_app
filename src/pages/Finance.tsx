@@ -8,8 +8,6 @@ import {
     Plus,
     Download,
     X,
-    FileText,
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
     Trash2,
@@ -34,6 +32,7 @@ import { EditTransactionModal } from '@/components/finance/EditTransactionModal'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
 import { printCajaReport } from '@/components/finance/CajaReport'
+import { ExportModal } from '@/components/finance/ExportModal'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
@@ -48,23 +47,8 @@ const CATEGORY_LABELS_EXPENSE: Record<string, string> = {
     other: 'Otro',
 }
 
-const CATEGORY_LABELS_INCOME: Record<string, string> = {
-    service: 'Servicio',
-    product: 'Producto',
-    adjustment: 'Ajuste',
-    other: 'Otro',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-    paid: 'Pagado',
-    pending: 'Pendiente',
-    partial: 'Parcial',
-    refunded: 'Reembolsado',
-}
 
 const translateCategoryExpense = (cat: string) => CATEGORY_LABELS_EXPENSE[cat] ?? cat
-const translateCategoryIncome = (cat: string) => CATEGORY_LABELS_INCOME[cat] ?? cat
-const translateStatus = (st: string) => STATUS_LABELS[st] ?? st
 
 // parseLocalDate now comes from useClinicTimezone hook
 
@@ -79,7 +63,6 @@ const Finance = () => {
         timezone,
         formatInTz,
         getDateRange,
-        getDateRangeLabel,
     } = useClinicTimezone()
 
     const [stats, setStats] = useState<FinanceStats | null>(null)
@@ -99,21 +82,7 @@ const Finance = () => {
     const [filterType, setFilterType] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
     const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
     const [showDatePicker, setShowDatePicker] = useState(false)
-    const [showExportMenu, setShowExportMenu] = useState(false)
-
-    const exportMenuRef = useRef<HTMLDivElement>(null)
     const datePickerRef = useRef<HTMLDivElement>(null)
-
-    // ── Close export dropdown on click-outside ──
-    useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-                setShowExportMenu(false)
-            }
-        }
-        if (showExportMenu) document.addEventListener('mousedown', handler)
-        return () => document.removeEventListener('mousedown', handler)
-    }, [showExportMenu])
 
     // ── Close date picker on click-outside ──
     useEffect(() => {
@@ -192,6 +161,7 @@ const Finance = () => {
     const [editTx, setEditTx]         = useState<any | null>(null)
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
     const [incomeDefaultDate, setIncomeDefaultDate] = useState<string | undefined>(undefined)
+    const [showExportModal, setShowExportModal] = useState(false)
     const [showCajaExpenseModal, setShowCajaExpenseModal] = useState(false)
     const [expenseDefaultDate, setExpenseDefaultDate] = useState<string | undefined>(undefined)
 
@@ -204,145 +174,6 @@ const Finance = () => {
     }
 
     // ── Export handlers ──
-    const downloadBlob = (blob: Blob, filename: string) => {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => URL.revokeObjectURL(url), 100)
-    }
-
-    const handleExport = (type: 'csv' | 'json') => {
-        try {
-            const periodLabel = filterType === 'custom' && customRange
-                ? `${dateFnsFormat(customRange.start, 'd MMM yyyy', { locale: esLocale })} – ${dateFnsFormat(customRange.end, 'd MMM yyyy', { locale: esLocale })}`
-                : getDateRangeLabel(filterType as 'day' | 'week' | 'month' | 'year')
-            const dateStamp = formatInTz(new Date(), 'yyyy-MM-dd')
-
-            if (type === 'json') {
-                const data = {
-                    reporte: {
-                        clinica: clinicName,
-                        periodo: periodLabel,
-                        filtro: getFilterLabel(),
-                        generado: formatInTz(new Date(), 'dd/MM/yyyy HH:mm')
-                    },
-                    resumen: {
-                        ingresos: stats?.total_income ?? 0,
-                        gastos: stats?.total_expenses ?? 0,
-                        ganancia_neta: stats?.net_profit ?? 0,
-                        por_cobrar: stats?.pending_payments ?? 0,
-                        total_citas: stats?.appointments_count ?? 0
-                    },
-                    transacciones: transactions.map(tx => ({
-                        fecha: formatInTz(tx.appointment_date, 'dd/MM/yyyy HH:mm'),
-                        paciente: tx.patient_name,
-                        servicio: tx.service || '-',
-                        monto: tx.price ?? 0,
-                        estado: translateStatus(tx.payment_status),
-                        metodo_pago: tx.payment_method || 'N/A'
-                    })),
-                    gastos: expenses.map(exp => ({
-                        fecha: formatInTz(exp.date, 'dd/MM/yyyy'),
-                        descripcion: exp.description,
-                        categoria: translateCategoryExpense(exp.category),
-                        monto: exp.amount
-                    })),
-                    ingresos_manuales: incomes.map(inc => ({
-                        fecha: formatInTz(inc.date, 'dd/MM/yyyy'),
-                        descripcion: inc.description,
-                        categoria: translateCategoryIncome(inc.category),
-                        monto: inc.amount
-                    }))
-                }
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-                downloadBlob(blob, `reporte_finanzas_${dateStamp}.json`)
-            } else {
-                // ── CSV generation ──
-                const lines: string[] = []
-                const sep = ','
-
-                // Report header
-                lines.push(`REPORTE FINANCIERO - ${clinicName}`)
-                lines.push(`Período: ${periodLabel}`)
-                lines.push(`Generado: ${formatInTz(new Date(), 'dd/MM/yyyy HH:mm')}`)
-                lines.push('')
-
-                // Summary
-                lines.push('RESUMEN')
-                lines.push(`Ingresos${sep}${formatCurrency(stats?.total_income ?? 0)}`)
-                lines.push(`Gastos${sep}${formatCurrency(stats?.total_expenses ?? 0)}`)
-                lines.push(`Ganancia Neta${sep}${formatCurrency(stats?.net_profit ?? 0)}`)
-                lines.push(`Por Cobrar${sep}${formatCurrency(stats?.pending_payments ?? 0)}`)
-                lines.push(`Total Citas${sep}${stats?.appointments_count ?? 0}`)
-                lines.push('')
-
-                // Transactions
-                lines.push('TRANSACCIONES')
-                lines.push(`Fecha${sep}Paciente${sep}Servicio${sep}Monto${sep}Estado${sep}Método de Pago`)
-                if (transactions.length > 0) {
-                    transactions.forEach(tx => {
-                        lines.push([
-                            formatInTz(tx.appointment_date, 'dd/MM/yyyy HH:mm'),
-                            `"${(tx.patient_name || '').replace(/"/g, '""')}"`,
-                            `"${(tx.service || '-').replace(/"/g, '""')}"`,
-                            formatCurrency(tx.price ?? 0),
-                            translateStatus(tx.payment_status),
-                            tx.payment_method || 'N/A'
-                        ].join(sep))
-                    })
-                } else {
-                    lines.push('Sin transacciones en este período')
-                }
-                lines.push('')
-
-                // Expenses
-                lines.push('GASTOS')
-                lines.push(`Fecha${sep}Descripción${sep}Categoría${sep}Monto`)
-                if (expenses.length > 0) {
-                    expenses.forEach(exp => {
-                        lines.push([
-                            formatInTz(exp.date, 'dd/MM/yyyy'),
-                            `"${exp.description.replace(/"/g, '""')}"`,
-                            translateCategoryExpense(exp.category),
-                            formatCurrency(exp.amount)
-                        ].join(sep))
-                    })
-                } else {
-                    lines.push('Sin gastos en este período')
-                }
-                lines.push('')
-
-                // Manual Incomes
-                lines.push('INGRESOS MANUALES')
-                lines.push(`Fecha${sep}Descripción${sep}Categoría${sep}Monto`)
-                if (incomes.length > 0) {
-                    incomes.forEach(inc => {
-                        lines.push([
-                            formatInTz(inc.date, 'dd/MM/yyyy'),
-                            `"${inc.description.replace(/"/g, '""')}"`,
-                            translateCategoryIncome(inc.category),
-                            formatCurrency(inc.amount)
-                        ].join(sep))
-                    })
-                } else {
-                    lines.push('Sin ingresos manuales en este período')
-                }
-
-                const csvContent = '\uFEFF' + lines.join('\n') // BOM for Excel compatibility
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-                downloadBlob(blob, `reporte_finanzas_${filterType}_${dateStamp}.csv`)
-            }
-            setShowExportMenu(false)
-            toast.success('Exportación completada')
-        } catch (error) {
-            console.error('Export error:', error)
-            toast.error('Error al exportar datos')
-        }
-    }
 
     // ── Expense handlers ──
     const handleAddExpense = async (e: React.FormEvent) => {
@@ -725,41 +556,13 @@ const Finance = () => {
                             <p className="text-xs sm:text-sm text-emerald-100/80 font-light mt-1">Ingresos, gastos y rentabilidad de tu clínica.</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            <div className="relative" ref={exportMenuRef}>
-                                <button
-                                    onClick={() => setShowExportMenu(!showExportMenu)}
-                                    className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-3 py-2 rounded-xl transition-colors"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Exportar</span>
-                                    <ChevronDown className={cn("w-3 h-3 transition-transform", showExportMenu && "rotate-180")} />
-                                </button>
-                                {showExportMenu && (
-                                    <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-silk-beige py-1 z-50 animate-in fade-in slide-in-from-top-2">
-                                        <p className="px-4 py-2 text-xs font-medium text-charcoal/40 uppercase tracking-wide">Formato de archivo</p>
-                                        <button
-                                            onClick={() => handleExport('csv')}
-                                            className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
-                                        >
-                                            <FileText className="w-4 h-4 text-emerald-600" />
-                                            <div>
-                                                <p className="font-medium">CSV</p>
-                                                <p className="text-xs text-charcoal/50">Compatible con Excel</p>
-                                            </div>
-                                        </button>
-                                        <button
-                                            onClick={() => handleExport('json')}
-                                            className="w-full text-left px-4 py-2.5 text-sm text-charcoal hover:bg-ivory flex items-center gap-3"
-                                        >
-                                            <FileText className="w-4 h-4 text-amber-600" />
-                                            <div>
-                                                <p className="font-medium">JSON</p>
-                                                <p className="text-xs text-charcoal/50">Datos para analítica</p>
-                                            </div>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                            <button
+                                onClick={() => setShowExportModal(true)}
+                                className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-3 py-2 rounded-xl transition-colors"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden sm:inline">Exportar</span>
+                            </button>
                             <button
                                 onClick={() => setShowExpenseModal(true)}
                                 className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-3 py-2 rounded-xl transition-colors"
@@ -1370,6 +1173,17 @@ const Finance = () => {
                     clinicId={clinicId}
                     onClose={() => setEditTx(null)}
                     onSuccess={loadData}
+                />
+            )}
+
+            {/* Modal de exportación */}
+            {showExportModal && clinicId && (
+                <ExportModal
+                    clinicId={clinicId}
+                    clinicName={clinicName}
+                    currency="$"
+                    timezone={timezone}
+                    onClose={() => setShowExportModal(false)}
                 />
             )}
 
