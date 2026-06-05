@@ -55,6 +55,7 @@ interface ExpenseEntry {
 interface CajaDelDiaProps {
     date: string
     dateLabel: string
+    todayStr?: string        // 'YYYY-MM-DD' en zona horaria de la clínica
     transactions: Transaction[]
     incomes: IncomeEntry[]
     expenses: ExpenseEntry[]
@@ -111,6 +112,7 @@ function paymentLabel(method?: string | null) {
 export function CajaDelDia({
     date,
     dateLabel,
+    todayStr,
     transactions,
     incomes,
     expenses,
@@ -133,7 +135,8 @@ export function CajaDelDia({
     const [balanceInput, setBalanceInput] = useState('')
 
     const isClosed = cashRegister?.status === 'closed'
-    const isToday = date === new Date().toISOString().split('T')[0]
+    const localToday = todayStr ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
+    const isToday = date === localToday
     const openingBalance = cashRegister?.opening_balance ?? 0
 
     const cobradas = transactions.filter(t => t.payment_status === 'paid' || t.payment_status === 'partial')

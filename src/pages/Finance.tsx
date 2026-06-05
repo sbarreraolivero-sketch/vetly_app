@@ -564,9 +564,12 @@ const Finance = () => {
         )
     }
 
+    // Fecha de hoy en la zona horaria de la clínica (no UTC)
+    const todayLocalStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
+
     // ── Agrupar transacciones, ingresos y gastos por fecha para la vista de Cajas ──
     const cajasByDate = useMemo(() => {
-        const todayStr = new Date().toISOString().split('T')[0]
+        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
         const map: Record<string, { transactions: typeof transactions; incomes: typeof incomes; expenses: typeof expenses }> = {}
 
         for (const tx of transactions) {
@@ -594,7 +597,7 @@ const Finance = () => {
         }
 
         return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
-    }, [transactions, incomes, expenses])
+    }, [transactions, incomes, expenses, timezone])
 
     const handleCloseCaja = async (date: string, notes: string) => {
         if (!clinicId || !user?.id) return
@@ -1043,6 +1046,7 @@ const Finance = () => {
                                         key={date}
                                         date={date}
                                         dateLabel={dayLabel}
+                                        todayStr={todayLocalStr}
                                         transactions={dayTx}
                                         incomes={dayInc}
                                         expenses={dayExp}
