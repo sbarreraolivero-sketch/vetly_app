@@ -27,10 +27,13 @@ import {
 import { es as esLocale } from 'date-fns/locale'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
+import { supabase } from '@/lib/supabase'
 import { financeService, type FinanceStats, type Expense, type Income, type CashRegister } from '@/services/financeService'
 import VisitReceipt from '@/components/finance/VisitReceipt'
 import { EditTransactionModal } from '@/components/finance/EditTransactionModal'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
+import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
+import { printCajaReport } from '@/components/finance/CajaReport'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
@@ -183,6 +186,8 @@ const Finance = () => {
     const [editTx, setEditTx]         = useState<any | null>(null)
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
     const [incomeDefaultDate, setIncomeDefaultDate] = useState<string | undefined>(undefined)
+    const [showCajaExpenseModal, setShowCajaExpenseModal] = useState(false)
+    const [expenseDefaultDate, setExpenseDefaultDate] = useState<string | undefined>(undefined)
 
     // ── Currency formatter ──
     const formatCurrency = (amount: number) => {
@@ -369,7 +374,7 @@ const Finance = () => {
         if (!confirm(`¿Estás seguro de que deseas eliminar el gasto "${description}"?`)) return
 
         try {
-            await financeService.deleteExpense(expenseId)
+            await financeService.deleteExpense(expenseId, clinicId ?? undefined)
             toast.success('Gasto eliminado')
             loadData()
         } catch (error) {
@@ -559,32 +564,37 @@ const Finance = () => {
         )
     }
 
-    // ── Agrupar transacciones e ingresos por fecha para la vista de Cajas ──
+    // ── Agrupar transacciones, ingresos y gastos por fecha para la vista de Cajas ──
     const cajasByDate = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0]
-        const map: Record<string, { transactions: typeof transactions; incomes: typeof incomes }> = {}
+        const map: Record<string, { transactions: typeof transactions; incomes: typeof incomes; expenses: typeof expenses }> = {}
 
-        // Solo incluir fechas hasta hoy (no citas futuras pendientes de ser atendidas)
         for (const tx of transactions) {
             const d = tx.appointment_date?.split('T')[0]
             if (!d || d > todayStr) continue
-            if (!map[d]) map[d] = { transactions: [], incomes: [] }
+            if (!map[d]) map[d] = { transactions: [], incomes: [], expenses: [] }
             map[d].transactions.push(tx)
         }
         for (const inc of incomes) {
             const d = inc.date?.split('T')[0] ?? inc.date
             if (!d || d > todayStr) continue
-            if (!map[d]) map[d] = { transactions: [], incomes: [] }
+            if (!map[d]) map[d] = { transactions: [], incomes: [], expenses: [] }
             map[d].incomes.push(inc)
+        }
+        for (const exp of expenses) {
+            const d = (exp.date as string)?.split('T')[0] ?? (exp.date as string)
+            if (!d || d > todayStr) continue
+            if (!map[d]) map[d] = { transactions: [], incomes: [], expenses: [] }
+            map[d].expenses.push(exp)
         }
 
         // Siempre mostrar la caja de hoy aunque esté vacía
         if (!map[todayStr]) {
-            map[todayStr] = { transactions: [], incomes: [] }
+            map[todayStr] = { transactions: [], incomes: [], expenses: [] }
         }
 
         return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
-    }, [transactions, incomes])
+    }, [transactions, incomes, expenses])
 
     const handleCloseCaja = async (date: string, notes: string) => {
         if (!clinicId || !user?.id) return
@@ -603,6 +613,94 @@ const Finance = () => {
         } finally {
             setClosingCaja(false)
         }
+    }
+
+    const handleAddExpenseFromCaja = async (expenseData: {
+        description: string; amount: number; category: string
+        payment_method: string | null; receipt_url: string | null; date: string
+    }) => {
+        if (!clinicId) return
+        try {
+            await financeService.addExpense({
+                clinic_id:      clinicId,
+                description:    expenseData.description,
+                amount:         expenseData.amount,
+                category:       expenseData.category as Expense['category'],
+                date:           expenseData.date,
+                payment_method: expenseData.payment_method,
+                receipt_url:    expenseData.receipt_url,
+            })
+            toast.success('Gasto registrado')
+            setShowCajaExpenseModal(false)
+            loadData()
+        } catch (err) {
+            console.error('Error registrando gasto:', err)
+            toast.error('No se pudo registrar el gasto')
+        }
+    }
+
+    const handleSetOpeningBalance = async (date: string, amount: number) => {
+        if (!clinicId || !user?.id) return
+        try {
+            await financeService.updateOpeningBalance(clinicId, date, amount, user.id)
+            // Actualizar el estado local sin recargar todo
+            setCashRegisters(prev => {
+                const existing = prev.find(c => c.date === date)
+                if (existing) {
+                    return prev.map(c => c.date === date ? { ...c, opening_balance: amount } : c)
+                }
+                // Si no existe en el estado, crear un registro temporal
+                return [...prev, {
+                    id: `temp-${date}`, clinic_id: clinicId, date, status: 'open' as const,
+                    opening_balance: amount, total_cobrado: 0, total_pendiente: 0,
+                    total_efectivo: 0, total_transferencia: 0, total_tarjeta: 0, total_debito: 0,
+                    total_gastos: 0, income_count: 0, notes: null, closed_by: null, closed_at: null,
+                    created_at: new Date().toISOString(),
+                }]
+            })
+            toast.success('Saldo inicial guardado')
+        } catch (err) {
+            console.error('Error guardando saldo inicial:', err)
+            toast.error('No se pudo guardar el saldo inicial')
+        }
+    }
+
+    const handleViewReceipt = async (storagePath: string) => {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any).storage
+                .from('expense-receipts')
+                .createSignedUrl(storagePath, 3600)
+            if (error || !data?.signedUrl) throw new Error('No se pudo generar el enlace')
+            window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+        } catch (err) {
+            console.error('Error generando URL firmada:', err)
+            toast.error('No se pudo abrir la boleta')
+        }
+    }
+
+    const handleDownloadCajaReport = (date: string) => {
+        const entry = cajasByDate.find(([d]) => d === date)
+        const cashReg = cashRegisters.find(c => c.date === date)
+        const dayLabel = (() => {
+            try {
+                return new Date(date + 'T12:00:00').toLocaleDateString('es-CL', {
+                    weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+                })
+            } catch { return date }
+        })()
+        printCajaReport({
+            clinicName,
+            date,
+            dateLabel: dayLabel,
+            currency: '$',
+            openingBalance: cashReg?.opening_balance ?? 0,
+            transactions: entry ? entry[1].transactions : [],
+            incomes: entry ? entry[1].incomes : [],
+            expenses: entry ? entry[1].expenses : [],
+            notes: cashReg?.notes,
+            closedAt: cashReg?.closed_at,
+        })
     }
 
     // ── Render ──
@@ -931,7 +1029,7 @@ const Finance = () => {
                                 <p className="text-sm text-charcoal/30 mt-1">Las cajas aparecen cuando hay citas o ingresos en el período seleccionado</p>
                             </div>
                         ) : (
-                            cajasByDate.map(([date, { transactions: dayTx, incomes: dayInc }]) => {
+                            cajasByDate.map(([date, { transactions: dayTx, incomes: dayInc, expenses: dayExp }]) => {
                                 const cashReg = cashRegisters.find(c => c.date === date) ?? null
                                 const dayLabel = (() => {
                                     try {
@@ -947,6 +1045,7 @@ const Finance = () => {
                                         dateLabel={dayLabel}
                                         transactions={dayTx}
                                         incomes={dayInc}
+                                        expenses={dayExp}
                                         cashRegister={cashReg}
                                         currency="$"
                                         onCloseCaja={(d) => setCajaToClose(d)}
@@ -954,6 +1053,13 @@ const Finance = () => {
                                             setIncomeDefaultDate(d)
                                             setShowIncomeModal(true)
                                         }}
+                                        onAddExpense={(d) => {
+                                            setExpenseDefaultDate(d)
+                                            setShowCajaExpenseModal(true)
+                                        }}
+                                        onSetOpeningBalance={handleSetOpeningBalance}
+                                        onDownloadReport={handleDownloadCajaReport}
+                                        onViewReceipt={handleViewReceipt}
                                         onEditIncome={(incomeId) => {
                                             const inc = incomes.find(i => i.id === incomeId)
                                             if (inc) setEditingIncome(inc)
@@ -1257,16 +1363,38 @@ const Finance = () => {
                 />
             )}
 
+            {/* Modal gasto desde caja */}
+            {showCajaExpenseModal && clinicId && user?.id && expenseDefaultDate && (
+                <CajaExpenseModal
+                    clinicId={clinicId}
+                    date={expenseDefaultDate}
+                    dateLabel={(() => {
+                        try {
+                            return new Date(expenseDefaultDate + 'T12:00:00').toLocaleDateString('es-CL', {
+                                weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+                            })
+                        } catch { return expenseDefaultDate }
+                    })()}
+                    currency="$"
+                    userId={user.id}
+                    onSave={handleAddExpenseFromCaja}
+                    onCancel={() => { setShowCajaExpenseModal(false); setExpenseDefaultDate(undefined) }}
+                />
+            )}
+
             {/* Modal cerrar caja */}
             {cajaToClose && (() => {
-                const dayTxForModal = transactions.filter(t => t.appointment_date?.split('T')[0] === cajaToClose)
+                const dayTxForModal  = transactions.filter(t => t.appointment_date?.split('T')[0] === cajaToClose)
                 const dayIncForModal = incomes.filter(i => (i.date?.split('T')[0] ?? i.date) === cajaToClose)
-                const cobradas = dayTxForModal.filter((t: any) => t.payment_status === 'paid' || t.payment_status === 'partial')
+                const dayExpForModal = expenses.filter(e => (e.date as string)?.split('T')[0] === cajaToClose)
+                const cobradas   = dayTxForModal.filter((t: any) => t.payment_status === 'paid' || t.payment_status === 'partial')
                 const pendientes = dayTxForModal.filter((t: any) => t.payment_status === 'pending')
                 const totalCobrado = cobradas.reduce((s: number, t: any) => s + (t.price ?? 0), 0)
                     + dayIncForModal.reduce((s: number, i: any) => s + (i.amount ?? 0), 0)
                 const totalPendiente = pendientes.reduce((s: number, t: any) => s + (t.price ?? 0), 0)
-                // Desglose por método de pago
+                const totalGastos = dayExpForModal.reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
+                const cashReg = cashRegisters.find(c => c.date === cajaToClose)
+                const openingBalance = cashReg?.opening_balance ?? 0
                 const byMethod: Record<string, number> = {}
                 for (const t of cobradas as any[]) {
                     const k = (t.payment_method ?? 'otro').toLowerCase()
@@ -1287,15 +1415,19 @@ const Finance = () => {
                     <CloseCajaModal
                         date={cajaToClose}
                         dateLabel={label}
+                        openingBalance={openingBalance}
                         totalCobrado={totalCobrado}
                         totalPendiente={totalPendiente}
+                        totalGastos={totalGastos}
                         byMethod={byMethod}
                         citasAtendidas={cobradas.length + dayIncForModal.length}
                         pendingList={pendientes.map((t: any) => ({ name: t.patient_name ?? t.service, amount: t.price ?? 0 }))}
+                        gastosList={dayExpForModal.map((e: any) => ({ description: e.description, amount: e.amount, payment_method: e.payment_method }))}
                         currency="$"
                         loading={closingCaja}
                         onConfirm={(notes) => handleCloseCaja(cajaToClose, notes)}
                         onCancel={() => setCajaToClose(null)}
+                        onDownloadReport={() => handleDownloadCajaReport(cajaToClose)}
                     />
                 )
             })()}

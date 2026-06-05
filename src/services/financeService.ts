@@ -6,12 +6,14 @@ export interface CashRegister {
     clinic_id: string
     date: string
     status: 'open' | 'closed'
+    opening_balance: number
     total_cobrado: number
     total_pendiente: number
     total_efectivo: number
     total_transferencia: number
     total_tarjeta: number
     total_debito: number
+    total_gastos: number
     income_count: number
     notes: string | null
     closed_by: string | null
@@ -26,6 +28,8 @@ export interface Expense {
     amount: number
     category: 'rent' | 'supplies' | 'payroll' | 'marketing' | 'utilities' | 'other'
     date: string
+    payment_method?: string | null
+    receipt_url?: string | null
     created_at: string
 }
 
@@ -82,35 +86,53 @@ export const financeService = {
     async addExpense(expense: Omit<Expense, 'id' | 'created_at'>) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any).rpc('create_clinic_expense', {
-            p_clinic_id: expense.clinic_id,
-            p_description: expense.description,
-            p_amount: expense.amount,
-            p_category: expense.category,
-            p_date: expense.date
+            p_clinic_id:      expense.clinic_id,
+            p_description:    expense.description,
+            p_amount:         expense.amount,
+            p_category:       expense.category,
+            p_date:           expense.date,
+            p_payment_method: expense.payment_method || null,
+            p_receipt_url:    expense.receipt_url || null,
         })
 
         if (error) throw error
         return data?.[0] as Expense
     },
 
-    async updateExpense(id: string, updates: Partial<Expense>) {
-        const { data, error } = await (supabase as any)
-            .from('expenses')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single()
+    async uploadExpenseReceipt(clinicId: string, expenseId: string, file: File): Promise<string> {
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const path = `${clinicId}/${expenseId}.${ext}`
+        const { error } = await (supabase as any).storage
+            .from('expense-receipts')
+            .upload(path, file, { upsert: true })
+        if (error) throw error
+        const { data } = (supabase as any).storage
+            .from('expense-receipts')
+            .getPublicUrl(path)
+        return data.publicUrl as string
+    },
 
+    async getExpenseReceiptUrl(clinicId: string, fileName: string): Promise<string> {
+        const { data } = await (supabase as any).storage
+            .from('expense-receipts')
+            .createSignedUrl(`${clinicId}/${fileName}`, 3600)
+        return data?.signedUrl ?? ''
+    },
+
+    async updateExpense(id: string, updates: Partial<Expense>, clinicId?: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let query = (supabase as any).from('expenses').update(updates).eq('id', id)
+        if (clinicId) query = query.eq('clinic_id', clinicId)
+        const { data, error } = await query.select().single()
         if (error) throw error
         return data as Expense
     },
 
-    async deleteExpense(id: string) {
-        const { error } = await (supabase as any)
-            .from('expenses')
-            .delete()
-            .eq('id', id)
-
+    async deleteExpense(id: string, clinicId?: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let query = (supabase as any).from('expenses').delete().eq('id', id)
+        if (clinicId) query = query.eq('clinic_id', clinicId)
+        const { error } = await query
         if (error) throw error
     },
 
@@ -284,6 +306,24 @@ export const financeService = {
             .order('date', { ascending: false })
         if (error) throw error
         return (data ?? []) as CashRegister[]
+    },
+
+    async updateOpeningBalance(clinicId: string, date: string, amount: number, userId: string) {
+        const { error } = await (supabase as any).rpc('update_caja_opening_balance', {
+            p_clinic_id: clinicId,
+            p_date:      date,
+            p_amount:    amount,
+            p_user_id:   userId,
+        })
+        if (error) throw error
+    },
+
+    async openCashRegister(clinicId: string, date: string) {
+        const { error } = await (supabase as any).rpc('open_cash_register', {
+            p_clinic_id: clinicId,
+            p_date:      date,
+        })
+        if (error) throw error
     },
 
     async closeCaja(clinicId: string, date: string, notes: string, closedBy: string) {
