@@ -72,7 +72,7 @@ const translateStatus = (st: string) => STATUS_LABELS[st] ?? st
 const Finance = () => {
     const { profile, member, user } = useAuth()
     const clinicId = member?.clinic_id || profile?.clinic_id
-    const clinicName = (member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica'
+    const [clinicName, setClinicName] = useState<string>((member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica')
 
     // Timezone-aware date utilities from clinic settings
     const {
@@ -159,13 +159,15 @@ const Finance = () => {
                 end   = range.end
             }
 
-            const [statsData, expensesData, incomesData, transactionsData, metricsData, cashRegistersData] = await Promise.all([
+            const [statsData, expensesData, incomesData, transactionsData, metricsData, cashRegistersData, clinicSettingsData] = await Promise.all([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
                 financeService.getTransactions(clinicId, start, end),
                 financeService.getItemMetrics(clinicId, start, end).catch(() => null),
                 financeService.getCashRegisters(clinicId, start, end).catch(() => []),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (supabase as any).from('clinic_settings').select('clinic_name').eq('id', clinicId).single().catch(() => null),
             ])
 
             setStats(statsData)
@@ -175,6 +177,9 @@ const Finance = () => {
             setCashRegisters(cashRegistersData)
             setItemMetrics(metricsData)
             setTxItems({})
+            if (clinicSettingsData?.data?.clinic_name) {
+                setClinicName(clinicSettingsData.data.clinic_name)
+            }
         } catch (error) {
             console.error('Error loading finance data:', error)
         } finally {
