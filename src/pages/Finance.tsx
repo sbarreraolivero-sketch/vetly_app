@@ -166,8 +166,9 @@ const Finance = () => {
                 financeService.getTransactions(clinicId, start, end),
                 financeService.getItemMetrics(clinicId, start, end).catch(() => null),
                 financeService.getCashRegisters(clinicId, start, end).catch(() => []),
+                // Usar Promise.resolve() para normalizar el thenable de Supabase (regla: nunca .catch() directo)
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (supabase as any).from('clinic_settings').select('clinic_name').eq('id', clinicId).single().catch(() => null),
+                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name').eq('id', clinicId).single()).then((r: any) => r, () => null),
             ])
 
             setStats(statsData)
