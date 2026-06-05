@@ -71,7 +71,7 @@ const plans = [
             'Todo lo de Core, más:',
             'Hasta 2 usuarios',
             'Agente IA WhatsApp (Lía)',
-            '200 conversaciones IA/mes',
+            '5.000 créditos IA incluidos/mes',
             '100 citas automatizadas/mes',
             '1 agenda disponible',
             'Optimización de ruta con Google Maps',

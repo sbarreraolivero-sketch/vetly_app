@@ -158,7 +158,7 @@ export const PLANS = {
             '2 usuarios · 1 agenda',
             'Todo lo de Core',
             'Agente IA WhatsApp (Lía)',
-            '200 conversaciones IA/mes',
+            '5.000 créditos IA incluidos/mes',
             '100 citas con IA/mes',
             '100 recordatorios/mes',
             'Logística móvil (Goldi)',
