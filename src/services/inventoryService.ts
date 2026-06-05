@@ -184,11 +184,11 @@ export const inventoryService = {
         return data
     },
 
-    async archiveProduct(id: string): Promise<void> {
+    async deleteProduct(id: string): Promise<void> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
             .from('inventory_products')
-            .update({ is_active: false })
+            .delete()
             .eq('id', id)
         if (error) throw error
     },

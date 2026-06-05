@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     Package, Plus, Search,
     BarChart2, ArrowDownCircle, ArrowUpCircle, RefreshCw,
-    Edit2, Archive, X, Boxes,
+    Edit2, Trash2, X, Boxes,
     FlaskConical, Syringe, Apple, Tag,
     Wrench, Clock, CheckCircle2, Sparkles,
     Truck, Warehouse, Settings, ArrowLeftRight, ChevronRight,
@@ -386,14 +386,14 @@ const Inventory = () => {
         }
     }
 
-    const handleArchive = async (p: InventoryProduct) => {
-        if (!confirm(`¿Archivar "${p.name}"? No aparecerá en el catálogo activo.`)) return
+    const handleDelete = async (p: InventoryProduct) => {
+        if (!confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) return
         try {
-            await inventoryService.archiveProduct(p.id)
-            toast.success('Producto archivado')
+            await inventoryService.deleteProduct(p.id)
+            toast.success('Producto eliminado')
             await loadProducts()
         } catch (e: any) {
-            toast.error(e.message ?? 'Error al archivar')
+            toast.error(e.message ?? 'Error al eliminar')
         }
     }
 
@@ -776,8 +776,8 @@ const Inventory = () => {
                                                 <button onClick={() => openEdit(p)} className="p-2 hover:bg-primary-50 text-charcoal/40 hover:text-primary-600 rounded-xl transition-colors">
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => handleArchive(p)} className="p-2 hover:bg-red-50 text-charcoal/40 hover:text-red-500 rounded-xl transition-colors">
-                                                    <Archive className="w-4 h-4" />
+                                                <button onClick={() => handleDelete(p)} title="Eliminar producto" className="p-2 hover:bg-red-50 text-charcoal/40 hover:text-red-500 rounded-xl transition-colors">
+                                                    <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </div>
@@ -873,10 +873,11 @@ const Inventory = () => {
                                                             <Edit2 className="w-4 h-4" />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleArchive(p)}
+                                                            onClick={() => handleDelete(p)}
+                                                            title="Eliminar producto"
                                                             className="p-1.5 hover:bg-red-50 text-charcoal/40 hover:text-red-500 rounded-lg transition-colors"
                                                         >
-                                                            <Archive className="w-4 h-4" />
+                                                            <Trash2 className="w-4 h-4" />
                                                         </button>
                                                     </div>
                                                 </td>
