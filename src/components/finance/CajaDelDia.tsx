@@ -239,12 +239,12 @@ export function CajaDelDia({
                 <div className="border-t border-charcoal/8">
 
                     {/* SALDO INICIAL */}
-                    <div className="px-5 pt-4 pb-3 border-b border-amber-200 bg-amber-50">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2 flex items-center gap-1.5">
+                    <div className="px-5 pt-4 pb-3 border-b border-silk-beige bg-ivory/60">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40 mb-2 flex items-center gap-1.5">
                             <Wallet className="w-3 h-3" /> Saldo inicial
                         </p>
                         {isClosed ? (
-                            <p className="text-sm font-bold text-amber-800">{fmt(openingBalance)}</p>
+                            <p className="text-sm font-bold text-charcoal">{fmt(openingBalance)}</p>
                         ) : editingBalance ? (
                             <div className="flex items-center gap-2">
                                 <div className="relative flex-1">
@@ -257,18 +257,18 @@ export function CajaDelDia({
                                         value={balanceInput}
                                         onChange={e => setBalanceInput(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter') handleSaveBalance(); if (e.key === 'Escape') setEditingBalance(false) }}
-                                        className="input-soft w-full text-sm pl-7 py-1.5 bg-white"
+                                        className="input-soft w-full text-sm pl-7 py-1.5"
                                     />
                                 </div>
                                 <button
                                     onClick={handleSaveBalance}
-                                    className="px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600"
+                                    className="px-3 py-1.5 bg-primary-500 text-white text-xs font-bold rounded-lg hover:bg-primary-600"
                                 >
                                     Guardar
                                 </button>
                                 <button
                                     onClick={() => setEditingBalance(false)}
-                                    className="p-1.5 text-amber-400 hover:text-amber-700"
+                                    className="p-1.5 text-charcoal/40 hover:text-charcoal"
                                 >
                                     <X className="w-3.5 h-3.5" />
                                 </button>
@@ -276,15 +276,15 @@ export function CajaDelDia({
                         ) : (
                             <button
                                 onClick={() => { setBalanceInput(String(openingBalance || '')); setEditingBalance(true) }}
-                                className="flex items-center gap-2 text-sm hover:text-amber-700 transition-colors group w-full text-left"
+                                className="flex items-center gap-2 text-sm hover:text-primary-600 transition-colors group w-full text-left"
                             >
                                 <span className={cn(
-                                    'font-semibold',
-                                    openingBalance > 0 ? 'text-amber-800' : 'text-amber-500 italic font-normal'
+                                    'font-semibold text-charcoal',
+                                    openingBalance > 0 ? '' : 'italic font-normal text-charcoal/50'
                                 )}>
                                     {openingBalance > 0 ? fmt(openingBalance) : 'Ingresa el monto con el que partes el día aquí'}
                                 </span>
-                                <Pencil className="w-3 h-3 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                             </button>
                         )}
                     </div>
