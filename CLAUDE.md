@@ -2791,3 +2791,79 @@ Un `position: absolute` dentro de un contenedor con `overflow-y-auto` queda reco
 3. `overflow: visible` + scroll manual (frágil, no recomendado)
 
 Preferir opción 1 cuando la sección con el dropdown puede estar en un área fija (header, sección separada). Preferir opción 2 (portal) cuando el trigger debe estar dentro del scroll.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 40, 2026-06-06)
+
+### Bug 1 — Horario mínimo Talca corregido a 11:30 AM
+
+**Síntoma:** el agente ofrecía slots a las 10:00 AM y 10:30 AM para clientes del sector Talca. El KB decía 11:00 AM pero el código no lo enforcement.
+
+**Causa raíz:** la restricción existía solo en texto del KB (`PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES`). `checkAvail` devolvía todos los slots disponibles sin filtro por sector; el AI presentaba los slots tal como los recibía.
+
+**Fixes aplicados:**
+- **KB `PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES` (DB, efectivo de inmediato):** "antes de las 11:00 hrs" → "antes de las **11:30 hrs**" en la restricción absoluta + tabla de Bloques de Referencia del Día.
+- **Código `checkAvail` (`ycloud-whatsapp-webhook` v220):** filtro en código puro justo después de calcular `targetSectorAG` (línea ~1287):
+
+```typescript
+// AnimalGrace: sector Talca no puede atenderse antes de las 11:30 AM.
+if (targetSectorAG === "Talca") {
+  filteredSlots = filteredSlots.filter((s: any) => {
+    const [h, m] = s.slot_time.split(":").map(Number);
+    return h * 60 + m >= 11 * 60 + 30;
+  });
+}
+```
+
+Este filtro aplica a **todos los días** (no solo mismo día) y es inviolable: incluso si el AI ignora el KB, el sistema nunca devuelve slots Talca antes de las 11:30.
+
+**Posición del filtro:** dentro del bloque `if (isMobile && tutorCoords && filteredSlots.length > 0)`, después de la definición de `getSectorAG` (línea 1233) y después de computar `targetSectorAG` (línea 1286). No aplica cuando el cliente no comparte GPS pin.
+
+---
+
+### Bug 2 — Precio esterilización gata cotizado en $80.000 (correcto: $65.000)
+
+**Síntoma:** el agente cotizó $80.000 por esterilización de gata en Talca. El valor correcto es $65.000 (felino hembra T1).
+
+**Causa raíz — confusión de tabla de precios:**
+- Los hubs quirúrgicos **sí estaban correctamente configurados** en `logistics_config`:
+  - `surgical-norte` (Talca): `-35.4232, -71.6734`
+  - `surgical-sur` (Yerbas Buenas): `-35.85, -71.58`
+- El código calcula el hub más cercano e inyecta en contexto: `[LOGÍSTICA: Pabellón más cercano: Hub Quirúrgico Norte (Talca) a 17 min]` → T1 ($0 recargo)
+- El AI computó T1 correctamente, pero al buscar en la MATRIZ aplicó la fila **Caninos Hembras 1-5 kg T1 = $80.000** en vez de **Felinos Hembras T1 = $65.000**
+- $80.000 es exactamente el precio de perra pequeña T1 — confusión de especie en el lookup de la MATRIZ
+
+**Fixes aplicados:**
+
+- **KB `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` (DB):** bloque de advertencia añadido al inicio de la sección FELINOS:
+  > ⚠️ **ANTI-CONFUSIÓN CRÍTICA:** Para gatos y gatas usa EXCLUSIVAMENTE esta tabla FELINOS. NUNCA uses precios de la tabla Caninos para felinos. GATA hembra T1 = $65.000 (NO $80.000). GATO macho T1 = $60.000 (NO $70.000).
+
+- **KB `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` (DB):** precio gato macho T1 corregido: $58.000 → **$60.000** (T2 y T3 sin cambio: $66.000 y $74.000)
+
+- **`ai_behavior_rules` Linares (DB, efectivo de inmediato):** regla añadida al inicio de la sección 7 (CIRUGÍAS MUNDO B):
+  > ⚠️ ANTI-CONFUSIÓN DE ESPECIE (ABSOLUTO): Al cotizar una CIRUGÍA FELINA (gato o gata), usa SIEMPRE la tabla FELINOS del `#MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS`. NUNCA uses precios de caninos para felinos. GATA hembra T1 = $65.000 (NO $80.000). GATO macho T1 = $60.000 (NO $70.000).
+
+**Precios felinos actualizados (Linares/Talca):**
+| Especie | T1 | T2 | T3 |
+|---|---|---|---|
+| Felino Hembra (gata) | $65.000 | $73.000 | $81.000 |
+| Felino Macho (gato) | **$60.000** | $66.000 | $74.000 |
+
+**Regla permanente:** los hubs quirúrgicos de Animalgrace están en `logistics_config.locations` con `type: 'surgical_hub'`. El código los usa para calcular el hub más cercano y loguear el tramo. Si se agrega un nuevo centro quirúrgico, agregar un nuevo objeto con `type: 'surgical_hub'` en `logistics_config` vía SQL — sin deploy.
+
+---
+
+### Permiso `finance_metrics` — tarjetas de resumen financiero
+
+**Motivación:** Claudia quiere poder dar acceso a la página de Finanzas a un miembro del equipo sin que vea los montos globales (Ingresos, Gastos, Ganancia Neta, Por Cobrar).
+
+**Implementación:**
+
+- **`src/lib/permissions.ts`:** nuevo `ActionKey 'finance_metrics'` en el union type, en `ALL_ACTIONS` (true) y en los 3 roles no-admin (professional/receptionist/vet_assistant = false).
+- **`src/pages/settings/Team.tsx`:** nuevo grupo **"Finanzas"** en `ACTION_SECTIONS` con el toggle `finance_metrics`. El label de `dashboard_metrics` fue renombrado a "Ver métricas resumen del Dashboard" para evitar duplicados.
+- **`src/pages/Finance.tsx`:** importa `usePermissions`, usa `can('finance_metrics')` para mostrar/ocultar los montos en las 4 tarjetas KPI. Cuando está bloqueado: texto *"No disponible"* en gris itálico. El badge de "N Pendientes" en la tarjeta Por Cobrar también se oculta.
+
+**Comportamiento:**
+- Owner y Admin: siempre ven los montos (`FULL_PERMISSIONS`)
+- Otros roles: oculto por defecto, habilitables individualmente desde Settings → Equipo → Permisos

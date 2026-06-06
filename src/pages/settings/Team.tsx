@@ -74,7 +74,11 @@ const PAGE_SECTIONS: { label: string; items: { key: PageKey; label: string }[] }
 const ACTION_SECTIONS: { label: string; items: { key: ActionKey; label: string }[] }[] = [
     {
         label: 'Dashboard',
-        items: [{ key: 'dashboard_metrics', label: 'Ver métricas financieras' }],
+        items: [{ key: 'dashboard_metrics', label: 'Ver métricas resumen del Dashboard' }],
+    },
+    {
+        label: 'Finanzas',
+        items: [{ key: 'finance_metrics', label: 'Ver métricas financieras (Ingresos, Gastos, Ganancia, Por cobrar)' }],
     },
     {
         label: 'Pacientes',

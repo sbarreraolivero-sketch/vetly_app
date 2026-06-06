@@ -24,6 +24,7 @@ import {
 } from 'date-fns'
 import { es as esLocale } from 'date-fns/locale'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { supabase } from '@/lib/supabase'
 import { financeService, type FinanceStats, type Expense, type Income, type CashRegister } from '@/services/financeService'
@@ -55,6 +56,7 @@ const translateCategoryExpense = (cat: string) => CATEGORY_LABELS_EXPENSE[cat] ?
 // ── Component ────────────────────────────────────────────────────────
 const Finance = () => {
     const { profile, member, user } = useAuth()
+    const { can } = usePermissions()
     const clinicId = member?.clinic_id || profile?.clinic_id
     const [clinicName, setClinicName] = useState<string>((member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica')
 
@@ -687,9 +689,13 @@ const Finance = () => {
                         </div>
                     </div>
                     <p className="text-sm text-charcoal/60">Ingresos ({getFilterLabel()})</p>
-                    <p className="text-2xl font-bold text-charcoal mt-1">
-                        {loading ? '...' : formatCurrency(stats?.total_income || 0)}
-                    </p>
+                    {can('finance_metrics') ? (
+                        <p className="text-2xl font-bold text-charcoal mt-1">
+                            {loading ? '...' : formatCurrency(stats?.total_income || 0)}
+                        </p>
+                    ) : (
+                        <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
+                    )}
                 </div>
 
                 <div className="card-soft p-4 flex flex-col">
@@ -699,9 +705,13 @@ const Finance = () => {
                         </div>
                     </div>
                     <p className="text-sm text-charcoal/60">Gastos ({getFilterLabel()})</p>
-                    <p className="text-2xl font-bold text-charcoal mt-1">
-                        {loading ? '...' : formatCurrency(stats?.total_expenses || 0)}
-                    </p>
+                    {can('finance_metrics') ? (
+                        <p className="text-2xl font-bold text-charcoal mt-1">
+                            {loading ? '...' : formatCurrency(stats?.total_expenses || 0)}
+                        </p>
+                    ) : (
+                        <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
+                    )}
                 </div>
 
                 <div className="card-soft p-4 flex flex-col">
@@ -714,12 +724,16 @@ const Finance = () => {
                         </span>
                     </div>
                     <p className="text-sm text-charcoal/60">Ganancia Neta</p>
-                    <p className={cn(
-                        "text-2xl font-bold mt-1",
-                        (stats?.net_profit || 0) >= 0 ? "text-emerald-600" : "text-red-600"
-                    )}>
-                        {loading ? '...' : formatCurrency(stats?.net_profit || 0)}
-                    </p>
+                    {can('finance_metrics') ? (
+                        <p className={cn(
+                            "text-2xl font-bold mt-1",
+                            (stats?.net_profit || 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                        )}>
+                            {loading ? '...' : formatCurrency(stats?.net_profit || 0)}
+                        </p>
+                    ) : (
+                        <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
+                    )}
                 </div>
 
                 <div className="card-soft p-4 flex flex-col">
@@ -727,14 +741,20 @@ const Finance = () => {
                         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
                             <CreditCard className="w-5 h-5 text-amber-600" />
                         </div>
-                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                            {transactions.filter(tx => tx.payment_status === 'pending').length} Pendientes
-                        </span>
+                        {can('finance_metrics') && (
+                            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                                {transactions.filter(tx => tx.payment_status === 'pending').length} Pendientes
+                            </span>
+                        )}
                     </div>
                     <p className="text-sm text-charcoal/60">Por Cobrar</p>
-                    <p className="text-2xl font-bold text-charcoal mt-1">
-                        {loading ? '...' : formatCurrency(stats?.pending_payments || 0)}
-                    </p>
+                    {can('finance_metrics') ? (
+                        <p className="text-2xl font-bold text-charcoal mt-1">
+                            {loading ? '...' : formatCurrency(stats?.pending_payments || 0)}
+                        </p>
+                    ) : (
+                        <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
+                    )}
                 </div>
             </div>
 

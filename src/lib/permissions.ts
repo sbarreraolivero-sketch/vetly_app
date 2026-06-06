@@ -19,6 +19,7 @@ export type PageKey =
 
 export type ActionKey =
   | 'dashboard_metrics'
+  | 'finance_metrics'
   | 'patients_create'
   | 'patients_edit'
   | 'patients_delete'
@@ -58,6 +59,7 @@ const ALL_PAGES: Record<PageKey, boolean> = {
 
 const ALL_ACTIONS: Record<ActionKey, boolean> = {
   dashboard_metrics: true,
+  finance_metrics: true,
   patients_create: true,
   patients_edit: true,
   patients_delete: true,
@@ -99,6 +101,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
     },
     actions: {
       dashboard_metrics: false,
+      finance_metrics: false,
       patients_create: true,
       patients_edit: true,
       patients_delete: false,
@@ -132,6 +135,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
     },
     actions: {
       dashboard_metrics: false,
+      finance_metrics: false,
       patients_create: true,
       patients_edit: true,
       patients_delete: false,
@@ -165,6 +169,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
     },
     actions: {
       dashboard_metrics: false,
+      finance_metrics: false,
       patients_create: false,
       patients_edit: false,
       patients_delete: false,
