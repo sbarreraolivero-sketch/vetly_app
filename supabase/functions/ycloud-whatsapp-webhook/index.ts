@@ -1285,6 +1285,16 @@ const checkAvail = async (
     // Sector del nuevo destino (AnimalGrace) — calculado una vez para buffers y continuidad.
     const targetSectorAG = isAnimalGrace ? getSectorAG(address, tutorCoords.lat) : null;
 
+    // AnimalGrace: sector Talca no puede atenderse antes de las 11:30 AM.
+    // El equipo sale de Linares a las 10:00 AM y necesita ~1h de viaje para llegar a Talca.
+    if (targetSectorAG === "Talca") {
+      filteredSlots = filteredSlots.filter((s: any) => {
+        const [h, m] = s.slot_time.split(":").map(Number);
+        return h * 60 + m >= 11 * 60 + 30;
+      });
+      console.log(`[AnimalGrace] Talca: slots antes de 11:30 AM eliminados. Restantes: ${filteredSlots.length}`);
+    }
+
     // For each available slot, verify if there's enough time to travel to/from it
     // CRITICAL: slotStart MUST include the timezone offset so comparisons with
     // appointment_date (stored as e.g. "2026-05-18T10:00:00-04:00") are in the same UTC basis.
