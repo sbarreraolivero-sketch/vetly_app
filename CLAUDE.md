@@ -2867,3 +2867,80 @@ Este filtro aplica a **todos los días** (no solo mismo día) y es inviolable: i
 **Comportamiento:**
 - Owner y Admin: siempre ven los montos (`FULL_PERMISSIONS`)
 - Otros roles: oculto por defecto, habilitables individualmente desde Settings → Equipo → Permisos
+
+---
+
+## Cambios realizados — junio 2026 (sesión 41, 2026-06-08)
+
+### Bug: error al completar cita — `loyalty_transactions_type_check`
+
+**Síntoma:** al marcar una cita como completada desde Citas Médicas, aparecía "new row for relation loyalty_transactions violates check constraint loyalty_transactions_type_check".
+
+**Causa raíz:** el trigger `auto_create_tutor_and_patient_on_complete` inserta en `loyalty_transactions` con tipos `'welcome_bonus'` y `'referral_reward'`, pero el check constraint original solo admitía `'earn'`, `'redeem'`, `'adjustment'`, `'referral_bonus'`. Los dos tipos del trigger nunca fueron añadidos al constraint cuando se implementó el sistema de referidos (sesión 27).
+
+**Fix — migración `fix_loyalty_transactions_type_check`:**
+```sql
+ALTER TABLE loyalty_transactions DROP CONSTRAINT loyalty_transactions_type_check;
+ALTER TABLE loyalty_transactions ADD CONSTRAINT loyalty_transactions_type_check
+    CHECK (type = ANY (ARRAY['earn','redeem','adjustment','referral_bonus','welcome_bonus','referral_reward']));
+```
+
+---
+
+### Auditoría de seguridad completa — 9 vulnerabilidades corregidas (commit `5d5f5aa`)
+
+#### CRÍTICO
+
+**1. `mercadopago-webhook` — HMAC-SHA256 implementado**
+`createHmac` y `MERCADOPAGO_WEBHOOK_SECRET` ya estaban importados/definidos pero nunca se usaban. Cualquiera podía forjar un POST y activar suscripciones / añadir créditos sin pagar.
+- Nueva función `verifyMercadoPagoSignature(signatureHeader, requestId, dataId)`:
+  - Header: `x-signature: ts=<timestamp>,v1=<hex>`
+  - Payload firmado: `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
+  - Algoritmo: HMAC-SHA256, digest hexadecimal
+- Se llama antes de cualquier lógica de negocio → 401 si falla
+
+**2. `analyze-invoice` — JWT obligatorio**
+El bloque `if (jwt)` hacía la verificación solo si había JWT presente. Sin header `Authorization`, toda la función corría sin auth, consumiendo créditos de cualquier clínica.
+- Cambio: `if (!jwt) → return 401` antes del bloque de verificación. El bloque interno queda idéntico.
+
+**3. `send-visit-receipt` — Auth JWT + membresía**
+No había ninguna autenticación. Cualquiera podía enviar WhatsApp usando las credenciales YCloud de cualquier clínica.
+- Agrega JWT check + `clinic_members` verification después de parsear el body.
+
+**4. `send-whatsapp-campaign` — Auth JWT + membresía**
+Solo recibía `campaign_id` sin verificar quién lo llamaba. Cualquier usuario podía ejecutar una campaña ajena.
+- Agrega JWT check + fetch de `campaign.clinic_id` + `clinic_members` verification.
+
+#### ALTO
+
+**5. RPCs de inventario — check de membresía (migración `fix_inventory_rpcs_add_membership_check`)**
+Las 4 RPCs eran `SECURITY DEFINER` sin ningún control de acceso. Cualquier usuario autenticado podía consultar datos de cualquier clínica.
+- `get_inventory_abc`, `get_inventory_no_rotation`, `get_finance_item_metrics`: check `clinic_members` por `p_clinic_id` al inicio.
+- `get_appointment_items`: lookup del `clinic_id` de la cita → check `clinic_members`.
+
+**6. `VisitReceipt.tsx` — XSS en `handlePrint`**
+El método construía HTML con datos de usuario sin escapar (patient_name, tutor_name, item names, discount_reason). `CajaReport.tsx` ya tenía `esc()` — `VisitReceipt.tsx` no.
+- Agregada función `esc()` idéntica a CajaReport y aplicada a todos los campos interpolados.
+
+#### MEDIO
+
+**7. `lemonsqueezy-webhook` — falla cerrado sin secret**
+`verifySignature` tenía `return !LEMONSQUEEZY_WEBHOOK_SECRET` — si la variable se borraba del entorno, aceptaba cualquier request sin firma.
+- Cambiado a `return false` + `console.error` explícito.
+
+**8. `diagnostic_leads` — RPC para `wa_clicked`**
+La política RLS `anon UPDATE` no restringía columnas — cualquiera podía modificar `score`, `answers`, `level` además de `wa_clicked`.
+- Nueva RPC `mark_diagnostic_wa_clicked(p_id UUID)` con `SECURITY DEFINER` que solo actualiza `wa_clicked = true`.
+- `public/recursos/diagnostico.html` actualizado para usar `POST /rpc/mark_diagnostic_wa_clicked` en vez de `PATCH` directo.
+
+**9. `ycloud-whatsapp-webhook` — error 500 genérico**
+El catch externo retornaba `{ error: (e as Error).message }` — podía filtrar nombres de tablas o mensajes de API internos.
+- Cambiado a `{ error: "Internal server error" }`. El mensaje real queda solo en `debugLog` (DB interna).
+
+#### Reglas permanentes — seguridad
+
+- **Auth en edge functions**: el patrón estándar es JWT check → `auth.getUser()` → check `clinic_members`. Nunca hacer el JWT opcional con `if (jwt)`.
+- **RPCs SECURITY DEFINER**: toda RPC que reciba `p_clinic_id` debe tener un check `clinic_members` al inicio. Las que reciban otro ID (appointment_id, etc.) deben hacer lookup del `clinic_id` primero.
+- **HTML generado en el browser**: cualquier dato de usuario interpolado en template literals de `window.open` / `win.document.write` debe pasar por `esc()`. Ver `CajaReport.tsx` como referencia.
+- **Webhooks de pago**: verificar firma HMAC antes de cualquier acción. Fallar cerrado (`return false`) si falta el secret — nunca fallar abierto.
+- **Políticas RLS anon UPDATE**: siempre restringir a una RPC específica que solo actualice la columna permitida.
