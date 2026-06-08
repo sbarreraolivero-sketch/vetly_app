@@ -10,6 +10,26 @@ const MERCADOPAGO_WEBHOOK_SECRET = Deno.env.get("MERCADOPAGO_WEBHOOK_SECRET") ||
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+function verifyMercadoPagoSignature(
+    signatureHeader: string | null,
+    requestId: string | null,
+    dataId: string | null
+): boolean {
+    if (!MERCADOPAGO_WEBHOOK_SECRET || !signatureHeader) return false;
+    const parts = Object.fromEntries(
+        signatureHeader.split(",").map(p => {
+            const idx = p.indexOf("=");
+            return [p.slice(0, idx), p.slice(idx + 1)] as [string, string];
+        })
+    );
+    const ts = parts["ts"];
+    const v1 = parts["v1"];
+    if (!ts || !v1) return false;
+    const manifest = `id:${dataId ?? ""};request-id:${requestId ?? ""};ts:${ts};`;
+    const digest = createHmac("sha256", MERCADOPAGO_WEBHOOK_SECRET).update(manifest).digest("hex");
+    return digest === v1;
+}
+
 interface WebhookPayload {
     action: string;
     api_version: string;
@@ -34,12 +54,17 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-        // Verify webhook signature (optional but recommended)
         const signature = req.headers.get("x-signature");
         const requestId = req.headers.get("x-request-id");
 
         const body = await req.text();
         const payload: WebhookPayload = JSON.parse(body);
+
+        // Verify HMAC-SHA256 signature before processing any event
+        if (!verifyMercadoPagoSignature(signature, requestId, payload.data?.id ?? null)) {
+            console.warn("MercadoPago webhook: invalid or missing signature");
+            return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
+        }
 
         console.log("Webhook received:", payload.type, payload.data.id);
 

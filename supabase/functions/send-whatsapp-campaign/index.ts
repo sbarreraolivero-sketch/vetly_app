@@ -12,16 +12,31 @@ Deno.serve(async (req) => {
     }
 
     let campaign_id: string | null = null
-    const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const supabaseClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
 
     try {
         ;({ campaign_id } = await req.json())
 
         if (!campaign_id) {
             throw new Error('campaign_id is required')
+        }
+
+        // Verificar JWT + membresía antes de procesar
+        const jwt = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
+        if (!jwt) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+        }
+        const sbUser = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+            global: { headers: { Authorization: `Bearer ${jwt}` } }
+        })
+        const { data: { user } } = await sbUser.auth.getUser()
+        if (!user) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
         }
 
         console.log(`Processing campaign: ${campaign_id}`)
@@ -41,6 +56,20 @@ Deno.serve(async (req) => {
 
         if (campaignError) throw campaignError
         if (!campaign) throw new Error('Campaign not found')
+
+        // Verificar que el usuario sea miembro activo de la clínica de esta campaña
+        const { data: member } = await supabaseClient
+            .from('clinic_members')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('clinic_id', campaign.clinic_id)
+            .eq('status', 'active')
+            .maybeSingle()
+        if (!member) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), {
+                status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+        }
 
         const ycloudKey = campaign.clinic_settings?.ycloud_api_key
         if (!ycloudKey) throw new Error('No YCloud API Key found for this clinic')

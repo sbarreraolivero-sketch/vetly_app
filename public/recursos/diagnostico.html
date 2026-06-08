@@ -244,15 +244,14 @@ function saveLead(score, pct, level) {
 
 function markWaClicked() {
     if (!leadId) return;
-    fetch(SUPA_URL + '/rest/v1/diagnostic_leads?id=eq.' + leadId, {
-        method: 'PATCH',
+    fetch(SUPA_URL + '/rest/v1/rpc/mark_diagnostic_wa_clicked', {
+        method: 'POST',
         headers: {
             'apikey': SUPA_KEY,
             'Authorization': 'Bearer ' + SUPA_KEY,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
+            'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ wa_clicked: true })
+        body: JSON.stringify({ p_id: leadId })
     }).catch(function(){});
 }
 

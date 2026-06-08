@@ -63,27 +63,35 @@ Deno.serve(async (req: Request) => {
 
         // ── 1. Verificar acceso del usuario ────────────────────────────────
         const authHeader = req.headers.get('Authorization') ?? ''
-        const jwt = authHeader.replace('Bearer ', '')
-        if (jwt) {
-            const sbUser = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-                global: { headers: { Authorization: `Bearer ${jwt}` } }
-            })
-            const { data: { user } } = await sbUser.auth.getUser()
-            if (user) {
-                const { data: member } = await sb
-                    .from('clinic_members')
-                    .select('id')
-                    .eq('user_id', user.id)
-                    .eq('clinic_id', clinic_id)
-                    .eq('status', 'active')
-                    .maybeSingle()
-                if (!member) {
-                    return new Response(
-                        JSON.stringify({ error: 'Sin acceso a esta clínica' }),
-                        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                    )
-                }
-            }
+        const jwt = authHeader.replace('Bearer ', '').trim()
+        if (!jwt) {
+            return new Response(
+                JSON.stringify({ error: 'Unauthorized' }),
+                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+        }
+        const sbUser = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+            global: { headers: { Authorization: `Bearer ${jwt}` } }
+        })
+        const { data: { user } } = await sbUser.auth.getUser()
+        if (!user) {
+            return new Response(
+                JSON.stringify({ error: 'Unauthorized' }),
+                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+        }
+        const { data: member } = await sb
+            .from('clinic_members')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('clinic_id', clinic_id)
+            .eq('status', 'active')
+            .maybeSingle()
+        if (!member) {
+            return new Response(
+                JSON.stringify({ error: 'Sin acceso a esta clínica' }),
+                { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
         }
 
         // ── 2. Resolver pool de créditos ───────────────────────────────────

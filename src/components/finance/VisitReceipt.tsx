@@ -68,6 +68,10 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
         if (items.length === 0) onLoadItems().catch(() => {})
     }, [])
 
+    const esc = (s: string | null | undefined): string =>
+        (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
     const handlePrint = () => {
         const printContent = printRef.current?.innerHTML
         if (!printContent) return
@@ -78,7 +82,7 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
             <html>
             <head>
                 <meta charset="utf-8"/>
-                <title>Comprobante — ${clinicName}</title>
+                <title>Comprobante — ${esc(clinicName)}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; padding: 32px; max-width: 420px; margin: 0 auto; }
@@ -105,14 +109,14 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
             </head>
             <body>
                 <div class="header">
-                    <div class="clinic-name">${clinicName}</div>
+                    <div class="clinic-name">${esc(clinicName)}</div>
                     <div class="receipt-title">Comprobante de visita</div>
                 </div>
                 <div class="info-block">
                     <div class="label">Paciente</div>
-                    <div class="value">${tx.patient_name ?? '—'}</div>
+                    <div class="value">${esc(tx.patient_name) || '—'}</div>
                 </div>
-                ${tx.tutor_name ? `<div class="info-block"><div class="label">Tutor</div><div class="value">${tx.tutor_name}</div></div>` : ''}
+                ${tx.tutor_name ? `<div class="info-block"><div class="label">Tutor</div><div class="value">${esc(tx.tutor_name)}</div></div>` : ''}
                 <div class="info-block">
                     <div class="label">Fecha</div>
                     <div class="value">${format(new Date(tx.appointment_date), "d 'de' MMMM yyyy, HH:mm", { locale: es })}</div>
@@ -122,7 +126,7 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
                     <tbody>
                         ${displayItems.map(i => `
                             <tr>
-                                <td><span class="badge ${i.item_type === 'service' ? 'badge-service' : 'badge-product'}">${i.item_type === 'service' ? 'Serv.' : 'Prod.'}</span>${i.name}</td>
+                                <td><span class="badge ${i.item_type === 'service' ? 'badge-service' : 'badge-product'}">${i.item_type === 'service' ? 'Serv.' : 'Prod.'}</span>${esc(i.name)}</td>
                                 <td>${i.quantity}</td>
                                 <td>${formatCLP(i.unit_price)}</td>
                                 <td><strong>${formatCLP(i.subtotal)}</strong></td>
@@ -140,8 +144,8 @@ const VisitReceipt = ({ transaction: tx, items, clinicName, clinicId, onLoadItem
                     <span class="total-label">Total</span>
                     <span class="total-value">${formatCLP(total)}</span>
                 </div>
-                ${tx.discount && tx.discount > 0 ? `<div style="margin-top:4px;font-size:12px;color:#059669">Descuento aplicado: −${formatCLP(tx.discount)}${tx.discount_reason ? ` · ${tx.discount_reason}` : ''}</div>` : ''}
-                ${tx.payment_method ? `<div style="margin-top:8px;font-size:12px;color:#666">Método de pago: <strong>${PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method}</strong></div>` : ''}
+                ${tx.discount && tx.discount > 0 ? `<div style="margin-top:4px;font-size:12px;color:#059669">Descuento aplicado: −${formatCLP(tx.discount)}${tx.discount_reason ? ` · ${esc(tx.discount_reason)}` : ''}</div>` : ''}
+                ${tx.payment_method ? `<div style="margin-top:8px;font-size:12px;color:#666">Método de pago: <strong>${esc(PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method)}</strong></div>` : ''}
                 <div style="margin-top:4px;font-size:12px">Estado: <span class="${tx.payment_status === 'paid' ? 'status-paid' : 'status-pending'}">${STATUS_LABELS[tx.payment_status ?? 'pending']}</span></div>
                 <div class="footer">¡Gracias por su confianza! 🐾</div>
             </body>

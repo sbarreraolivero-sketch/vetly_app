@@ -18,10 +18,8 @@ Deno.serve(async (req) => {
         return new Response('ok', { headers: corsHeaders })
     }
 
-    const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
 
     try {
         const { appointment_id, clinic_id, phone_number, items, total, payment_method, payment_status } = await req.json()
@@ -29,6 +27,35 @@ Deno.serve(async (req) => {
         if (!appointment_id || !clinic_id || !phone_number) {
             return new Response(JSON.stringify({ error: 'Missing required fields' }), {
                 status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+        }
+
+        // Verificar que el llamante sea miembro activo de la clínica
+        const jwt = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
+        if (!jwt) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+        }
+        const sbUser = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+            global: { headers: { Authorization: `Bearer ${jwt}` } }
+        })
+        const { data: { user } } = await sbUser.auth.getUser()
+        if (!user) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+        }
+        const { data: member } = await supabase
+            .from('clinic_members')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('clinic_id', clinic_id)
+            .eq('status', 'active')
+            .maybeSingle()
+        if (!member) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), {
+                status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
         }
 
@@ -112,7 +139,7 @@ Deno.serve(async (req) => {
 
     } catch (err: any) {
         console.error('send-visit-receipt error:', err)
-        return new Response(JSON.stringify({ error: err.message ?? 'Internal error' }), {
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
     }
