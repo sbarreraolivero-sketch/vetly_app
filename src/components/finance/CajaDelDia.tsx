@@ -316,7 +316,7 @@ export function CajaDelDia({
                                 )}
                                 <span className="text-xs font-bold text-charcoal shrink-0">{fmt(tx.price)}</span>
                                 {!isClosed && (onEditTransaction || onDeleteTransaction) && (
-                                    <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                                    <div className="flex items-center gap-0.5 shrink-0">
                                         {onEditTransaction && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onEditTransaction(tx.id) }}
@@ -341,7 +341,7 @@ export function CajaDelDia({
                         ))}
 
                         {incomes.map(inc => (
-                            <div key={inc.id} className="flex items-center gap-3 py-2 border-b border-silk-beige last:border-0 group">
+                            <div key={inc.id} className="flex items-center gap-2 py-2 border-b border-silk-beige last:border-0">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-charcoal truncate">{inc.description}</p>
                                     <p className="text-[11px] text-charcoal/50">
@@ -350,7 +350,7 @@ export function CajaDelDia({
                                     </p>
                                 </div>
                                 {inc.payment_method && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] text-charcoal/40 font-medium shrink-0">
+                                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-charcoal/40 font-medium shrink-0">
                                         {paymentIcon(inc.payment_method)}
                                         {paymentLabel(inc.payment_method)}
                                     </span>
@@ -359,23 +359,23 @@ export function CajaDelDia({
                                     {fmt(inc.amount ?? 0)}
                                 </span>
                                 {!isClosed && (onEditIncome || onDeleteIncome) && (
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <div className="flex items-center gap-0.5 shrink-0">
                                         {onEditIncome && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onEditIncome(inc.id) }}
-                                                className="p-1 text-charcoal/40 hover:text-primary-600 transition-colors rounded"
+                                                className="p-1.5 text-charcoal/30 hover:text-primary-600 active:text-primary-600 transition-colors rounded"
                                                 title="Editar ingreso"
                                             >
-                                                <Pencil className="w-3 h-3" />
+                                                <Pencil className="w-3.5 h-3.5" />
                                             </button>
                                         )}
                                         {onDeleteIncome && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onDeleteIncome(inc.id, inc.description) }}
-                                                className="p-1 text-charcoal/40 hover:text-red-500 transition-colors rounded"
+                                                className="p-1.5 text-charcoal/30 hover:text-red-500 active:text-red-500 transition-colors rounded"
                                                 title="Eliminar ingreso"
                                             >
-                                                <Trash2 className="w-3 h-3" />
+                                                <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         )}
                                     </div>
@@ -433,7 +433,7 @@ export function CajaDelDia({
                                     </div>
                                     <span className="text-xs font-bold text-amber-700 shrink-0">{fmt(tx.price)}</span>
                                     {!isClosed && (onMarkPaid || onEditTransaction || onDeleteTransaction) && (
-                                        <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                                        <div className="flex items-center gap-0.5 shrink-0">
                                             {onMarkPaid && (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); onMarkPaid(tx.id) }}
