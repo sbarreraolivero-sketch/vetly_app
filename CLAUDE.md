@@ -2997,3 +2997,68 @@ El widget `<AIChatWidget variant="simulator" />` fue eliminado de `DashboardLayo
 - Los hallazgos se muestran en la tarjeta de cada atención, entre el diagnóstico y las Notas de Evolución
 - Fondo `bg-primary-50/40` con borde `border-primary-100` para diferenciarse visualmente
 - Solo se renderiza si el campo tiene valor (`event.physical_exam?.findings`)
+
+---
+
+## Cambios realizados — junio 2026 (sesión 43, 2026-06-09)
+
+### Bug crítico: cierre de caja fallaba para Mauricio (Animalgrace Santiago)
+
+**Síntoma:** al hacer clic en "Cerrar caja", aparecía el toast "No se pudo cerrar la caja". Ocurrió 4 veces según logs de Postgres.
+
+**Causa raíz confirmada en logs:** `null value in column "opening_balance" of relation "cash_registers" violates not-null constraint`
+
+El RPC `close_cash_register` hace:
+```sql
+SELECT COALESCE(opening_balance, 0) INTO v_opening_balance
+FROM public.cash_registers WHERE clinic_id = p_clinic_id AND date = p_date;
+```
+Cuando **no existe fila previa** para esa fecha, PostgreSQL resetea la variable a `NULL` aunque el `COALESCE` esté en el SELECT (aplica solo si hay fila — con 0 filas el `INTO` anula el valor inicial `NUMERIC := 0`). El INSERT posterior fallaba por NOT NULL constraint.
+
+Hay 4 fechas en Santiago con transacciones pero sin fila en `cash_registers` (jun 1, 2, 4 y 12 — esta última con citas futuras agendadas), que pueden disparar el error.
+
+**Fix — migración `fix_close_cash_register_null_opening_balance`:**
+```sql
+-- Línea agregada después del SELECT INTO:
+v_opening_balance := COALESCE(v_opening_balance, 0);
+```
+
+**Regla permanente:** en PL/pgSQL, `SELECT ... INTO variable` con 0 filas deja la variable en `NULL`, anulando el valor declarado con `:= default`. Siempre agregar `variable := COALESCE(variable, default)` después de todo `SELECT INTO` que pueda no encontrar filas.
+
+---
+
+### Bug AI agent: mínimo $15.000 no aplicado cuando recargo = $0 — Linares y Santiago
+
+**Síntoma (Linares):** el agente cotizó corte de uñas $6.000 sin recargo adicional (cliente dentro del radio urbano de Talca), sin informar que el mínimo de visita es $15.000.
+
+**Causa raíz:** la regla `VALOR MÍNIMO DE ATENCIÓN` existía en `ai_behavior_rules` de ambas sucursales, pero el ejemplo solo mostraba el caso con recargo $6.000. Cuando recargo = $0 (dentro del radio urbano), el modelo no activaba el chequeo porque el patrón del ejemplo requería un recargo no nulo.
+
+**Fix aplicado (Linares + Santiago, DB, efectivo de inmediato):** regla reescrita con indicación explícita para el caso $0:
+
+> `⚠️ ESTO APLICA INCLUSO CUANDO EL RECARGO ES $0: ej. corte de uñas $6.000 + recargo $0 = $6.000 → cobrar $15.000.`
+
+**Regla permanente — ejemplos en prompts de precio:** nunca usar un único ejemplo que implique un caso especial (ej: solo con recargo ≠ $0). Siempre incluir el caso borde explícito (ej: recargo = $0) para que el modelo no asuma que la regla no aplica en ese caso.
+
+---
+
+### Bug: Mauricio (vet_assistant) no podía registrar gastos ni ingresos en Finanzas
+
+**Síntoma:** al intentar agregar un gasto desde Finanzas, aparecía error "Solo owners y admins pueden registrar gastos". Mauricio solo tiene restricción en `finance_metrics` (ver KPIs financieros), pero debería poder realizar todas las acciones de Finanzas.
+
+**Causa raíz:** 7 overloads de RPCs de finanzas tenían hardcodeado `AND role IN ('owner','admin')` en el check de membresía:
+- `create_clinic_expense` (2 overloads — 5 y 7 params)
+- `create_clinic_income` (4 overloads — 5, 7, 9 y 10 params)
+- `update_clinic_income` (1 overload — 10 params)
+
+La restricción de rol era redundante con el sistema de permisos del frontend (`can('finance')`). Cualquier miembro activo con acceso a la página de Finanzas debería poder operar en ella.
+
+**Fix — migración `fix_finance_rpcs_remove_owner_admin_restriction`:** removido `AND role IN ('owner','admin')` de los 7 overloads. El check ahora solo verifica membresía activa en la clínica:
+```sql
+-- Antes:
+WHERE user_id = auth.uid() AND clinic_id = p_clinic_id AND status = 'active' AND role IN ('owner','admin')
+
+-- Después:
+WHERE user_id = auth.uid() AND clinic_id = p_clinic_id AND status = 'active'
+```
+
+**Regla permanente:** los RPCs de finanzas no deben restringir por rol — el control de acceso a la sección es responsabilidad del sistema de permisos del frontend (`permissions.pages.finance`). La única excepción es `finance_metrics` que controla la visibilidad de KPIs, no las acciones.

@@ -900,6 +900,10 @@ const Finance = () => {
                                         onDeleteIncome={handleDeleteIncome}
                                         onMarkPaid={handleMarkPaid}
                                         onDeleteTransaction={handleDeleteTransaction}
+                                        onEditTransaction={(txId) => {
+                                            const tx = transactions.find(t => t.id === txId)
+                                            if (tx) setEditTx(tx)
+                                        }}
                                         isClosing={closingCaja && cajaToClose === date}
                                     />
                                 )

@@ -71,6 +71,7 @@ interface CajaDelDiaProps {
     onDeleteIncome?: (incomeId: string, description: string) => void
     onMarkPaid?: (txId: string) => void
     onDeleteTransaction?: (txId: string) => void
+    onEditTransaction?: (txId: string) => void
     isClosing?: boolean
 }
 
@@ -128,6 +129,7 @@ export function CajaDelDia({
     onDeleteIncome,
     onMarkPaid,
     onDeleteTransaction,
+    onEditTransaction,
     isClosing = false,
 }: CajaDelDiaProps) {
     const [expanded, setExpanded] = useState(false)
@@ -301,18 +303,40 @@ export function CajaDelDia({
                         )}
 
                         {cobradas.map(tx => (
-                            <div key={tx.id} className="flex items-center gap-3 py-2 border-b border-silk-beige last:border-0">
+                            <div key={tx.id} className="flex items-center gap-2 py-2 border-b border-silk-beige last:border-0 group">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-charcoal truncate">{tx.service}</p>
                                     <p className="text-[11px] text-charcoal/50 truncate">{tx.patient_name}{tx.tutor_name ? ` · ${tx.tutor_name}` : ''}</p>
                                 </div>
                                 {tx.payment_method && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] text-charcoal/40 font-medium shrink-0">
+                                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-charcoal/40 font-medium shrink-0">
                                         {paymentIcon(tx.payment_method)}
                                         {paymentLabel(tx.payment_method)}
                                     </span>
                                 )}
                                 <span className="text-xs font-bold text-charcoal shrink-0">{fmt(tx.price)}</span>
+                                {!isClosed && (onEditTransaction || onDeleteTransaction) && (
+                                    <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                                        {onEditTransaction && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onEditTransaction(tx.id) }}
+                                                className="p-1.5 text-charcoal/30 hover:text-primary-600 active:text-primary-600 transition-colors rounded"
+                                                title="Editar"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                        {onDeleteTransaction && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onDeleteTransaction(tx.id) }}
+                                                className="p-1.5 text-charcoal/30 hover:text-red-500 active:text-red-500 transition-colors rounded"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
 
@@ -402,30 +426,39 @@ export function CajaDelDia({
                                 Pendiente de cobro · {fmt(totalPendiente)}
                             </p>
                             {pendientes.map(tx => (
-                                <div key={tx.id} className="flex items-center gap-3 py-2 border-b border-amber-100 last:border-0 group">
+                                <div key={tx.id} className="flex items-center gap-2 py-2 border-b border-amber-100 last:border-0 group">
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-semibold text-charcoal truncate">{tx.service}</p>
                                         <p className="text-[11px] text-charcoal/50 truncate">{tx.patient_name}{tx.tutor_name ? ` · ${tx.tutor_name}` : ''}</p>
                                     </div>
                                     <span className="text-xs font-bold text-amber-700 shrink-0">{fmt(tx.price)}</span>
-                                    {!isClosed && (onMarkPaid || onDeleteTransaction) && (
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    {!isClosed && (onMarkPaid || onEditTransaction || onDeleteTransaction) && (
+                                        <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                                             {onMarkPaid && (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); onMarkPaid(tx.id) }}
-                                                    className="p-1 text-charcoal/40 hover:text-emerald-600 transition-colors rounded"
+                                                    className="p-1.5 text-charcoal/30 hover:text-emerald-600 active:text-emerald-600 transition-colors rounded"
                                                     title="Registrar pago"
                                                 >
-                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            {onEditTransaction && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onEditTransaction(tx.id) }}
+                                                    className="p-1.5 text-charcoal/30 hover:text-primary-600 active:text-primary-600 transition-colors rounded"
+                                                    title="Editar"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
                                                 </button>
                                             )}
                                             {onDeleteTransaction && (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); onDeleteTransaction(tx.id) }}
-                                                    className="p-1 text-charcoal/40 hover:text-red-500 transition-colors rounded"
-                                                    title="Eliminar transacción"
+                                                    className="p-1.5 text-charcoal/30 hover:text-red-500 active:text-red-500 transition-colors rounded"
+                                                    title="Eliminar"
                                                 >
-                                                    <Trash2 className="w-3 h-3" />
+                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             )}
                                         </div>
