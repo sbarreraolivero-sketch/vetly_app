@@ -57,7 +57,8 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
             attitude: '',
             hydration: '',
             body_condition: '',
-            coat: ''
+            coat: '',
+            findings: ''
         },
         diagnosis: '',
         procedure_notes: ''
@@ -77,7 +78,7 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                 weight: event.weight ? event.weight.toString() : '',
                 physical_exam: event.physical_exam || {
                     fc: '', fr: '', temp: '', mucous: '', lymph_nodes: '',
-                    attitude: '', hydration: '', body_condition: '', coat: ''
+                    attitude: '', hydration: '', body_condition: '', coat: '', findings: ''
                 },
                 diagnosis: event.diagnosis || '',
                 procedure_notes: event.procedure_notes || ''
@@ -370,6 +371,19 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                                         <input type="text" value={formData.physical_exam.body_condition} onChange={(e) => setFormData({ ...formData, physical_exam: { ...formData.physical_exam, body_condition: e.target.value } })} className="input-soft py-2 font-bold" placeholder="Ej: 3/5, 5/9..." />
                                     </div>
                                 </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-sm font-bold uppercase tracking-widest text-charcoal/70 mb-4 pb-2 border-b border-silk-beige flex items-center gap-2">
+                                    <Stethoscope className="w-4 h-4 text-primary-500" />
+                                    Hallazgos del Examen Físico
+                                </h3>
+                                <textarea
+                                    value={formData.physical_exam.findings}
+                                    onChange={(e) => setFormData({ ...formData, physical_exam: { ...formData.physical_exam, findings: e.target.value } })}
+                                    className="input-soft min-h-[120px] resize-none text-sm"
+                                    placeholder="Ej: Dolor a la palpación en región lumbar, aumento de volumen en ganglio submandibular izquierdo, reflejo patelar disminuido..."
+                                />
                             </div>
                         </div>
                     )}

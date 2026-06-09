@@ -2944,3 +2944,56 @@ El catch externo retornaba `{ error: (e as Error).message }` — podía filtrar 
 - **HTML generado en el browser**: cualquier dato de usuario interpolado en template literals de `window.open` / `win.document.write` debe pasar por `esc()`. Ver `CajaReport.tsx` como referencia.
 - **Webhooks de pago**: verificar firma HMAC antes de cualquier acción. Fallar cerrado (`return false`) si falta el secret — nunca fallar abierto.
 - **Políticas RLS anon UPDATE**: siempre restringir a una RPC específica que solo actualice la columna permitida.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 42, 2026-06-09)
+
+### Auditoría de inconsistencias del AI agent — Animalgrace Linares
+
+Claudia reportó dos conversaciones con respuestas incorrectas del agente. Diagnóstico completo vía DB (`messages`, `ai_behavior_rules`, `knowledge_base`).
+
+#### Caso 1 — "Triple Felina" cuando se preguntó por séxtuple
+
+**Veredicto: NO fue un error del AI.**
+
+La tabla `messages` confirmó que el mensaje original de Tamara (phone `+56977757470`) era `"Para la vacuna de tiple refuerzo"` (typo de "triple"). El AI recibió ese texto, lo interpretó correctamente como Triple Felina y respondió bien. La captura de pantalla mostraba "sextuple refuerzo (Editado 9:41 p.m.)" — la cliente **editó** su mensaje después de que el AI ya había procesado y respondido el original. WhatsApp permite editar mensajes pero YCloud envía el texto en el momento de recepción; el AI no recibe re-notificaciones de ediciones.
+
+**Nota permanente:** los mensajes con "(Editado)" en WhatsApp son indetectables para el AI — siempre actúa sobre el texto original recibido. Si un cliente reporta una respuesta incorrecta, verificar en `messages` el contenido original antes de asumir un bug del AI.
+
+#### Caso 2 — Aviso de "urgencias" espontáneo
+
+**Veredicto: Error real del AI.** El historial de Tamara en DB mostraba que el 30 de mayo preguntó: `"tendrán atención a domicilio de urgencia para ahora!?"`. El AI cargó ese historial como contexto y, combinado con el mensaje nocturno ("Disculpen la hora"), activó proactivamente el aviso de urgencias del KB — aunque en la conversación de junio no había señal alguna de emergencia. Sobre-aplicación de contexto histórico.
+
+**Fix aplicado (Linares + Santiago, DB, efectivo de inmediato):** nueva regla `PROHIBIDO MENCIONAR "URGENCIAS" SIN CONTEXTO` en `ai_behavior_rules`:
+- El aviso de urgencias SOLO se activa si el cliente menciona explícitamente emergencia/urgencia o describe síntomas de riesgo vital (sangrado masivo, asfixia, convulsiones, etc.)
+- Escribir de noche, decir "disculpen la hora" o tener historial previo de consultas de urgencia NO activa el aviso
+- Para consultas rutinarias (vacunación, control, agendamiento), el aviso debe omitirse completamente
+
+#### Caso 3 — Cobaya atendida como si fuera perro o gato
+
+**Veredicto: Error estructural — vacío en las instrucciones.** No existía ninguna regla que dijera que AnimalGrace solo atiende perros y gatos. La REGLA 1 anti-alucinación cubre servicios inexistentes, pero no especies fuera de cobertura. El AI (GPT-4o en este caso) ofreció consulta a domicilio para una cobaya porque no encontró ninguna restricción explícita.
+
+**Fix aplicado (Linares + Santiago, DB, efectivo de inmediato):** nueva regla `COBERTURA DE ESPECIES` en `ai_behavior_rules`:
+- AnimalGrace SOLO atiende PERROS (caninos) y GATOS (felinos)
+- Cualquier otra especie (cobayas, conejos, hámsters, tortugas, aves, reptiles, serpientes, etc.) → respuesta estándar de no cobertura + recomendación de especialista en animales exóticos
+- No se ofrece ningún servicio ni se agenda cita para otras especies
+
+**Regla permanente — diagnóstico de bugs del AI:**
+Antes de concluir que el AI "alucinó" o "se equivocó", siempre verificar en la tabla `messages` el contenido exacto del mensaje inbound (`direction = 'inbound'`). Los mensajes editados de WhatsApp son la causa más común de discrepancias entre lo que el cliente "escribió" (versión editada) y lo que el AI respondió (versión original).
+
+### Simulador IA eliminado del dashboard
+
+El widget `<AIChatWidget variant="simulator" />` fue eliminado de `DashboardLayout.tsx`. El simulador sigue existiendo como edge function (`ai-simulator`) pero ya no hay un botón flotante en el dashboard que lo exponga. Si se quiere reintroducir en el futuro, se puede agregar como una ruta propia o dentro de la página de Settings IA.
+
+### Campo "Hallazgos del Examen Físico" — historial clínico
+
+**`MedicalEventForm.tsx` — tab "Examen Físico":**
+- Nuevo textarea "Hallazgos del Examen Físico" añadido después de la grilla de constantes vitales
+- Se guarda en `physical_exam.findings` (campo dentro del JSONB existente — sin migración)
+- Placeholder orientativo: dolor a la palpación, aumento de volumen, reflejo alterado, etc.
+
+**`PatientProfile.tsx` — historial clínico:**
+- Los hallazgos se muestran en la tarjeta de cada atención, entre el diagnóstico y las Notas de Evolución
+- Fondo `bg-primary-50/40` con borde `border-primary-100` para diferenciarse visualmente
+- Solo se renderiza si el campo tiene valor (`event.physical_exam?.findings`)

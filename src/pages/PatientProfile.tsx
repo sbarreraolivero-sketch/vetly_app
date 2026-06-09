@@ -562,6 +562,13 @@ export default function PatientProfile() {
                                                          <p className="text-lg font-bold text-charcoal leading-snug">{event.diagnosis || 'Pendiente'}</p>
                                                     </div>
                                                     
+                                                    {event.physical_exam?.findings && (
+                                                        <div className="bg-primary-50/40 p-5 rounded-soft border border-primary-100">
+                                                            <p className="text-xs font-bold text-primary-600 uppercase tracking-widest mb-2 leading-none">Hallazgos del Examen Físico</p>
+                                                            <p className="text-charcoal/80 leading-relaxed whitespace-pre-wrap text-sm font-medium">{event.physical_exam.findings}</p>
+                                                        </div>
+                                                    )}
+
                                                     {event.procedure_notes && (
                                                         <div className="bg-ivory/80 p-5 rounded-soft border border-silk-beige/50">
                                                             <p className="text-xs font-bold font-bold text-charcoal/40 uppercase tracking-widest mb-2 leading-none">Notas de Evolución</p>

@@ -29,7 +29,6 @@ import {
     SlidersHorizontal,
     Package,
 } from 'lucide-react'
-import { AIChatWidget } from '../AIChatWidget'
 import { cn, getInitials } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -686,8 +685,6 @@ export default function DashboardLayout() {
                 />
             )}
 
-            {/* AI Support Agent Widget */}
-            <AIChatWidget variant="simulator" clinicId={profile?.clinic_id} />
         </div>
     )
 }
