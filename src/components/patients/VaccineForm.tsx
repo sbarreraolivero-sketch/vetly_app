@@ -22,7 +22,7 @@ interface VaccineFormProps {
     onSave: () => void
 }
 
-const DOG_VACCINES = ['Óctuple', 'Sextuple', 'KC', 'Antirrábica', 'Otra']
+const DOG_VACCINES = ['Óctuple', 'Sextuple', 'Puppy DP', 'KC', 'Antirrábica', 'Otra']
 const CAT_VACCINES = ['Triple felina', 'Leucemia felina', 'Antirrábica', 'Otra']
 
 export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProps) {
