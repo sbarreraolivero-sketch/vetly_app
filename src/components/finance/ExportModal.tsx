@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
     X, Download, FileText, CalendarRange, ChevronLeft, ChevronRight, Loader2,
-    TrendingUp, TrendingDown, DollarSign, CreditCard,
+    TrendingUp, TrendingDown, DollarSign,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
@@ -24,9 +24,6 @@ interface ExportModalProps {
 
 type FilterType = 'day' | 'week' | 'month' | 'year' | 'custom'
 
-const STATUS_LABELS: Record<string, string> = {
-    paid: 'Pagado', pending: 'Pendiente', partial: 'Parcial', refunded: 'Reembolsado',
-}
 const CATEGORY_EXPENSE: Record<string, string> = {
     rent: 'Alquiler', supplies: 'Insumos', payroll: 'Nómina',
     marketing: 'Marketing', utilities: 'Servicios Básicos', other: 'Otro',
@@ -193,11 +190,10 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
             const periodLabel = getPeriodLabel(filterType, customRange)
             const dateStamp = dateFnsFormat(new Date(), 'yyyy-MM-dd')
 
-            const [statsData, expensesData, incomesData, txData] = await Promise.all([
+            const [statsData, expensesData, incomesData] = await Promise.all([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
-                financeService.getTransactions(clinicId, start, end),
             ])
 
             if (format === 'json') {
@@ -207,17 +203,8 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                         ingresos: statsData?.total_income ?? 0,
                         gastos: statsData?.total_expenses ?? 0,
                         ganancia_neta: statsData?.net_profit ?? 0,
-                        por_cobrar: statsData?.pending_payments ?? 0,
-                        total_citas: statsData?.appointments_count ?? 0,
+                        total_ingresos_registrados: statsData?.appointments_count ?? 0,
                     },
-                    transacciones: (txData || []).map((tx: any) => ({
-                        fecha: new Date(tx.appointment_date).toLocaleDateString('es-CL'),
-                        paciente: tx.patient_name,
-                        servicio: tx.service || '-',
-                        monto: tx.price ?? 0,
-                        estado: STATUS_LABELS[tx.payment_status] ?? tx.payment_status,
-                        metodo_pago: tx.payment_method || 'N/A',
-                    })),
                     gastos: (expensesData || []).map((exp: any) => ({
                         fecha: exp.date,
                         descripcion: exp.description,
@@ -246,22 +233,7 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                 lines.push(`Ingresos${sep}${currency}${fmt(statsData?.total_income ?? 0)}`)
                 lines.push(`Gastos${sep}${currency}${fmt(statsData?.total_expenses ?? 0)}`)
                 lines.push(`Ganancia Neta${sep}${currency}${fmt(statsData?.net_profit ?? 0)}`)
-                lines.push(`Por Cobrar${sep}${currency}${fmt(statsData?.pending_payments ?? 0)}`)
-                lines.push(`Total Citas${sep}${statsData?.appointments_count ?? 0}`)
-                lines.push('')
-
-                lines.push('TRANSACCIONES')
-                lines.push(`Fecha${sep}Paciente${sep}Servicio${sep}Monto${sep}Estado${sep}Método de Pago`)
-                if ((txData || []).length > 0) {
-                    (txData as any[]).forEach(tx => lines.push([
-                        new Date(tx.appointment_date).toLocaleDateString('es-CL'),
-                        `"${(tx.patient_name || '').replace(/"/g, '""')}"`,
-                        `"${(tx.service || '-').replace(/"/g, '""')}"`,
-                        `${currency}${fmt(tx.price ?? 0)}`,
-                        STATUS_LABELS[tx.payment_status] ?? tx.payment_status,
-                        tx.payment_method || 'N/A',
-                    ].join(sep)))
-                } else lines.push('Sin transacciones en este período')
+                lines.push(`Ingresos Registrados${sep}${statsData?.appointments_count ?? 0}`)
                 lines.push('')
 
                 lines.push('GASTOS')
@@ -420,15 +392,6 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                                         <p className={cn('text-sm font-bold', (stats.net_profit ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-500')}>
                                             {currency}{fmt(stats.net_profit ?? 0)}
                                         </p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                                        <CreditCard className="w-3.5 h-3.5 text-amber-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-charcoal/50">Por cobrar</p>
-                                        <p className="text-sm font-bold text-charcoal">{currency}{fmt(stats.pending_payments ?? 0)}</p>
                                     </div>
                                 </div>
                             </div>

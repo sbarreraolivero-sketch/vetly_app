@@ -63,7 +63,8 @@ interface NewIncomeFormProps {
 export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, defaultDate }: NewIncomeFormProps) {
     const isEdit = !!editingIncome
     const [description, setDescription] = useState(editingIncome?.description ?? '')
-    const [date, setDate] = useState(editingIncome?.date ?? defaultDate ?? new Date().toISOString().split('T')[0])
+    // Fallback en hora local de Chile, nunca UTC (toISOString desplaza la fecha después de las 20:00 CLT)
+    const [date, setDate] = useState(editingIncome?.date ?? defaultDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' }))
     const [currency, setCurrency] = useState('CLP')
     const [notes, setNotes] = useState(editingIncome?.notes ?? '')
     const [paymentMethod, setPaymentMethod] = useState(editingIncome?.payment_method ?? '')

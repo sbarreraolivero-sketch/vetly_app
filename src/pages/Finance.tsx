@@ -28,8 +28,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { supabase } from '@/lib/supabase'
 import { financeService, type FinanceStats, type Expense, type Income, type CashRegister } from '@/services/financeService'
-import VisitReceipt from '@/components/finance/VisitReceipt'
-import { EditTransactionModal } from '@/components/finance/EditTransactionModal'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
 import { printCajaReport } from '@/components/finance/CajaReport'
@@ -70,11 +68,8 @@ const Finance = () => {
     const [stats, setStats] = useState<FinanceStats | null>(null)
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [incomes, setIncomes] = useState<Income[]>([])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [transactions, setTransactions] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [itemMetrics, setItemMetrics] = useState<any>(null)
-    const [txItems, setTxItems] = useState<Record<string, any[]>>({})
     const [activeTab, setActiveTab] = useState<'dashboard' | 'cajas' | 'expenses' | 'analysis'>('dashboard')
     const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
     const [cajaToClose, setCajaToClose] = useState<string | null>(null)  // date 'YYYY-MM-DD'
@@ -130,11 +125,10 @@ const Finance = () => {
                 end   = range.end
             }
 
-            const [statsData, expensesData, incomesData, transactionsData, metricsData, cashRegistersData, clinicSettingsData] = await Promise.all([
+            const [statsData, expensesData, incomesData, metricsData, cashRegistersData, clinicSettingsData] = await Promise.all([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
-                financeService.getTransactions(clinicId, start, end),
                 financeService.getItemMetrics(clinicId, start, end).catch(() => null),
                 financeService.getCashRegisters(clinicId, start, end).catch(() => []),
                 // Usar Promise.resolve() para normalizar el thenable de Supabase (regla: nunca .catch() directo)
@@ -145,10 +139,8 @@ const Finance = () => {
             setStats(statsData)
             setExpenses(expensesData)
             setIncomes(incomesData)
-            setTransactions(transactionsData || [])
             setCashRegisters(cashRegistersData)
             setItemMetrics(metricsData)
-            setTxItems({})
             if (clinicSettingsData?.data?.clinic_name) {
                 setClinicName(clinicSettingsData.data.clinic_name)
             }
@@ -159,8 +151,6 @@ const Finance = () => {
         }
     }
 
-    const [receiptTx, setReceiptTx]   = useState<any | null>(null)
-    const [editTx, setEditTx]         = useState<any | null>(null)
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
     const [incomeDefaultDate, setIncomeDefaultDate] = useState<string | undefined>(undefined)
     const [showExportModal, setShowExportModal] = useState(false)
@@ -286,29 +276,6 @@ const Finance = () => {
         }
     }
 
-    const handleMarkPaid = async (txId: string) => {
-        try {
-            await financeService.updatePaymentStatus(txId, 'paid')
-            toast.success('Pago registrado')
-            loadData()
-        } catch (error) {
-            console.error('Error marking as paid:', error)
-            toast.error('Error al registrar el pago')
-        }
-    }
-
-    const handleDeleteTransaction = async (txId: string) => {
-        if (!confirm('¿Eliminar esta transacción? Se pondrá el precio en $0.')) return
-        try {
-            await financeService.updateTransactionPrice(txId, 0)
-            toast.success('Transacción eliminada')
-            loadData()
-        } catch (error) {
-            console.error('Error deleting transaction:', error)
-            toast.error('Error al eliminar la transacción')
-        }
-    }
-
     // ── Mini calendario de rango ──────────────────────────────────────────
     function MiniCalendar() {
         const [calMonth, setCalMonth] = useState(() => customRange?.start ?? new Date())
@@ -406,37 +373,39 @@ const Finance = () => {
     // Fecha de hoy en la zona horaria de la clínica (no UTC)
     const todayLocalStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
 
-    // ── Agrupar transacciones, ingresos y gastos por fecha para la vista de Cajas ──
+    // ── Agrupar ingresos manuales y gastos por fecha para la vista de Cajas ──
+    // Las citas (appointments) NO se procesan aquí: la caja solo refleja ingresos manuales.
     const cajasByDate = useMemo(() => {
         const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
-        const map: Record<string, { transactions: typeof transactions; incomes: typeof incomes; expenses: typeof expenses }> = {}
+        const map: Record<string, { incomes: typeof incomes; expenses: typeof expenses }> = {}
 
-        for (const tx of transactions) {
-            const d = tx.appointment_date?.split('T')[0]
-            if (!d || d > todayStr) continue
-            if (!map[d]) map[d] = { transactions: [], incomes: [], expenses: [] }
-            map[d].transactions.push(tx)
-        }
         for (const inc of incomes) {
             const d = inc.date?.split('T')[0] ?? inc.date
             if (!d || d > todayStr) continue
-            if (!map[d]) map[d] = { transactions: [], incomes: [], expenses: [] }
+            if (!map[d]) map[d] = { incomes: [], expenses: [] }
             map[d].incomes.push(inc)
         }
         for (const exp of expenses) {
             const d = (exp.date as string)?.split('T')[0] ?? (exp.date as string)
             if (!d || d > todayStr) continue
-            if (!map[d]) map[d] = { transactions: [], incomes: [], expenses: [] }
+            if (!map[d]) map[d] = { incomes: [], expenses: [] }
             map[d].expenses.push(exp)
+        }
+
+        // Incluir toda caja registrada en la DB aunque no tenga movimientos
+        for (const cr of cashRegisters) {
+            const d = cr.date?.split('T')[0] ?? cr.date
+            if (!d || d > todayStr) continue
+            if (!map[d]) map[d] = { incomes: [], expenses: [] }
         }
 
         // Siempre mostrar la caja de hoy aunque esté vacía
         if (!map[todayStr]) {
-            map[todayStr] = { transactions: [], incomes: [], expenses: [] }
+            map[todayStr] = { incomes: [], expenses: [] }
         }
 
         return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
-    }, [transactions, incomes, expenses, timezone])
+    }, [incomes, expenses, cashRegisters, timezone])
 
     const handleCloseCaja = async (date: string, notes: string) => {
         if (!clinicId || !user?.id) return
@@ -537,7 +506,6 @@ const Finance = () => {
             dateLabel: dayLabel,
             currency: '$',
             openingBalance: cashReg?.opening_balance ?? 0,
-            transactions: entry ? entry[1].transactions : [],
             incomes: entry ? entry[1].incomes : [],
             expenses: entry ? entry[1].expenses : [],
             notes: cashReg?.notes,
@@ -573,7 +541,7 @@ const Finance = () => {
                                 <span>Gasto</span>
                             </button>
                             <button
-                                onClick={() => setShowIncomeModal(true)}
+                                onClick={() => { setIncomeDefaultDate(todayLocalStr); setShowIncomeModal(true) }}
                                 className="flex items-center gap-1.5 bg-white text-emerald-700 font-bold text-sm px-3 py-2 rounded-xl hover:bg-emerald-50 transition-colors shadow-sm"
                             >
                                 <Plus className="w-4 h-4" />
@@ -603,10 +571,10 @@ const Finance = () => {
                     </div>
                     <div className="bg-white/50 p-3.5 rounded-soft border border-silk-beige/30">
                         <p className="font-bold text-emerald-700 text-[11px] mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
-                            <CreditCard className="w-3.5 h-3.5" /> Pagos por Cobrar:
+                            <CreditCard className="w-3.5 h-3.5" /> Cajas diarias:
                         </p>
                         <p className="text-[11px] leading-relaxed text-charcoal/70">
-                            Las transacciones que aparecen como "Pendientes" son citas realizadas que aún no han sido marcadas como pagadas. Hazles seguimiento para mantener un flujo de caja positivo.
+                            Registra cada cobro como ingreso manual en la caja del día. Al cerrar la caja obtienes el resumen exacto de lo cobrado, los gastos y el saldo final de la jornada.
                         </p>
                     </div>
                 </div>
@@ -681,7 +649,7 @@ const Finance = () => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="card-soft p-4 flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                         <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -736,26 +704,6 @@ const Finance = () => {
                     )}
                 </div>
 
-                <div className="card-soft p-4 flex flex-col">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                            <CreditCard className="w-5 h-5 text-amber-600" />
-                        </div>
-                        {can('finance_metrics') && (
-                            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                                {transactions.filter(tx => tx.payment_status === 'pending').length} Pendientes
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-sm text-charcoal/60">Por Cobrar</p>
-                    {can('finance_metrics') ? (
-                        <p className="text-2xl font-bold text-charcoal mt-1">
-                            {loading ? '...' : formatCurrency(stats?.pending_payments || 0)}
-                        </p>
-                    ) : (
-                        <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
-                    )}
-                </div>
             </div>
 
             {/* Tabs */}
@@ -820,31 +768,28 @@ const Finance = () => {
                             </div>
                         </div>
 
-                        {/* Recent Transactions Mini List */}
+                        {/* Recent Incomes Mini List */}
                         <div className="card-soft p-6">
                             <h3 className="font-semibold text-charcoal mb-4">Recientes</h3>
                             <div className="space-y-4">
-                                {transactions.slice(0, 5).map((tx) => (
-                                    <div key={tx.id} className="flex items-center justify-between text-sm">
+                                {incomes.slice(0, 5).map((inc) => (
+                                    <div key={inc.id} className="flex items-center justify-between text-sm">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                                                 <DollarSign className="w-4 h-4" />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-charcoal">{tx.patient_name}</p>
-                                                <p className="text-xs text-charcoal/50">{formatInTz(tx.appointment_date, 'd MMM')}</p>
+                                                <p className="font-medium text-charcoal truncate max-w-[180px]">{inc.description}</p>
+                                                <p className="text-xs text-charcoal/50">{formatInTz(inc.date, 'd MMM')}</p>
                                             </div>
                                         </div>
-                                        <span className={cn(
-                                            "font-medium",
-                                            tx.price > 0 ? "text-emerald-600" : "text-charcoal/60"
-                                        )}>
-                                            +{formatCurrency(tx.price || 0)}
+                                        <span className="font-medium text-emerald-600">
+                                            +{formatCurrency(inc.amount || 0)}
                                         </span>
                                     </div>
                                 ))}
-                                {transactions.length === 0 && (
-                                    <p className="text-sm text-charcoal/50 text-center py-4">No hay transacciones recientes</p>
+                                {incomes.length === 0 && (
+                                    <p className="text-sm text-charcoal/50 text-center py-4">No hay ingresos recientes</p>
                                 )}
                             </div>
                         </div>
@@ -858,10 +803,10 @@ const Finance = () => {
                         ) : cajasByDate.length === 0 ? (
                             <div className="card-soft p-10 text-center">
                                 <p className="text-charcoal/50 font-medium">No hay ingresos en este período</p>
-                                <p className="text-sm text-charcoal/30 mt-1">Las cajas aparecen cuando hay citas o ingresos en el período seleccionado</p>
+                                <p className="text-sm text-charcoal/30 mt-1">Las cajas aparecen cuando hay ingresos registrados en el período seleccionado</p>
                             </div>
                         ) : (
-                            cajasByDate.map(([date, { transactions: dayTx, incomes: dayInc, expenses: dayExp }]) => {
+                            cajasByDate.map(([date, { incomes: dayInc, expenses: dayExp }]) => {
                                 const cashReg = cashRegisters.find(c => c.date === date) ?? null
                                 const dayLabel = (() => {
                                     try {
@@ -876,7 +821,6 @@ const Finance = () => {
                                         date={date}
                                         dateLabel={dayLabel}
                                         todayStr={todayLocalStr}
-                                        transactions={dayTx}
                                         incomes={dayInc}
                                         expenses={dayExp}
                                         cashRegister={cashReg}
@@ -898,12 +842,6 @@ const Finance = () => {
                                             if (inc) setEditingIncome(inc)
                                         }}
                                         onDeleteIncome={handleDeleteIncome}
-                                        onMarkPaid={handleMarkPaid}
-                                        onDeleteTransaction={handleDeleteTransaction}
-                                        onEditTransaction={(txId) => {
-                                            const tx = transactions.find(t => t.id === txId)
-                                            if (tx) setEditTx(tx)
-                                        }}
                                         isClosing={closingCaja && cajaToClose === date}
                                     />
                                 )
@@ -1076,23 +1014,6 @@ const Finance = () => {
                 )}
             </div>
 
-            {/* Comprobante modal */}
-            {receiptTx && (
-                <VisitReceipt
-                    transaction={receiptTx}
-                    items={txItems[receiptTx.id] ?? []}
-                    clinicName={clinicName}
-                    clinicId={clinicId ?? ''}
-                    onLoadItems={async () => {
-                        if (!txItems[receiptTx.id]) {
-                            const items = await financeService.getTransactionItems(receiptTx.id).catch(() => [])
-                            setTxItems(prev => ({ ...prev, [receiptTx.id]: items }))
-                        }
-                    }}
-                    onClose={() => setReceiptTx(null)}
-                />
-            )}
-
             {/* Modal de Gastos */}
             {showExpenseModal && (
                 <div className="fixed inset-0 bg-charcoal/50 z-50 flex items-center justify-center p-4">
@@ -1190,16 +1111,6 @@ const Finance = () => {
                 />
             )}
 
-            {/* Modal editar transacción */}
-            {editTx && clinicId && (
-                <EditTransactionModal
-                    transaction={editTx}
-                    clinicId={clinicId}
-                    onClose={() => setEditTx(null)}
-                    onSuccess={loadData}
-                />
-            )}
-
             {/* Modal de exportación */}
             {showExportModal && clinicId && (
                 <ExportModal
@@ -1232,22 +1143,13 @@ const Finance = () => {
 
             {/* Modal cerrar caja */}
             {cajaToClose && (() => {
-                const dayTxForModal  = transactions.filter(t => t.appointment_date?.split('T')[0] === cajaToClose)
                 const dayIncForModal = incomes.filter(i => (i.date?.split('T')[0] ?? i.date) === cajaToClose)
                 const dayExpForModal = expenses.filter(e => (e.date as string)?.split('T')[0] === cajaToClose)
-                const cobradas   = dayTxForModal.filter((t: any) => t.payment_status === 'paid' || t.payment_status === 'partial')
-                const pendientes = dayTxForModal.filter((t: any) => t.payment_status === 'pending')
-                const totalCobrado = cobradas.reduce((s: number, t: any) => s + (t.price ?? 0), 0)
-                    + dayIncForModal.reduce((s: number, i: any) => s + (i.amount ?? 0), 0)
-                const totalPendiente = pendientes.reduce((s: number, t: any) => s + (t.price ?? 0), 0)
+                const totalCobrado = dayIncForModal.reduce((s: number, i: any) => s + (i.amount ?? 0), 0)
                 const totalGastos = dayExpForModal.reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
                 const cashReg = cashRegisters.find(c => c.date === cajaToClose)
                 const openingBalance = cashReg?.opening_balance ?? 0
                 const byMethod: Record<string, number> = {}
-                for (const t of cobradas as any[]) {
-                    const k = (t.payment_method ?? 'otro').toLowerCase()
-                    byMethod[k] = (byMethod[k] ?? 0) + (t.price ?? 0)
-                }
                 for (const i of dayIncForModal as any[]) {
                     const k = (i.payment_method ?? 'otro').toLowerCase()
                     byMethod[k] = (byMethod[k] ?? 0) + (i.amount ?? 0)
@@ -1265,11 +1167,9 @@ const Finance = () => {
                         dateLabel={label}
                         openingBalance={openingBalance}
                         totalCobrado={totalCobrado}
-                        totalPendiente={totalPendiente}
                         totalGastos={totalGastos}
                         byMethod={byMethod}
-                        citasAtendidas={cobradas.length + dayIncForModal.length}
-                        pendingList={pendientes.map((t: any) => ({ name: t.patient_name ?? t.service, amount: t.price ?? 0 }))}
+                        citasAtendidas={dayIncForModal.length}
                         gastosList={dayExpForModal.map((e: any) => ({ description: e.description, amount: e.amount, payment_method: e.payment_method }))}
                         currency="$"
                         loading={closingCaja}

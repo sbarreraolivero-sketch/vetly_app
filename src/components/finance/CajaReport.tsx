@@ -3,17 +3,6 @@
  * Usa window.open() + window.print(), igual que VisitReceipt.
  */
 
-interface Transaction {
-    id: string
-    appointment_date: string
-    patient_name: string
-    service: string
-    price: number
-    payment_status: string
-    payment_method?: string | null
-    tutor_name?: string | null
-}
-
 interface IncomeEntry {
     id: string
     description: string
@@ -37,7 +26,6 @@ interface CajaReportData {
     dateLabel: string        // 'Lunes 4 Jun 2026'
     currency: string
     openingBalance: number
-    transactions: Transaction[]
     incomes: IncomeEntry[]
     expenses: ExpenseEntry[]
     notes?: string | null
@@ -89,27 +77,17 @@ function fmtCategory(c: string) {
 export function printCajaReport(data: CajaReportData) {
     const {
         clinicName, dateLabel, currency, openingBalance,
-        transactions, incomes, expenses, notes, closedAt,
+        incomes, expenses, notes, closedAt,
     } = data
 
     const fmt = (n: number) => `${currency}${n.toLocaleString('es-CL')}`
 
-    const cobradas = transactions.filter(t => t.payment_status === 'paid' || t.payment_status === 'partial')
-    const pendientes = transactions.filter(t => t.payment_status === 'pending')
-
-    const totalTx = cobradas.reduce((s, t) => s + (t.price ?? 0), 0)
-    const totalInc = incomes.reduce((s, i) => s + (i.amount ?? 0), 0)
-    const totalCobrado = totalTx + totalInc
-    const totalPendiente = pendientes.reduce((s, t) => s + (t.price ?? 0), 0)
+    const totalCobrado = incomes.reduce((s, i) => s + (i.amount ?? 0), 0)
     const totalGastos = expenses.reduce((s, e) => s + (e.amount ?? 0), 0)
     const saldoFinal = openingBalance + totalCobrado - totalGastos
 
     // Desglose por método (cobrado)
     const byMethod: Record<string, number> = {}
-    for (const t of cobradas) {
-        const k = (t.payment_method ?? 'Sin especificar').toLowerCase()
-        byMethod[k] = (byMethod[k] ?? 0) + (t.price ?? 0)
-    }
     for (const i of incomes) {
         const k = (i.payment_method ?? 'Sin especificar').toLowerCase()
         byMethod[k] = (byMethod[k] ?? 0) + (i.amount ?? 0)
@@ -118,14 +96,6 @@ export function printCajaReport(data: CajaReportData) {
     const closedAtLabel = closedAt
         ? new Date(closedAt).toLocaleString('es-CL', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
         : null
-
-    const txRows = cobradas.map(tx => `
-        <tr>
-            <td>${esc(tx.service) || '—'}</td>
-            <td>${esc(tx.patient_name) || '—'}${tx.tutor_name ? ` · ${esc(tx.tutor_name)}` : ''}</td>
-            <td>${esc(fmtMethod(tx.payment_method))}</td>
-            <td class="amount">${fmt(tx.price)}</td>
-        </tr>`).join('')
 
     const incRows = incomes.map(inc => `
         <tr>
@@ -141,14 +111,6 @@ export function printCajaReport(data: CajaReportData) {
             <td>${esc(fmtCategory(exp.category))}</td>
             <td>${esc(fmtMethod(exp.payment_method))}</td>
             <td class="amount neg">${fmt(exp.amount ?? 0)}${exp.receipt_url ? ' 📎' : ''}</td>
-        </tr>`).join('')
-
-    const pendRows = pendientes.map(tx => `
-        <tr>
-            <td>${esc(tx.service) || '—'}</td>
-            <td>${esc(tx.patient_name) || '—'}</td>
-            <td>${esc(fmtMethod(tx.payment_method))}</td>
-            <td class="amount pending">${fmt(tx.price)}</td>
         </tr>`).join('')
 
     const methodRows = Object.entries(byMethod)
@@ -208,10 +170,10 @@ export function printCajaReport(data: CajaReportData) {
 <!-- COBRADO -->
 <div class="section-cobrado">
   <h2>✅ Cobrado · ${fmt(totalCobrado)}</h2>
-  ${(cobradas.length > 0 || incomes.length > 0) ? `
+  ${incomes.length > 0 ? `
   <table>
     <thead><tr><th>Detalle</th><th>Paciente / Descripción</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead>
-    <tbody>${txRows}${incRows}</tbody>
+    <tbody>${incRows}</tbody>
   </table>` : '<p style="color:#9ca3af;font-size:12px;padding:8px 0">Sin cobros registrados</p>'}
 </div>
 
@@ -224,16 +186,6 @@ ${expenses.length > 0 ? `
     <tbody>${expRows}</tbody>
   </table>
   <p style="font-size:10px;color:#9ca3af;margin-top:4px">📎 = boleta adjunta en el sistema</p>
-</div>` : ''}
-
-<!-- PENDIENTE -->
-${pendientes.length > 0 ? `
-<div class="section-pendiente">
-  <h2>⏳ Pendiente de cobro · ${fmt(totalPendiente)}</h2>
-  <table>
-    <thead><tr><th>Servicio</th><th>Paciente</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead>
-    <tbody>${pendRows}</tbody>
-  </table>
 </div>` : ''}
 
 <!-- DESGLOSE POR MÉTODO -->

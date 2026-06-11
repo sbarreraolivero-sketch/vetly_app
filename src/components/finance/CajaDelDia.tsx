@@ -5,7 +5,6 @@ import {
     Lock,
     Unlock,
     Plus,
-    Clock,
     CheckCircle2,
     Banknote,
     CreditCard,
@@ -20,17 +19,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CashRegister } from '@/services/financeService'
-
-interface Transaction {
-    id: string
-    appointment_date: string
-    patient_name: string
-    service: string
-    price: number
-    payment_status: 'pending' | 'paid' | 'partial' | 'refunded'
-    payment_method?: string | null
-    tutor_name?: string | null
-}
 
 interface IncomeEntry {
     id: string
@@ -56,7 +44,6 @@ interface CajaDelDiaProps {
     date: string
     dateLabel: string
     todayStr?: string        // 'YYYY-MM-DD' en zona horaria de la clínica
-    transactions: Transaction[]
     incomes: IncomeEntry[]
     expenses: ExpenseEntry[]
     cashRegister?: CashRegister | null
@@ -69,9 +56,6 @@ interface CajaDelDiaProps {
     onViewReceipt?: (storagePath: string) => void
     onEditIncome?: (incomeId: string) => void
     onDeleteIncome?: (incomeId: string, description: string) => void
-    onMarkPaid?: (txId: string) => void
-    onDeleteTransaction?: (txId: string) => void
-    onEditTransaction?: (txId: string) => void
     isClosing?: boolean
 }
 
@@ -114,7 +98,6 @@ export function CajaDelDia({
     date,
     dateLabel,
     todayStr,
-    transactions,
     incomes,
     expenses,
     cashRegister,
@@ -127,9 +110,6 @@ export function CajaDelDia({
     onViewReceipt,
     onEditIncome,
     onDeleteIncome,
-    onMarkPaid,
-    onDeleteTransaction,
-    onEditTransaction,
     isClosing = false,
 }: CajaDelDiaProps) {
     const [expanded, setExpanded] = useState(false)
@@ -141,20 +121,10 @@ export function CajaDelDia({
     const isToday = date === localToday
     const openingBalance = cashRegister?.opening_balance ?? 0
 
-    const cobradas = transactions.filter(t => t.payment_status === 'paid' || t.payment_status === 'partial')
-    const pendientes = transactions.filter(t => t.payment_status === 'pending')
-
-    const totalCobradoTx = cobradas.reduce((s, t) => s + (t.price ?? 0), 0)
-    const totalIngresos = incomes.reduce((s, i) => s + (i.amount ?? 0), 0)
-    const totalCobrado = totalCobradoTx + totalIngresos
-    const totalPendiente = pendientes.reduce((s, t) => s + (t.price ?? 0), 0)
+    const totalCobrado = incomes.reduce((s, i) => s + (i.amount ?? 0), 0)
     const totalGastos = expenses.reduce((s, e) => s + (e.amount ?? 0), 0)
 
     const byMethod: Record<string, number> = {}
-    for (const t of cobradas) {
-        const k = (t.payment_method ?? 'otro').toLowerCase()
-        byMethod[k] = (byMethod[k] ?? 0) + (t.price ?? 0)
-    }
     for (const i of incomes) {
         const k = (i.payment_method ?? 'otro').toLowerCase()
         byMethod[k] = (byMethod[k] ?? 0) + (i.amount ?? 0)
@@ -222,11 +192,6 @@ export function CajaDelDia({
                     {/* Totales */}
                     <div className="text-right shrink-0">
                         <p className="text-base font-extrabold text-charcoal">{fmt(totalCobrado)}</p>
-                        {totalPendiente > 0 && (
-                            <p className="text-xs font-medium text-amber-600 mt-0.5">
-                                {fmt(totalPendiente)} pendiente
-                            </p>
-                        )}
                     </div>
 
                     {/* Chevron */}
@@ -298,47 +263,9 @@ export function CajaDelDia({
                             Cobrado · {fmt(totalCobrado)}
                         </p>
 
-                        {cobradas.length === 0 && incomes.length === 0 && (
+                        {incomes.length === 0 && (
                             <p className="text-xs text-charcoal/40 italic py-1">Sin cobros registrados</p>
                         )}
-
-                        {cobradas.map(tx => (
-                            <div key={tx.id} className="flex items-center gap-2 py-2 border-b border-silk-beige last:border-0 group">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold text-charcoal truncate">{tx.service}</p>
-                                    <p className="text-[11px] text-charcoal/50 truncate">{tx.patient_name}{tx.tutor_name ? ` · ${tx.tutor_name}` : ''}</p>
-                                </div>
-                                {tx.payment_method && (
-                                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-charcoal/40 font-medium shrink-0">
-                                        {paymentIcon(tx.payment_method)}
-                                        {paymentLabel(tx.payment_method)}
-                                    </span>
-                                )}
-                                <span className="text-xs font-bold text-charcoal shrink-0">{fmt(tx.price)}</span>
-                                {!isClosed && (onEditTransaction || onDeleteTransaction) && (
-                                    <div className="flex items-center gap-0.5 shrink-0">
-                                        {onEditTransaction && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onEditTransaction(tx.id) }}
-                                                className="p-1.5 text-charcoal/30 hover:text-primary-600 active:text-primary-600 transition-colors rounded"
-                                                title="Editar"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                        {onDeleteTransaction && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onDeleteTransaction(tx.id) }}
-                                                className="p-1.5 text-charcoal/30 hover:text-red-500 active:text-red-500 transition-colors rounded"
-                                                title="Eliminar"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
 
                         {incomes.map(inc => (
                             <div key={inc.id} className="flex items-center gap-2 py-2 border-b border-silk-beige last:border-0">
@@ -418,56 +345,6 @@ export function CajaDelDia({
                         </div>
                     )}
 
-                    {/* SECCIÓN PENDIENTE */}
-                    {pendientes.length > 0 && (
-                        <div className="px-5 pt-2 pb-3 bg-amber-50/60">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-2 flex items-center gap-1.5">
-                                <Clock className="w-3 h-3" />
-                                Pendiente de cobro · {fmt(totalPendiente)}
-                            </p>
-                            {pendientes.map(tx => (
-                                <div key={tx.id} className="flex items-center gap-2 py-2 border-b border-amber-100 last:border-0 group">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-charcoal truncate">{tx.service}</p>
-                                        <p className="text-[11px] text-charcoal/50 truncate">{tx.patient_name}{tx.tutor_name ? ` · ${tx.tutor_name}` : ''}</p>
-                                    </div>
-                                    <span className="text-xs font-bold text-amber-700 shrink-0">{fmt(tx.price)}</span>
-                                    {!isClosed && (onMarkPaid || onEditTransaction || onDeleteTransaction) && (
-                                        <div className="flex items-center gap-0.5 shrink-0">
-                                            {onMarkPaid && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); onMarkPaid(tx.id) }}
-                                                    className="p-1.5 text-charcoal/30 hover:text-emerald-600 active:text-emerald-600 transition-colors rounded"
-                                                    title="Registrar pago"
-                                                >
-                                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
-                                            {onEditTransaction && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); onEditTransaction(tx.id) }}
-                                                    className="p-1.5 text-charcoal/30 hover:text-primary-600 active:text-primary-600 transition-colors rounded"
-                                                    title="Editar"
-                                                >
-                                                    <Pencil className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
-                                            {onDeleteTransaction && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); onDeleteTransaction(tx.id) }}
-                                                    className="p-1.5 text-charcoal/30 hover:text-red-500 active:text-red-500 transition-colors rounded"
-                                                    title="Eliminar"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
                     {/* Acciones */}
                     <div className="px-5 py-3 flex items-center gap-2 border-t border-charcoal/8 bg-white/60 flex-wrap">
                         {!isClosed && (
@@ -530,11 +407,9 @@ interface CloseCajaModalProps {
     dateLabel: string
     openingBalance: number
     totalCobrado: number
-    totalPendiente: number
     totalGastos: number
     byMethod?: Record<string, number>
     citasAtendidas?: number
-    pendingList?: { name: string; amount: number }[]
     gastosList?: { description: string; amount: number; payment_method?: string | null }[]
     currency: string
     onConfirm: (notes: string) => void
@@ -562,11 +437,9 @@ export function CloseCajaModal({
     dateLabel,
     openingBalance,
     totalCobrado,
-    totalPendiente,
     totalGastos,
     byMethod = {},
     citasAtendidas = 0,
-    pendingList = [],
     gastosList = [],
     currency,
     onConfirm,
@@ -640,22 +513,6 @@ export function CloseCajaModal({
                                     <span className="text-rose-700 font-semibold shrink-0">{fmt(exp.amount)}</span>
                                 </div>
                             ))}
-                        </div>
-                    )}
-
-                    {/* Pendientes */}
-                    {totalPendiente > 0 && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> Pendiente de cobro · {fmt(totalPendiente)}
-                            </p>
-                            {pendingList.map((item, i) => (
-                                <div key={i} className="flex justify-between text-xs">
-                                    <span className="text-charcoal/60 truncate pr-2">{item.name}</span>
-                                    <span className="text-amber-700 font-semibold shrink-0">{fmt(item.amount)}</span>
-                                </div>
-                            ))}
-                            <p className="text-[11px] text-amber-600/80">Podés cerrar y cobrarlos después desde Citas.</p>
                         </div>
                     )}
 

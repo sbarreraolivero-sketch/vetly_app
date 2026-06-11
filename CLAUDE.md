@@ -3000,6 +3000,51 @@ El widget `<AIChatWidget variant="simulator" />` fue eliminado de `DashboardLayo
 
 ---
 
+## Cambios realizados — junio 2026 (sesión 44, 2026-06-11)
+
+### Finanzas basadas SOLO en ingresos manuales — eliminación de "pagos pendientes" y "Por Cobrar"
+
+**Decisión del usuario (permanente):** el sistema de Finanzas NO procesa ningún dato de ingreso desde citas (`appointments`). La única fuente de ingresos es la tabla `incomes` (ingresos manuales) y la de egresos es `expenses`. La opción de pagos pendientes y la tarjeta "Por Cobrar" fueron eliminadas definitivamente porque generaban más confusión que ayuda a Claudia.
+
+**Migración `finance_incomes_only_no_appointments`:**
+- `get_finance_stats` reescrito: solo suma `incomes` y `expenses`. Columna `pending_payments` eliminada del tipo de retorno (DROP + CREATE). Ahora `SECURITY DEFINER` con check de `clinic_members`. `appointments_count` ahora es el conteo de ingresos manuales del período.
+- `close_cash_register` reescrito: solo suma `incomes` (con descuento) y `expenses`. Las citas ya no aportan a `total_cobrado` ni al desglose por método. `total_pendiente` siempre se guarda como 0.
+
+**Frontend:**
+- `Finance.tsx`: tarjeta KPI "Por Cobrar" eliminada (grid 4 → 3 columnas); `handleMarkPaid`, `handleDeleteTransaction`, estados `transactions`/`receiptTx`/`editTx`/`txItems` y los modales `VisitReceipt`/`EditTransactionModal` eliminados de esta página; lista "Recientes" del tab Resumen ahora muestra ingresos manuales; guía actualizada (sección "Cajas diarias" en lugar de "Pagos por Cobrar").
+- `CajaDelDia.tsx`: prop `transactions` y todo el rendering de citas (cobradas/pendientes) eliminados; `totalCobrado` = solo suma de `incomes`; `CloseCajaModal` sin sección "Pendiente de cobro" ni props `totalPendiente`/`pendingList`.
+- `CajaReport.tsx`: secciones de transacciones y pendientes eliminadas del informe imprimible.
+- `ExportModal.tsx`: secciones TRANSACCIONES, "Por Cobrar" y `STATUS_LABELS` eliminadas del CSV/JSON y del preview.
+- `financeService.ts`: `pending_payments` removido de `FinanceStats`; método `updatePaymentStatus` eliminado.
+
+### Bug UTC: ingresos creados de noche quedaban con fecha del día siguiente
+
+**Causa raíz:** el botón "Ingreso" del banner de Finanzas abría el modal sin `defaultDate`, y el fallback de `NewIncomeForm` usaba `new Date().toISOString()` (UTC). En Chile (UTC-4), después de las 20:00 el ingreso se guardaba con la fecha de mañana. Esto explicaba: (a) ingresos de ayer apareciendo en hoy, (b) cierre de caja en $0 (el RPC no encontraba ingresos en la fecha del día).
+
+**Fixes:**
+- `Finance.tsx`: el botón del banner ahora setea `setIncomeDefaultDate(todayLocalStr)` (timezone de la clínica).
+- `NewIncomeForm.tsx`: fallback cambiado a `toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })`.
+- **Datos corregidos:** 8 ingresos de Linares creados el 2026-06-10 entre 23:22–23:34 hora Chile (fechados 06-11 por el bug) movidos a su fecha real 06-10 ($268.000 total).
+
+### Cajas faltantes en el listado
+
+**Causa raíz:** `cajasByDate` solo se construía desde días con actividad. Cajas existentes en `cash_registers` sin movimientos (jun 5, 6, 7, 10) eran invisibles.
+
+**Fix:** el useMemo ahora incluye también las fechas de `cashRegisters` aunque estén vacías, con `cashRegisters` en las dependencias.
+
+### Placeholder "[NOMBRE DEL TUTOR]" — el AI agendaba sin nombre real
+
+**Causa raíz:** `tutor_name` es campo `required` del tool `create_appointment`. Cuando el cliente no había dado su nombre, GPT inventaba el placeholder literal `"[Nombre del Tutor]"` para satisfacer el schema, y el webhook lo aceptaba. El trigger de auto-creación de contactos luego creaba el tutor con ese nombre. (La "reaparición" del nombre tras editar que reportó Claudia era este mismo placeholder en registros distintos, no una pérdida de su edición.)
+
+**Fixes (webhook deployado):**
+- Guard en `createAppt`: rechaza nombres con corchetes/llaves, vacíos o genéricos ("tutor", "cliente", "sin nombre", etc.) y devuelve `FALTA_NOMBRE_TUTOR` instruyendo al AI a preguntar el nombre completo antes de reintentar.
+- Descripción del parámetro `tutor_name` reforzada: NUNCA placeholders; si no hay nombre, no llamar la función.
+- **DB:** 1 tutor (`[Nombre del Tutor]`, tel 56934839967, Linares) renombrado a "Sin nombre" junto con sus citas. Claudia puede buscarlo y ponerle el nombre real.
+
+**Regla permanente:** cualquier tool del AI con campos required de datos personales debe validar contra placeholders en el handler — el modelo SIEMPRE puede inventar valores para satisfacer el schema.
+
+---
+
 ## Cambios realizados — junio 2026 (sesión 43, 2026-06-09)
 
 ### Bug crítico: cierre de caja fallaba para Mauricio (Animalgrace Santiago)

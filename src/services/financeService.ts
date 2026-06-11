@@ -52,7 +52,6 @@ export interface FinanceStats {
     total_income: number
     total_expenses: number
     net_profit: number
-    pending_payments: number
     appointments_count: number
 }
 
@@ -238,17 +237,6 @@ export const financeService = {
 
         if (error) throw error
         return data
-    },
-
-    async updatePaymentStatus(appointmentId: string, status: string) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase as any).rpc('update_appointment_payment_status', {
-            p_appointment_id: appointmentId,
-            p_status: status
-        })
-
-        if (error) throw error
-        return data?.[0]
     },
 
     async updateTransactionPrice(appointmentId: string, price: number) {

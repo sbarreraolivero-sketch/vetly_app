@@ -330,7 +330,8 @@ const functions = [
       properties: {
         tutor_name: {
           type: "string",
-          description: "Nombre completo del tutor/dueño",
+          description:
+            "Nombre REAL y completo del tutor/dueño, tal como él lo indicó en la conversación. NUNCA uses placeholders como '[Nombre del Tutor]', 'Cliente' o 'Tutor'. Si el cliente aún no ha dicho su nombre, NO llames esta función: pregúntale primero su nombre completo.",
         },
         patient_name: { type: "string", description: "Nombre de la mascota" },
         date: { type: "string", description: "Fecha YYYY-MM-DD" },
@@ -1589,6 +1590,24 @@ const createAppt = async (
   logisticsConfig?: any,
 ) => {
   const normalizedPhone = normalizePhone(phone);
+
+  // GUARD: nunca agendar sin el nombre real del tutor.
+  // El modelo a veces inventa placeholders ("[NOMBRE DEL TUTOR]", "Tutor", "Cliente")
+  // para satisfacer el campo required del tool. Rechazar y pedir el nombre.
+  const tutorNameRaw = (args.tutor_name || "").trim();
+  const tutorNameNorm = tutorNameRaw.toLowerCase();
+  const isPlaceholderName =
+    !tutorNameRaw ||
+    tutorNameRaw.includes("[") || tutorNameRaw.includes("]") ||
+    tutorNameRaw.includes("{") || tutorNameRaw.includes("}") ||
+    ["tutor", "cliente", "dueño", "dueno", "nombre", "sin nombre", "n/a", "na", "no especificado", "desconocido", "pendiente"].includes(tutorNameNorm) ||
+    tutorNameNorm.startsWith("nombre del") || tutorNameNorm.startsWith("nombre de");
+  if (isPlaceholderName) {
+    return {
+      success: false,
+      message: "FALTA_NOMBRE_TUTOR: No se puede agendar sin el nombre real del tutor. Pregunta al cliente su nombre completo antes de volver a intentar crear la cita.",
+    };
+  }
 
   // Schema Mapping
   if (!args.patient_name && args.pet_name) {
