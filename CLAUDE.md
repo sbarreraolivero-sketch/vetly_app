@@ -3043,6 +3043,31 @@ El widget `<AIChatWidget variant="simulator" />` fue eliminado de `DashboardLayo
 
 **Regla permanente:** cualquier tool del AI con campos required de datos personales debe validar contra placeholders en el handler — el modelo SIEMPRE puede inventar valores para satisfacer el schema.
 
+### Tercer bug UTC encontrado en revisión final: modal de Gasto del banner (commit `a0993e2`)
+
+En la revisión de seguridad pre-push se encontró que el modal de "Gasto" del banner de Finanzas (`Finance.tsx` línea ~1058) todavía usaba `new Date().toISOString().split('T')[0]` como `defaultValue` del campo fecha — mismo bug UTC que el modal de Ingreso. Un gasto registrado después de las 20:00 hora Chile quedaba fechado al día siguiente. Fix: `defaultValue={todayLocalStr}`.
+
+**Verificado con grep:** ya no queda ningún uso de `toISOString()` para fechas en `Finance.tsx` ni en `src/components/finance/`. El patrón de bug está erradicado del módulo de finanzas.
+
+### Arquitectura de timezone en Finanzas — cómo funciona (referencia permanente)
+
+Hubo 3 bugs UTC del mismo tipo corregidos en sesiones distintas. Para evitar confusión futura, así funciona la cadena completa:
+
+1. **`useClinicTimezone`** (hook) lee `clinic_settings.timezone` de la clínica activa. Es **per-clínica** — cada clínica usa su propia zona configurada en Settings.
+2. **`todayLocalStr`** en `Finance.tsx` se calcula con `toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })`. El `'America/Santiago'` es solo **fallback** si la clínica no tiene timezone, no un valor fijo.
+3. **Creación de ingresos/gastos:** ambos modales reciben `todayLocalStr` como fecha por defecto → la fecha guardada respeta la timezone de la clínica.
+4. **Cierre de caja:** el RPC `close_cash_register` recibe `p_date` desde el frontend (calculado con la timezone de la clínica) → hereda la zona correcta. El RPC no calcula fechas por sí mismo.
+5. **Única excepción (deuda técnica documentada):** el cron `auto_open_daily_cajas()` del servidor tiene `'America/Santiago'` hardcodeado. Solo afectará cuando haya clínicas de otro país — el fix está en "Tareas pendientes".
+
+**Historial de los 3 bugs UTC (todos `toISOString()` devolviendo el día siguiente después de las 20:00 CLT):**
+| Sesión | Dónde estaba | Qué rompía |
+|---|---|---|
+| 39 | `Finance.tsx` / `CajaDelDia.tsx` — display de caja "hoy" | La caja del día mostraba la fecha equivocada de noche |
+| 44 | `NewIncomeForm` fallback + botón "Ingreso" del banner sin `defaultDate` | Ingresos nocturnos fechados mañana → cierre de caja en $0 |
+| 44 (final) | Modal "Gasto" del banner — `defaultValue` del campo fecha | Gastos nocturnos fechados mañana |
+
+**Regla permanente:** nunca usar `new Date().toISOString()` para derivar una fecha "de hoy" en el frontend. Siempre `todayLocalStr` (o `toLocaleDateString('sv-SE', { timeZone: ... })` con la timezone de la clínica). Si un componente necesita fecha por defecto, recibirla por prop desde la página que ya tiene `useClinicTimezone` — no calcularla internamente.
+
 ---
 
 ## Cambios realizados — junio 2026 (sesión 43, 2026-06-09)
