@@ -3240,3 +3240,17 @@ La coexistencia (WhatsApp Business App + Cloud API) solo está disponible para T
 2. **`loadData` con `Promise.allSettled`:** un fallo en una query ya no tumba a las demás; cada sección (`stats`, `expenses`, `incomes`, `metrics`, `cashRegisters`, `clinicName`) se setea de forma aislada solo si su promesa resolvió. Beneficia también a agregar/editar ingresos y gastos.
 
 **Regla permanente — recargas de Finance:** preferir `Promise.allSettled` sobre `Promise.all` cuando se hace fan-out de múltiples queries cuyo fallo individual no debe invalidar las demás. Para operaciones de borrado/edición en listas, aplicar actualización optimista del estado local en vez de depender exclusivamente de un refetch.
+
+### Indicador de estado de la IA — ahora refleja el estado real (commit `f72889a`)
+
+**Síntoma:** el menú lateral ("IA Activa / Respondiendo 24/7") y el banner del Dashboard ("Agente activo") mostraban siempre la IA como activa, sin importar si el agente estaba apagado.
+
+**Causa:** los tres indicadores tenían el texto y los estilos hardcodeados, sin leer ningún campo de estado.
+
+**Fix:** los tres ahora leen `clinic_settings.ai_auto_respond` (el mismo campo que controla el toggle "Agente IA activo" en Ajustes IA → `AISettings.tsx`):
+- **`DashboardLayout.tsx`** (sidebar desktop + mobile): estado `aiActive` cargado en un `useEffect` por `profile.clinic_id`. Cuando `ai_auto_respond === false` → "IA Apagada / No responde mensajes" con punto gris sin animación; en otro caso → "IA Activa / Respondiendo 24/7" (punto teal pulsante).
+- **`Dashboard.tsx`** (banner de saludo): mismo patrón. Badge "Agente apagado" (punto gris) + subtítulo "Tu asistente IA está apagado y no responde mensajes" cuando está off.
+
+**Comportamiento:** el indicador se lee al montar la página. Si Claudia cambia el toggle en Ajustes IA, el cambio se refleja al navegar/recargar (no en tiempo real en la misma vista) — comportamiento esperado para este indicador.
+
+**Regla permanente:** `clinic_settings.ai_auto_respond` es la fuente de verdad de si el agente IA responde. Cualquier indicador de "IA activa/apagada" en la UI debe leer este campo, nunca hardcodearse. El webhook `ycloud-whatsapp-webhook` también respeta este flag para decidir si responde.
