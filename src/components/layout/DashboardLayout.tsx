@@ -131,6 +131,8 @@ export default function DashboardLayout() {
     const [notificationsLimit, setNotificationsLimit] = useState(10)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(true)
+    // Estado real del agente IA (clinic_settings.ai_auto_respond). null = aún cargando.
+    const [aiActive, setAiActive] = useState<boolean | null>(null)
 
     // Check activation status and redirect
     useEffect(() => {
@@ -177,6 +179,21 @@ export default function DashboardLayout() {
         }
         checkActivation();
     }, [user?.email, profile?.clinic_id, navigate])
+
+    // Estado real del agente IA
+    useEffect(() => {
+        const fetchAiStatus = async () => {
+            if (!profile?.clinic_id) { setAiActive(null); return }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data } = await (supabase as any)
+                .from('clinic_settings')
+                .select('ai_auto_respond')
+                .eq('id', profile.clinic_id)
+                .single()
+            setAiActive(data?.ai_auto_respond ?? false)
+        }
+        fetchAiStatus()
+    }, [profile?.clinic_id])
 
     // Fetch notifications
     useEffect(() => {
@@ -416,13 +433,17 @@ export default function DashboardLayout() {
                 {/* Footer - AI Status */}
                 <div className="p-3 border-t border-white/[0.06] shrink-0">
                     <div className={cn(
-                        "flex items-center gap-3 rounded-xl bg-primary-500/[0.12] border border-primary-500/25 transition-all duration-200",
+                        "flex items-center gap-3 rounded-xl border transition-all duration-200",
+                        aiActive === false ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25",
                         isSidebarCollapsed ? "p-2 justify-center" : "px-3 py-3"
                     )}>
-                        <div className="shrink-0 w-2 h-2 bg-primary-400 rounded-full animate-pulse-soft" />
+                        <div className={cn(
+                            "shrink-0 w-2 h-2 rounded-full",
+                            aiActive === false ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
+                        )} />
                         <div className={cn("min-w-0 overflow-hidden transition-all duration-200", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
-                            <p className="text-[13px] font-semibold text-white leading-tight">IA Activa</p>
-                            <p className="text-[11px] text-white/40">Respondiendo 24/7</p>
+                            <p className="text-[13px] font-semibold text-white leading-tight">{aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
+                            <p className="text-[11px] text-white/40">{aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
                         </div>
                     </div>
                 </div>
@@ -476,11 +497,17 @@ export default function DashboardLayout() {
                     })}
                 </nav>
                 <div className="p-3 border-t border-white/[0.06] shrink-0">
-                    <div className="flex items-center gap-3 rounded-xl bg-primary-500/[0.12] border border-primary-500/25 px-3 py-3">
-                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse-soft shrink-0" />
+                    <div className={cn(
+                        "flex items-center gap-3 rounded-xl border px-3 py-3",
+                        aiActive === false ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25"
+                    )}>
+                        <div className={cn(
+                            "w-2 h-2 rounded-full shrink-0",
+                            aiActive === false ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
+                        )} />
                         <div>
-                            <p className="text-[13px] font-semibold text-white">IA Activa</p>
-                            <p className="text-[11px] text-white/40">Respondiendo 24/7</p>
+                            <p className="text-[13px] font-semibold text-white">{aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
+                            <p className="text-[11px] text-white/40">{aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
                         </div>
                     </div>
                 </div>

@@ -28,6 +28,7 @@ import { es as esLocale } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
+import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 
 interface DashboardStats {
@@ -113,6 +114,22 @@ export default function Dashboard() {
     })
 
     const { getDateRange, getPreviousDateRange, toUTC } = useClinicTimezone()
+
+    // Estado real del agente IA (clinic_settings.ai_auto_respond)
+    const [aiActive, setAiActive] = useState<boolean | null>(null)
+    useEffect(() => {
+        const fetchAiStatus = async () => {
+            if (!profile?.clinic_id) { setAiActive(null); return }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data } = await (supabase as any)
+                .from('clinic_settings')
+                .select('ai_auto_respond')
+                .eq('id', profile.clinic_id)
+                .single()
+            setAiActive(data?.ai_auto_respond ?? false)
+        }
+        fetchAiStatus()
+    }, [profile?.clinic_id])
 
     // Cerrar el picker al hacer clic fuera
     useEffect(() => {
@@ -591,13 +608,23 @@ export default function Dashboard() {
                         ¡Hola, {profile?.full_name?.split(' ')[0]}! 👋
                     </h1>
                     <p className="text-sm text-charcoal/50 mt-1">
-                        Tu asistente IA está activo y respondiendo 24/7.
+                        {aiActive === false
+                            ? 'Tu asistente IA está apagado y no responde mensajes.'
+                            : 'Tu asistente IA está activo y respondiendo 24/7.'}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="inline-flex items-center gap-2 bg-primary-50 border border-primary-200 text-primary-700 text-xs font-semibold px-3 py-1.5 rounded-full">
-                        <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
-                        Agente activo
+                    <div className={cn(
+                        "inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border",
+                        aiActive === false
+                            ? "bg-charcoal/5 border-silk-beige text-charcoal/50"
+                            : "bg-primary-50 border-primary-200 text-primary-700"
+                    )}>
+                        <span className={cn(
+                            "w-2 h-2 rounded-full",
+                            aiActive === false ? "bg-charcoal/30" : "bg-primary-500 animate-pulse"
+                        )} />
+                        {aiActive === false ? 'Agente apagado' : 'Agente activo'}
                     </div>
                     {/* Filtro de período */}
                     <div className="flex items-center gap-2">
