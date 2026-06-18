@@ -125,24 +125,29 @@ const Finance = () => {
                 end   = range.end
             }
 
-            const [statsData, expensesData, incomesData, metricsData, cashRegistersData, clinicSettingsData] = await Promise.all([
+            // allSettled: que un fallo en una query no tumbe a las demás. Con Promise.all,
+            // un solo rechazo dejaba toda la UI sin actualizar (datos viejos hasta refrescar).
+            const [statsR, expR, incR, metR, crR, csR] = await Promise.allSettled([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
-                financeService.getItemMetrics(clinicId, start, end).catch(() => null),
-                financeService.getCashRegisters(clinicId, start, end).catch(() => []),
-                // Usar Promise.resolve() para normalizar el thenable de Supabase (regla: nunca .catch() directo)
+                financeService.getItemMetrics(clinicId, start, end),
+                financeService.getCashRegisters(clinicId, start, end),
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name').eq('id', clinicId).single()).then((r: any) => r, () => null),
+                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name').eq('id', clinicId).single()).then((r: any) => r),
             ])
 
-            setStats(statsData)
-            setExpenses(expensesData)
-            setIncomes(incomesData)
-            setCashRegisters(cashRegistersData)
-            setItemMetrics(metricsData)
-            if (clinicSettingsData?.data?.clinic_name) {
-                setClinicName(clinicSettingsData.data.clinic_name)
+            if (statsR.status === 'fulfilled') setStats(statsR.value)
+            if (expR.status === 'fulfilled') setExpenses(expR.value)
+            if (incR.status === 'fulfilled') setIncomes(incR.value)
+            setItemMetrics(metR.status === 'fulfilled' ? metR.value : null)
+            if (crR.status === 'fulfilled') setCashRegisters(crR.value)
+            const cs = csR.status === 'fulfilled' ? (csR.value as any) : null
+            if (cs?.data?.clinic_name) setClinicName(cs.data.clinic_name)
+
+            const failed = [statsR, expR, incR, metR, crR].filter(r => r.status === 'rejected')
+            if (failed.length > 0) {
+                console.error('Finance: carga parcial con errores', failed.map(f => (f as PromiseRejectedResult).reason))
             }
         } catch (error) {
             console.error('Error loading finance data:', error)
@@ -266,13 +271,20 @@ const Finance = () => {
 
     const handleDeleteIncome = async (incomeId: string, description: string) => {
         if (!confirm(`¿Eliminar el ingreso "${description}"?`)) return
+        // Actualización optimista: quitamos el ingreso de la vista al instante.
+        // No dependemos de loadData() para reflejar el borrado — si alguna de sus
+        // queries en paralelo falla, el Promise.all cae al catch y la lista quedaría
+        // con datos viejos hasta refrescar la página.
+        const prevIncomes = incomes
+        setIncomes(curr => curr.filter(i => i.id !== incomeId))
         try {
             await financeService.deleteIncome(incomeId)
             toast.success('Ingreso eliminado')
-            loadData()
+            loadData() // re-sincroniza totales y cajas en segundo plano
         } catch (error) {
             console.error('Error deleting income:', error)
             toast.error('Error al eliminar el ingreso')
+            setIncomes(prevIncomes) // revertir si el borrado falló
         }
     }
 
