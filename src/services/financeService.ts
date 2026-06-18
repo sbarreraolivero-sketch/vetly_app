@@ -160,6 +160,7 @@ export const financeService = {
             p_services:        income.services || [],
             p_discount:        income.discount || 0,
             p_notes:           income.notes || null,
+            p_payment_method:  income.payment_method || null,
             p_discount_reason: income.discount_reason || null,
             p_iva_amount:      income.iva_amount ?? null,
         })
