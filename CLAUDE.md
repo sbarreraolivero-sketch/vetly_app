@@ -3132,3 +3132,111 @@ WHERE user_id = auth.uid() AND clinic_id = p_clinic_id AND status = 'active'
 ```
 
 **Regla permanente:** los RPCs de finanzas no deben restringir por rol — el control de acceso a la sección es responsabilidad del sistema de permisos del frontend (`permissions.pages.finance`). La única excepción es `finance_metrics` que controla la visibilidad de KPIs, no las acciones.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 45, 2026-06-16)
+
+### Fix Finanzas — método de pago no aparecía en informe de caja
+
+**Síntoma:** el informe PDF de la caja del día mostraba "sin especificar" en todos los ingresos aunque el método de pago se hubiera ingresado desde el modal.
+
+**Causa raíz:** `financeService.addIncome()` recibía `payment_method` del formulario pero lo omitía al llamar al RPC `create_clinic_income`. El parámetro `p_payment_method` simplemente no estaba en el objeto que se enviaba al RPC.
+
+**Fix en `src/services/financeService.ts`:**
+```typescript
+// Añadida línea faltante:
+p_payment_method: income.payment_method || null,
+```
+
+**Cadena completa:** UI recopila `payment_method` → `handleAddIncome` lo pasa → `financeService.addIncome()` lo enviaba al RPC (antes lo ignoraba) → RPC `create_clinic_income` guarda en `incomes.payment_method` → `get_clinic_incomes_secure` lo retorna → `CajaReport` lo muestra.
+
+---
+
+### Integración Meta Cloud API — inicio de proceso Tech Provider
+
+**Contexto:** el número de WhatsApp de Animalgrace Santiago no podía conectarse a YCloud por un mismatch de moneda irresolvable (YCloud conecta cuentas en AUD, la WABA de Santiago fue creada en USD). Meta tampoco permite agregar el número directamente a la Cloud API porque sigue ligado a la WhatsApp Business App.
+
+**Descubrimiento clave:** Meta permite coexistencia (WhatsApp Business App + Cloud API simultáneamente) pero SOLO para **Tech Providers** aprobados. Así es como YCloud lo logra para Linares. El camino correcto es que Vetly se registre como Tech Provider.
+
+**App Meta configurada:** `Vetly Omnicanal` (App ID: `1658152138764158`)
+- Proyecto Supabase: `ehmncwawzdciajvuallg`
+- Webhook URL: `https://ehmncwawzdciajvuallg.supabase.co/functions/v1/meta-whatsapp-webhook`
+- Verify token: `vetly_meta_2026`
+- App Secret: guardado como Supabase secret `META_APP_SECRET`
+- Webhook verificado ✅ — subscrito a `messages`, `message_template_quality_update`, `message_template_status_update`, `calls`
+- Verificación del negocio: ✅ Aprobado (Paso 1 completado)
+- App Review: ⏸️ pendiente (Paso 2)
+
+**Edge function creada:** `supabase/functions/meta-whatsapp-webhook/index.ts`
+- Maneja GET para verificación de webhook (responde con `hub.challenge`)
+- Maneja POST con verificación HMAC-SHA256 (`x-hub-signature-256: sha256=<hex>`)
+- Busca clínica por `clinic_settings.meta_phone_number_id`
+- El routing al AI agent está marcado como TODO — es un scaffold
+- Deployada con `--no-verify-jwt` (requerido para webhooks externos)
+
+**Política de privacidad:** `https://vetly.pro/privacidad` — existe y es accesible públicamente ✅
+
+---
+
+### Pasos pendientes — App Review Meta (sesión 46)
+
+Para que Vetly sea Tech Provider aprobado y pueda ofrecer coexistencia a los clientes:
+
+**1. Revisar configuración de la app**
+En Meta Developers → App `Vetly Omnicanal` → "Revisar la configuración de la app":
+- Confirmar que el ícono está subido
+- Confirmar que `https://vetly.pro/privacidad` está configurada como URL de política de privacidad
+- Confirmar la categoría de la app
+
+**2. Grabar video para `whatsapp_business_messaging`**
+- Mostrar la app enviando un mensaje vía API al número de prueba
+- Mostrar la interfaz de WhatsApp (web o móvil) recibiendo ese mensaje
+- Usar el número de prueba del Paso 1 (Phone Number ID: `1199762829882743`)
+
+**3. Grabar video para `whatsapp_business_management`**
+- Mostrar llamadas a la API de gestión (ej: listar números o crear plantilla)
+
+**4. Iniciar revisión**
+Botón "Iniciar revisión de la aplicación" en Meta Developers → Conviértete en proveedor de tecnología.
+
+**Una vez aprobado:**
+1. Implementar Embedded Signup con Coexistence en el frontend de Vetly
+2. Conectar Santiago con coexistencia (sin perder WhatsApp Business App)
+3. Completar `meta-whatsapp-webhook` con routing completo al AI agent
+4. Agregar columnas DB: `meta_phone_number_id`, `meta_access_token`, `meta_waba_id` en `clinic_settings`
+
+**Regla permanente — coexistencia Meta:**
+La coexistencia (WhatsApp Business App + Cloud API) solo está disponible para Tech Providers aprobados. El flujo es Embedded Signup con soporte para cuentas existentes de WhatsApp Business App. Los clientes deben tener la app en versión 2.24.17 o superior.
+
+**⚠️ No compartir el App Secret en texto plano.** Ya está guardado como `META_APP_SECRET` en Supabase secrets. Si se necesita consultarlo, buscarlo en Supabase → Edge Functions → Secrets.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 46, 2026-06-18)
+
+### Bug: método de pago de ingresos manuales nunca se guardaba en producción (commit `da8d8a1`)
+
+**Síntoma:** Claudia seleccionaba un método de pago al registrar un ingreso, pero nunca quedaba reflejado (informe de caja mostraba "sin especificar"). El fix de sesión 45 supuestamente ya lo había resuelto.
+
+**Causa raíz (confirmada con datos reales):** el fix de sesión 45 — añadir `p_payment_method` a `financeService.addIncome` — **quedó solo en el working tree local y nunca se commiteó ni se deployó a Vercel**. Producción corría el código de HEAD, donde `addIncome` llamaba al RPC `create_clinic_income` SIN `p_payment_method`. Como ese parámetro tiene `DEFAULT NULL`, PostgREST resolvía igual el overload de 12 args (oid 41752) pero guardaba `null`.
+
+**Evidencia:** en `incomes`, el único registro con método (`"efectivo"`, 16-jun 23:10) se creó corriendo el código local en dev; todos los creados desde vetly.pro (producción) los días 15–18 jun quedaron en `payment_method = null`. La cadena completa (form → handler → service → RPC → lectura) estaba correcta salvo esa línea sin deployar.
+
+**Fix:** se commiteó y pusheó la línea faltante (`p_payment_method: income.payment_method || null` en `addIncome`). El RPC y `get_clinic_incomes_secure` ya guardaban/retornaban el campo correctamente — no requirieron cambios.
+
+**Dato no recuperable:** los 16 ingresos del 15–18 jun quedaron con `payment_method = null` sin rastro en ningún otro campo (notes también vacío). El método nunca se persistió, no es recuperable automáticamente. **Resolución acordada: Claudia los completa manualmente** editándolos desde Finanzas (la edición vía `updateIncome` sí guardaba el método, incluso antes de este fix).
+
+**Lección permanente (refuerzo de sesión 17):** un fix solo cuenta cuando está **commiteado y pusheado a `main`** (Vercel deploya desde `main`). Documentar un cambio en CLAUDE.md no equivale a deployarlo. Antes de dar por cerrado un bug de frontend, verificar `git status` / que el commit esté en `main`.
+
+### Bug: eliminar un ingreso no se reflejaba hasta refrescar la página (commit `22aa72f`)
+
+**Síntoma:** al borrar un ingreso, desaparecía de la DB (al refrescar ya no estaba) pero la lista en pantalla seguía mostrándolo hasta recargar manualmente.
+
+**Causa raíz:** `handleDeleteIncome` borraba y luego llamaba `loadData()`, que recarga con un `Promise.all` de 6 queries. Las 3 críticas (`getStats`/`getExpenses`/`getIncomes`) no tienen `.catch`, así que si cualquiera rechazaba en esa recarga puntual, todo el `Promise.all` caía al `catch` y **ningún `setState` corría** → la vista quedaba con datos viejos hasta el siguiente refresh.
+
+**Fix (dos capas):**
+1. **Eliminación optimista en `handleDeleteIncome`:** quita el ingreso del estado local al instante (`setIncomes(curr => curr.filter(...))`), con reversión si el borrado falla. No depende de que `loadData` tenga éxito.
+2. **`loadData` con `Promise.allSettled`:** un fallo en una query ya no tumba a las demás; cada sección (`stats`, `expenses`, `incomes`, `metrics`, `cashRegisters`, `clinicName`) se setea de forma aislada solo si su promesa resolvió. Beneficia también a agregar/editar ingresos y gastos.
+
+**Regla permanente — recargas de Finance:** preferir `Promise.allSettled` sobre `Promise.all` cuando se hace fan-out de múltiples queries cuyo fallo individual no debe invalidar las demás. Para operaciones de borrado/edición en listas, aplicar actualización optimista del estado local en vez de depender exclusivamente de un refetch.
