@@ -3160,13 +3160,15 @@ p_payment_method: income.payment_method || null,
 **Descubrimiento clave:** Meta permite coexistencia (WhatsApp Business App + Cloud API simultáneamente) pero SOLO para **Tech Providers** aprobados. Así es como YCloud lo logra para Linares. El camino correcto es que Vetly se registre como Tech Provider.
 
 **App Meta configurada:** `Vetly Omnicanal` (App ID: `1658152138764158`)
+- **Negocio Meta dueño de la app:** `Nexflow Ai System` (Business ID: `2680025095637170`). La app `Vetly Omnicanal` vive bajo este negocio — confirmado en sesión 47.
 - Proyecto Supabase: `ehmncwawzdciajvuallg`
 - Webhook URL: `https://ehmncwawzdciajvuallg.supabase.co/functions/v1/meta-whatsapp-webhook`
 - Verify token: `vetly_meta_2026`
 - App Secret: guardado como Supabase secret `META_APP_SECRET`
 - Webhook verificado ✅ — subscrito a `messages`, `message_template_quality_update`, `message_template_status_update`, `calls`
 - Verificación del negocio: ✅ Aprobado (Paso 1 completado)
-- App Review: ⏸️ pendiente (Paso 2)
+- **Verificación de acceso como proveedor de tecnología (Tech Provider): ✅ VERIFICADO** — enviada 17 jun 2026, aprobada (vista en sesión 47, 2026-06-24). El estado en Meta Developers → Verificación de acceso muestra Enviado → Revisado → Verificado. Como la verificación de Tech Provider es a nivel de **negocio**, cubre a la app `Vetly Omnicanal` por estar bajo `Nexflow Ai System`.
+- App Review de permisos (`whatsapp_business_messaging`, `whatsapp_business_management`): 🟡 **EN REVISIÓN** ("Revisión en curso"). Enviado 17 jun 2026 con los videos de demostración. Verificado en sesión 47 (2026-06-24): ambos permisos figuran "En 1 caso de uso", esperando veredicto. Meta revisa la mayoría en ~20 días → ventana estimada hasta ~7 jul 2026. Si piden más información, llega a la Bandeja de entrada de alertas de la app.
 
 **Edge function creada:** `supabase/functions/meta-whatsapp-webhook/index.ts`
 - Maneja GET para verificación de webhook (responde con `hub.challenge`)
@@ -3179,9 +3181,11 @@ p_payment_method: income.payment_method || null,
 
 ---
 
-### Pasos pendientes — App Review Meta (sesión 46)
+### Pasos pendientes — App Review Meta (sesión 46, actualizado sesión 47)
 
-Para que Vetly sea Tech Provider aprobado y pueda ofrecer coexistencia a los clientes:
+> **Actualización sesión 47 (2026-06-24):** la **verificación de acceso como proveedor de tecnología ya está VERIFICADA** para el negocio `Nexflow Ai System` (dueño de la app `Vetly Omnicanal`). Eso completa el requisito de fondo. Lo que queda es el **App Review de los permisos avanzados** con los videos (pasos 2–4 abajo). El paso 1 de config conviene revisarlo igual antes de enviar.
+
+Para que Vetly pueda ofrecer coexistencia a los clientes vía App Review aprobada:
 
 **1. Revisar configuración de la app**
 En Meta Developers → App `Vetly Omnicanal` → "Revisar la configuración de la app":
@@ -3254,3 +3258,83 @@ La coexistencia (WhatsApp Business App + Cloud API) solo está disponible para T
 **Comportamiento:** el indicador se lee al montar la página. Si Claudia cambia el toggle en Ajustes IA, el cambio se refleja al navegar/recargar (no en tiempo real en la misma vista) — comportamiento esperado para este indicador.
 
 **Regla permanente:** `clinic_settings.ai_auto_respond` es la fuente de verdad de si el agente IA responde. Cualquier indicador de "IA activa/apagada" en la UI debe leer este campo, nunca hardcodearse. El webhook `ycloud-whatsapp-webhook` también respeta este flag para decidir si responde.
+
+---
+
+## Cambios realizados — junio 2026 (sesión 47, 2026-06-24)
+
+### Meta Conversions API (CAPI) — implementación completa para Click-to-WhatsApp
+
+**Motivación:** el Meta Pixel no puede rastrear eventos dentro de conversaciones de WhatsApp. CAPI envía eventos server-side desde el webhook de Vetly a Meta, habilitando la optimización de anuncios Click-to-WhatsApp.
+
+#### DB — columnas nuevas en `clinic_settings`
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `meta_pixel_id` | TEXT | ID del Pixel de Meta (ej: `1175200031357348`) |
+| `meta_capi_token` | TEXT | System User Token generado desde Events Manager (nunca mostrar en chat) |
+| `meta_test_event_code` | TEXT | Código de prueba de Events Manager — debe setearse en `NULL` en producción |
+| `meta_page_id` | TEXT | ID de la Página de Facebook conectada a la WABA (ej: `114060250435261`) |
+
+**Migración aplicada:** `add_meta_capi_to_clinic_settings` + `add_meta_page_id_to_clinic_settings`
+
+**Valores actuales en producción:**
+- Ambas clínicas (Linares y Santiago): `meta_pixel_id = '1175200031357348'`, `meta_page_id = '114060250435261'`, `meta_capi_token` configurado, `meta_test_event_code = NULL`
+
+#### Helper `sendMetaCAPIEvent` — `ycloud-whatsapp-webhook`
+
+```typescript
+const sendMetaCAPIEvent = async (
+  pixelId, accessToken, eventName, phone,
+  ctwaClid?, customData?, testEventCode?, pageId?
+): Promise<{ status: number; body: unknown } | { error: string }>
+```
+
+- Hashea el teléfono con SHA-256 antes de enviarlo a Meta (`user_data.ph`)
+- Incluye `ctwa_clid` y `page_id` en `user_data` cuando están disponibles
+- Retorna el resultado completo para logging (antes era fire-and-forget y se cancelaba)
+- Usa `action_source: "business_messaging"` + `messaging_channel: "whatsapp"` — requeridos para eventos de WhatsApp
+
+#### Dos eventos CAPI en producción
+
+| Evento | Cuándo | Condición |
+|---|---|---|
+| `LeadSubmitted` | Primer mensaje de un contacto nuevo | `!tutor && ctwaClid && clinic.meta_pixel_id` |
+| `Purchase` | Cita agendada exitosamente | `ctwaClid && clinic.meta_pixel_id && apptResult.success` |
+
+**Posición en el código:**
+- `LeadSubmitted`: ANTES del check `!clinic.ai_auto_respond` — se envía incluso cuando la IA está apagada (Santiago)
+- `Purchase`: dentro de `asyncProcess`, después del tool loop cuando `create_appointment` tiene `success: true`
+
+#### Reglas permanentes — Meta CAPI
+
+- **`ctwa_clid` es requerido por Meta** para eventos `business_messaging`. Solo existe cuando el usuario hizo clic en un anuncio Click-to-WhatsApp real. Nunca enviar CAPI sin `ctwaClid` — Meta rechaza la request con error `2804071`.
+- **`page_id` es requerido** en `user_data` para eventos de WhatsApp. Es el ID de la Página de Facebook asociada a la WABA, **no** el Pixel ID ni el Ad Account ID.
+- **Event names válidos** para `business_messaging`: `LeadSubmitted`, `Purchase`. El evento `Contact` no es válido (error `2804066`).
+- **El token es un System User Token** generado desde Events Manager (tipo: `Conversions API Application`). Nunca expira. Scope: `read_ads_dataset_quality`. **No compartir en chat.**
+- **No se puede probar sin un anuncio real.** El `ctwa_clid` que inyecta Meta es validado server-side — valores inventados dan error `2804087`. La única prueba real es crear un anuncio Click-to-WhatsApp y hacer clic desde un teléfono real.
+- **`meta_test_event_code`** debe ser `NULL` en producción. Solo se usa durante desarrollo para que los eventos aparezcan en "Probar eventos" de Events Manager.
+
+#### Diagnóstico durante desarrollo — patrón para ver respuestas de CAPI
+
+El `console.log` de edge functions NO es visible con el MCP tool `get_logs` (solo muestra HTTP-level). Para ver la respuesta real de Meta, loguear en `debug_logs` y consultar con SQL:
+
+```sql
+SELECT created_at, message, payload
+FROM debug_logs
+WHERE message LIKE '%META CAPI%'
+ORDER BY created_at DESC LIMIT 5;
+```
+
+Secuencia de errores resueltos durante implementación:
+1. Fire-and-forget cancelado por Deno → `await` el fetch
+2. Event name `Contact` inválido → `LeadSubmitted` (primer contacto) + `Purchase` (cita)  
+3. Faltaba `page_id` → añadir `meta_page_id` a `clinic_settings`
+4. `ctwa_clid` inválido en pruebas manuales → es imposible testear sin un anuncio real
+
+#### Estado Tech Provider Meta (actualización)
+
+- **Verificación del negocio:** ✅ Aprobado
+- **Verificación de acceso Tech Provider:** ✅ VERIFICADO — `Nexflow Ai System` aprobado como proveedor de tecnología
+- **App Review** (`whatsapp_business_messaging` + `whatsapp_business_management`): 🟡 En revisión — enviado 17 jun 2026, ventana estimada hasta ~7 jul 2026
+- **CAPI:** ✅ En producción — funcionará automáticamente con el primer clic de anuncio Click-to-WhatsApp

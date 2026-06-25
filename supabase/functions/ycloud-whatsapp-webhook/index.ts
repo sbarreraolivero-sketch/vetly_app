@@ -89,6 +89,59 @@ const transcribeAudioData = async (
   return await res.text();
 };
 
+// ====== Helper: Send Meta Conversions API Event ======
+const sendMetaCAPIEvent = async (
+  pixelId: string,
+  accessToken: string,
+  eventName: string,
+  phone: string,
+  ctwaClid?: string,
+  customData?: { value?: number; currency?: string; content_name?: string },
+  testEventCode?: string,
+  pageId?: string,
+): Promise<{ status: number; body: unknown } | { error: string }> => {
+  try {
+    const normalized = phone.replace(/\D/g, "");
+    const hashBuffer = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(normalized),
+    );
+    const hashedPhone = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    const userData: Record<string, unknown> = { ph: [hashedPhone] };
+    if (ctwaClid) userData.ctwa_clid = ctwaClid;
+    if (pageId) userData.page_id = pageId;
+
+    const payload: Record<string, unknown> = {
+      data: [{
+        event_name: eventName,
+        event_time: Math.floor(Date.now() / 1000),
+        action_source: "business_messaging",
+        messaging_channel: "whatsapp",
+        event_id: `${eventName}_${normalized}_${Date.now()}`,
+        user_data: userData,
+        ...(customData ? { custom_data: customData } : {}),
+      }],
+    };
+    if (testEventCode) payload.test_event_code = testEventCode;
+
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    const body = await res.json().catch(() => null);
+    return { status: res.status, body };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+};
+
 // ====== Helper: Resolve Google Maps Short URL and Extract Coordinates ======
 const resolveGoogleMapsUrl = async (
   url: string,
@@ -883,14 +936,23 @@ const checkAvail = async (
   }
 
   // Paralelizar: clinic_settings + serviceDetails + existingAppts son independientes
-  const [{ data: clinic }, serviceDetails, { data: existingAppts, error: errAppts }] = await Promise.all([
-    sb.from("clinic_settings").select("business_model, latitude, longitude, logistics_config, is_mobile_vet").eq("id", clinicId).single(),
+  const [{ data: clinic, error: errClinic }, serviceDetails, { data: existingAppts, error: errAppts }] = await Promise.all([
+    sb.from("clinic_settings").select("business_model, latitude, longitude, logistics_config").eq("id", clinicId).single(),
     getServiceDetails(sb, clinicId, serviceName || ""),
     sb.from("appointments")
       .select("id, appointment_date, duration_minutes, duration, professional_id, latitude, longitude, address")
       .eq("clinic_id", clinicId)
       .neq("status", "cancelled"),
   ]);
+
+  // CRÍTICO: si clinic no carga, toda la lógica de sectores (isAnimalGrace,
+  // anti-rebote, buffer 60min, filtro Talca 11:30) queda silenciosamente
+  // desactivada. Loguear explícitamente para no repetir el bug de la columna
+  // inexistente `is_mobile_vet` (regresión 2026-05-28 → 2026-06-24).
+  if (errClinic || !clinic) {
+    console.error(`[checkAvail] FALLO al cargar clinic_settings — lógica de sectores DESACTIVADA. Error:`, errClinic);
+    await debugLog(sb, "checkAvail clinic load FAILED", { clinicId, error: errClinic?.message ?? "clinic null" });
+  }
 
   const isMobile = clinic?.business_model !== "physical";
 
@@ -2810,6 +2872,7 @@ Deno.serve(async (req) => {
     let type = "";
     let latitude: number | undefined;
     let longitude: number | undefined;
+    let ctwaClid: string | undefined = undefined;
 
     if (
       p.type === "whatsapp.inbound_message.received" && p.whatsappInboundMessage
@@ -2818,6 +2881,7 @@ Deno.serve(async (req) => {
       from = m.from || "";
       to = m.to || "";
       type = m.type || "";
+      ctwaClid = m.referral?.ctwa_clid || undefined;
       if (m.type === "text") text = m.text?.body || "";
       if (m.type === "location") {
         latitude = m.location?.latitude;
@@ -3339,6 +3403,21 @@ Deno.serve(async (req) => {
       } catch (err) {
         console.error("[CRM_SYNC] Error during auto-sync:", err);
       }
+    }
+
+    // ===== META CAPI: Contact event — solo cuando viene de un anuncio C2W (ctwa_clid requerido) =====
+    if (!tutor && ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
+      const capiResult = await sendMetaCAPIEvent(
+        clinic.meta_pixel_id,
+        clinic.meta_capi_token,
+        "LeadSubmitted",
+        from,
+        ctwaClid,
+        undefined,
+        clinic.meta_test_event_code || undefined,
+        clinic.meta_page_id || undefined,
+      );
+      await debugLog(sb, `[META CAPI] LeadSubmitted(contact) result for ${from}`, capiResult);
     }
 
     if (!clinic.ai_auto_respond) {
@@ -3979,6 +4058,26 @@ ${knowledgeSummary}
           );
           assistant = res.choices[0].message;
           maxCalls--;
+        }
+
+        // ===== META CAPI: Purchase event — solo cuando viene de anuncio C2W (ctwa_clid requerido) =====
+        if (ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
+          const apptResult = allFuncResults.find(
+            (r: any) => r.name === "create_appointment" && r.result?.success === true,
+          );
+          if (apptResult) {
+            const capiLeadResult = await sendMetaCAPIEvent(
+              clinic.meta_pixel_id,
+              clinic.meta_capi_token,
+              "Purchase",
+              from,
+              ctwaClid,
+              { content_name: (apptResult.result as any)?.service_name },
+              clinic.meta_test_event_code || undefined,
+              clinic.meta_page_id || undefined,
+            );
+            await debugLog(sb, `[META CAPI] Purchase(appointment) result for ${from}`, capiLeadResult);
+          }
         }
 
         let reply = assistant.content || "Error. ¿Puedes repetir?";
