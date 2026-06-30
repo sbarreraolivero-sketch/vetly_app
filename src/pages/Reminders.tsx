@@ -18,7 +18,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { redirectToLemonRemindersCheckout, redirectToLemonReminderPackCheckout, type ReminderPackId } from '@/lib/lemonsqueezy'
 
 type TabType = 'appointments' | 'medical' | 'packs'
-type DateRange = 'today' | 'week' | 'month' | 'all'
+type DateRange = 'today' | 'd7' | 'd15' | 'd30' | 'all'
 
 export default function Reminders() {
     const { profile } = useAuth()
@@ -26,7 +26,9 @@ export default function Reminders() {
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
     const [planLoading, setPlanLoading] = useState<boolean>(true)
     const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
-    const [dateRange, setDateRange] = useState<DateRange>('week')
+    const [dateRange, setDateRange] = useState<DateRange>('d7')
+    // Solo aplica a Médicos > Pendientes: ver la cola futura o los atrasados (scheduled_date ya pasado y aún sin enviar)
+    const [pendingScope, setPendingScope] = useState<'upcoming' | 'overdue'>('upcoming')
     const [isLoading, setIsLoading] = useState(true)
     const [savingSettings, setSavingSettings] = useState(false)
     const [reminderQty, setReminderQty] = useState(10)
@@ -79,17 +81,17 @@ export default function Reminders() {
     // Logs fetch — re-runs on tab/filter/clinic changes
     useEffect(() => {
         if (profile?.clinic_id) fetchLogs()
-    }, [profile?.clinic_id, activeTab, dateRange, medicalTab])
+    }, [profile?.clinic_id, activeTab, dateRange, medicalTab, pendingScope])
+
+    const DAYS_BY_RANGE: Record<DateRange, number> = { today: 0, d7: 7, d15: 15, d30: 30, all: 0 }
 
     const getStartDate = (range: DateRange): Date | null => {
         if (range === 'all') return null
         const d = new Date()
         if (range === 'today') {
             d.setHours(0, 0, 0, 0)
-        } else if (range === 'week') {
-            d.setDate(d.getDate() - 7)
-        } else if (range === 'month') {
-            d.setMonth(d.getMonth() - 1)
+        } else {
+            d.setDate(d.getDate() - DAYS_BY_RANGE[range])
         }
         return d
     }
@@ -125,16 +127,23 @@ export default function Reminders() {
                     .eq('clinic_id', profile.clinic_id)
 
                 if (medicalTab === 'pending') {
-                    // Próximos en cola: scheduled_date entre hoy y el límite hacia adelante según el filtro
-                    query = query
-                        .eq('status', 'pending')
-                        .gte('scheduled_date', todayStr)
-                        .order('scheduled_date', { ascending: true })
-                    if (dateRange !== 'all') {
-                        const end = new Date()
-                        if (dateRange === 'week') end.setDate(end.getDate() + 7)
-                        else if (dateRange === 'month') end.setDate(end.getDate() + 30)
-                        query = query.lte('scheduled_date', end.toISOString().split('T')[0])
+                    query = query.eq('status', 'pending')
+                    if (pendingScope === 'upcoming') {
+                        // Próximos en cola: scheduled_date entre hoy y el límite hacia adelante según el filtro
+                        query = query.gte('scheduled_date', todayStr).order('scheduled_date', { ascending: true })
+                        if (dateRange !== 'all') {
+                            const end = new Date()
+                            end.setDate(end.getDate() + DAYS_BY_RANGE[dateRange])
+                            query = query.lte('scheduled_date', end.toISOString().split('T')[0])
+                        }
+                    } else {
+                        // Atrasados: pendientes cuyo scheduled_date ya pasó y nunca se enviaron
+                        query = query.lt('scheduled_date', todayStr).order('scheduled_date', { ascending: false })
+                        if (dateRange !== 'all') {
+                            const start = new Date()
+                            start.setDate(start.getDate() - DAYS_BY_RANGE[dateRange === 'today' ? 'd7' : dateRange])
+                            query = query.gte('scheduled_date', start.toISOString().split('T')[0])
+                        }
                     }
                 } else {
                     // Historial: enviados/fallidos filtrados por el rango de fecha elegido
@@ -346,26 +355,52 @@ export default function Reminders() {
                     )}
                 </div>
                 {activeTab !== 'packs' && (
-                    <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto">
-                        <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
-                        <select
-                            value={dateRange}
-                            onChange={(e) => setDateRange(e.target.value as DateRange)}
-                            className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
-                        >
-                            {(() => {
-                                const forward = activeTab === 'medical' && medicalTab === 'pending'
-                                const prefix = forward ? 'Próximos' : 'Últimos'
-                                return (
-                                    <>
-                                        <option value="today">Hoy</option>
-                                        <option value="week">{prefix} 7 días</option>
-                                        <option value="month">{prefix} 30 días</option>
-                                        <option value="all">Todos</option>
-                                    </>
-                                )
-                            })()}
-                        </select>
+                    <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto flex-wrap">
+                        {activeTab === 'medical' && medicalTab === 'pending' && (
+                            <div className="flex items-center p-0.5 bg-ivory rounded-lg border border-silk-beige">
+                                <button
+                                    onClick={() => { setPendingScope('upcoming'); setDateRange('d7') }}
+                                    className={cn(
+                                        "text-[10px] font-bold uppercase px-2.5 py-1.5 rounded-md transition-colors tracking-widest text-center",
+                                        pendingScope === 'upcoming' ? "bg-white text-amber-700 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
+                                    )}
+                                >
+                                    Próximos
+                                </button>
+                                <button
+                                    onClick={() => { setPendingScope('overdue'); setDateRange('d7') }}
+                                    className={cn(
+                                        "text-[10px] font-bold uppercase px-2.5 py-1.5 rounded-md transition-colors tracking-widest text-center",
+                                        pendingScope === 'overdue' ? "bg-white text-red-600 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
+                                    )}
+                                >
+                                    Atrasados
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
+                            <select
+                                value={dateRange}
+                                onChange={(e) => setDateRange(e.target.value as DateRange)}
+                                className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
+                            >
+                                {(() => {
+                                    const isPendingQueue = activeTab === 'medical' && medicalTab === 'pending'
+                                    const isOverdue = isPendingQueue && pendingScope === 'overdue'
+                                    const prefix = isPendingQueue && !isOverdue ? 'Próximos' : 'Últimos'
+                                    return (
+                                        <>
+                                            {!isOverdue && <option value="today">Hoy</option>}
+                                            <option value="d7">{prefix} 7 días</option>
+                                            <option value="d15">{prefix} 15 días</option>
+                                            <option value="d30">{prefix} 30 días</option>
+                                            <option value="all">Todos</option>
+                                        </>
+                                    )
+                                })()}
+                            </select>
+                        </div>
                     </div>
                 )}
             </div>
