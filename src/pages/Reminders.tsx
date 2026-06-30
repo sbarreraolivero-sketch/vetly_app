@@ -25,10 +25,7 @@ export default function Reminders() {
     const location = useLocation()
     const [activeTab, setActiveTab] = useState<TabType>('appointments')
     const [planLoading, setPlanLoading] = useState<boolean>(true)
-    const [medicalTab, setMedicalTab] = useState<'pending' | 'history'>('pending')
     const [dateRange, setDateRange] = useState<DateRange>('d7')
-    // Solo aplica a Médicos > Pendientes: ver la cola futura o los atrasados (scheduled_date ya pasado y aún sin enviar)
-    const [pendingScope, setPendingScope] = useState<'upcoming' | 'overdue'>('upcoming')
     const [isLoading, setIsLoading] = useState(true)
     const [savingSettings, setSavingSettings] = useState(false)
     const [reminderQty, setReminderQty] = useState(10)
@@ -81,7 +78,7 @@ export default function Reminders() {
     // Logs fetch — re-runs on tab/filter/clinic changes
     useEffect(() => {
         if (profile?.clinic_id) fetchLogs()
-    }, [profile?.clinic_id, activeTab, dateRange, medicalTab, pendingScope])
+    }, [profile?.clinic_id, activeTab, dateRange])
 
     const DAYS_BY_RANGE: Record<DateRange, number> = { today: 0, d7: 7, d15: 15, d30: 30, all: 0 }
 
@@ -125,34 +122,11 @@ export default function Reminders() {
                     .from('reminders')
                     .select('*, patients(id, name, tutor_id, tutors(id, name, phone_number))')
                     .eq('clinic_id', profile.clinic_id)
+                    .in('status', ['sent', 'failed'])
+                    .order('scheduled_date', { ascending: false })
 
-                if (medicalTab === 'pending') {
-                    query = query.eq('status', 'pending')
-                    if (pendingScope === 'upcoming') {
-                        // Próximos en cola: scheduled_date entre hoy y el límite hacia adelante según el filtro
-                        query = query.gte('scheduled_date', todayStr).order('scheduled_date', { ascending: true })
-                        if (dateRange !== 'all') {
-                            const end = new Date()
-                            end.setDate(end.getDate() + DAYS_BY_RANGE[dateRange])
-                            query = query.lte('scheduled_date', end.toISOString().split('T')[0])
-                        }
-                    } else {
-                        // Atrasados: pendientes cuyo scheduled_date ya pasó y nunca se enviaron
-                        query = query.lt('scheduled_date', todayStr).order('scheduled_date', { ascending: false })
-                        if (dateRange !== 'all') {
-                            const start = new Date()
-                            start.setDate(start.getDate() - DAYS_BY_RANGE[dateRange === 'today' ? 'd7' : dateRange])
-                            query = query.gte('scheduled_date', start.toISOString().split('T')[0])
-                        }
-                    }
-                } else {
-                    // Historial: enviados/fallidos filtrados por el rango de fecha elegido
-                    query = query
-                        .in('status', ['sent', 'failed'])
-                        .order('scheduled_date', { ascending: false })
-                    if (startDate) {
-                        query = query.gte('scheduled_date', startDate.toISOString().split('T')[0]).lte('scheduled_date', todayStr)
-                    }
+                if (startDate) {
+                    query = query.gte('scheduled_date', startDate.toISOString().split('T')[0]).lte('scheduled_date', todayStr)
                 }
 
                 const { data, error } = await query.limit(300)
@@ -355,52 +329,19 @@ export default function Reminders() {
                     )}
                 </div>
                 {activeTab !== 'packs' && (
-                    <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto flex-wrap">
-                        {activeTab === 'medical' && medicalTab === 'pending' && (
-                            <div className="flex items-center p-0.5 bg-ivory rounded-lg border border-silk-beige">
-                                <button
-                                    onClick={() => { setPendingScope('upcoming'); setDateRange('d7') }}
-                                    className={cn(
-                                        "text-[10px] font-bold uppercase px-2.5 py-1.5 rounded-md transition-colors tracking-widest text-center",
-                                        pendingScope === 'upcoming' ? "bg-white text-amber-700 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
-                                    )}
-                                >
-                                    Próximos
-                                </button>
-                                <button
-                                    onClick={() => { setPendingScope('overdue'); setDateRange('d7') }}
-                                    className={cn(
-                                        "text-[10px] font-bold uppercase px-2.5 py-1.5 rounded-md transition-colors tracking-widest text-center",
-                                        pendingScope === 'overdue' ? "bg-white text-red-600 shadow-sm" : "text-charcoal/40 hover:text-charcoal"
-                                    )}
-                                >
-                                    Atrasados
-                                </button>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
-                            <select
-                                value={dateRange}
-                                onChange={(e) => setDateRange(e.target.value as DateRange)}
-                                className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
-                            >
-                                {(() => {
-                                    const isPendingQueue = activeTab === 'medical' && medicalTab === 'pending'
-                                    const isOverdue = isPendingQueue && pendingScope === 'overdue'
-                                    const prefix = isPendingQueue && !isOverdue ? 'Próximos' : 'Últimos'
-                                    return (
-                                        <>
-                                            {!isOverdue && <option value="today">Hoy</option>}
-                                            <option value="d7">{prefix} 7 días</option>
-                                            <option value="d15">{prefix} 15 días</option>
-                                            <option value="d30">{prefix} 30 días</option>
-                                            <option value="all">Todos</option>
-                                        </>
-                                    )
-                                })()}
-                            </select>
-                        </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-2 pr-0 sm:pr-2 w-full sm:w-auto">
+                        <span className="text-xs font-bold text-charcoal/40 uppercase tracking-widest">Filtrar:</span>
+                        <select
+                            value={dateRange}
+                            onChange={(e) => setDateRange(e.target.value as DateRange)}
+                            className="text-sm bg-ivory border border-silk-beige rounded-lg px-3 py-1.5 font-medium text-charcoal focus:ring-primary-500 focus:border-primary-500 w-full sm:w-auto"
+                        >
+                            <option value="today">Hoy</option>
+                            <option value="d7">Últimos 7 días</option>
+                            <option value="d15">Últimos 15 días</option>
+                            <option value="d30">Últimos 30 días</option>
+                            <option value="all">Todos</option>
+                        </select>
                     </div>
                 )}
             </div>
@@ -842,19 +783,16 @@ export default function Reminders() {
                                         (() => {
                                             const mSent = medicalLogs.filter((l: any) => l.status === 'sent').length
                                             const mFailed = medicalLogs.filter((l: any) => l.status === 'failed').length
-                                            const mPending = medicalLogs.filter((l: any) => l.status === 'pending').length
                                             return (
                                                 <div className="flex w-full items-center justify-around">
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <span className="text-4xl font-black text-emerald-500">{medicalTab === 'history' ? mSent : mPending}</span>
-                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">{medicalTab === 'history' ? 'Enviados' : 'Pendientes'}</span>
+                                                        <span className="text-4xl font-black text-emerald-500">{mSent}</span>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">Enviados</span>
                                                     </div>
-                                                    {medicalTab === 'history' && (
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <span className="text-4xl font-black text-red-500">{mFailed}</span>
-                                                            <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">Fallidos</span>
-                                                        </div>
-                                                    )}
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-4xl font-black text-red-500">{mFailed}</span>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-charcoal/40">Fallidos</span>
+                                                    </div>
                                                 </div>
                                             )
                                         })()
@@ -924,28 +862,6 @@ export default function Reminders() {
                                 Registro de Envíos
                             </h3>
                             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-                                {activeTab === 'medical' && (
-                                    <div className="flex items-center p-0.5 bg-white sm:bg-transparent rounded-lg sm:rounded-none w-full sm:w-auto border sm:border-0 border-silk-beige">
-                                        <button
-                                            onClick={() => setMedicalTab('pending')}
-                                            className={cn(
-                                                "flex-1 sm:flex-initial text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest text-center",
-                                                medicalTab === 'pending' ? "bg-amber-100 text-amber-700" : "text-charcoal/40 hover:bg-white"
-                                            )}
-                                        >
-                                            Pendientes
-                                        </button>
-                                        <button
-                                            onClick={() => setMedicalTab('history')}
-                                            className={cn(
-                                                "flex-1 sm:flex-initial text-[10px] font-bold uppercase px-3 py-1.5 rounded-md transition-colors tracking-widest text-center",
-                                                medicalTab === 'history' ? "bg-emerald-100 text-emerald-700" : "text-charcoal/40 hover:bg-white"
-                                            )}
-                                        >
-                                            Enviados/Fallidos
-                                        </button>
-                                    </div>
-                                )}
                                 <button onClick={fetchLogs} className="p-2 text-charcoal/40 hover:text-amber-600 transition-colors rounded-lg hover:bg-white border border-transparent sm:border-0">
                                     <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
                                 </button>
