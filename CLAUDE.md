@@ -3338,3 +3338,41 @@ Secuencia de errores resueltos durante implementación:
 - **Verificación de acceso Tech Provider:** ✅ VERIFICADO — `Nexflow Ai System` aprobado como proveedor de tecnología
 - **App Review** (`whatsapp_business_messaging` + `whatsapp_business_management`): 🟡 En revisión — enviado 17 jun 2026, ventana estimada hasta ~7 jul 2026
 - **CAPI:** ✅ En producción — funcionará automáticamente con el primer clic de anuncio Click-to-WhatsApp
+
+---
+
+## Cambios realizados — julio 2026 (sesión 48, 2026-07-01)
+
+### Finanzas — owners pueden reabrir cajas cerradas
+
+**Motivación:** una vez cerrada una caja del día, quedaba bloqueada para siempre (no se podían editar/agregar ingresos o gastos de esa fecha). Se pidió una vía de excepción, mantenida como acción exclusiva del owner de la clínica.
+
+**DB (migración `20260701000001_reopen_cash_register_owner_only.sql`):**
+- Columnas `reopened_by UUID` / `reopened_at TIMESTAMPTZ` en `cash_registers` (auditoría)
+- RPC `reopen_cash_register(p_clinic_id, p_date)` — `SECURITY DEFINER`, verifica `clinic_members.role = 'owner'` (no admin, no otros roles) antes de pasar `status: 'closed' → 'open'`. Lanza excepción si el caller no es owner o si no hay caja cerrada para esa fecha.
+
+**Frontend:**
+- `usePermissions.ts` expone `isOwner` — distinción nueva porque `owner` y `admin` comparten `FULL_PERMISSIONS` en el sistema de permisos existente (sesión 25), que no alcanza a diferenciar acciones exclusivas del owner.
+- `financeService.ts`: método `reopenCaja(clinicId, date)`.
+- `CajaDelDia.tsx`: botón **"Reabrir caja"** (candado abierto, ámbar) visible solo cuando la caja está cerrada y `canReopen` es true. Al reabrirse, los controles ya existentes de editar/agregar ingresos y gastos (condicionados a `!isClosed`) vuelven a aparecer automáticamente — sin UI adicional.
+- `Finance.tsx`: pasa `canReopen={isOwner}` + handler `handleReopenCaja` con `confirm()` (mismo patrón que `handleDeleteIncome`/`handleDeleteExpense`).
+
+**Regla permanente:** cualquier acción futura que deba distinguir owner de admin (no solo "miembro con acceso a la página") debe usar `isOwner` de `usePermissions()`, no el sistema de `ActionKey`/`PageKey` — ese sistema por diseño trata a owner y admin como equivalentes.
+
+### Auditoría y limpieza de archivos sueltos (commit `af987ac`)
+
+Revisión de los archivos no versionados que quedaban en el working tree:
+
+#### Bug encontrado: 10 imágenes de portada del blog en 404 en producción
+Los artículos de `public/blog/*.html` referencian imágenes (`og:image`, `twitter:image`, `<img>` inline) que **nunca se habían subido a git** — en el Mac local solo existían como placeholders vacíos de iCloud (`.nombre.png.icloud`, ~180 bytes) porque el contenido real había sido evictado a la nube. Confirmado con `curl -I` a `vetly.pro/*.png` → 404 en las 10 URLs.
+
+**Fix:** `brctl download <path>` fuerza la descarga del contenido real desde iCloud (funciona para archivos dentro de carpetas sincronizadas por iCloud Drive/Desktop, como este proyecto en `~/Desktop`). Las 10 imágenes recuperadas (~2MB c/u) y commiteadas. Esto arregla tanto el `<img>` visible en cada artículo como las previews de redes sociales (og:image/twitter:image), que estaban rotas desde que se publicaron.
+
+**Regla permanente:** si aparecen archivos `.nombre-real.ext.icloud` en `public/` (o cualquier carpeta del proyecto), son placeholders de iCloud por evicción — el archivo real puede recuperarse con `brctl download` antes de asumir que el contenido se perdió.
+
+#### Limpieza adicional
+- **Versionado (nunca se había commiteado):** `supabase/functions/meta-whatsapp-webhook/index.ts` — código real ya deployado en Supabase desde sesión 45, ausente del repo hasta ahora.
+- **Eliminados (duplicados obsoletos, sin uso):** `src/pages/AISettings 2.tsx` (snapshot con pricing pre-sesión 36: Standard ×8 + Pro ×60, superado por la consolidación a un solo GPT-4o ×15), `supabase/functions/ycloud-whatsapp-webhook/index 2.ts` (snapshot pre Meta CAPI), `.grep_out.txt` (residuo de un grep redirigido a archivo), `public/elizabeth.jpeg` (sin referencias en el código), `public/Vetly-App.code-workspace` (archivo de VSCode con ruta personal del usuario — mal ubicado dentro de `public/`, se hubiera servido públicamente en vetly.pro).
+- **Sacados del tracking de git** (quedan en `.gitignore`): `tsconfig.tsbuildinfo` y `supabase/.temp/cli-latest` — artefactos de build/CLI que cambian en cada corrida local y no aportan como historial versionado.
+
+**Regla permanente:** los archivos `*.code-workspace` no deben vivir dentro de `public/` (ni de ninguna carpeta servida estáticamente) — cualquier archivo ahí se publica tal cual en vetly.pro.
