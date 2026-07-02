@@ -18,6 +18,8 @@ export interface CashRegister {
     notes: string | null
     closed_by: string | null
     closed_at: string | null
+    reopened_by: string | null
+    reopened_at: string | null
     created_at: string
 }
 
@@ -322,6 +324,17 @@ export const financeService = {
             p_date: date,
             p_notes: notes || null,
             p_closed_by: closedBy,
+        })
+        if (error) throw error
+        return data as CashRegister
+    },
+
+    // Solo owners pueden reabrir una caja cerrada (verificado en el RPC)
+    async reopenCaja(clinicId: string, date: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).rpc('reopen_cash_register', {
+            p_clinic_id: clinicId,
+            p_date: date,
         })
         if (error) throw error
         return data as CashRegister

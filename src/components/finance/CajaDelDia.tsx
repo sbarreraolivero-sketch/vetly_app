@@ -56,7 +56,10 @@ interface CajaDelDiaProps {
     onViewReceipt?: (storagePath: string) => void
     onEditIncome?: (incomeId: string) => void
     onDeleteIncome?: (incomeId: string, description: string) => void
+    onReopenCaja?: (date: string) => void
+    canReopen?: boolean
     isClosing?: boolean
+    isReopening?: boolean
 }
 
 const PAYMENT_ICONS: Record<string, React.ReactNode> = {
@@ -110,7 +113,10 @@ export function CajaDelDia({
     onViewReceipt,
     onEditIncome,
     onDeleteIncome,
+    onReopenCaja,
+    canReopen = false,
     isClosing = false,
+    isReopening = false,
 }: CajaDelDiaProps) {
     const [expanded, setExpanded] = useState(false)
     const [editingBalance, setEditingBalance] = useState(false)
@@ -393,6 +399,17 @@ export function CajaDelDia({
                                 <Lock className="w-2.5 h-2.5" />
                                 Cerrada {new Date(cashRegister.closed_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                             </span>
+                        )}
+                        {isClosed && canReopen && onReopenCaja && (
+                            <button
+                                onClick={() => onReopenCaja(date)}
+                                disabled={isReopening}
+                                title="Solo el owner puede reabrir una caja cerrada"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-amber-300 text-amber-700 bg-amber-50 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50"
+                            >
+                                <Unlock className="w-3 h-3" />
+                                {isReopening ? 'Reabriendo...' : 'Reabrir caja'}
+                            </button>
                         )}
                     </div>
                 </div>

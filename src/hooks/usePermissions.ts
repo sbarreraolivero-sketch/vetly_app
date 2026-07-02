@@ -29,5 +29,10 @@ export function usePermissions() {
     return permissions.actions[action] ?? false
   }
 
-  return { canAccess, can, permissions }
+  // Distingue owner de admin — ambos tienen FULL_PERMISSIONS, pero algunas
+  // acciones (ej: reabrir cajas cerradas) son exclusivas del owner.
+  const role = (member?.role ?? profile?.role) as UserRole | undefined
+  const isOwner = role === 'owner'
+
+  return { canAccess, can, permissions, isOwner }
 }

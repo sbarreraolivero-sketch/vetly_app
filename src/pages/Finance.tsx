@@ -54,7 +54,7 @@ const translateCategoryExpense = (cat: string) => CATEGORY_LABELS_EXPENSE[cat] ?
 // ── Component ────────────────────────────────────────────────────────
 const Finance = () => {
     const { profile, member, user } = useAuth()
-    const { can } = usePermissions()
+    const { can, isOwner } = usePermissions()
     const clinicId = member?.clinic_id || profile?.clinic_id
     const [clinicName, setClinicName] = useState<string>((member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica')
 
@@ -74,6 +74,7 @@ const Finance = () => {
     const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
     const [cajaToClose, setCajaToClose] = useState<string | null>(null)  // date 'YYYY-MM-DD'
     const [closingCaja, setClosingCaja] = useState(false)
+    const [reopeningCaja, setReopeningCaja] = useState<string | null>(null)  // date en proceso de reapertura
     const [showExpenseModal, setShowExpenseModal] = useState(false)
     const [showIncomeModal, setShowIncomeModal] = useState(false)
     const [filterType, setFilterType] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
@@ -438,6 +439,22 @@ const Finance = () => {
         }
     }
 
+    const handleReopenCaja = async (date: string) => {
+        if (!clinicId) return
+        if (!confirm(`¿Reabrir la caja del ${date}? Podrás volver a editar sus ingresos y gastos.`)) return
+        setReopeningCaja(date)
+        try {
+            const result = await financeService.reopenCaja(clinicId, date)
+            setCashRegisters(prev => prev.map(c => c.date === date ? result : c))
+            toast.success('Caja reabierta')
+        } catch (err) {
+            console.error('Error reabriendo caja:', err)
+            toast.error('No se pudo reabrir la caja')
+        } finally {
+            setReopeningCaja(null)
+        }
+    }
+
     const handleAddExpenseFromCaja = async (expenseData: {
         description: string; amount: number; category: string
         payment_method: string | null; receipt_url: string | null; date: string
@@ -478,6 +495,7 @@ const Finance = () => {
                     opening_balance: amount, total_cobrado: 0, total_pendiente: 0,
                     total_efectivo: 0, total_transferencia: 0, total_tarjeta: 0, total_debito: 0,
                     total_gastos: 0, income_count: 0, notes: null, closed_by: null, closed_at: null,
+                    reopened_by: null, reopened_at: null,
                     created_at: new Date().toISOString(),
                 }]
             })
@@ -854,7 +872,10 @@ const Finance = () => {
                                             if (inc) setEditingIncome(inc)
                                         }}
                                         onDeleteIncome={handleDeleteIncome}
+                                        onReopenCaja={handleReopenCaja}
+                                        canReopen={isOwner}
                                         isClosing={closingCaja && cajaToClose === date}
+                                        isReopening={reopeningCaja === date}
                                     />
                                 )
                             })
