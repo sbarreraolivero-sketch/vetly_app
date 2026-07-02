@@ -46,3 +46,10 @@ scratch/
 # Agentes externos (n8n, etc.) — no deben ser públicos
 public/*.json
 
+# Build artifacts — no versionar (cambian en cada build/CLI run)
+tsconfig.tsbuildinfo
+supabase/.temp/
+
+# Workspaces de editor con rutas locales del usuario
+*.code-workspace
+
