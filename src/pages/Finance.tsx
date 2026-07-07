@@ -810,7 +810,9 @@ const Finance = () => {
                                             </div>
                                             <div>
                                                 <p className="font-medium text-charcoal truncate max-w-[180px]">{inc.description}</p>
-                                                <p className="text-xs text-charcoal/50">{formatInTz(inc.date, 'd MMM')}</p>
+                                                <p className="text-xs text-charcoal/50 truncate max-w-[180px]">
+                                                    {inc.tutor_name ? `${inc.tutor_name} · ` : ''}{formatInTz(inc.date, 'd MMM')}
+                                                </p>
                                             </div>
                                         </div>
                                         <span className="font-medium text-emerald-600">

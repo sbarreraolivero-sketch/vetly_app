@@ -215,6 +215,7 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                     ingresos_manuales: (incomesData || []).map((inc: any) => ({
                         fecha: inc.date,
                         descripcion: inc.description,
+                        tutor: inc.tutor_name || 'Sin tutor vinculado',
                         categoria: CATEGORY_INCOME[inc.category] ?? inc.category,
                         metodo_pago: inc.payment_method || 'N/A',
                         monto: inc.amount,
@@ -250,11 +251,12 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                 lines.push('')
 
                 lines.push('INGRESOS MANUALES')
-                lines.push(`Fecha${sep}Descripción${sep}Categoría${sep}Método de Pago${sep}Monto`)
+                lines.push(`Fecha${sep}Descripción${sep}Tutor${sep}Categoría${sep}Método de Pago${sep}Monto`)
                 if ((incomesData || []).length > 0) {
                     (incomesData as any[]).forEach(inc => lines.push([
                         inc.date,
                         `"${inc.description.replace(/"/g, '""')}"`,
+                        `"${(inc.tutor_name || 'Sin tutor vinculado').replace(/"/g, '""')}"`,
                         CATEGORY_INCOME[inc.category] ?? inc.category,
                         inc.payment_method || 'N/A',
                         `${currency}${fmt(inc.amount)}`,

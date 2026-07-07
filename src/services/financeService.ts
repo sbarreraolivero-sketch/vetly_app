@@ -44,6 +44,7 @@ export interface Income {
     category: 'service' | 'product' | 'adjustment' | 'other'
     date: string
     tutor_id?: string | null
+    tutor_name?: string | null
     services?: any[] | null
     notes?: string | null
     payment_method?: string | null

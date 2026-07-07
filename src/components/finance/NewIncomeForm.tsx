@@ -194,6 +194,34 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
 
     const clearTutor = () => { setSelectedTutor(null); setTutorSearch('') }
 
+    // El input de tutor es de texto libre + dropdown: si el usuario escribe un
+    // nombre y hace clic fuera (o presiona Enter) sin elegir una sugerencia,
+    // `selectedTutor` queda en null y el ingreso se guarda sin tutor vinculado
+    // aunque el campo "se vea lleno". Al perder el foco, intentamos resolver
+    // el texto escrito contra la lista de tutores antes de dejarlo huérfano.
+    const resolveTutorFromSearch = () => {
+        if (selectedTutor || !tutorSearch.trim()) return
+        const match = tutors.find(t => t.name.toLowerCase() === tutorSearch.trim().toLowerCase())
+            ?? (filteredTutors.length === 1 ? filteredTutors[0] : null)
+        if (match) {
+            setSelectedTutor(match)
+            setTutorSearch(match.name)
+        }
+    }
+
+    // Delay para no pisar el click sobre una sugerencia del dropdown (el blur
+    // del input dispara antes que el click del ítem que se está seleccionando).
+    const handleTutorBlur = () => { setTimeout(resolveTutorFromSearch, 150) }
+
+    const handleTutorSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            if (filteredTutors.length > 0) handleSelectTutor(filteredTutors[0])
+        }
+    }
+
+    const tutorNeedsResolution = !selectedTutor && tutorSearch.trim().length > 0
+
     const addService = (service: ServiceOption) => {
         const newList = [...selectedServices, service]
         setSelectedServices(newList)
@@ -303,6 +331,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                 value={tutorSearch}
                                 onChange={e => { setTutorSearch(e.target.value); setShowTutorDropdown(true); if (!e.target.value) setSelectedTutor(null) }}
                                 onFocus={() => setShowTutorDropdown(true)}
+                                onBlur={handleTutorBlur}
+                                onKeyDown={handleTutorSearchKeyDown}
                                 className="input-soft pl-9"
                                 placeholder="Buscar tutor por nombre..."
                             />
@@ -326,6 +356,11 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                             <div className="absolute z-10 w-full mt-1 bg-white border border-silk-beige rounded-soft shadow-lg p-4 text-sm text-charcoal/50 text-center">
                                 No se encontraron tutores.
                             </div>
+                        )}
+                        {!showTutorDropdown && tutorNeedsResolution && (
+                            <p className="text-xs text-amber-600 mt-1">
+                                ⚠ Este ingreso se guardará sin tutor vinculado. Selecciona uno de la lista o borra el texto.
+                            </p>
                         )}
                     </div>
 

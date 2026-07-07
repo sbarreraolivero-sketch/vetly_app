@@ -3376,3 +3376,36 @@ Los artículos de `public/blog/*.html` referencian imágenes (`og:image`, `twitt
 - **Sacados del tracking de git** (quedan en `.gitignore`): `tsconfig.tsbuildinfo` y `supabase/.temp/cli-latest` — artefactos de build/CLI que cambian en cada corrida local y no aportan como historial versionado.
 
 **Regla permanente:** los archivos `*.code-workspace` no deben vivir dentro de `public/` (ni de ninguna carpeta servida estáticamente) — cualquier archivo ahí se publica tal cual en vetly.pro.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 49, 2026-07-06)
+
+### Finanzas — el tutor de un ingreso manual no aparecía en ninguna parte del frontend
+
+**Reporte del usuario:** "Cada ingreso debería quedar enlazado al tutor, tanto en el informe como en el historial financiero de cada tutor."
+
+**Diagnóstico (verificado con datos reales, no supuesto):**
+- `incomes.tutor_id` **sí se guarda correctamente** en la gran mayoría de los registros — confirmado con query directa a producción (semana del 29-jun: 44 ingresos, 36 con tutor; semana del 6-jul: 6 de 7 con tutor). El flujo Form → `handleAddIncome` → `financeService.addIncome` → RPC `create_clinic_income` (overload de 12 params) ya pasaba `p_tutor_id` correctamente.
+- El bug real: **ningún componente del frontend leía ni mostraba `tutor_name`**. `get_clinic_incomes_secure` solo devolvía el `tutor_id` (UUID crudo) — nunca se hacía el JOIN contra `tutors`. Por eso:
+  - El informe de caja (`CajaReport.tsx`) mostraba el texto fijo `"Ingreso manual"` en la columna "Paciente / Descripción", nunca el nombre real.
+  - La lista de ingresos del día (`CajaDelDia.tsx`) tampoco mostraba tutor — el tipo `IncomeEntry` ni siquiera tenía el campo.
+  - El export CSV/JSON (`ExportModal.tsx`) tampoco incluía tutor en "INGRESOS MANUALES".
+  - `TutorDetails.tsx` → tab "Historial Financiero" **sí funcionaba** (consulta directa `incomes WHERE tutor_id = tutor.id`), pero solo mostraba los ingresos que tuvieran tutor — invisible para el resto.
+- **Causa raíz de los ingresos SIN tutor** (8-21 por semana): en `NewIncomeForm.tsx`, el campo "Tutor Asociado" es de texto libre + dropdown. Si Claudia escribía el nombre y hacía clic en otro campo del formulario **sin hacer clic explícito sobre la sugerencia**, `selectedTutor` quedaba en `null` — el campo se veía "lleno" pero `tutor_id` nunca se enviaba. Confirmado por el patrón de datos: no es aleatorio, ocurre de forma sistemática todas las semanas.
+
+**Fixes aplicados:**
+1. **Migración `income_tutor_name_in_secure_rpc`** (aplicada en producción + archivo en `supabase/migrations/`): `get_clinic_incomes_secure` ahora hace `LEFT JOIN tutors` y retorna `tutor_name`.
+2. **`financeService.ts`**: `Income.tutor_name?: string | null` agregado.
+3. **`CajaDelDia.tsx`**: cada fila de ingreso muestra el tutor vinculado (o `"Sin tutor vinculado"` en itálica) en vez del texto fijo "Ingreso manual".
+4. **`CajaReport.tsx`**: la columna "Paciente / Descripción" del informe imprimible ahora muestra el tutor real.
+5. **`ExportModal.tsx`**: columna `Tutor` agregada al CSV y campo `tutor` al JSON de "ingresos_manuales".
+6. **`Finance.tsx`** (mini-lista "Recientes"): subtítulo ahora antepone el nombre del tutor a la fecha.
+7. **`NewIncomeForm.tsx`** (fix de causa raíz): 
+   - `onBlur` del campo de tutor intenta resolver el texto escrito contra la lista (match exacto case-insensitive, o único resultado filtrado) con un delay de 150ms para no pisar el click sobre una sugerencia del dropdown.
+   - `Enter` en el campo selecciona el primer resultado filtrado.
+   - Si el campo tiene texto pero no quedó ningún tutor resuelto, aparece un aviso ámbar: *"Este ingreso se guardará sin tutor vinculado. Selecciona uno de la lista o borra el texto."*
+
+**No recuperable automáticamente:** los ingresos históricos con `tutor_id = NULL` no tienen forma de backfill automático — la `description` solo lista nombres de servicios/productos, sin ninguna referencia al tutor o paciente. Quedan así salvo que alguien los edite manualmente desde Finanzas.
+
+**Regla permanente:** cualquier campo de tipo "buscador con dropdown + texto libre" (tutor, producto, etc.) donde el resultado seleccionado se guarda como FK debe resolver el texto escrito en `onBlur`/`Enter`, no solo en el `onClick` de la sugerencia — de lo contrario el dato se pierde en silencio cada vez que el usuario no hace clic explícito en la lista.
