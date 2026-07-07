@@ -173,7 +173,7 @@ export function printCajaReport(data: CajaReportData) {
   <h2>✅ Cobrado · ${fmt(totalCobrado)}</h2>
   ${incomes.length > 0 ? `
   <table>
-    <thead><tr><th>Detalle</th><th>Paciente / Descripción</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead>
+    <thead><tr><th>Detalle</th><th>Tutor</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead>
     <tbody>${incRows}</tbody>
   </table>` : '<p style="color:#9ca3af;font-size:12px;padding:8px 0">Sin cobros registrados</p>'}
 </div>
