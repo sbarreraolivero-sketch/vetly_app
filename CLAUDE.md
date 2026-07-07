@@ -3398,7 +3398,7 @@ Los artículos de `public/blog/*.html` referencian imágenes (`og:image`, `twitt
 1. **Migración `income_tutor_name_in_secure_rpc`** (aplicada en producción + archivo en `supabase/migrations/`): `get_clinic_incomes_secure` ahora hace `LEFT JOIN tutors` y retorna `tutor_name`.
 2. **`financeService.ts`**: `Income.tutor_name?: string | null` agregado.
 3. **`CajaDelDia.tsx`**: cada fila de ingreso muestra el tutor vinculado (o `"Sin tutor vinculado"` en itálica) en vez del texto fijo "Ingreso manual".
-4. **`CajaReport.tsx`**: la columna "Paciente / Descripción" del informe imprimible ahora muestra el tutor real.
+4. **`CajaReport.tsx`**: la columna del informe imprimible ahora muestra el tutor real. Encabezado renombrado de "Paciente / Descripción" a **"Tutor"** (ajuste pedido tras revisar el informe generado — el nombre anterior confundía porque la columna nunca mostró pacientes, solo tutores).
 5. **`ExportModal.tsx`**: columna `Tutor` agregada al CSV y campo `tutor` al JSON de "ingresos_manuales".
 6. **`Finance.tsx`** (mini-lista "Recientes"): subtítulo ahora antepone el nombre del tutor a la fecha.
 7. **`NewIncomeForm.tsx`** (fix de causa raíz): 
