@@ -155,6 +155,10 @@ export default function Settings() {
     const [yCloudApiKey, setYCloudApiKey] = useState('')
     const [yCloudPhoneNumber, setYCloudPhoneNumber] = useState('')
     const [yCloudWebhookSecret, setYCloudWebhookSecret] = useState('')
+    const [whatsappProvider, setWhatsappProvider] = useState<'ycloud' | 'meta'>('ycloud')
+    const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('')
+    const [metaAccessToken, setMetaAccessToken] = useState('')
+    const [metaWabaId, setMetaWabaId] = useState('')
     const [aiCreditsMonthlyLimit, setAiCreditsMonthlyLimit] = useState(500)
     const [aiCreditsExtraBalance, setAiCreditsExtraBalance] = useState(0)
     const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
@@ -365,6 +369,10 @@ export default function Settings() {
                     setYCloudApiKey(clinicData.ycloud_api_key || '')
                     setYCloudPhoneNumber(clinicData.ycloud_phone_number || '')
                     setYCloudWebhookSecret(clinicData.ycloud_webhook_secret || '')
+                    setWhatsappProvider((clinicData.whatsapp_provider as 'ycloud' | 'meta') || 'ycloud')
+                    setMetaPhoneNumberId(clinicData.meta_phone_number_id || '')
+                    setMetaAccessToken(clinicData.meta_access_token || '')
+                    setMetaWabaId(clinicData.meta_waba_id || '')
                     setAiCreditsMonthlyLimit(clinicData.ai_credits_monthly_limit || 500)
                     setAiCreditsExtraBalance(clinicData.ai_credits_extra_balance || 0)
                     setAiCreditsExtra4o(clinicData.ai_credits_extra_4o || 0)
@@ -504,6 +512,10 @@ export default function Settings() {
             if (yCloudApiKey !== undefined) updatePayload.ycloud_api_key = yCloudApiKey || null
             if (yCloudPhoneNumber !== undefined) updatePayload.ycloud_phone_number = yCloudPhoneNumber || null
             if (yCloudWebhookSecret !== undefined) updatePayload.ycloud_webhook_secret = yCloudWebhookSecret || null
+            updatePayload.whatsapp_provider = whatsappProvider
+            updatePayload.meta_phone_number_id = metaPhoneNumberId || null
+            updatePayload.meta_access_token = metaAccessToken || null
+            updatePayload.meta_waba_id = metaWabaId || null
             if (aiActiveModel) updatePayload.ai_active_model = aiActiveModel
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2458,6 +2470,107 @@ export default function Settings() {
                                         </p>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Meta Cloud API */}
+                            <div className="card-soft p-4 sm:p-6">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="w-12 h-12 bg-blue-100 rounded-soft flex items-center justify-center">
+                                        <MessageSquare className="w-6 h-6 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-charcoal">Proveedor de WhatsApp</h2>
+                                        <p className="text-sm text-charcoal/50">Selecciona el canal de envío/recepción de mensajes</p>
+                                    </div>
+                                </div>
+
+                                {/* Provider selector */}
+                                <div className="flex gap-3 mb-6">
+                                    <button
+                                        onClick={() => setWhatsappProvider('ycloud')}
+                                        className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
+                                            whatsappProvider === 'ycloud'
+                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                                : 'border-silk-beige bg-ivory text-charcoal/60 hover:border-charcoal/20'
+                                        }`}
+                                    >
+                                        YCloud
+                                    </button>
+                                    <button
+                                        onClick={() => setWhatsappProvider('meta')}
+                                        className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
+                                            whatsappProvider === 'meta'
+                                                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                : 'border-silk-beige bg-ivory text-charcoal/60 hover:border-charcoal/20'
+                                        }`}
+                                    >
+                                        Meta Cloud API
+                                    </button>
+                                </div>
+
+                                {whatsappProvider === 'meta' && (
+                                    <div className="space-y-4">
+                                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+                                            <strong>Meta Cloud API</strong> — conecta directamente con la API oficial de Meta. Requiere app aprobada como Tech Provider y número registrado en Meta Developers.
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2">Phone Number ID</label>
+                                            <input
+                                                type="text"
+                                                placeholder="1199762829882743"
+                                                value={metaPhoneNumberId}
+                                                onChange={(e) => setMetaPhoneNumberId(e.target.value)}
+                                                className="input-soft font-mono text-sm"
+                                            />
+                                            <p className="text-xs text-charcoal/40 mt-1">
+                                                Meta Developers → Vetly Omnicanal → WhatsApp → Configuración → Phone Number ID
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2">System User Token</label>
+                                            <input
+                                                type="password"
+                                                placeholder="Token permanente de Meta..."
+                                                value={metaAccessToken}
+                                                onChange={(e) => setMetaAccessToken(e.target.value)}
+                                                className="input-soft font-mono text-sm"
+                                            />
+                                            <p className="text-xs text-charcoal/40 mt-1">
+                                                Events Manager → System Users → generar token con scope <code>whatsapp_business_messaging</code>
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2">WABA ID (opcional)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="WhatsApp Business Account ID"
+                                                value={metaWabaId}
+                                                onChange={(e) => setMetaWabaId(e.target.value)}
+                                                className="input-soft font-mono text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2">Webhook URL</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={`${import.meta.env.VITE_SUPABASE_URL || 'https://ehmncwawzdciajvuallg.supabase.co'}/functions/v1/meta-whatsapp-webhook`}
+                                                    disabled
+                                                    className="input-soft bg-ivory text-charcoal/60 font-mono text-sm"
+                                                />
+                                                <button
+                                                    onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL || 'https://ehmncwawzdciajvuallg.supabase.co'}/functions/v1/meta-whatsapp-webhook`); toast.success('Copiado'); }}
+                                                    className="btn-ghost text-primary-500 flex items-center gap-1"
+                                                >
+                                                    <Copy className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-charcoal/40 mt-1">
+                                                Configura esta URL en Meta Developers → Webhooks. Verify Token: <code className="font-mono">vetly_meta_2026</code>
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Webhooks / n8n */}

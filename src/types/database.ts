@@ -62,6 +62,10 @@ export interface Database {
                     hq_sales_agent_enabled: boolean | null
                     hq_ycloud_balance_threshold: number | null
                     hq_sales_agent_prompt: string | null
+                    meta_phone_number_id: string | null
+                    meta_access_token: string | null
+                    meta_waba_id: string | null
+                    whatsapp_provider: string | null
                 }
                 Insert: {
                     id?: string
@@ -113,6 +117,10 @@ export interface Database {
                     hq_sales_agent_enabled?: boolean | null
                     hq_ycloud_balance_threshold?: number | null
                     hq_sales_agent_prompt?: string | null
+                    meta_phone_number_id?: string | null
+                    meta_access_token?: string | null
+                    meta_waba_id?: string | null
+                    whatsapp_provider?: string | null
                 }
                 Update: {
                     id?: string
@@ -164,6 +172,10 @@ export interface Database {
                     hq_sales_agent_enabled?: boolean | null
                     hq_ycloud_balance_threshold?: number | null
                     hq_sales_agent_prompt?: string | null
+                    meta_phone_number_id?: string | null
+                    meta_access_token?: string | null
+                    meta_waba_id?: string | null
+                    whatsapp_provider?: string | null
                 }
             }
             subscriptions: {
