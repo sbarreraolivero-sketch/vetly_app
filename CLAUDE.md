@@ -3408,4 +3408,163 @@ Los artículos de `public/blog/*.html` referencian imágenes (`og:image`, `twitt
 
 **No recuperable automáticamente:** los ingresos históricos con `tutor_id = NULL` no tienen forma de backfill automático — la `description` solo lista nombres de servicios/productos, sin ninguna referencia al tutor o paciente. Quedan así salvo que alguien los edite manualmente desde Finanzas.
 
+---
+
+## Cambios realizados — julio 2026 (sesión 50, 2026-07-09)
+
+### Conexión Animalgrace Santiago a Meta Cloud API — en progreso
+
+**Objetivo:** conectar el número +56966614016 de Santiago directamente a Meta Cloud API, reemplazando YCloud (que tenía mismatch de moneda AUD/USD irresoluble).
+
+#### Estado de la infraestructura Meta (completado en esta sesión)
+
+**WABA "Animal Grace Veterinaria Móvil":**
+- ID: `903775156940145`
+- Business owner: "Agencia Digital - Publymed" (Business ID: `587379105060987`)
+- Moneda: USD ✅
+- App suscrita: **Vetly Omnicanal** (ID: `1658152138764158`) ✅ — subscribed_apps confirmado
+
+**Número de teléfono:**
+- +56 9 6661 4016
+- Phone Number ID: `830644144272371`
+- `quality_rating: "GREEN"`, `verified_name: "Animal Grace Veterinaria Móvil"`
+- `platform_type: "ON_PREMISE"`, `status: "DISCONNECTED"` ← **pendiente migrar a Cloud API**
+
+**System User Token generado:**
+- "Vetly API" (ID: `61591681656544`) en "Agencia Digital - Publymed"
+- Token generado con permisos `whatsapp_business_management` + `whatsapp_business_messaging`
+- Token guardado en DB: `clinic_settings.meta_access_token` para Santiago
+
+**DB de Santiago actualizada:**
+```sql
+UPDATE clinic_settings SET
+  meta_phone_number_id = '830644144272371',
+  meta_access_token    = '<token>',  -- guardado en DB
+  meta_waba_id         = '903775156940145',
+  whatsapp_provider    = 'meta'
+WHERE id = '13472ea4-4da6-461c-9a80-a5c970d9ec73';
+```
+
+**Edge function `meta-whatsapp-webhook`:** deployada (v2, código completo con AI agent).
+
+#### Bloqueante: número aún en mode ON_PREMISE
+
+El número sigue con `platform_type: "ON_PREMISE"` porque YCloud lo tenía registrado en su infraestructura. Para que los webhooks funcionen, el número debe migrar a `"CLOUD_API"`.
+
+**Intentos y errores encontrados:**
+- `POST /register` → "Register endpoint is not available for SMB businesses" (el endpoint chequea el negocio dueño del WABA, no el app caller)
+- `DELETE /deregister` → no soportado para ON_PREMISE
+- `POST /request_code` → error 136024 "espera 1 hora" (rate limit temporal, no es error de permisos)
+
+**Clave:** el endpoint `/request_code` NO devuelve "SMB not available" — solo un rate limit de 1 hora. Esto indica que el flujo de 3 pasos SÍ es accesible:
+1. `POST /request_code` → Meta manda SMS con OTP al número
+2. `POST /verify_code` con el OTP
+3. `POST /register` → número queda en Cloud API
+
+#### Pendiente ejecutar (requiere presencia de Claudia)
+
+```bash
+# Paso 1 — ejecutar 1h después del último intento fallido
+curl -X POST "https://graph.facebook.com/v22.0/830644144272371/request_code" \
+  -H "Authorization: Bearer <USER_TOKEN_VETLY_OMNICANAL>" \
+  -d '{"code_method": "SMS", "language": "es"}'
+
+# Paso 2 — Claudia recibe OTP en +56966614016, pasarlo aquí
+curl -X POST "https://graph.facebook.com/v22.0/830644144272371/verify_code" \
+  -H "Authorization: Bearer <USER_TOKEN_VETLY_OMNICANAL>" \
+  -d '{"code": "<OTP_6_DIGITOS>"}'
+
+# Paso 3 — una vez verificado
+curl -X POST "https://graph.facebook.com/v22.0/830644144272371/register" \
+  -H "Authorization: Bearer <USER_TOKEN_VETLY_OMNICANAL>" \
+  -d '{"messaging_product": "whatsapp", "pin": "000000"}'
+```
+
+**Tokens disponibles:**
+- System User Token (Agencia Digital - Publymed): guardado en DB
+- User Token Vetly Omnicanal: de vida corta, requiere regenerar en developers.facebook.com/tools/explorer → app "Vetly Omnicanal" → permisos `whatsapp_business_management` + `whatsapp_business_messaging`
+
+#### Una vez migrado a Cloud API
+
+1. Verificar `platform_type: "CLOUD_API"` con `GET /v22.0/830644144272371?fields=platform_type,status`
+2. Enviar mensaje de prueba desde el número de Santiago a cualquier contacto vía API
+3. Verificar que `meta-whatsapp-webhook` recibe el POST en `debug_logs`
+4. Activar AI agent: `UPDATE clinic_settings SET ai_auto_respond = true WHERE id = '13472ea4-...'`
+
+#### Reglas permanentes — Meta Cloud API Santiago
+
+- **WABA suscrita a Vetly Omnicanal:** el campo `subscribed_apps` ya está configurado. Los eventos de WhatsApp llegan al webhook `https://ehmncwawzdciajvuallg.supabase.co/functions/v1/meta-whatsapp-webhook`
+- **App Secret:** el HMAC de los webhooks usa el App Secret de Vetly Omnicanal, que ya está guardado como `META_APP_SECRET` en Supabase secrets
+- **System User Token:** no expira (generado sin caducidad en "Agencia Digital - Publymed → Usuarios del sistema → Vetly API"). Si se revoca, regenerar desde el mismo Business Manager
+- **`whatsapp_provider = 'meta'`** en DB de Santiago: el código del dashboard ya está preparado para mostrar las credenciales Meta en Settings cuando el proveedor es `'meta'`
+- **El PIN de 2FA** (paso 3 del registro) puede ser cualquier número de 6 dígitos si el número no tenía 2FA activado previamente en YCloud. Si YCloud activó 2FA, se necesita el PIN original de YCloud (contactarlos si es necesario)
+
 **Regla permanente:** cualquier campo de tipo "buscador con dropdown + texto libre" (tutor, producto, etc.) donde el resultado seleccionado se guarda como FK debe resolver el texto escrito en `onBlur`/`Enter`, no solo en el `onClick` de la sugerencia — de lo contrario el dato se pierde en silencio cada vez que el usuario no hace clic explícito en la lista.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 51, 2026-07-13)
+
+### Bug crítico: Meta CAPI nunca reportaba conversiones reales (`Purchase`) — solo "leads"
+
+**Contexto:** se revisó si Animalgrace estaba aprovechando la atribución de campañas Meta (Click-to-WhatsApp) implementada en sesión 47. Diagnóstico con datos reales de producción:
+
+- **211 personas distintas** hicieron clic en un anuncio C2W y llegaron a WhatsApp — el evento `LeadSubmitted` se disparaba correctamente (216 envíos exitosos a Meta CAPI).
+- De esos 211, **10 efectivamente agendaron una cita** (cruce contra `appointments`).
+- Pero el evento `Purchase` (que le informa a Meta cuáles clics terminaron en una conversión real) **nunca se había disparado ni una sola vez** — 0 registros en `debug_logs` desde que CAPI existe.
+
+**Causa raíz:** en `ycloud-whatsapp-webhook/index.ts`, `ctwaClid` se extraía como variable local **solo del mensaje que se está procesando en esa invocación** (`m.referral?.ctwa_clid`, línea ~2884). Meta únicamente adjunta ese dato en el primer mensaje que resulta de tocar el anuncio. El webhook es *stateless* por mensaje — el agendamiento real ocurre varios mensajes (y varias invocaciones separadas) después, momento en el cual `ctwaClid` ya es `undefined` porque ese mensaje posterior no trae `referral`. Además, **no existía ninguna columna en la base de datos que persistiera el `ctwa_clid`** — se perdía apenas terminaba la request del primer contacto. Resultado: Meta nunca aprendía cuáles clics convertían, y el algoritmo de optimización de la campaña no podía priorizarlos.
+
+**Fix aplicado:**
+- **Migración `add_ctwa_clid_to_tutors`:** columna `tutors.ctwa_clid TEXT DEFAULT NULL`.
+- **Webhook (`ycloud-whatsapp-webhook`, deployado):**
+  - El SELECT inicial de `tutor` ahora incluye `ctwa_clid`.
+  - Al primer contacto, si `ctwaClid` está presente y el tutor no tiene uno guardado, se persiste: `UPDATE` si el tutor ya existe (solo si `ctwa_clid IS NULL`, para no pisar la primera atribución), o `upsert` de un registro mínimo (mismo patrón que la detección de código de referido) si el tutor aún no existe.
+  - El bloque que dispara el evento `Purchase` ahora usa `const effectiveCtwaClid = tutor?.ctwa_clid || ctwaClid` — recupera el valor persistido en el primer contacto en vez de depender de la variable local (casi siempre vacía en ese punto).
+
+**Regla permanente:** cualquier dato que Meta/WhatsApp solo entrega en el **primer mensaje** de una conversación (ej. `referral.ctwa_clid`) debe persistirse de inmediato si se necesita más adelante en el flujo — el webhook no tiene memoria entre invocaciones distintas de un mismo número.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 52, 2026-07-13)
+
+### Bug crítico: sucursal activa inconsistente — mascotas y finanzas en la clínica equivocada (commit `9f93a32`)
+
+**Síntoma (reportado por Claudia, cuenta multi-sucursal Linares/Talca + Santiago):**
+1. Seleccionaba la sucursal Linares, agregaba una mascota, y la mascota (y su tutor) terminaban guardados en **Santiago**.
+2. Veía las finanzas de Linares/Talca, pero el indicador de sucursal (`BranchSwitcher`) mostraba **Santiago**.
+
+**Confirmado con datos de producción:** la cuenta de Claudia (`vetmovilanimalgrace@gmail.com`) tenía `user_profiles.clinic_id = Santiago` en la DB aunque trabaja principalmente en Linares. **8 tutores + sus mascotas con dirección del Maule** (Colbún, Linares, Talca) estaban guardados en Santiago, algunos desde mayo — incluyendo *Nala* (creada el miércoles 8-jul, la fecha exacta que reportó Claudia).
+
+#### Causa raíz (una sola, dos síntomas) — `src/contexts/AuthContext.tsx`
+
+Dos fuentes de verdad para la sucursal activa y dos caminos de inicialización que las resolvían distinto, en carrera en el mismo `useEffect` de montaje:
+- `ACTIVE_CLINIC_KEY = 'vetly_active_clinic_id'` (localStorage) = elección real del usuario, escrita por `switchClinic`.
+- **`initializeAuth`** seteaba `profile.clinic_id` con el valor **crudo de la DB**, IGNORANDO `ACTIVE_CLINIC_KEY`.
+- **`onAuthStateChange`** seteaba `profile.clinic_id = ACTIVE_CLINIC_KEY || DB`, RESPETANDO localStorage.
+- Como la DB de Claudia = Santiago y su `ACTIVE_CLINIC_KEY` = Linares, si ganaba `initializeAuth`, `profile.clinic_id` quedaba en Santiago.
+
+Además, dos patrones de consumo divergentes: `member?.clinic_id || profile?.clinic_id` (Finance, Inventory, Settings, RetentionEngine, Team, `useClinicTimezone`) vs `profile?.clinic_id` solo (`BranchSwitcher` indicador, `PetForm`). Cuando `member` y `profile` divergían, Finanzas cargaba de `member` (Linares) mientras el indicador mostraba `profile` (Santiago) → síntoma 2. Y `PetForm` insertaba con `profile.clinic_id` (Santiago) → síntoma 1.
+
+#### Fix de código (hotfix mínimo — converger `profile` y `member`)
+
+- **`AuthContext.tsx`:** nuevo helper `resolveActiveClinicId(dbClinicId)` = `localStorage.getItem(ACTIVE_CLINIC_KEY) || dbClinicId`, usado en AMBOS caminos (`initializeAuth` y `onAuthStateChange`). `initializeAuth` ahora resuelve igual que `onAuthStateChange` y fetchea member/subscription con el valor resuelto. La hidratación inicial del `useState` de `profile` también mergea `ACTIVE_CLINIC_KEY` (el primer render deja de usar el cache crudo). `member` ahora siempre se resetea a `null` si no hay fila (antes solo se seteaba con fila presente → quedaba obsoleto). Resultado: `profile.clinic_id === member.clinic_id === sucursal activa`, gane quien gane la carrera. No se tocan los ~6 consumidores.
+- **`PetForm.tsx` + `TutorDetails.tsx` (defensa en profundidad):** `PetForm` ahora recibe `clinicId` como prop y lo hereda del tutor (`clinicId={tutor.clinic_id}`), en vez de usar `profile.clinic_id`. **Una mascota siempre pertenece a la misma clínica que su tutor.**
+
+Verificado que resetear `member` a `null` es seguro: `usePermissions.ts` usa `member?.role ?? profile?.role` y `Settings.tsx:101` usa `if (!member || member.role…)` — ambos null-safe, caen a `profile.role`.
+
+**Regla permanente:** la sucursal activa se resuelve SIEMPRE con `resolveActiveClinicId` (localStorage `vetly_active_clinic_id` manda sobre el `clinic_id` crudo de la DB). Ningún componente nuevo debe leer `user_profiles.clinic_id` directamente para decidir la clínica activa. Tras `switchClinic`, `profile.clinic_id` y `member.clinic_id` quedan garantizados iguales. Cualquier registro que pertenezca a un tutor (mascotas, etc.) debe heredar el `clinic_id` del tutor, no de la sucursal activa.
+
+#### Remediación de datos en producción (transacciones revisadas antes de ejecutar)
+
+Diagnóstico completo antes de mover nada: de los 8 tutores del Maule mal ubicados en Santiago, **6 estaban DUPLICADOS** (ya existían en Linares — Claudia los recreó o el flujo de citas los generó). Solo 2 eran únicos de Santiago.
+
+- **Perfil de Claudia:** `user_profiles.clinic_id` Santiago → Linares (su sucursal principal).
+- **2 tutores únicos** (Priscila Duarte, María Elena Retamal) → movidos a Linares con mascotas, ingresos y recordatorios.
+- **Ingreso de Catalina $28.000 (8-jul)** → reubicado al tutor Catalina que ya existía en Linares. **Ingreso de Priscila $46.000 (13-jul)** → viajó con su tutora. Ambos quedaron en la caja de Linares del día correcto (ambas cajas abiertas, recalculan solas).
+- **6 duplicados limpiados:** se borraron las 5 copias fantasma de Santiago (Zuliber, Fernanda Espinoza, Catalina, Fernanda Reyes, Fernando) porque la copia buena ya estaba en Linares. Caso especial **Griselda Huinca**: la copia Santiago tenía los datos buenos (Canela + Marta como mascotas separadas, con vacuna) y la copia Linares un registro basura ("Marta y canela" combinado) → se movieron las mascotas buenas + sus registros clínicos a Linares y se eliminó el registro basura.
+- **Resultado: 0 tutores del Maule quedan en Santiago.** Ningún dato clínico se perdió — se verificó cada tabla hija (vaccines, deworming, appointments, clinical_records, medical_history, satisfaction_surveys, patient_tags, tutor_tags, incomes, loyalty) antes de borrar, y las FK se limpiaron en orden dentro de una transacción.
+
+**Regla permanente — fusión de tutores duplicados:** antes de borrar un tutor/mascota, consultar TODAS las tablas hija vía FK (`information_schema` sobre `patients`/`tutors`) y verificar counts reales. Al fusionar duplicados, no asumir cuál copia conservar: comparar datos clínicos (la copia con vacunas/desparasitaciones/historial puede estar en cualquiera de las dos sucursales). Mover registros clínicos actualizando su `clinic_id` (vaccines/deworming/reminders lo tienen; patient_tags no). Todo en una transacción `BEGIN…COMMIT`.
+
+**Nota operativa:** tras el deploy, Claudia debe cerrar sesión y volver a entrar una vez para que el navegador cargue el estado limpio (su `profile` cacheado en localStorage aún apuntaba a Santiago).
