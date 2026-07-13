@@ -563,6 +563,7 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
             {showPetForm && (
                 <PetForm
                     tutorId={tutor.id}
+                    clinicId={tutor.clinic_id || ''}
                     pet={editingPet}
                     onClose={() => {
                         setShowPetForm(false)

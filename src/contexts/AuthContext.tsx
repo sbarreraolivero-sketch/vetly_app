@@ -51,10 +51,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const CLINICS_STORAGE_KEY = 'vetly_user_clinics'
     const ACTIVE_CLINIC_KEY = 'vetly_active_clinic_id'
 
+    // Resuelve la sucursal activa: la elección guardada en localStorage manda
+    // sobre el clinic_id crudo de la DB (que puede no ser la sucursal en uso).
+    const resolveActiveClinicId = (dbClinicId: string): string => {
+        return localStorage.getItem(ACTIVE_CLINIC_KEY) || dbClinicId
+    }
+
     const [user, setUser] = useState<User | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(() => {
         const cached = localStorage.getItem(PROFILE_STORAGE_KEY)
-        try { return cached ? JSON.parse(cached) : null } catch { return null }
+        try {
+            if (!cached) return null
+            const parsed = JSON.parse(cached) as UserProfile
+            // Mergear la sucursal activa para que el primer render no use el
+            // clinic_id crudo del cache (que fetchProfile sobreescribe con el de la DB).
+            const active = localStorage.getItem(ACTIVE_CLINIC_KEY)
+            return active ? { ...parsed, clinic_id: active } : parsed
+        } catch { return null }
     })
     const [member, setMember] = useState<ClinicMember | null>(null)
     const [subscription, setSubscription] = useState<Subscription | null>(null)
@@ -201,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 fetchSubscription(clinicId)
             ])
 
-            if ((memberRes as any).data) setMember((memberRes as any).data as any)
+            setMember(((memberRes as any).data as any) ?? null)
 
             setSubscription(sub)
 
@@ -256,23 +269,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     
                     if (mounted) {
                         if (profileData) {
-                            setProfile(profileData)
-                            
+                            // Respetar la sucursal activa (localStorage) igual que onAuthStateChange
+                            const resolvedClinicId = resolveActiveClinicId(profileData.clinic_id)
+                            setProfile({ ...profileData, clinic_id: resolvedClinicId } as UserProfile)
+
                             // Once we have profile, fetch clinics and other stuff in parallel
                             const [, subData, memberRes] = await Promise.all([
                                 fetchUserClinics(),
-                                profileData.clinic_id ? fetchSubscription(profileData.clinic_id) : Promise.resolve(null),
-                                profileData.clinic_id ? supabase
+                                resolvedClinicId ? fetchSubscription(resolvedClinicId) : Promise.resolve(null),
+                                resolvedClinicId ? supabase
                                     .from('clinic_members')
                                     .select('*')
                                     .eq('user_id', session.user.id)
-                                    .eq('clinic_id', profileData.clinic_id)
+                                    .eq('clinic_id', resolvedClinicId)
                                     .single() : Promise.resolve({ data: null, error: null } as any)
                             ])
 
                             if (mounted) {
                                 setSubscription(subData || { status: 'trial', plan: 'trial' } as any)
-                                if (memberRes.data) setMember(memberRes.data as any)
+                                setMember((memberRes.data as any) ?? null)
                             }
                         } else {
                             // Profile not found
@@ -322,8 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         const { data, status } = await fetchProfile(currentUser.id)
                         if (mounted && data) {
                             // Respect the locally stored active clinic (prevents reverting after token refresh)
-                            const storedActiveClinic = localStorage.getItem(ACTIVE_CLINIC_KEY)
-                            const resolvedClinicId = storedActiveClinic || data.clinic_id
+                            const resolvedClinicId = resolveActiveClinicId(data.clinic_id)
                             const mergedData = { ...data, clinic_id: resolvedClinicId }
                             setProfile(prev => {
                                 if (prev?.id === mergedData.id && prev?.clinic_id === mergedData.clinic_id) return prev
@@ -348,8 +362,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                     .eq('clinic_id', resolvedClinicId)
                                     .single()
                                     .then(({ data: memberData }) => {
-                                        if (memberData && mounted) {
-                                            setMember((prev: any) => (prev?.id === (memberData as any).id ? prev : (memberData as any)))
+                                        if (mounted) {
+                                            setMember((prev: any) => (memberData && prev?.id === (memberData as any).id ? prev : ((memberData as any) ?? null)))
                                         }
                                     })
                             }

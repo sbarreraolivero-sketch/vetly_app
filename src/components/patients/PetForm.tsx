@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { X, Loader2, Save, Dog } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
 import { Database, Patient } from '@/types/database'
 
 interface PetFormProps {
     tutorId: string
+    // La mascota siempre pertenece a la misma clínica que su tutor. Se hereda
+    // del tutor, no de la sucursal activa (que podría estar desincronizada).
+    clinicId: string
     pet?: Patient | null
     onClose: () => void
     onSave: (pet?: Patient) => void
@@ -18,8 +20,7 @@ const sexOptions = [
     { value: 'F', label: 'Hembra' },
 ]
 
-export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
-    const { profile } = useAuth()
+export function PetForm({ tutorId, clinicId, pet, onClose, onSave }: PetFormProps) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -57,14 +58,14 @@ export function PetForm({ tutorId, pet, onClose, onSave }: PetFormProps) {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!profile?.clinic_id || !tutorId) return
+        if (!clinicId || !tutorId) return
 
         setLoading(true)
         setError(null)
 
         try {
             const petData: Database['public']['Tables']['patients']['Insert'] = {
-                clinic_id: profile.clinic_id,
+                clinic_id: clinicId,
                 tutor_id: tutorId,
                 name: formData.name,
                 species: formData.species,
