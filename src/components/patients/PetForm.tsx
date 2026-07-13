@@ -58,7 +58,10 @@ export function PetForm({ tutorId, clinicId, pet, onClose, onSave }: PetFormProp
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!clinicId || !tutorId) return
+        if (!clinicId || !tutorId) {
+            setError('No se pudo determinar la clínica del tutor. Recarga la página e intenta de nuevo.')
+            return
+        }
 
         setLoading(true)
         setError(null)

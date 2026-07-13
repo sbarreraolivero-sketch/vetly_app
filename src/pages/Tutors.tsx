@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 
 type Contact = {
     id: string
+    clinic_id: string
     name: string | null
     phone_number: string | null
     email: string | null
