@@ -7,6 +7,7 @@ import {
     Loader2, X, AlertCircle, CheckCircle2, ShieldCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import MetaWhatsAppConnect from '@/components/settings/MetaWhatsAppConnect'
 import { toast } from 'react-hot-toast'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -40,6 +41,8 @@ export default function Integrations() {
     const [yCloudPhoneNumber, setYCloudPhoneNumber] = useState('')
     const [yCloudWebhookSecret, setYCloudWebhookSecret] = useState('')
     const [copiedWebhook, setCopiedWebhook] = useState(false)
+    const [metaPhoneNumberId, setMetaPhoneNumberId] = useState<string | null>(null)
+    const [metaWabaId, setMetaWabaId] = useState<string | null>(null)
     const [isSaving, setIsSaving] = useState(false)
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
@@ -56,13 +59,15 @@ export default function Integrations() {
         if (!profile?.clinic_id) return
         const load = async () => {
             const [{ data: cs }, { data: whs }] = await Promise.all([
-                (supabase as any).from('clinic_settings').select('ycloud_api_key,ycloud_phone_number,ycloud_webhook_secret').eq('id', profile.clinic_id).single(),
+                (supabase as any).from('clinic_settings').select('ycloud_api_key,ycloud_phone_number,ycloud_webhook_secret,meta_phone_number_id,meta_waba_id').eq('id', profile.clinic_id).single(),
                 (supabase as any).from('webhooks').select('*').eq('clinic_id', profile.clinic_id).order('created_at', { ascending: true })
             ])
             if (cs) {
                 setYCloudApiKey(cs.ycloud_api_key || '')
                 setYCloudPhoneNumber(cs.ycloud_phone_number || '')
                 setYCloudWebhookSecret(cs.ycloud_webhook_secret || '')
+                setMetaPhoneNumberId(cs.meta_phone_number_id || null)
+                setMetaWabaId(cs.meta_waba_id || null)
             }
             if (whs) setWebhooks(whs)
         }
@@ -201,6 +206,15 @@ export default function Integrations() {
                     </div>
                 </div>
             </div>
+
+            {/* Meta Cloud API — coexistencia: conecta el número sin sacar a la clínica de su app */}
+            {profile?.clinic_id && (
+                <MetaWhatsAppConnect
+                    clinicId={profile.clinic_id}
+                    connectedPhoneNumberId={metaPhoneNumberId}
+                    connectedWabaId={metaWabaId}
+                />
+            )}
 
             {/* YCloud */}
             <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">

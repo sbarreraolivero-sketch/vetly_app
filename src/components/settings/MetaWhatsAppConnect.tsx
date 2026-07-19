@@ -140,22 +140,23 @@ export default function MetaWhatsAppConnect({
     const busy = status === 'loading_sdk' || status === 'connecting' || status === 'saving'
 
     return (
-        <div className="card-soft p-4 sm:p-6">
-            <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-emerald-100 rounded-soft flex items-center justify-center">
-                    <MessageSquare className="w-6 h-6 text-emerald-600" />
+        <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-silk-beige bg-sky-50/50 flex items-center gap-4">
+                <div className="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-charcoal">WhatsApp Cloud API (Meta)</h2>
-                    <p className="text-sm text-charcoal/50">
+                    <h2 className="text-base font-black text-charcoal">WhatsApp Cloud API (Meta)</h2>
+                    <p className="text-xs text-charcoal/50 mt-0.5">
                         Conecta el número manteniendo la app en el teléfono
                     </p>
                 </div>
             </div>
 
+            <div className="p-5 sm:p-6">
             {isConnected ? (
                 <div className="space-y-4">
-                    <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-soft">
+                    <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                         <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                         <div className="text-sm">
                             <p className="font-medium text-emerald-900">Número conectado</p>
@@ -165,11 +166,11 @@ export default function MetaWhatsAppConnect({
                         </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-3 text-xs font-mono">
-                        <div className="p-3 bg-ivory rounded-soft border border-silk-beige">
+                        <div className="p-3 bg-ivory rounded-xl border border-silk-beige">
                             <p className="text-charcoal/40 mb-1">Phone Number ID</p>
                             <p className="text-charcoal break-all">{result?.phoneNumberId || connectedPhoneNumberId}</p>
                         </div>
-                        <div className="p-3 bg-ivory rounded-soft border border-silk-beige">
+                        <div className="p-3 bg-ivory rounded-xl border border-silk-beige">
                             <p className="text-charcoal/40 mb-1">WABA ID</p>
                             <p className="text-charcoal break-all">{result?.wabaId || connectedWabaId || '—'}</p>
                         </div>
@@ -193,7 +194,7 @@ export default function MetaWhatsAppConnect({
                     <button
                         onClick={handleConnect}
                         disabled={busy}
-                        className="btn-primary bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-60"
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors flex items-center gap-2 disabled:opacity-60"
                     >
                         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
                         {status === 'loading_sdk' && 'Cargando…'}
@@ -205,11 +206,12 @@ export default function MetaWhatsAppConnect({
             )}
 
             {error && (
-                <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-soft">
+                <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl">
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                     <p className="text-sm text-rose-700">{error}</p>
                 </div>
             )}
+            </div>
         </div>
     )
 }
