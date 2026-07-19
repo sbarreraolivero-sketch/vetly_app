@@ -3568,3 +3568,31 @@ Diagnóstico completo antes de mover nada: de los 8 tutores del Maule mal ubicad
 **Regla permanente — fusión de tutores duplicados:** antes de borrar un tutor/mascota, consultar TODAS las tablas hija vía FK (`information_schema` sobre `patients`/`tutors`) y verificar counts reales. Al fusionar duplicados, no asumir cuál copia conservar: comparar datos clínicos (la copia con vacunas/desparasitaciones/historial puede estar en cualquiera de las dos sucursales). Mover registros clínicos actualizando su `clinic_id` (vaccines/deworming/reminders lo tienen; patient_tags no). Todo en una transacción `BEGIN…COMMIT`.
 
 **Nota operativa:** tras el deploy, Claudia debe cerrar sesión y volver a entrar una vez para que el navegador cargue el estado limpio (su `profile` cacheado en localStorage aún apuntaba a Santiago).
+
+---
+
+### REGRESIÓN del fix anterior: no se podían guardar mascotas (commits `a5c4117`, `b80fdf9`)
+
+**Síntoma:** inmediatamente después de desplegar `9f93a32`, Claudia no podía guardar ninguna mascota. **No aparecía ningún error — simplemente no pasaba nada.**
+
+**Causa raíz:** el cambio de defensa en profundidad hizo que `PetForm` heredara el `clinic_id` del tutor (`clinicId={tutor.clinic_id || ''}` en `TutorDetails`). Pero el objeto `tutor` **no viene de la tabla `tutors`**: `Tutors.tsx` lo obtiene del RPC `get_unified_contacts` y lo pasa como `tutor={selectedContact as any}` (línea ~157). **Ese RPC no devolvía la columna `clinic_id`** (su `RETURNS TABLE` tenía solo `id, name, phone_number, email, address, notes, total_appointments, type, created_at, tags`). Resultado: `tutor.clinic_id === undefined` → `clinicId = ''` → el guard `if (!clinicId || !tutorId) return` **cortaba en silencio** y el insert nunca se ejecutaba.
+
+**Por qué no lo detectó TypeScript ni `npm run build`:** el `as any` en `tutor={selectedContact as any}` desactiva la verificación de tipos en el punto exacto donde el contrato se rompía. El build pasó limpio con el bug adentro.
+
+**Fix aplicado (3 capas):**
+- **Migración `get_unified_contacts_return_clinic_id`** (archivo `20260713000002_...sql`): `DROP + CREATE` del RPC añadiendo `clinic_id` al `RETURNS TABLE`, tanto en la rama de `tutors` como en la de `crm_prospects`. Verificado: 0 contactos con `clinic_id` nulo.
+- **`Tutors.tsx`:** `clinic_id: string` agregado al tipo `Contact`.
+- **`PetForm.tsx`:** el guard **ya no falla en silencio** — setea `error` visible ("No se pudo determinar la clínica del tutor. Recarga la página e intenta de nuevo.") en vez de un `return` mudo.
+
+**Auditoría de regresiones del fix de sesión 52 (hecha a raíz de esto):**
+| Cambio | Veredicto |
+|---|---|
+| `member` puede ser `null` | Seguro — sus ~10 consumidores usan `member?.` o chequean null; `RoleGuard` cae a `profile.role` |
+| `resolveActiveClinicId` en ambos caminos | Sano — es el fix de raíz y funciona |
+| Otros consumidores de `get_unified_contacts` (`Appointments.tsx`) | Seguros — añadir una columna al RETURNS TABLE es aditivo |
+| Otros usos de `tutor.clinic_id` | Ninguno — `PetForm` era el único |
+
+**Reglas permanentes:**
+1. **Nunca escribir un guard que retorne en silencio en un handler de submit.** Si faltan datos para guardar, mostrar un error visible. Un `return` mudo produce exactamente el síntoma "no pasa nada" que es el más difícil de diagnosticar para el usuario.
+2. **`as any` al pasar props oculta contratos rotos.** Antes de asumir que un objeto tiene un campo, verificar su origen real — en Vetly, muchos "tutores" que ve la UI vienen de RPCs (`get_unified_contacts`) que devuelven un subconjunto de columnas, NO de `SELECT * FROM tutors`. Si un componente necesita un campo nuevo del tutor, confirmar que el RPC de origen lo devuelva.
+3. **`npm run build` no sustituye ejercitar el flujo real.** Este bug pasó el build limpio. Para cambios que tocan escritura de datos, probar el flujo end-to-end (crear/guardar) antes de desplegar.
