@@ -175,6 +175,17 @@ export default function MetaWhatsAppConnect({
                             <p className="text-charcoal break-all">{result?.wabaId || connectedWabaId || '—'}</p>
                         </div>
                     </div>
+
+                    {/* Estos IDs vienen de la base: si la WABA se eliminó del lado de Meta
+                        siguen figurando acá aunque estén muertos, así que siempre debe haber
+                        una salida para volver a conectar. */}
+                    <button
+                        onClick={handleConnect}
+                        disabled={busy}
+                        className="text-xs font-bold text-charcoal/50 hover:text-emerald-700 underline underline-offset-2 disabled:opacity-60"
+                    >
+                        {busy ? 'Conectando…' : 'Volver a conectar'}
+                    </button>
                 </div>
             ) : (
                 <div className="space-y-4">
