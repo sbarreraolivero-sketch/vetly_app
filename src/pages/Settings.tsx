@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import MetaWhatsAppConnect from '@/components/settings/MetaWhatsAppConnect'
 import {
     Building2,
     Clock,
@@ -2396,6 +2397,14 @@ export default function Settings() {
                     {/* Integrations Settings */}
                     {activeTab === 'integrations' && (
                         <div className="space-y-6">
+                            {/* Meta Cloud API — coexistencia (mantiene la app en el teléfono) */}
+                            {profile?.clinic_id && (
+                                <MetaWhatsAppConnect
+                                    clinicId={profile.clinic_id}
+                                    connectedPhoneNumberId={metaPhoneNumberId}
+                                />
+                            )}
+
                             {/* YCloud */}
                             <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center gap-4 mb-6">
