@@ -636,6 +636,23 @@ export default function Appointments() {
                 if (error) throw error
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 appointmentId = (data as any).id
+
+                // Reporta la conversión a Meta CAPI si el tutor llegó desde un anuncio C2W.
+                // El webhook solo dispara Purchase cuando agenda el AI agent; con el agente
+                // apagado las citas cargadas a mano dejaban a Meta sin ninguna señal de
+                // conversión. La edge function valida el ctwa_clid y es idempotente por tutor,
+                // así que acá no hace falta filtrar. Fire-and-forget: no debe frenar el guardado.
+                if (normalizedPhone) {
+                    void supabase.functions
+                        .invoke('meta-capi-purchase', {
+                            body: {
+                                clinic_id: profile.clinic_id,
+                                phone_number: normalizedPhone,
+                                service_name: selectedServices.join(' + '),
+                            },
+                        })
+                        .catch(() => { /* el tracking no debe romper el flujo de agenda */ })
+                }
             }
 
             // Sync with Google Calendar (Create or Update)

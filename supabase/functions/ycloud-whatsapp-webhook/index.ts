@@ -2953,7 +2953,9 @@ Deno.serve(async (req) => {
 
     // Check if this user is already a known Tutor (Client)
     const { data: tutor } = await sb.from("tutors")
-      .select("id, name, referred_by, patients(id, name, species)")
+      .select(
+        "id, name, referred_by, ctwa_clid, capi_lead_sent_at, capi_purchase_sent_at, patients(id, name, species)",
+      )
       .eq("clinic_id", clinic.id)
       .eq("phone_number", from)
       .limit(1)
@@ -3405,19 +3407,70 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ===== META CAPI: Contact event — solo cuando viene de un anuncio C2W (ctwa_clid requerido) =====
-    if (!tutor && ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
-      const capiResult = await sendMetaCAPIEvent(
-        clinic.meta_pixel_id,
-        clinic.meta_capi_token,
-        "LeadSubmitted",
-        from,
-        ctwaClid,
-        undefined,
-        clinic.meta_test_event_code || undefined,
-        clinic.meta_page_id || undefined,
-      );
-      await debugLog(sb, `[META CAPI] LeadSubmitted(contact) result for ${from}`, capiResult);
+    // ===== META CAPI: persistir ctwa_clid del primer contacto =====
+    // Meta solo adjunta este dato en el mensaje que resulta de tocar el anuncio.
+    // El agendamiento real ocurre varios mensajes (y varias invocaciones del webhook) después,
+    // así que hay que guardarlo ahora para poder recuperarlo cuando se dispare el evento Purchase.
+    if (ctwaClid && !tutor?.ctwa_clid) {
+      if (tutor) {
+        await sb.from("tutors").update({ ctwa_clid: ctwaClid }).eq("id", tutor.id).is(
+          "ctwa_clid",
+          null,
+        );
+      } else {
+        await sb.from("tutors").upsert({
+          clinic_id: clinic.id,
+          phone_number: normalizePhone(from),
+          name: "Sin nombre",
+          ctwa_clid: ctwaClid,
+        }, { onConflict: "clinic_id,phone_number", ignoreDuplicates: false });
+      }
+    }
+
+    // ===== META CAPI: LeadSubmitted — solo cuando viene de un anuncio C2W (ctwa_clid requerido) =====
+    // Antes se disparaba con el primer mensaje de cualquier contacto nuevo, lo que hacia
+    // que "cliente potencial" fuera indistinguible de "conversacion iniciada": Meta optimizaba
+    // hacia gente que solo saludaba. Filtrar por palabras clave (comuna, precio, servicio) no
+    // sirve — el 98,5% de los leads medidos las menciona. Lo que si discrimina es que el tutor
+    // sostenga la conversacion, asi que el evento espera a LEAD_MIN_INBOUND mensajes suyos.
+    //
+    // El mensaje actual ya fue guardado mas arriba (saveMsg), asi que entra en el conteo.
+    const leadCtwaClid = tutor?.ctwa_clid || ctwaClid;
+    if (
+      leadCtwaClid && !tutor?.capi_lead_sent_at &&
+      clinic.meta_pixel_id && clinic.meta_capi_token
+    ) {
+      const LEAD_MIN_INBOUND = 3;
+      const { count: inboundCount } = await sb.from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", clinic.id)
+        .eq("phone_number", from)
+        .eq("direction", "inbound");
+
+      if ((inboundCount ?? 0) >= LEAD_MIN_INBOUND) {
+        const capiResult = await sendMetaCAPIEvent(
+          clinic.meta_pixel_id,
+          clinic.meta_capi_token,
+          "LeadSubmitted",
+          from,
+          leadCtwaClid,
+          undefined,
+          clinic.meta_test_event_code || undefined,
+          clinic.meta_page_id || undefined,
+        );
+        // Se marca aunque Meta rechace: reintentar en cada mensaje siguiente solo
+        // duplicaria el evento si el rechazo fue parcial.
+        await sb.from("tutors")
+          .update({ capi_lead_sent_at: new Date().toISOString() })
+          .eq("clinic_id", clinic.id)
+          .eq("phone_number", from)
+          .is("capi_lead_sent_at", null);
+        await debugLog(
+          sb,
+          `[META CAPI] LeadSubmitted(qualified, ${inboundCount} msgs) result for ${from}`,
+          capiResult,
+        );
+      }
     }
 
     if (!clinic.ai_auto_respond) {
@@ -4061,7 +4114,16 @@ ${knowledgeSummary}
         }
 
         // ===== META CAPI: Purchase event — solo cuando viene de anuncio C2W (ctwa_clid requerido) =====
-        if (ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
+        // El clic al anuncio casi nunca coincide con el mismo mensaje que agenda la cita
+        // (son invocaciones separadas del webhook), así que se usa el ctwa_clid persistido
+        // en el tutor desde el primer contacto, con fallback al de este mensaje por si acaso.
+        // El guard capi_purchase_sent_at evita duplicar con la edge function
+        // meta-capi-purchase, que cubre las citas creadas a mano desde el dashboard.
+        const effectiveCtwaClid = tutor?.ctwa_clid || ctwaClid;
+        if (
+          effectiveCtwaClid && !tutor?.capi_purchase_sent_at &&
+          clinic.meta_pixel_id && clinic.meta_capi_token
+        ) {
           const apptResult = allFuncResults.find(
             (r: any) => r.name === "create_appointment" && r.result?.success === true,
           );
@@ -4071,11 +4133,16 @@ ${knowledgeSummary}
               clinic.meta_capi_token,
               "Purchase",
               from,
-              ctwaClid,
+              effectiveCtwaClid,
               { content_name: (apptResult.result as any)?.service_name },
               clinic.meta_test_event_code || undefined,
               clinic.meta_page_id || undefined,
             );
+            await sb.from("tutors")
+              .update({ capi_purchase_sent_at: new Date().toISOString() })
+              .eq("clinic_id", clinic.id)
+              .eq("phone_number", from)
+              .is("capi_purchase_sent_at", null);
             await debugLog(sb, `[META CAPI] Purchase(appointment) result for ${from}`, capiLeadResult);
           }
         }

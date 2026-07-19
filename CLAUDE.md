@@ -3596,3 +3596,141 @@ Diagnóstico completo antes de mover nada: de los 8 tutores del Maule mal ubicad
 1. **Nunca escribir un guard que retorne en silencio en un handler de submit.** Si faltan datos para guardar, mostrar un error visible. Un `return` mudo produce exactamente el síntoma "no pasa nada" que es el más difícil de diagnosticar para el usuario.
 2. **`as any` al pasar props oculta contratos rotos.** Antes de asumir que un objeto tiene un campo, verificar su origen real — en Vetly, muchos "tutores" que ve la UI vienen de RPCs (`get_unified_contacts`) que devuelven un subconjunto de columnas, NO de `SELECT * FROM tutors`. Si un componente necesita un campo nuevo del tutor, confirmar que el RPC de origen lo devuelva.
 3. **`npm run build` no sustituye ejercitar el flujo real.** Este bug pasó el build limpio. Para cambios que tocan escritura de datos, probar el flujo end-to-end (crear/guardar) antes de desplegar.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 53, 2026-07-17/19)
+
+### Migración Santiago a Meta Cloud API — estado del bloqueo ON_PREMISE
+
+**Contexto:** el número +56966614016 de Animalgrace Santiago (Phone Number ID: `830644144272371`) está atascado en `platform_type: ON_PREMISE` / `status: DISCONNECTED` en el backend de Meta. Todo el código e infraestructura de Vetly está lista (edge function `meta-whatsapp-webhook` deployada, columnas DB configuradas, WABA suscrita a Vetly Omnicanal). El único bloqueante es liberar el número del registro on-premise.
+
+#### Estado verificado via API (definitivo)
+
+```
+platform_type: "ON_PREMISE"
+status: "DISCONNECTED"
+code_verification_status: "NOT_VERIFIED"
+name_status: "AVAILABLE_WITHOUT_REVIEW"   ← nombre perfecto, NO es el problema
+quality_rating: "GREEN"
+verified_name: "Animal Grace Veterinaria Móvil"
+```
+
+#### Intentos de migración realizados
+
+- `POST /v22.0/830644144272371/request_code` con `code_method: "SMS"` → error 136024 / subcode 2388091, `is_transient: false`
+- `POST /v22.0/830644144272371/request_code` con `code_method: "VOICE"` → mismo error
+- Ruta WABA-scope (`/903775156940145/phone_numbers/830644144272371/request_code`) → `Unknown path components`
+- Deregister (`DELETE`) → no soportado para ON_PREMISE desde tokens externos
+- Esperar 1+ horas entre intentos → mismo error (no es rate limit, es bloqueo estructural)
+
+#### Causa raíz confirmada
+
+YCloud registró este número como on-premise puro (no coexistencia) en su infraestructura. Al desconectarse, el número quedó en `DISCONNECTED` pero el **registro on-premise sigue activo en el backend de Meta** a nombre de YCloud como BSP. Meta bloquea cualquier `request_code` de terceros sobre un número registrado por otro BSP. Esto requiere intervención manual.
+
+#### Errores y falsas pistas descartadas
+
+- **Agente IA de Meta dijo que era el nombre de visualización** — INCORRECTO. `name_status: AVAILABLE_WITHOUT_REVIEW` es el mejor estado posible. Se verificó via API y el nombre no tiene ningún problema.
+- **YCloud dijo "desvincular desde la app móvil"** — INCORRECTO para este caso. La desvinculación desde la app aplica a cuentas en modo *coexistencia*. Este número era on-premise puro — la app de Claudia mostraba "Conéctate a la plataforma" (sin conexión activa), no hay nada que desvincular desde la app.
+
+#### Lo que Meta Support confirmó
+
+El agente humano de soporte (caso ID: **1005021615770685**) confirmó que el número necesita un **"Manual Release de backend"** — su término exacto. No pudieron ejecutarlo en el momento por carga del equipo técnico.
+
+#### Acciones pendientes (ambas en paralelo)
+
+**Para YCloud:** enviarles este mensaje:
+> "El número +56966614016 (Phone Number ID: 830644144272371, WABA: 903775156940145) fue registrado como on-premise puro a través de su infraestructura. La API de Meta muestra `platform_type: ON_PREMISE, status: DISCONNECTED`. El endpoint `/request_code` retorna error 136024/2388091 con `is_transient: false`. Necesitamos que llamen al endpoint de deregistro desde su infraestructura de servidor (no desde la app móvil — ese número nunca estuvo en coexistencia). ¿Pueden confirmar si este número sigue activo en su sistema interno y ejecutar el deregistro desde su lado?"
+
+**Para Meta Support (caso 1005021615770685):** reabrir y decir:
+> "Hola, vengo del caso ID 1005021615770685. El equipo anterior confirmó que el número 830644144272371 necesita un **Manual Release de backend** para liberar su registro ON_PREMISE/DISCONNECTED. ¿Pueden proceder con eso ahora?"
+
+#### Una vez liberado el número
+
+Ejecutar inmediatamente:
+```bash
+# Paso 1 — solicitar OTP (Claudia debe estar disponible para recibirlo)
+curl -X POST "https://graph.facebook.com/v22.0/830644144272371/request_code" \
+  -H "Authorization: Bearer <SYS_TOKEN>" \
+  -d '{"code_method": "SMS", "language": "es"}'
+
+# Paso 2 — verificar con el OTP recibido
+curl -X POST "https://graph.facebook.com/v22.0/830644144272371/verify_code" \
+  -H "Authorization: Bearer <SYS_TOKEN>" \
+  -d '{"code": "<OTP>"}'
+
+# Paso 3 — registrar en Cloud API
+curl -X POST "https://graph.facebook.com/v22.0/830644144272371/register" \
+  -H "Authorization: Bearer <SYS_TOKEN>" \
+  -d '{"messaging_product": "whatsapp", "pin": "000000"}'
+```
+
+El `SYS_TOKEN` es el System User Token de "Agencia Digital - Publymed" guardado en `clinic_settings.meta_access_token` de Santiago. Es permanente (no expira).
+
+Después de los 3 pasos, verificar `platform_type: "CLOUD_API"` y activar el AI agent: `UPDATE clinic_settings SET ai_auto_respond = true WHERE id = '13472ea4-...'`.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 54, 2026-07-19)
+
+### Auditoría Meta CAPI — la campaña de Linares optimizaba sin señal de conversión
+
+**Contexto:** se revisó por qué el costo por "cliente potencial" de la campaña Click-to-WhatsApp de Linares se sentía alto, y si esos leads estaban realmente más calificados que una conversación iniciada.
+
+#### Hallazgo 1 — "cliente potencial" lo definía Vetly, y lo definía mal
+
+En una campaña C2W, Meta puede usar su modelo nativo (comportamiento dentro del hilo) **o** los eventos que el anunciante manda por Conversions API. Si hay eventos CAPI, Meta usa esos y descarta su heurística. Animalgrace está en el segundo caso.
+
+La condición de `LeadSubmitted` era `!tutor && ctwaClid && meta_pixel_id` — **el primer mensaje de cualquier contacto nuevo venido del anuncio**, sin ninguna calificación. Vetly le reportaba a Meta "esto es un cliente potencial" apenas alguien escribía "hola". **294 eventos enviados** entre el 25-jun y el 18-jul con esa definición.
+
+#### Hallazgo 2 — filtrar por palabras clave no sirve (medido, no supuesto)
+
+La hipótesis inicial (calificar por "declara comuna" o "pregunta precio") se midió contra los 68 leads reales con `ctwa_clid`: **67 de 68 califican — el 98,5%**. Preguntar el precio o mencionar la comuna es el comportamiento por defecto de todo el que toca el anuncio, no una señal de intención. La regla por keywords se descartó.
+
+Lo que sí discrimina es la **profundidad de conversación**: de 68 leads, 18 mandaron 1 mensaje, 14 mandaron 2-3, y 36 mandaron 3 o más.
+
+#### Hallazgo 3 (el más grave) — 0 eventos `Purchase` en toda la historia de CAPI
+
+El bloque que dispara `Purchase` vive en el tool loop del AI agent (línea ~4083), **después del `return` de `!clinic.ai_auto_respond`** (línea ~3443). Como Claudia mantiene el agente apagado en Linares de forma intencional, ese bloque nunca se alcanzaba. Las citas que ella carga a mano en el dashboard no disparaban nada.
+
+**Consecuencia:** Meta llevaba un mes optimizando la campaña conociendo únicamente quién había saludado, sin una sola señal de quién terminó agendando.
+
+#### Fixes aplicados
+
+| Cambio | Archivo |
+|---|---|
+| Columnas `capi_lead_sent_at` / `capi_purchase_sent_at` + backfill de los 68 leads ya reportados | `20260719000001_capi_event_idempotency.sql` |
+| `LeadSubmitted` ahora espera `LEAD_MIN_INBOUND = 3` mensajes inbound del tutor, con idempotencia | `ycloud-whatsapp-webhook` |
+| Guard `!tutor?.capi_purchase_sent_at` en el `Purchase` del agente, para no duplicar con el dashboard | `ycloud-whatsapp-webhook` |
+| Edge function nueva que reporta `Purchase` desde el dashboard (JWT + `clinic_members`, idempotente, valida `ctwa_clid`) | `meta-capi-purchase` |
+| Llamada fire-and-forget a la edge function al crear una cita nueva | `src/pages/Appointments.tsx` |
+
+#### Errores de interpretación cometidos y corregidos en la misma sesión
+
+Ambos se presentaron al usuario como hallazgos y hubo que retirarlos:
+
+1. **"0 respuestas registradas" ≠ Claudia no responde.** Con la IA apagada, sus respuestas salen por fuera de Vetly (su teléfono o la consola de YCloud) y nunca tocan el webhook, así que no quedan en `messages`. La tabla de ceros insinuaba abandono y el dato no daba para eso — es un punto ciego de instrumentación, no una métrica de operación.
+2. **"2,9% de conversión" era una foto parcial.** La ventana real es de 5 días (13→18 jul, desde que se persiste el `ctwa_clid`). Un lead de anteayer todavía puede agendar.
+
+**Regla permanente:** antes de presentar una métrica derivada de `messages`, verificar si la IA estaba activa en ese período. Con `ai_auto_respond = false` la tabla solo contiene inbound — cualquier ratio que use outbound como denominador o señal es inválido.
+
+#### Reglas permanentes — Meta CAPI
+
+- **El evento de optimización define qué compra la campaña.** Si `LeadSubmitted` se dispara con el primer mensaje, "cliente potencial" y "conversación iniciada" son el mismo evento con distinto nombre, y se paga precio premium por lo mismo.
+- **`Purchase` debe poder dispararse con el agente apagado.** Cualquier señal de conversión que dependa de un tool call del AI desaparece cuando la clínica opera en manual. Por eso vive en una edge function invocable desde el dashboard.
+- **Meta necesita ~50 eventos de optimización por semana** por conjunto de anuncios para salir de la fase de aprendizaje. Al endurecer la definición de un evento, verificar que el volumen resultante siga sobre ese umbral (aquí: 36 de 68 ≈ 43/semana).
+- **Sin webhook no hay CAPI.** Santiago no genera `ctwa_clid` porque su número está bloqueado en `ON_PREMISE` y Vetly no recibe sus mensajes. Nada de lo implementado en esta sesión aplica a Santiago mientras dure ese bloqueo.
+
+#### Recomendación de campaña para Santiago (sin tracking propio)
+
+Optimizar por **"Conversaciones iniciadas"**, no por "Clientes potenciales". Sin CAPI que lo alimente y sin histórico, el evento escaso deja el conjunto atrapado en fase de aprendizaje e infla el costo por resultado. Segmentación amplia por comunas, presupuesto contenido 5-7 días corridos sin ediciones, y medir citas agendadas a mano desde el dashboard.
+
+**Puente entre campañas:** cuando Linares acumule eventos `Purchase` reales, se puede crear un público similar (lookalike) desde los convertidos y aplicarlo a Santiago. Para que funcione, Claudia debe cargar en el dashboard las citas que vienen del anuncio — las que queden fuera del sistema no alimentan el modelo.
+
+### Meta Ads MCP — disponible desde abril 2026
+
+Meta lanzó un MCP oficial el **29 de abril de 2026** en `https://mcp.facebook.com/ads` (beta abierta, gratis, ~29 tools, OAuth de Meta Business). Permite gestionar campañas por conversación desde Claude Code local o la web.
+
+**Nota de scopes:** ninguno de los tokens existentes sirve para gestionar campañas — `meta_capi_token` tiene `read_ads_dataset_quality` y el System User Token de Publymed tiene solo `whatsapp_business_*`. Marketing API requiere `ads_read` / `ads_management`. El MCP oficial lo resuelve vía OAuth, sin tokens manuales.
+
+**Precaución:** el MCP tiene capacidad de escritura (crear campañas, cambiar presupuestos y pujas) sobre dinero real. Usarlo para diagnóstico por defecto y confirmar con el usuario cualquier cambio estructural o de presupuesto.
