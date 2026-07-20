@@ -3734,3 +3734,73 @@ Meta lanzó un MCP oficial el **29 de abril de 2026** en `https://mcp.facebook.c
 **Nota de scopes:** ninguno de los tokens existentes sirve para gestionar campañas — `meta_capi_token` tiene `read_ads_dataset_quality` y el System User Token de Publymed tiene solo `whatsapp_business_*`. Marketing API requiere `ads_read` / `ads_management`. El MCP oficial lo resuelve vía OAuth, sin tokens manuales.
 
 **Precaución:** el MCP tiene capacidad de escritura (crear campañas, cambiar presupuestos y pujas) sobre dinero real. Usarlo para diagnóstico por defecto y confirmar con el usuario cualquier cambio estructural o de presupuesto.
+
+**Conectado el 2026-07-19** en scope de proyecto (`~/.claude.json` → `projects[Vetly-App].mcpServers.meta-ads`), transporte HTTP, OAuth completado. La lista de MCP se lee al iniciar la sesión: tras agregarlo hay que abrir una sesión nueva para que aparezca.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 55, 2026-07-19)
+
+### Desbloqueo de Santiago — eliminación de la WABA y coexistencia
+
+**Punto de partida:** el número +56966614016 llevaba semanas atascado en `platform_type: ON_PREMISE` / `status: DISCONNECTED`. YCloud insistía en que se desvinculara desde la app (procedimiento que solo aplica a números en coexistencia, no a on-premise puro) y Meta escaló a un "Manual Release de backend" que nunca ejecutó.
+
+**Acción del usuario:** eliminó la WABA `903775156940145` desde el Business Manager de Publymed. Verificado por API: tanto la WABA como el Phone Number ID `830644144272371` dejaron de existir. **Los IDs viejos quedaron huérfanos en `clinic_settings` y hubo que limpiarlos a mano.**
+
+Contexto que explica el limbo: Meta **deprecó la On-Premises API en octubre de 2025**. El número estaba registrado en un modo que ya no existe, por eso ninguna operación normal lo liberaba.
+
+La campaña de Santiago quedó apuntando al número vía la **Página de Facebook**, no vía WABA — por eso Ads Manager permite seleccionarlo aunque no exista WABA. Un anuncio Click-to-WhatsApp funciona contra un número de WhatsApp Business App normal; lo que no hay en ese modo es webhook, y por lo tanto **no hay `ctwa_clid` ni eventos CAPI para Santiago**.
+
+### Coexistencia — solo se activa desde el JS SDK
+
+**Hallazgo central:** la coexistencia NO es una opción de configuración del `config_id` ni del link de onboarding hospedado. Se activa pasando un parámetro en `FB.login()`:
+
+```js
+extras: {
+    setup: {},
+    featureType: 'whatsapp_business_app_onboarding',  // 'coexistence' quedó obsoleto
+    sessionInfoVersion: '3',
+}
+```
+
+**El link hospedado que entrega el panel de Meta (`business.facebook.com/messaging/whatsapp/onboard/?app_id=…&config_id=…`) ejecuta el flujo estándar**, que registra el número como nuevo y desconecta a la clínica de su WhatsApp Business App. Por eso no existía ningún toggle que encontrar en el Administrador de registro insertado.
+
+**Datos de la integración:**
+| Campo | Valor |
+|---|---|
+| App | `Vetly Omnicanal` — `1658152138764158` |
+| Config Embedded Signup | `1533217227702013` ("Tech Provider Embedded Signup config", no caduca) |
+| App Secret | `META_APP_SECRET` en Supabase secrets |
+| Tech Provider | ✅ verificado (Nexflow Ai System) |
+| App Review | ✅ acceso avanzado a `whatsapp_business_messaging` + `whatsapp_business_management` |
+
+**Flujo real para el usuario** (no es QR, como se documentó por error en un primer momento): elegir portfolio y número → llega un mensaje del *Facebook Business Account* al WhatsApp Business del teléfono → tocar "Conectar a la plataforma comercial" → aceptar compartir historial → pegar el código que aparece.
+
+**Limitaciones permanentes de un número en coexistencia:**
+- Listas de difusión deshabilitadas (confirmado con Claudia que no las usa)
+- Los grupos no se sincronizan con la API
+- Sin mensajes temporales, "ver una vez" ni ubicación en vivo
+- Throughput fijo de 20 mps
+- Requiere **WhatsApp Business app 2.24.17 o superior**
+
+### Implementación
+
+| Archivo | Rol |
+|---|---|
+| `src/components/settings/MetaWhatsAppConnect.tsx` | Carga el SDK de Meta y lanza el popup con el `featureType` de coexistencia. Captura los IDs por `postMessage` (evento `WA_EMBEDDED_SIGNUP`) y el `code` por el callback de `FB.login` — son canales distintos que llegan en orden variable, por eso ambos van a `useRef` y se envían cuando están los dos. |
+| `supabase/functions/meta-embedded-signup/index.ts` | Cambia el `code` por token de negocio (requiere App Secret, no puede ir en el browser), resuelve WABA y número con fallback vía `debug_token` → `granular_scopes` si se pierde el postMessage, suscribe la app a la WABA y persiste los IDs. |
+
+**No se llama a `/register`.** Ese endpoint mueve el número a Cloud API puro y rompería la coexistencia. La suscripción de la app a la WABA (`POST /{waba-id}/subscribed_apps`) sí es obligatoria: sin ella Meta no entrega ningún webhook y el número queda conectado pero mudo para Vetly.
+
+### Dos errores cometidos y corregidos
+
+1. **La tarjeta se puso primero en `Settings.tsx`.** El bloque de integraciones de esa página es código legacy que ya no se renderiza — la ruta `/app/integrations` apunta a `src/pages/Integrations.tsx`. **Regla: antes de agregar UI a una sección, confirmar en `App.tsx` qué componente sirve esa ruta.** Settings.tsx conserva markup de YCloud que no se muestra en ninguna parte.
+2. **La tarjeta mostraba "Número conectado" con los IDs muertos.** El estado se derivaba solo de que existiera un `meta_phone_number_id` en la base, sin verificar que siguiera vivo en Meta. Se agregó "Volver a conectar", siempre visible en el estado conectado. **Regla: un indicador de "conectado" que solo mira si hay un ID guardado miente cuando el recurso se elimina del lado del proveedor — siempre dejar una salida para reconectar.**
+
+### Estado al cierre de la sesión
+
+- Campaña de Santiago: **activa**, optimizando por conversaciones iniciadas, sin tracking CAPI
+- Número de Santiago: **sin WABA**, funcionando en la app de Claudia, listo para el Embedded Signup
+- `clinic_settings` de Santiago: `meta_phone_number_id`, `meta_waba_id` y `meta_access_token` en `NULL`
+- **Pendiente:** ejecutar la conexión con Claudia presente y verificar por API que quedó en coexistencia
+- **Después de conectar, la IA sigue apagada.** `ai_auto_respond` de Santiago nunca ha respondido un mensaje real — revisar KB, precios y comunas antes de encenderla, sobre todo con la campaña corriendo.
