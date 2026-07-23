@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import {
     AlarmClock, Save, Loader2, RefreshCw, Activity,
-    CheckCircle2, AlertCircle, Phone,
+    CheckCircle2, AlertCircle, Phone, CheckCheck, Eye,
     Settings2, Clock, Package, Infinity as InfinityIcon
 } from 'lucide-react'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
@@ -185,7 +185,7 @@ export default function Reminders() {
             const groupedByDate = appointmentLogs.reduce((acc, log) => {
                 const dateKey = new Date(log.created_at).toISOString().split('T')[0]
                 if (!acc[dateKey]) acc[dateKey] = { dateKey, enviados: 0, fallidos: 0 }
-                if (log.status === 'sent') acc[dateKey].enviados += 1
+                if (['sent', 'delivered', 'read'].includes(log.status)) acc[dateKey].enviados += 1
                 else if (log.status === 'failed') acc[dateKey].fallidos += 1
                 return acc
             }, {} as Record<string, any>)
@@ -212,7 +212,10 @@ export default function Reminders() {
     }
 
     const chartData = getChartData()
-    const sent = appointmentLogs.filter((l: any) => l.status === 'sent').length
+    // 'sent' es "aceptado por YCloud"; 'delivered'/'read' confirman entrega real.
+    // Todos cuentan como éxito; solo 'failed' es fallo.
+    const SUCCESS_STATUSES = ['sent', 'delivered', 'read']
+    const sent = appointmentLogs.filter((l: any) => SUCCESS_STATUSES.includes(l.status)).length
     const failed = appointmentLogs.filter((l: any) => l.status === 'failed').length
 
     const UNIT_PRICE_USD = 0.15
@@ -781,7 +784,7 @@ export default function Reminders() {
                                         </div>
                                     ) : (
                                         (() => {
-                                            const mSent = medicalLogs.filter((l: any) => l.status === 'sent').length
+                                            const mSent = medicalLogs.filter((l: any) => ['sent', 'delivered', 'read'].includes(l.status)).length
                                             const mFailed = medicalLogs.filter((l: any) => l.status === 'failed').length
                                             return (
                                                 <div className="flex w-full items-center justify-around">
@@ -944,21 +947,25 @@ export default function Reminders() {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-3 sm:py-4">
-                                                        <div className="flex items-center gap-2">
-                                                            {log.status === 'sent' ? (
-                                                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                                            ) : log.status === 'pending' ? (
-                                                                <Loader2 className="w-4 h-4 text-amber-500" />
-                                                            ) : (
-                                                                <AlertCircle className="w-4 h-4 text-red-500" />
-                                                            )}
-                                                            <span className={cn(
-                                                                "text-xs font-bold uppercase tracking-wider",
-                                                                log.status === 'sent' ? "text-emerald-700" : log.status === 'pending' ? "text-amber-700" : "text-red-700"
-                                                            )}>
-                                                                {log.status === 'sent' ? 'Enviado' : log.status === 'pending' ? 'Pendiente' : 'Fallido'}
-                                                            </span>
-                                                        </div>
+                                                        {(() => {
+                                                            // 'sent' = aceptado por YCloud; 'delivered'/'read' confirman entrega real.
+                                                            const meta: Record<string, { label: string; icon: JSX.Element; text: string }> = {
+                                                                sent:      { label: 'Enviado',   text: 'text-emerald-700', icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" /> },
+                                                                delivered: { label: 'Entregado', text: 'text-emerald-700', icon: <CheckCheck className="w-4 h-4 text-emerald-600" /> },
+                                                                read:      { label: 'Leído',     text: 'text-teal-700',    icon: <Eye className="w-4 h-4 text-teal-600" /> },
+                                                                pending:   { label: 'Pendiente', text: 'text-amber-700',   icon: <Loader2 className="w-4 h-4 text-amber-500" /> },
+                                                                failed:    { label: 'Fallido',   text: 'text-red-700',     icon: <AlertCircle className="w-4 h-4 text-red-500" /> },
+                                                            }
+                                                            const s = meta[log.status] || meta.failed
+                                                            return (
+                                                                <div className="flex items-center gap-2" title={log.status === 'failed' && log.error_message ? log.error_message : undefined}>
+                                                                    {s.icon}
+                                                                    <span className={cn("text-xs font-bold uppercase tracking-wider", s.text)}>
+                                                                        {s.label}
+                                                                    </span>
+                                                                </div>
+                                                            )
+                                                        })()}
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                                                         <div className="flex flex-col items-end">

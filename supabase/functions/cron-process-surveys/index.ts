@@ -125,14 +125,15 @@ Deno.serve(async (req) => {
                     throw new Error(ycloudResult.message || `YCloud API Error ${response.status}`)
                 }
 
-                await supabaseClient.from('messages').insert({
+                const { error: msgErr } = await supabaseClient.from('messages').insert({
                     clinic_id: appointment.clinic_id,
                     phone_number: appointment.phone_number,
                     direction: 'outbound',
                     content: `Encuesta automática enviada a ${appointment.patient_name}`,
                     ycloud_message_id: ycloudResult.id,
-                    ycloud_status: 'sent'
+                    status: 'sent'
                 })
+                if (msgErr) console.error('[surveys] messages insert failed', msgErr)
 
                 await supabaseClient.from('satisfaction_surveys').insert({
                     clinic_id: appointment.clinic_id,

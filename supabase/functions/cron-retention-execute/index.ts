@@ -120,16 +120,17 @@ serve(async (req) => {
                         })
                         .eq('id', action.id)
 
-                    // Also log to messages table
-                    await supabaseClient.from('messages').insert({
+                    // Also log to messages table (columnas reales: status)
+                    const { error: msgErr } = await supabaseClient.from('messages').insert({
                         clinic_id: clinic.id,
                         phone_number: patient.phone_number,
                         direction: 'outbound',
                         content: `Citenly AI Retention: ${templateName}`,
                         ycloud_message_id: result.id,
-                        ycloud_status: 'sent',
+                        status: 'sent',
                         ai_generated: true
                     })
+                    if (msgErr) console.error('[retention] messages insert failed', msgErr)
 
                     results.push({ id: action.id, status: 'success', type: 'whatsapp' })
 

@@ -3804,3 +3804,46 @@ extras: {
 - `clinic_settings` de Santiago: `meta_phone_number_id`, `meta_waba_id` y `meta_access_token` en `NULL`
 - **Pendiente:** ejecutar la conexión con Claudia presente y verificar por API que quedó en coexistencia
 - **Después de conectar, la IA sigue apagada.** `ai_auto_respond` de Santiago nunca ha respondido un mensaje real — revisar KB, precios y comunas antes de encenderla, sobre todo con la campaña corriendo.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 56, 2026-07-23)
+
+### Recordatorios que aparecían "ENVIADO" pero nunca llegaban — 3 bugs encadenados
+
+**Reporte de Claudia (AnimalGrace Linares):** el dashboard de Recordatorios mostraba envíos como **ENVIADO** que en WhatsApp nunca llegaron (caso Ricardo, tel. `56972616061`). Diagnóstico con datos reales de producción; evidencia directa del caso de Ricardo.
+
+#### Causa raíz #1 (dominante) — plantillas con parámetro vacío → Meta 131008
+El cron enviaba `confirmacion_visita` con el primer parámetro (`patient_name`) **vacío**. La cita de Ricardo tenía `patient_name = ""` en la BD. Meta rechaza toda plantilla con un parámetro de texto vacío → `errorCode 131008: "Parameter of type text is missing text value"`. **18 de 24 fallos en 14 días** eran por esto. YCloud acepta el envío (HTTP 200, el cron marca 'sent'), y Meta lo rechaza después de forma asíncrona.
+
+**Fix:** helper `safeParam()` en `cron-process-reminders/index.ts` (`mkParams`) — cada parámetro cae a un fallback no vacío si viene `null`/vacío/espacios (`patient_name`→"tu mascota", `service`→"tu visita", etc.). **Nunca** se envía `{type:'text', text:''}`. Defensa en el origen: `Appointments.tsx handleSaveAppointment` guarda `"Sin nombre"` si `patient_name` queda vacío tras `trim()` (patrón de `tutor_name`, sesión 44).
+
+#### Causa raíz #2 — el "ENVIADO" solo significaba "aceptado por YCloud"
+El cron marcaba `reminder_logs.status='sent'` con solo recibir HTTP 200 (aceptación, no entrega). YCloud reporta la entrega real vía evento `whatsapp.message.updated` (`status`: sent→delivered→read, o failed) — **el webhook lo descartaba** (solo procesaba `whatsapp.inbound_message.received`). Verificado: YCloud envía ~218 de estos eventos cada 3 días.
+
+**Fix:**
+- Migración `add_ycloud_message_id_to_reminder_logs`: columna `reminder_logs.ycloud_message_id TEXT` + índice. Es la clave de correlación (no existía).
+- El cron ahora guarda `ycloud_message_id: responseData.id` en cada insert de `reminder_logs`.
+- Nuevo handler en `ycloud-whatsapp-webhook` (bloque temprano, antes del dispatcher de inbound): si `p.type === "whatsapp.message.updated"` → verifica HMAC (buscando secret por `whatsappMessage.from`, modo permisivo igual que inbound) → actualiza `reminder_logs` y `messages` por `ycloud_message_id`. **Regla anti-desorden** (eventos llegan repetidos y fuera de orden): `failed`/`undelivered` → `status='failed'`+motivo (terminal); `delivered`/`read` → ese estado, con `.neq("status","failed")` para no pisar un fallo; `sent` se ignora (ya registrado). Retorna temprano, no toca el flujo del AI. También ignora explícitamente `whatsapp.smb.message.echoes`.
+
+**Sinergia:** `cron-system-health` (jobid 16) ya revisaba `reminder_logs WHERE status='failed'` y alerta al fundador por WhatsApp (`getReminderFailures`, `_shared/diagnostics.ts`). Estaba ciego porque nada marcaba 'failed'. Ahora las alertas de fallos de recordatorio funcionan solas.
+
+#### Causa raíz #3 — sin rastro auditable (insert a `messages` roto en 6 funciones)
+Las 6 funciones que registran envíos insertaban en `messages` con columnas **inexistentes** (`ycloud_status`, `metadata`). El insert fallaba en silencio (Supabase JS no lanza por defecto) → sin contenido ni `ycloud_message_id`. El webhook principal ya tenía el patrón correcto (`saveMsg`), nunca replicado.
+
+**Fix:** en `cron-process-reminders`, `cron-process-upsell`, `cron-retention-execute`, `send-whatsapp-campaign`, `cron-process-surveys`, `send-whatsapp-reminder`, `send-whatsapp-survey`: `ycloud_status:'sent'` → `status:'sent'`; `metadata:{...}` → `payload:{...}` (JSONB real); se verifica y loguea el `{error}` del insert (antes se ignoraba). Verificado con grep: `0` usos de `ycloud_status` restantes en las funciones.
+
+#### UI — estado de entrega real (`Reminders.tsx`)
+El badge dejó de mostrar un "ENVIADO" que solo significaba "aceptado". Ahora: **Enviado** (emerald) → **Entregado** (`CheckCheck`, emerald) → **Leído** (`Eye`, teal), o **Fallido** (red, con `title` del `error_message`). `delivered`/`read` cuentan como éxito en los contadores del resumen junto con `sent`; `failed` como fallo.
+
+#### Limpieza de datos (producción)
+- 1 cita futura de Santiago con `patient_name` vacío → `"Sin nombre"` (habría fallado por 131008).
+- **Backfill de honestidad:** 21 filas de `reminder_logs` marcadas 'sent' que la evidencia de `debug_logs` confirma fallidas (match por teléfono + timestamp <120s del evento `status:failed`) → corregidas a `failed` con su motivo real (19× 131008 parámetro vacío, 2× 131026 no entregable). Linares pasó de "100% sent" a 61 enviados / 30 fallidos en 30 días — el dashboard ahora refleja la realidad.
+
+#### Reglas permanentes — recordatorios y estado de entrega
+- **`appointments.patient_name` NUNCA vacío.** Es parámetro de plantilla; Meta rechaza plantillas con parámetros vacíos (131008). Cualquier envío de plantilla debe sanear TODOS los parámetros a un fallback no vacío antes de llamar a YCloud.
+- **HTTP 200 de YCloud ≠ entregado.** Significa "aceptado". La entrega/fallo real llega asíncrono vía `whatsapp.message.updated`. Nunca tratar la respuesta síncrona del envío como confirmación de entrega.
+- **`reminder_logs.ycloud_message_id`** es la clave de correlación con los eventos de estado. Todo insert de `reminder_logs` con status 'sent' debe guardar el `responseData.id` de YCloud.
+- **El webhook procesa 3 tipos de evento:** `whatsapp.inbound_message.received` (AI), `whatsapp.message.updated` (estado de entrega → actualiza reminder_logs/messages), `whatsapp.smb.message.echoes` (ignorado). El handler de estado va ANTES del dispatcher de inbound y retorna temprano.
+- **Insert a `messages`:** columnas reales son `status` y `payload` (JSONB), NO `ycloud_status` ni `metadata`. Siempre verificar el `{error}` del insert. Patrón de referencia: `saveMsg` en el webhook.
+- **Deploy:** `ycloud-whatsapp-webhook` con `--no-verify-jwt` (está en config.toml). Las funciones cron/campaña/encuesta NO están en config.toml → default `verify_jwt=true`; deployarlas SIN el flag `--no-verify-jwt` (con el flag se rompería su config esperada).

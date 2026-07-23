@@ -41,13 +41,21 @@ Deno.serve(async (req) => {
             }
             return tplVarCache[cId][tplName] ?? 5
         }
+        // Meta rechaza cualquier plantilla con un parámetro de texto vacío
+        // (errorCode 131008: "Parameter of type text is missing text value").
+        // Por eso NUNCA se envía una cadena vacía o solo-espacios: cada parámetro
+        // cae a un fallback seguro no vacío.
+        const safeParam = (val: string | null | undefined, fallback: string): { type: 'text'; text: string } => {
+            const clean = (val ?? '').toString().trim()
+            return { type: 'text', text: clean !== '' ? clean : fallback }
+        }
         const mkParams = (n: number, pName: string, svc: string, dt: string, tm: string, cName: string) => {
             const all = [
-                { type: 'text', text: pName },
-                { type: 'text', text: svc },
-                { type: 'text', text: dt },
-                { type: 'text', text: tm },
-                { type: 'text', text: cName },
+                safeParam(pName, 'tu mascota'),
+                safeParam(svc, 'tu visita'),
+                safeParam(dt, 'la fecha agendada'),
+                safeParam(tm, 'la hora agendada'),
+                safeParam(cName, 'la clínica'),
             ]
             return n > 0 ? all.slice(0, n) : all
         }
@@ -257,25 +265,28 @@ Deno.serve(async (req) => {
 
                     const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para mañana a las *${formattedTime}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
 
-                    // Log to DB messages (legacy)
-                    await supabaseClient.from('messages').insert({
+                    // Log to DB messages (audit trail — columnas reales: status, payload)
+                    const { error: msgErr24 } = await supabaseClient.from('messages').insert({
                         clinic_id: clinic.id,
                         phone_number: appt.phone_number,
                         direction: 'outbound',
                         content: reminderText,
                         ycloud_message_id: responseData.id,
-                        ycloud_status: 'sent',
+                        status: 'sent',
                         ai_generated: false,
-                        metadata: { type: 'system_reminder_24h' }
+                        payload: { type: 'system_reminder_24h' }
                     })
+                    if (msgErr24) console.error('[reminders][24h] messages insert failed', msgErr24)
 
-                    // Log to reminder_logs (new)
+                    // Log to reminder_logs (new) — guardamos el ID de YCloud para que
+                    // el webhook pueda actualizar el estado real de entrega después.
                     await supabaseClient.from('reminder_logs').insert({
                         clinic_id: clinic.id,
                         appointment_id: appt.id,
                         type: '24h',
                         phone_number: appt.phone_number,
                         status: 'sent',
+                        ycloud_message_id: responseData.id,
                         sent_at: new Date().toISOString()
                     });
 
@@ -466,22 +477,24 @@ Deno.serve(async (req) => {
                         if (response.ok) {
                             const reminderText = `Hola 👋 esperamos que te encuentres muy bien!\nTe enviamos este mensaje para recordar la visita a domicilio de *${appt.patient_name || 'tu mascota'}* programada para hoy a las *${formattedTime}* hrs.\n\nPor favor confírmanos tu asistencia o infórmanos si necesitas reprogramar.`;
 
-                            await supabaseClient.from('messages').insert({
+                            const { error: msgErr2h } = await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
                                 phone_number: appt.phone_number,
                                 direction: 'outbound',
                                 content: reminderText,
                                 ycloud_message_id: responseData.id,
-                                ycloud_status: 'sent',
+                                status: 'sent',
                                 ai_generated: false,
-                                metadata: { type: 'system_reminder_2h' }
+                                payload: { type: 'system_reminder_2h' }
                             })
+                            if (msgErr2h) console.error('[reminders][2h] messages insert failed', msgErr2h)
                             await supabaseClient.from('reminder_logs').insert({
                                 clinic_id: clinic.id,
                                 appointment_id: appt.id,
                                 type: '2h',
                                 phone_number: appt.phone_number,
                                 status: 'sent',
+                                ycloud_message_id: responseData.id,
                                 sent_at: new Date().toISOString()
                             });
                             await supabaseClient.from('appointments').update({
@@ -652,16 +665,17 @@ Deno.serve(async (req) => {
 
                             const reminderText = `Hola 👋\nTe recordamos que es momento de agendar el próximo control/vacuna de *${patientName || 'tu mascota'}*.\n\n¿Deseas que coordinemos una visita?`;
 
-                            await supabaseClient.from('messages').insert({
+                            const { error: msgErrGen } = await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
                                 phone_number: phoneNumber,
                                 direction: 'outbound',
                                 content: reminderText,
                                 ycloud_message_id: responseData.id,
-                                ycloud_status: 'sent',
+                                status: 'sent',
                                 ai_generated: false,
-                                metadata: { type: 'system_reminder_general' }
+                                payload: { type: 'system_reminder_general' }
                             })
+                            if (msgErrGen) console.error('[reminders][general] messages insert failed', msgErrGen)
 
                             // Increment usage
                             await supabaseClient.rpc('increment_subscription_usage', {

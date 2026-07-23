@@ -82,15 +82,16 @@ serve(async (req) => {
             throw new Error(result.message || 'Failed to send WhatsApp survey')
         }
 
-        // 4. Log to messages table
-        await supabaseClient.from('messages').insert({
+        // 4. Log to messages table (columnas reales: status)
+        const { error: msgErr } = await supabaseClient.from('messages').insert({
             clinic_id: appointment.clinic_id,
             phone_number: appointment.phone_number,
             direction: 'outbound',
             content: `Encuesta enviada a ${appointment.patient_name}`,
             ycloud_message_id: result.id,
-            ycloud_status: 'sent'
+            status: 'sent'
         })
+        if (msgErr) console.error('[send-survey] messages insert failed', msgErr)
 
         // 5. Create or Update Survey Record
         // Check if survey already exists for this appointment

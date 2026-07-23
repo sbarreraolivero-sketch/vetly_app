@@ -175,15 +175,16 @@ serve(async (req) => {
                     throw new Error(ycloudResult.message || 'YCloud API Error')
                 }
 
-                // Log and Update
-                await supabaseClient.from('messages').insert({
+                // Log and Update (columnas reales: status)
+                const { error: msgErr } = await supabaseClient.from('messages').insert({
                     clinic_id: appt.clinic_id,
                     phone_number: appt.phone_number,
                     direction: 'outbound',
                     content: `Upsell automático: ${appt.services.upselling_message || 'Follow-up sent'}`,
                     ycloud_message_id: ycloudResult.id,
-                    ycloud_status: 'sent'
+                    status: 'sent'
                 })
+                if (msgErr) console.error('[upsell] messages insert failed', msgErr)
 
                 await supabaseClient.from('appointments')
                     .update({ upsell_sent_at: new Date().toISOString() })

@@ -221,15 +221,16 @@ Deno.serve(async (req) => {
                     console.error(`Failed to send to tutor ${recipient.tutorId}:`, ycloudResult)
                     results.push({ id: recipient.tutorId, status: 'error', error: ycloudResult.message })
                 } else {
-                    await supabaseClient.from('messages').insert({
+                    const { error: msgErr } = await supabaseClient.from('messages').insert({
                         clinic_id: campaign.clinic_id,
                         phone_number: recipient.phone,
                         direction: 'outbound',
                         content: `Campaña ${campaign.name}: ${campaign.template_name}`,
                         ycloud_message_id: ycloudResult.id,
-                        ycloud_status: 'sent',
+                        status: 'sent',
                         campaign_id: campaign.id
                     })
+                    if (msgErr) console.error('[campaign] messages insert failed', msgErr)
                     results.push({ id: recipient.tutorId, status: 'sent' })
                     sentCount++
                 }

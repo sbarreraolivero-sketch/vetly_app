@@ -2865,6 +2865,80 @@ Deno.serve(async (req) => {
     // Log incoming payload for debugging
     await debugLog(sb, `Incoming payload`, p);
 
+    // --- DELIVERY STATUS EVENTS (whatsapp.message.updated) ---
+    // YCloud reporta el estado real de cada mensaje saliente (sent → delivered →
+    // read, o failed/undelivered) vía este evento. Antes se descartaba, por lo que
+    // reminder_logs quedaba fijo en 'sent' aunque Meta rechazara el mensaje.
+    // Aquí actualizamos el estado real en reminder_logs y messages, y retornamos.
+    if (p.type === "whatsapp.message.updated" && p.whatsappMessage) {
+      const wm = p.whatsappMessage;
+      const ycloudId: string = wm.id || "";
+      const rawStatus: string = (wm.status || "").toLowerCase();
+      const fromNumber: string = wm.from || "";
+
+      // Verificar firma HMAC per-clínica (buscada por el número emisor).
+      // Modo permisivo igual que inbound: sin secret configurado → warn y continúa.
+      const { data: clinicForVerify } = await sb
+        .from("clinic_settings")
+        .select("ycloud_webhook_secret")
+        .eq("ycloud_phone_number", fromNumber)
+        .maybeSingle();
+      const statusSecret = (clinicForVerify as any)?.ycloud_webhook_secret || "";
+      if (statusSecret) {
+        const sigHeader = req.headers.get("YCloud-Signature");
+        const sigValid = await verifyYCloudSignature(rawBody, sigHeader, statusSecret);
+        if (!sigValid) {
+          console.error("[SECURITY] Rejected status event — invalid signature for:", fromNumber);
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: corsHeaders,
+          });
+        }
+      } else {
+        console.warn("[status] No webhook secret for", fromNumber, "— accepting status event permissively");
+      }
+
+      if (ycloudId && rawStatus) {
+        const isFailure = rawStatus === "failed" || rawStatus === "undelivered";
+        const errMsg = wm.errorMessage || wm.whatsappApiError?.message || null;
+        const errCode = wm.errorCode || wm.whatsappApiError?.code || null;
+
+        if (isFailure) {
+          const failText = errCode ? `[${errCode}] ${errMsg || "Message undeliverable"}` : (errMsg || "Message undeliverable");
+          // Fallo terminal: sobrescribe cualquier estado previo.
+          await sb.from("reminder_logs")
+            .update({ status: "failed", error_message: failText })
+            .eq("ycloud_message_id", ycloudId);
+          await sb.from("messages")
+            .update({ status: "failed" })
+            .eq("ycloud_message_id", ycloudId);
+        } else if (rawStatus === "delivered" || rawStatus === "read") {
+          // Escalón positivo. No pisar un 'failed' terminal (los eventos llegan
+          // fuera de orden y repetidos): solo actualizar filas aún no fallidas.
+          await sb.from("reminder_logs")
+            .update({ status: rawStatus })
+            .eq("ycloud_message_id", ycloudId)
+            .neq("status", "failed");
+          await sb.from("messages")
+            .update({ status: rawStatus })
+            .eq("ycloud_message_id", ycloudId)
+            .neq("status", "failed");
+        }
+        // rawStatus === "sent" se ignora: ya se registró al momento de enviar.
+      }
+
+      return new Response(JSON.stringify({ status: "status_processed" }), {
+        headers: corsHeaders,
+      });
+    }
+
+    // Los eventos de eco de la app de negocio no requieren procesamiento.
+    if (p.type === "whatsapp.smb.message.echoes") {
+      return new Response(JSON.stringify({ status: "ignored_echo" }), {
+        headers: corsHeaders,
+      });
+    }
+
     // --- NEW: UNIVERSAL DISPATCHER (Supports YCloud and Vetly Simulator) ---
     let from = "";
     let to = "";

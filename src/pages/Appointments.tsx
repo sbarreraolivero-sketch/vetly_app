@@ -576,13 +576,18 @@ export default function Appointments() {
             // Normalize phone: strip all non-digit chars so YCloud button replies match
             const normalizedPhone = (newAppointment.phone_number || '').replace(/\D/g, '')
 
+            // El nombre del paciente NUNCA debe quedar vacío: los recordatorios usan
+            // este campo como parámetro de plantilla y Meta rechaza plantillas con
+            // parámetros vacíos (errorCode 131008). Fallback consistente con tutor_name.
+            const safePatientName = (newAppointment.patient_name || '').trim() || 'Sin nombre'
+
             let appointmentId = editingId
             let googleEventId = null
 
             if (editingId) {
                 // UPDATE existing appointment
                 const updateData = {
-                    patient_name: newAppointment.patient_name,
+                    patient_name: safePatientName,
                     tutor_name: newAppointment.tutor_name,
                     phone_number: normalizedPhone,
                     service: selectedServices.join(' + '),
@@ -612,7 +617,7 @@ export default function Appointments() {
                 // CREATE new appointment
                 const appointmentData = {
                     clinic_id: profile.clinic_id,
-                    patient_name: newAppointment.patient_name,
+                    patient_name: safePatientName,
                     tutor_name: newAppointment.tutor_name,
                     phone_number: normalizedPhone,
                     service: selectedServices.join(' + '),
