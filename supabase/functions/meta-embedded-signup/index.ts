@@ -18,17 +18,26 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), {
-        status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+
+    // console.log no es visible con las herramientas de logs disponibles para edge functions;
+    // debug_logs es el único canal fiable para diagnosticar fallos de este flujo.
+    const json = async (body: unknown, status = 200) => {
+        if (status >= 400) {
+            await supabase.from("debug_logs").insert({
+                message: `[META SIGNUP] Error ${status}`,
+                payload: body,
+            }).then(() => {}, () => {});
+        }
+        return new Response(JSON.stringify(body), {
+            status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+    };
 
     try {
         const { clinic_id, code, phone_number_id, waba_id } = await req.json();
@@ -66,7 +75,11 @@ Deno.serve(async (req) => {
         );
         const tokenBody = await tokenRes.json().catch(() => null);
         if (!tokenRes.ok || !tokenBody?.access_token) {
-            return json({ error: `Meta rechazó el código: ${tokenBody?.error?.message ?? tokenRes.status}` }, 400);
+            return json({
+                error: `Meta rechazó el código: ${tokenBody?.error?.message ?? tokenRes.status}`,
+                meta_error: tokenBody?.error ?? null,
+                http_status: tokenRes.status,
+            }, 400);
         }
         const accessToken: string = tokenBody.access_token;
 
@@ -76,17 +89,22 @@ Deno.serve(async (req) => {
         let resolvedPhoneId: string | undefined = phone_number_id;
 
         if (!resolvedWabaId) {
+            // /debug_token exige que el token INSPECTOR sea un app access token
+            // (app_id|app_secret) — el propio token de negocio no sirve para inspeccionarse a sí mismo.
+            const appAccessToken = `${META_APP_ID}|${appSecret}`;
             const debugRes = await fetch(
                 `${GRAPH}/debug_token?input_token=${encodeURIComponent(accessToken)}` +
-                `&access_token=${encodeURIComponent(accessToken)}`,
+                `&access_token=${encodeURIComponent(appAccessToken)}`,
             );
             const debug = await debugRes.json().catch(() => null);
             const wabaScope = debug?.data?.granular_scopes?.find(
                 (s: { scope: string; target_ids?: string[] }) => s.scope === "whatsapp_business_management",
             );
             resolvedWabaId = wabaScope?.target_ids?.[0];
+            if (!resolvedWabaId) {
+                return json({ error: "No se pudo determinar la WABA conectada", debug_token_response: debug }, 400);
+            }
         }
-        if (!resolvedWabaId) return json({ error: "No se pudo determinar la WABA conectada" }, 400);
 
         if (!resolvedPhoneId) {
             const phonesRes = await fetch(
@@ -94,8 +112,10 @@ Deno.serve(async (req) => {
             );
             const phones = await phonesRes.json().catch(() => null);
             resolvedPhoneId = phones?.data?.[0]?.id;
+            if (!resolvedPhoneId) {
+                return json({ error: "No se pudo determinar el número conectado", phones_response: phones }, 400);
+            }
         }
-        if (!resolvedPhoneId) return json({ error: "No se pudo determinar el número conectado" }, 400);
 
         // 3. Suscribir la app a la WABA para empezar a recibir webhooks.
         const subRes = await fetch(
@@ -129,6 +149,6 @@ Deno.serve(async (req) => {
             subscribed,
         });
     } catch (e) {
-        return json({ error: (e as Error).message }, 500);
+        return json({ error: (e as Error).message, stack: (e as Error).stack }, 500);
     }
 });
