@@ -122,7 +122,7 @@ export default function Reminders() {
                     .from('reminders')
                     .select('*, patients(id, name, tutor_id, tutors(id, name, phone_number))')
                     .eq('clinic_id', profile.clinic_id)
-                    .in('status', ['sent', 'failed'])
+                    .in('status', ['sent', 'delivered', 'read', 'failed'])
                     .order('scheduled_date', { ascending: false })
 
                 if (startDate) {

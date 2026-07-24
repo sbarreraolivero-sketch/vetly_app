@@ -657,9 +657,11 @@ Deno.serve(async (req) => {
                         const responseData = await response.json().catch(() => ({}));
 
                         if (response.ok) {
-                            // Mark as sent
+                            // Mark as sent — guardamos el ID de YCloud para que el
+                            // webhook pueda corregir el estado real de entrega después.
                             await supabaseClient.from('reminders').update({
                                 status: 'sent',
+                                ycloud_message_id: responseData.id,
                                 updated_at: new Date().toISOString()
                             }).eq('id', rem.id)
 

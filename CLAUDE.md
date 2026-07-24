@@ -3847,3 +3847,20 @@ El badge dejó de mostrar un "ENVIADO" que solo significaba "aceptado". Ahora: *
 - **El webhook procesa 3 tipos de evento:** `whatsapp.inbound_message.received` (AI), `whatsapp.message.updated` (estado de entrega → actualiza reminder_logs/messages), `whatsapp.smb.message.echoes` (ignorado). El handler de estado va ANTES del dispatcher de inbound y retorna temprano.
 - **Insert a `messages`:** columnas reales son `status` y `payload` (JSONB), NO `ycloud_status` ni `metadata`. Siempre verificar el `{error}` del insert. Patrón de referencia: `saveMsg` en el webhook.
 - **Deploy:** `ycloud-whatsapp-webhook` con `--no-verify-jwt` (está en config.toml). Las funciones cron/campaña/encuesta NO están en config.toml → default `verify_jwt=true`; deployarlas SIN el flag `--no-verify-jwt` (con el flag se rompería su config esperada).
+
+### Extensión del fix anterior a recordatorios médicos (misma sesión, continuación)
+
+**Reporte de Claudia:** el mismo día se detectó el mismo patrón en recordatorios **médicos** (vacunas/desparasitación) — caso Blanquita (tutora Francisca Astete), vacuna del 14/7 marcada "ENVIADO" pero nunca llegó.
+
+**Causa:** el fix de esta sesión solo cubrió `reminder_logs` (recordatorios de **citas**, PART 1/2). Los recordatorios **médicos** viven en una tabla distinta (`reminders`, PART 4) que tenía exactamente el mismo problema estructural — nunca se había extendido el mecanismo de corrección.
+
+**Confirmado con evidencia:** el mensaje de Blanquita falló con `errorCode 130472`: *"Failed to send message because this user's phone number is part of an experiment"* (bloqueo temporal de Meta sobre ese número específico, externo a Vetly). Auditando los últimos 60 días: **15 recordatorios médicos de Linares** (de 43 marcados "sent") en realidad habían fallado, incluyendo 3 casos accionables de `BALANCE_INSUFFICIENT` (saldo YCloud agotado).
+
+**Fix aplicado (mismo patrón que `reminder_logs`):**
+- Migración `add_ycloud_message_id_to_reminders`: columna `reminders.ycloud_message_id` + índice.
+- `cron-process-reminders` PART 4: guarda `ycloud_message_id` al marcar `status='sent'`.
+- `ycloud-whatsapp-webhook`: el handler de `whatsapp.message.updated` ahora también actualiza `reminders.status` (además de `reminder_logs` y `messages`). Nota: `reminders` no tiene columna de mensaje de error, solo se corrige el `status`.
+- `Reminders.tsx`: el filtro de la pestaña médica (`.in('status', [...])`) ampliado para incluir `delivered`/`read` — antes los habría ocultado de la lista.
+- Backfill: 15 recordatorios médicos corregidos a `failed` con la misma metodología de correlación (teléfono + ventana de 120s contra el evento de fallo real en `debug_logs`).
+
+**Regla permanente (reforzada):** cualquier flujo que envíe plantillas de WhatsApp y marque su propio estado de "enviado" debe guardar el `ycloud_message_id` y ser alcanzado por el handler de `whatsapp.message.updated` del webhook. Hay **dos** tablas de estado de envío en Vetly (`reminder_logs` para citas, `reminders` para médicos) — un fix de "estado real de entrega" en una no cubre automáticamente a la otra.

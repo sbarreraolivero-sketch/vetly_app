@@ -2912,6 +2912,11 @@ Deno.serve(async (req) => {
           await sb.from("messages")
             .update({ status: "failed" })
             .eq("ycloud_message_id", ycloudId);
+          // `reminders` = recordatorios médicos (PART 4 del cron). No tiene columna
+          // de mensaje de error, solo status.
+          await sb.from("reminders")
+            .update({ status: "failed" })
+            .eq("ycloud_message_id", ycloudId);
         } else if (rawStatus === "delivered" || rawStatus === "read") {
           // Escalón positivo. No pisar un 'failed' terminal (los eventos llegan
           // fuera de orden y repetidos): solo actualizar filas aún no fallidas.
@@ -2920,6 +2925,10 @@ Deno.serve(async (req) => {
             .eq("ycloud_message_id", ycloudId)
             .neq("status", "failed");
           await sb.from("messages")
+            .update({ status: rawStatus })
+            .eq("ycloud_message_id", ycloudId)
+            .neq("status", "failed");
+          await sb.from("reminders")
             .update({ status: rawStatus })
             .eq("ycloud_message_id", ycloudId)
             .neq("status", "failed");
