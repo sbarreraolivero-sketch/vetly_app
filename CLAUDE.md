@@ -1736,6 +1736,24 @@ $$;
 
 ---
 
+#### Recordatorios automáticos de Santiago — en pausa intencional (2026-07-23)
+
+**Estado actual:** `clinic_settings` de Santiago tiene `ycloud_api_key` y `ycloud_phone_number` en `NULL` (limpiados durante la migración a Meta Cloud API, sesiones 50-55). El cron (`cron-process-reminders`) salta a Santiago silenciosamente en las 3 partes (citas 24h/2h y recordatorios médicos) porque su chequeo inicial es `if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) continue`. `reminder_settings` de Santiago sigue con `reminder_24h_before = true` y `reminder_2h_before = true`, pero no tiene efecto mientras no haya un canal de envío configurado.
+
+**Por qué se deja así a propósito:** no tiene sentido reactivar el envío hasta que:
+1. El número de Santiago quede conectado a Meta Cloud API (ver plan de Embedded Signup con coexistencia, sección Meta más abajo).
+2. Se creen y aprueben en Meta las plantillas de WhatsApp necesarias (`confirmacion_visita` y equivalentes de vacuna/desparasitación) — **hoy no existen para el canal Meta**. Sin plantillas aprobadas, cualquier intento de envío fallaría igual que cuando YCloud tenía el número mal registrado (sesión 56: 15+ fallos por `WHATSAPP_PHONE_NUMBER_UNAVAILABLE` entre el 14 y el 20 de julio).
+
+**Qué falta para reactivar (checklist):**
+- [ ] Completar la conexión Embedded Signup + coexistencia del número de Santiago con Meta (pendiente de intentar con Claudia).
+- [ ] Crear y esperar aprobación de las plantillas de recordatorio en el Business Manager de Meta.
+- [ ] Configurar `vaccine_reminder_template` / `deworming_reminder_template` / `checkup_reminder_template` y la plantilla de confirmación de cita para Santiago en `clinic_settings`, apuntando a los nombres aprobados en Meta.
+- [ ] Verificar que el código de envío (hoy apunta a la API de YCloud) sepa enviar por Meta Cloud API cuando `whatsapp_provider = 'meta'` — **`cron-process-reminders` actualmente solo sabe hablar con la API de YCloud**, no con la de Meta. Esto requiere código nuevo antes de poder reactivar recordatorios en Santiago, no solo configuración.
+
+**No se requiere ninguna acción sobre el fix de "ENVIADO que no llegaba" (sesión 56) para Santiago.** Ese fix ya está desplegado y es agnóstico de clínica — se activará solo, sin tocar código de nuevo, en cuanto Santiago vuelva a enviar por cualquier canal que use las mismas tablas (`reminder_logs`/`reminders`) y dispare eventos `whatsapp.message.updated` equivalentes.
+
+---
+
 Los únicos ítems que quedaron intencionalmente sin modificar:
 - **`check_*.js` en raíz** — 0 archivos encontrados. Ya estaba limpio.
 - **`user_profiles.clinic_id NULL`** — 3 cuentas dev/test (`claubarreraolivero@gmail.com`, `seba.barreraolivero.070493@gmail.com`, `vetflow.cl@gmail.com`) sin `clinic_members`. `clinic_id = NULL` es el estado correcto para cuentas sin clínica asignada. No bloquea nada (RLS usa `clinic_members`).
@@ -3864,3 +3882,70 @@ El badge dejó de mostrar un "ENVIADO" que solo significaba "aceptado". Ahora: *
 - Backfill: 15 recordatorios médicos corregidos a `failed` con la misma metodología de correlación (teléfono + ventana de 120s contra el evento de fallo real en `debug_logs`).
 
 **Regla permanente (reforzada):** cualquier flujo que envíe plantillas de WhatsApp y marque su propio estado de "enviado" debe guardar el `ycloud_message_id` y ser alcanzado por el handler de `whatsapp.message.updated` del webhook. Hay **dos** tablas de estado de envío en Vetly (`reminder_logs` para citas, `reminders` para médicos) — un fix de "estado real de entrega" en una no cubre automáticamente a la otra.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 57, 2026-07-23)
+
+### Santiago conectado a Meta Cloud API por coexistencia — 2 bugs de `meta-embedded-signup` corregidos
+
+**Resultado:** Animalgrace Santiago quedó conectado con éxito. `clinic_settings` (id `13472ea4-4da6-461c-9a80-a5c970d9ec73`): `meta_phone_number_id = 830644144272371`, `meta_waba_id = 903775156940145`, `meta_access_token` guardado, `whatsapp_provider = 'meta'`. App suscrita a la WABA (`subscribed: true` en el log de la función) — sin esto Meta no entrega webhooks. **Son los mismos IDs que en sesión 55 se habían documentado como "eliminados" de Meta** — esa WABA nunca desapareció del todo del lado de Meta, solo quedó huérfana en la base de Vetly tras el desorden de aquella sesión.
+
+**`ai_auto_respond` de Santiago sigue en `false`.** No se tocó — sigue pendiente revisar KB/precios/comunas antes de encenderla, tal como quedó documentado en sesión 55, sobre todo con la campaña de Ads corriendo sobre ese número.
+
+#### Diagnóstico y fix — 2 intentos fallidos antes del éxito
+
+**Intento 1 — `Edge Function returned a non-2xx status code` sin detalle:** la función `meta-embedded-signup` no dejaba ningún rastro de sus errores — los `return json({error}, status)` solo devolvían el body al cliente, nunca se logueaban en ningún lugar visible con las herramientas de logs disponibles (`get_logs` de edge functions no expone el response body, y `console.log` no es legible con las herramientas de este entorno). **Fix:** el helper `json()` ahora inserta en `debug_logs` cualquier respuesta con `status >= 400`, con el body completo como `payload`. Deploy v2.
+
+**Intento 2 — con logging ya activo, apareció la causa real:**
+```json
+{"error": "No se pudo determinar la WABA conectada",
+ "debug_token_response": {"error": {"code": 100, "type": "OAuthException",
+   "message": "(#100) You must provide an app access token, or a user access token that is an owner or developer of the app"}}}
+```
+El popup de Meta no entregó `waba_id`/`phone_number_id` por `postMessage` en este intento (canal que la función ya sabía que podía perderse — ver sesión 56), así que cayó al fallback vía `/debug_token`. Ese fallback usaba el **propio token de negocio recién obtenido** como `access_token` de inspección — pero `/debug_token` exige que el token INSPECTOR sea un app access token (`app_id|app_secret`) o un token de usuario owner/developer de la app; el token de negocio de la Embedded Signup no cumple ninguna de las dos condiciones. **Fix:** el fallback ahora arma `appAccessToken = \`${META_APP_ID}|${appSecret}\`` y lo usa como `access_token` de la llamada a `/debug_token`, dejando `accessToken` (el token de negocio) únicamente como `input_token`. Deploy v3 — funcionó al primer reintento del usuario.
+
+#### Reglas permanentes — `meta-embedded-signup`
+
+- **`/debug_token` de Meta necesita dos tokens distintos:** `input_token` (el que se quiere inspeccionar) y `access_token` (el que hace la inspección, debe ser un app token `app_id|app_secret` o un token de owner/developer de la app). Usar el mismo token para ambos roles falla con error 100 — no es un error de permisos de la integración, es un uso incorrecto del endpoint.
+- **Toda edge function de flujos críticos (pagos, conexión de integraciones) debe loguear sus propios errores a `debug_logs` desde el día uno.** El patrón `return json({error}, status)` sin logging deja a cualquiera —Claude incluido— completamente ciego ante un "Edge Function returned a non-2xx status code" del cliente Supabase JS, que no expone el body del error por defecto. Este flujo no lo tenía y costó un round-trip completo con el usuario solo para poder ver el primer error real.
+- **El canal de `postMessage` del popup de Meta es efectivamente poco confiable en producción** (ya iba documentado en sesión 56 como posible, se confirmó real en el primer intento de esta sesión) — el fallback vía API (`/debug_token` → `granular_scopes` → `/phone_numbers`) no es una ruta de emergencia teórica, es el camino que se ejecuta en la práctica. Debe mantenerse funcionando, no tratarse como código muerto.
+
+### Corrección de nota previa: `meta-whatsapp-webhook` NO es un scaffold
+
+La sesión 45 documentó `meta-whatsapp-webhook` como scaffold con "el routing al AI agent marcado como TODO". Esa nota quedó **obsoleta** — en algún momento entre sesión 45 y esta, alguien completó el port entero: tool loop de 5 iteraciones, `checkAvail`/`createAppt`/`confirmAppt`/`rescheduleAppt`/`tagPatient`/`escalateToHuman`, routing híbrido (`selectModelTier` + `schedulingSignals`), CAPI (`LeadSubmitted`/`Purchase`), debounce de 20s, credit tracking — prácticamente un espejo completo de `ycloud-whatsapp-webhook` adaptado a la capa de transporte de Meta (HMAC global en vez de por-clínica, `sendMetaMessage` vía Graph API, descarga de media en 2 pasos). Confirmado end-to-end en esta sesión: mensaje real → webhook → IA → respuesta real, sin tocar código.
+
+### Datos de Santiago verificados como completos antes de activar la IA
+
+Antes de dar luz verde a la activación se auditó `clinic_settings` de Santiago: `ai_active_model = 'hybrid'`, `ai_personality` (2.915 caracteres), `ai_behavior_rules` (24.140 caracteres), 66 `clinic_services`, 9 documentos activos de `knowledge_base`, `working_hours` configurado, `logistics_config` con zona `rm_santiago` y base San Miguel activa, pool de créditos de 30.000/mes compartido con Linares vía `parent_clinic_id = fd11b7e4-...` (Santiago es sucursal de Linares, no clínica independiente). Todo heredado de cuando Santiago operaba sobre YCloud — no hubo que crear nada nuevo.
+
+### El agente de Santiago quedó activo sin coordinación explícita
+
+`ai_auto_respond` de Santiago pasó de `false` a `true` (`clinic_settings.updated_at = 2026-07-24 01:30:00 UTC`) sin que Claude hiciera el cambio — coincide con la ventana en que Claudia tenía sesión activa en Vetly (vista en Integraciones momentos antes). Confirmado con un mensaje de prueba real: la IA (`Ary`, modelo `4o_pro`) respondió correctamente sobre el número de Santiago recién conectado por coexistencia. **No hubo ningún bug de "IA respondiendo estando apagada"** — el código respeta el flag correctamente (`if (!clinic.ai_auto_respond) return;` en `meta-whatsapp-webhook`); el switch ya estaba en `true` cuando llegó el mensaje. Recomendado: confirmar con Claudia que fue ella quien lo activó, y coordinar que deje de responder manualmente ese número para evitar respuestas dobles mientras la campaña de Ads sigue corriendo.
+
+### Bug crítico compartido: `check_availability` — `operator does not exist: time without time zone = text`
+
+**Síntoma:** en la primera conversación real de Santiago post-activación, tras dirección y precio correctos, `check_availability` falló con "problema técnico" al pedir disponibilidad para el lunes.
+
+**Causa raíz (reproducida directo en SQL):** la función Postgres `check_availability(clinic_id, date, time, duration)` — invocada por `get_available_slots()` una vez por cada slot candidato, para cada profesional activo — comparaba mal los tipos:
+```sql
+WHERE slot_time = to_char(p_time, 'HH24:MI')   -- slot_time es TIME, to_char(...) es TEXT → operador inexistente
+```
+Postgres no tiene `TIME = TEXT`, así que cualquier llamada que alcance esa rama explota. La rama se alcanza siempre que la clínica tenga al menos un `clinic_member` activo con rol distinto de `receptionist`/`admin` — es decir, casi cualquier clínica con al menos un profesional u owner configurado.
+
+**Impacto real — NO era exclusivo de Santiago.** Se reprodujo el mismo error llamando `get_available_slots` para Linares (`fd11b7e4-...`) con los mismos parámetros. La diferencia es de **exposición**, no de causa:
+- `ycloud-whatsapp-webhook` (Linares) primero intenta `get_professional_available_slots` directo cuando resuelve un `professionalId` — esa función NO tiene el bug. Solo cae a `get_available_slots` (la rota) como fallback, y ese fallback traga el error silenciosamente (`slots = []`) en vez de propagarlo — probablemente generando falsos "sin disponibilidad" en Linares sin que nadie lo notara.
+- `meta-whatsapp-webhook` (Santiago) no resuelve `professionalId` en este flujo, va directo a `get_available_slots` y propaga el error como `reason: "rpc_error"` — por eso salió visible aquí y nunca en Linares.
+
+**Fix — migración `fix_check_availability_time_text_type_mismatch`:**
+```sql
+-- Antes:
+WHERE slot_time = to_char(p_time, 'HH24:MI') AND is_available = TRUE
+-- Después:
+WHERE to_char(slot_time, 'HH24:MI') = to_char(p_time, 'HH24:MI') AND is_available = TRUE
+```
+Verificado post-fix: `get_available_slots` devuelve 15 slots para el lunes 2026-07-27 tanto en Santiago como en Linares, sin error.
+
+**Regla permanente:** cualquier reporte de "problema técnico" o disponibilidad sospechosamente vacía debe verificarse llamando directamente el RPC subyacente por SQL (`SELECT * FROM get_available_slots(...)`) antes de asumir que es un problema de la IA o del KB — un error real de Postgres puede quedar enmascarado por fallbacks que lo convierten silenciosamente en "sin resultados" en un webhook, mientras se propaga como error visible en otro.
+
+---
