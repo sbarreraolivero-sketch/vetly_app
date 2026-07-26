@@ -3949,3 +3949,263 @@ Verificado post-fix: `get_available_slots` devuelve 15 slots para el lunes 2026-
 **Regla permanente:** cualquier reporte de "problema técnico" o disponibilidad sospechosamente vacía debe verificarse llamando directamente el RPC subyacente por SQL (`SELECT * FROM get_available_slots(...)`) antes de asumir que es un problema de la IA o del KB — un error real de Postgres puede quedar enmascarado por fallbacks que lo convierten silenciosamente en "sin resultados" en un webhook, mientras se propaga como error visible en otro.
 
 ---
+
+### Regla de tramos — corrección definitiva (absoluta, no condicional)
+
+El primer fix del día para "Longaví" (KB `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS`) quedó condicionado a "si el tutor solo da el nombre de la ciudad sin pin". El usuario corrigió: la regla debe ser **absoluta** — la tabla de tramos T1/T2/T3 **nunca** se muestra al tutor, tenga o no tenga ya el pin/dirección exacta. Siempre se exige ubicación exacta primero, y se entrega solo el valor final único (nunca el desglose). KB actualizado con la versión absoluta.
+
+### Tormenta de 500 en Santiago — causa raíz real y auditoría de todo el sistema
+
+**Síntoma reportado:** un mensaje real ("Recoleta") se quedó sin respuesta en Santiago — la IA "quedó muda".
+
+**Diagnóstico:** el mensaje sí llegó al webhook (`Meta incoming payload` logueado), pero no hubo ni respuesta ni error registrado después. Al revisar `get_logs` del edge function se encontró una **tormenta de cientos de errores 500** en `meta-whatsapp-webhook` en los ~20 minutos previos y posteriores — Meta reintentando entregas fallidas repetidamente. La causa: el bloque que procesa eventos de estado de WhatsApp (`sent`/`delivered`/`read`, que Meta dispara después de cada mensaje que envía la IA) hacía:
+```typescript
+await sb.from("messages").update({ status: status.status }).eq("ycloud_message_id", status.id).catch(() => {});
+```
+**Mismo anti-patrón ya documentado como regla permanente en sesiones 35/39**: los query builders de Supabase no tienen `.catch()` nativo (son thenables, no Promises reales) → `TypeError: ... .catch is not a function` no capturado → tumbaba la invocación completa (500) en ~100-800ms, mucho antes de llegar a procesar el mensaje real.
+
+**Fix inmediato (2 capas):**
+1. `Promise.resolve(query).then(() => {}, () => {})` en el punto exacto del bug.
+2. Try/catch envolvente en todo el procesamiento síncrono por `change` (antes solo protegido dentro de `asyncProcess`), con `debugLog` del error — para que un fallo futuro similar quede visible y aislado en vez de tumbar toda la invocación en silencio.
+
+Ambos fixes deployados vía Supabase CLI (`supabase functions deploy meta-whatsapp-webhook --no-verify-jwt --project-ref ehmncwawzdciajvuallg`), verificado con `list_edge_functions` que `verify_jwt: false` se mantuvo. Confirmado: cero errores 500 nuevos desde el deploy.
+
+#### Auditoría sistemática (3 agentes Explore en paralelo, solo lectura) — 4 bugs más confirmados
+
+El usuario pidió una revisión general de bugs dado que `meta-whatsapp-webhook` es un port nuevo (mucho menos rodaje que `ycloud-whatsapp-webhook`). Se usó modo plan: 3 Explore agents en paralelo (grep de anti-patrones en las ~25 edge functions, investigación de un bug de CRM ya detectado, diff meta vs ycloud) confirmaron con evidencia de schema real:
+
+1. **`crm_prospects` de Santiago no registraba NINGÚN contacto nuevo.** El insert de "CRM auto-sync" mandaba `status: "new"` — columna que **no existe** en `crm_prospects` (la tabla tiene `stage_id`, no `status`). El catch vacío lo ocultaba. Confirmado con evidencia en vivo: 25 filas de `crm_prospects` para Santiago, todas en formato `+56...` (formato del webhook YCloud viejo), ninguna del webhook Meta nuevo. Fix: insert sin el campo `status` + logging del error si vuelve a fallar.
+
+2. **`tag_patient` nunca funcionó en Santiago.** Usaba columnas `tag_id`/`tag_name`/`tag_color` en la tabla `tags`, que en realidad tiene `id`/`name`/`color`. Select e insert fallaban ambos. Fix: alineado con `ycloud-whatsapp-webhook`.
+
+3. **`send-whatsapp-campaign` tenía el mismo anti-patrón `.catch()`** (línea ~274, dentro del catch del handler, sobre `supabaseClient.from('campaigns').update(...).eq(...)`) — si el update de estado de campaña fallida fallaba, lanzaba un `TypeError` no capturado. Fix aplicado con el mismo patrón `Promise.resolve(...).then(ok, err)`.
+
+4. **`requires_human`/comando reset en `tutors` no usaba variantes de teléfono.** A diferencia de `crm_prospects` (que sí usaba `.or()` con `+`/sin `+`), el chequeo y el reset sobre `tutors` en `meta-whatsapp-webhook` usaban `.eq()` exacto — si el formato de teléfono no calzaba byte-a-byte, un cliente pausado seguía recibiendo respuestas de la IA y el comando reset no reactivaba nada, sin error visible. Fix: `.or()` con variantes `+`/sin `+`, igual que `ycloud-whatsapp-webhook`. De paso, se alinearon las frases del comando reset (`"resetear_ia"`, `"resetear ia"`, `"reset_ia"` además de `"/reset ia"`/`"reset ia"`) para consistencia con el personal ya entrenado en el flujo viejo.
+
+**Verificaciones que NO mostraron divergencia** (se descartaron como hipótesis): debounce/dedup de 20s idéntico, los 8 tools de OpenAI son los mismos en ambos webhooks, el chequeo de créditos IA es post-hoc en ambos (no es una regresión de meta).
+
+**Pendiente (Fase 2, menor prioridad, no aplicado esta sesión):** portar la lógica de auto-reactivación de IA cuando un cliente pausado vuelve a saludar (existe en ycloud, no en meta); try/catch por-ítem en los loops de los crons; revisión de `debug_logs` de varias semanas + `get_advisors` como pasada adicional.
+
+**Regla permanente (reforzada):** cuando se porta o reescribe código entre dos edge functions que tocan las mismas tablas, verificar SIEMPRE los nombres de columna reales contra el schema (`information_schema.columns`), no contra la memoria/intuición de cómo "debería" llamarse la columna — 3 de los 4 bugs confirmados hoy en `meta-whatsapp-webhook` eran exactamente este error, todos silenciados por bloques `catch {}` vacíos. Un catch vacío no es manejo de errores, es un bug esperando a pasar desapercibido.
+
+### Fase 2 — auditoría general del sistema (`get_advisors`, `debug_logs`, crons)
+
+**Auto-reactivación de IA tras pausa — descartada explícitamente, no es un bug.** El plan original incluía portar a `meta-whatsapp-webhook` la lógica de `ycloud-whatsapp-webhook` que reactiva la IA sola cuando un cliente pausado (`requires_human=true`) vuelve a saludar. El usuario lo rechazó: cuando Claudia toma una conversación manualmente, no quiere que la IA se la devuelva sola. **No portar esta lógica a meta-whatsapp-webhook — es una decisión de negocio, no una paridad pendiente.**
+
+#### CRÍTICO — 5 tablas + 1 bucket con bypass total de RLS multi-tenant (`get_advisors` security)
+
+`mcp__claude_ai_Supabase__get_advisors(type: 'security')` reveló políticas RLS con `qual: true` (sin ninguna restricción) en rol `public` — es decir, alcanzables incluso con la anon key pública del proyecto, sin necesidad de estar logueado como miembro de la clínica:
+
+| Tabla / bucket | Política vulnerable | Alcance real |
+|---|---|---|
+| `crm_prospects` | `"Permitir inserción de prospectos desde el webhook"` (ALL, qual=true/true) | Cualquiera (ni logueado) puede leer/escribir/borrar prospectos de **cualquier** clínica |
+| `crm_prospects` | `"Allow members and HQ Admins..."` (ALL, qual solo `auth.role()='authenticated'`) | Cualquier usuario logueado de **cualquier** clínica veía prospectos de todas — no filtraba por `clinic_id` |
+| `reminder_settings` | 2 políticas `qual=true` | Configuración de recordatorios de cualquier clínica, lectura/escritura libre |
+| `service_professionals` | 2 políticas `qual=true/true` | Asignación profesional↔servicio de cualquier clínica |
+| `subscriptions` | `"Permitir todo a autenticados"` (ALL, qual=true) | Cualquier usuario logueado podía leer **y modificar** la suscripción de cualquier clínica, incluyendo `manually_active` (el flag que da acceso pagado sin pasar por MercadoPago/LemonSqueezy) |
+| Storage `patient-documents` | `"Allow authenticated selects/deletes"` + `"Patients access"` (ALL, sin scope) | Cualquier autenticado podía **listar** todos los archivos de pacientes de cualquier clínica (y con eso, construir la URL pública de descarga) |
+| `tutor_tags` | RLS habilitada, **cero políticas** | Bug de disponibilidad (no de exposición): sin ninguna policy, RLS bloquea todo por defecto |
+
+**Impacto real verificado:** el bucket `patient-documents` está vacío hoy (0 archivos subidos), así que la exposición ahí era cero en la práctica — pero la vulnerabilidad estaba viva para el primer archivo que se subiera. Las otras 4 tablas sí tienen datos reales de producción.
+
+**Diagnóstico de por qué no se podía simplemente borrar las políticas "true":** antes de tocar nada se verificó qué frontend depende de cada tabla, para no romper flujos legítimos:
+- `subscriptions`: `Settings.tsx` deja que el dueño de una clínica **cancele su propia suscripción** con un UPDATE directo (`.eq('clinic_id', clinicId)`) — esta es la única escritura real de usuarios normales a esta tabla. Se agregó una policy de UPDATE scoped por `clinic_members` para no romper esa función.
+- `service_professionals`: no tenía ninguna policy scoped de respaldo (a diferencia de las otras 3, que sí tenían una policy "buena" al lado de la mala). Se usa solo desde `Settings.tsx` (asignar profesional a un servicio), sin filtro explícito de `clinic_id` en la query — el aislamiento dependía solo de que `service_id` viniera de un `clinic_services` ya filtrado en el cliente. Se creó una policy nueva scoped vía join `clinic_services → clinic_members`.
+- `tutor_tags`: mismo patrón exacto que `patient_tags` (ya arreglado en sesión 6) — se replicaron las 3 policies (`select`/`insert`/`delete` vía `tutors.clinic_id → clinic_members`) + `service_role_all`, migración `fix_multi_tenant_rls_bypass_vulnerabilities`.
+- Bucket `patient-documents`: mismo patrón ya usado en `expense-receipts` (sesión 38) — scoped por primer segmento de carpeta (`storage.foldername(name)[1]`) contra `clinic_members`. Confirmado que el frontend (`PatientFiles.tsx`) ya sube con el path `{clinic_id}/{patientId}/archivo`, así que el fix no requirió cambios de código, solo de policy.
+
+**Migración aplicada:** `fix_multi_tenant_rls_bypass_vulnerabilities` — dropea las 6 policies inseguras y crea las versiones scoped correspondientes. Verificado post-fix: `SELECT ... WHERE qual='true' OR with_check='true'` sobre las 5 tablas devuelve 0 filas.
+
+**Regla permanente:** correr `get_advisors(type: 'security')` regularmente (la propia tool de Supabase lo recomienda después de cualquier cambio de DDL) — encontró en una sola pasada más superficie de exposición multi-tenant real que meses de auditorías puntuales por bug reportado. Antes de borrar una policy insegura, verificar SIEMPRE si hay un flujo de frontend que dependía de ella (grep de `from('tabla')` en `src/`) para reemplazarla por una policy scoped, no solo eliminarla.
+
+#### `get_advisors(type: 'performance')` — 695 hallazgos, todos de optimización (no bugs)
+
+`multiple_permissive_policies` (522), `auth_rls_initplan` (116, `auth.uid()` sin envolver en subselect), `unindexed_foreign_keys` (54), `unused_index`/`duplicate_index` (3). Ninguno afecta corrección de datos ni causa fallos — son oportunidades de eficiencia a escala. **No se tocaron esta sesión** — quedan como backlog de una futura pasada de performance dedicada, dado el volumen (arreglar `auth_rls_initplan` a fondo implicaría reescribir ~116 políticas RLS en gran parte del schema).
+
+#### Revisión de `debug_logs` — sin bugs nuevos, un hallazgo histórico ya resuelto
+
+Se revisaron los mensajes más frecuentes de `debug_logs`. `"Unrecognized payload structure"` tenía volumen altísimo (20.551 para `whatsapp.message.updated`, 11.573 para `whatsapp.smb.message.echoes`, acumulados desde abril), pero el `last_seen` de ambos es **2026-07-23 18:xx** — exactamente cuando se desplegó el fix de sesión 56 que agregó el manejo explícito de esos dos tipos de evento. Cero ocurrencias nuevas desde entonces: es ruido histórico ya resuelto, no un bug activo.
+
+#### Try/catch por-ítem en los crons — verificado, ya existía (no requirió fix)
+
+El plan original (basado en un hallazgo del agente Explore de la fase de diagnóstico) sugería que los 4 loops de cron (`cron-process-reminders`, `cron-process-surveys`, `cron-process-upsell`, `cron-retention-execute`) no tenían try/catch por-ítem. **Verificado directamente en el código: los 4 SÍ lo tienen** — cada loop hace algunas validaciones baratas (fechas, flags, `continue`/`break`) antes de un bloque `try {}` que envuelve toda la parte riesgosa (llamadas a YCloud, inserts). El hallazgo inicial del agente era impreciso. No se aplicó ningún cambio de código aquí — se prefirió verificar y descartar antes que tocar código que ya funcionaba bien.
+
+### Regla nueva de negocio: costo de visita para desparasitación y corte de uñas (Linares/Talca)
+
+**Decisión del usuario (permanente).** Para tres servicios específicos — desparasitación interna, desparasitación externa (perro o gato) y corte de uñas — la visita SIEMPRE lleva costo de traslado, a diferencia de los demás servicios:
+- Si la visita es **exclusivamente** uno o varios de estos servicios (sin consulta, vacuna, examen, cirugía): traslado en **radio urbano = $6.000** (donde los demás servicios pagan $0); fuera del radio urbano = el tramo normal de la tabla (T1/T2/T4, ya ≥ $6.000).
+- Si la visita incluye **además** cualquier otro servicio (consulta, vacuna, etc.): el traslado vuelve a la tabla normal (radio urbano = $0).
+- **Convive** con el mínimo de $15.000 por visita: el $6.000 es el traslado; si el total (servicio + traslado) queda bajo $15.000, se cobra $15.000. Ej: corte de uñas $6.000 + visita $6.000 = $12.000 → sube a $15.000.
+- Sigue exigiéndose el pin para determinar el tramo real.
+
+**Dónde vive (solo DB, sin código ni deploy):** KB `PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES` (nueva sección "3B. EXCEPCIÓN — VISITA CON PISO…", fuente de verdad) + refuerzo en `ai_behavior_rules` Sección 4 (junto al mínimo de $15.000). Solo Linares (`fd11b7e4-…`); Santiago no se tocó (su `logistics_config` es una sola zona urbana a $0, estructura distinta).
+
+**Nota de enforcement:** es una regla de prompt/KB, no hard-enforced en código — igual que el mínimo de $15.000. El traslado es conversacional (no se persiste en `appointments`), así que no hay nada que forzar server-side; el único lever es el prompt.
+
+### Fix: la IA cotizaba traslado con solo la comuna, sin pedir el pin (Mundo A)
+
+**Síntoma real (Linares, modelo `4o_pro`):** cliente pidió "precio visita a domicilio" → IA preguntó "¿en qué **comuna**…?" → cliente dijo "Linares" → IA respondió "traslado dentro de Linares = **$6.000**" — sin pin, adivinando el valor (el $6.000 es casualmente el primer tramo rural de Linares; en radio urbano una consulta es $0).
+
+**Root cause:** la exigencia estricta del pin que se reforzó en la sesión 57 quedó **solo en la Sección 9 (CIRUGÍAS)**. Para servicios generales (Mundo A) la regla era blanda y tenía una cláusula de "flexibilidad", así que la IA pedía la comuna y rellenaba el hueco del traslado con un número inventado.
+
+**Fix (solo DB, Linares):**
+- `ai_behavior_rules` Sección 1 (ZONAS CONFIRMADAS): prohibición absoluta de indicar cualquier monto de traslado (ni $0, ni $6.000, ni un tramo) basándose solo en la comuna. Pedir el pin y detenerse.
+- `ai_behavior_rules` REGLA 3 (FLEXIBILIDAD DE CONSULTA): aun con dirección escrita, prohibido cotizar un traslado específico; solo se cotiza con pin o link de Google Maps.
+- `ai_behavior_rules` REGLA 3 — nuevo caso **"SI EL CLIENTE NO PUEDE ENVIAR EL PIN (POR CUALQUIER MOTIVO)"**: la IA no se niega ni escala de inmediato — entrega el **valor del servicio** y aclara que, al no conocer la ubicación, no puede calcular el traslado, por lo que podría sumarse un valor adicional a confirmar con la ubicación exacta. Nunca inventa un monto de traslado.
+- `ai_personality` Regla de Oro #1: "validar la ubicación" = pin de WhatsApp o link de Google Maps, **NO** el nombre de la comuna.
+
+### Santiago — regla de desparasitación/corte de uñas SÍ aplicada; PIN NO (diferencia estructural)
+
+A pedido del usuario se replicó a Santiago (`13472ea4-…`) la **regla de $6.000 de visita para desparasitación/corte de uñas**, adaptada a su estructura: si van solos, traslado mínimo $6.000 aunque la comuna sea Tramo A ($0); si la comuna ya tiene recargo mayor (Las Condes $6.000, Vitacura $8.000, Pirque/Buin/etc. $10.000) se aplica ese; si van con otro servicio, vuelve a la tabla de comunas normal; convive con el mínimo de $15.000. Vive en `ai_behavior_rules` de Santiago (junto a su "VALOR MÍNIMO DE ATENCIÓN").
+
+**El endurecimiento del PIN NO se aplicó a Santiago — decisión explícita del usuario, por diferencia estructural real:**
+- **Linares:** recargo por **distancia** (radio urbano $0 vs tramos rurales $6.000+). El nombre de la comuna NO alcanza; sin el pin la IA solo puede adivinar. Por eso "nunca cotizar traslado sin pin" es correcto ahí.
+- **Santiago:** recargo por **comuna** (Las Condes $6.000, Vitacura $8.000, resto = Tramo A = $0), con una "REGLA ANTI-ERROR" en su prompt que lo enforcema. Indicar "$0 para Ñuñoa" o "$6.000 para Las Condes" con solo el nombre de la comuna **es correcto** en Santiago. Aplicar la regla estricta de Linares habría negado a un cliente de Tramo A su "$0" hasta mandar el pin — fricción innecesaria que contradice su diseño. El usuario eligió **dejar el flujo de Santiago como está** (comuna → recargo → pedir pin para cerrar).
+
+**Regla permanente — cotización de traslado móvil (matizada por estructura):** en clínicas con recargo **por distancia** (tipo Linares: `logistics_config` con múltiples `time_ranges` por tiempo), NUNCA cotizar traslado sin el pin/GPS — el nombre de la comuna no determina el tramo. En clínicas con recargo **por comuna** (tipo Santiago: tabla de comunas en el KB, `logistics_config` de una sola zona), el nombre de la comuna SÍ determina el recargo y es correcto indicarlo sin pin (el pin se pide igual para cerrar/agendar). Antes de portar una regla de traslado entre sucursales, verificar cuál de los dos modelos usa cada una — no asumir que la regla de una aplica a la otra.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 58, 2026-07-25)
+
+### Caída total del agente IA — cuota de OpenAI agotada
+
+**Síntoma:** Linares respondía *"Lo siento, tuve un problema técnico"* y Santiago *"Error. ¿Puedes repetir?"*; después, silencio total.
+
+**Causa raíz:** la API de OpenAI devolvía `insufficient_quota` ("You exceeded your current quota"). No fue un bug de código. Resuelto por el usuario recargando saldo.
+
+**Cronología (hora Chile):** hasta 14:39 normal → 15:06 primer `insufficient_quota` → 16:09/16:10 Claudia apagó `ai_auto_respond` en ambas clínicas → silencio. Impacto: **27 mensajes de 9 clientes** sin atender en Linares y **8 de 2 clientes** en Santiago, varios provenientes de anuncios pagados.
+
+**Episodios previos del mismo error:** 30-abr, 9-may (17), 24-may (14), 23-jun. Es recurrente — saldo que se agota, no un incidente aislado.
+
+#### Bug secundario detectado: los fallos de OpenAI en Meta no quedaban registrados
+
+`callOpenAI` de `meta-whatsapp-webhook` hace `return res.json()` **sin validar el status HTTP**. Un 429 se cuela como respuesta válida → `assistant` queda `undefined` → sale el fallback `"Error. ¿Puedes repetir?"` ([meta-whatsapp-webhook/index.ts:1796](supabase/functions/meta-whatsapp-webhook/index.ts#L1796)) en lugar de caer al `catch`. Consecuencia: el cliente recibe un mensaje sin sentido y **el error no llega a `debug_logs`**. `ycloud-whatsapp-webhook` sí valida (`if (!r.ok) throw`) y por eso ahí sí quedó registro.
+
+**Pendiente (no aplicado):** agregar `if (!res.ok) throw` en el `callOpenAI` de Meta, y vigilar el saldo de OpenAI en `cron-system-health` — hoy vigila el saldo de YCloud pero **no** el de OpenAI, que es justamente lo que falló.
+
+---
+
+### Bug del sábado — `get_professional_available_slots` ignoraba días cerrados
+
+**Síntoma:** el agente ofreció horas para el sábado (11:30 y 12:00) cuando la clínica atiende de lunes a viernes.
+
+**Causa raíz (bug de producto, no de AnimalGrace):** el guard del RPC era
+
+```sql
+IF v_working_hours->v_day_name IS NULL THEN RETURN; END IF;
+```
+
+y **no cubre ninguno de los dos modos reales en que la app marca un día como cerrado**:
+
+| Origen | Cómo guarda el día cerrado | ¿El guard lo detectaba? |
+|---|---|---|
+| `Settings.tsx` (clínica) | `{"saturday": null}` | ❌ `'null'::jsonb` **no** es SQL NULL |
+| `MyProfile.tsx` (profesional) | `{enabled: false, start, end}` | ❌ ni siquiera miraba `enabled` |
+
+Al no cortar, caía al `COALESCE` y generaba slots. Verificado en producción para el sábado 25-jul: el RPC del profesional devolvía **7 slots** (09:00–12:00, justo los ofrecidos) mientras el RPC global devolvía **0**. `checkAvail` consulta primero el del profesional, por eso ganaba la versión rota.
+
+**Afecta a cualquier clínica cuyo profesional haya guardado su perfil alguna vez** — `DEFAULT_HOURS` de `MyProfile.tsx` trae `saturday: {enabled: false, ...}`.
+
+**Fix** (migración `20260725000001`): el guard ahora cubre los tres casos, igual que `get_available_slots`:
+```sql
+IF v_day_hours IS NULL OR v_day_hours = 'null'::jsonb
+   OR (v_day_hours->>'enabled')::BOOLEAN IS FALSE THEN RETURN; END IF;
+```
+
+**⚠️ Regla permanente — JSONB null vs SQL NULL:** `'{"x": null}'::jsonb -> 'x'` devuelve `'null'::jsonb`, y `'null'::jsonb IS NULL` es **FALSE**. Todo guard sobre un campo JSONB opcional debe chequear `IS NULL OR = 'null'::jsonb`. Este patrón ya había mordido antes en este RPC.
+
+**⚠️ Regla permanente — `CREATE OR REPLACE` con parámetro nuevo:** agregar un parámetro **cambia la firma**, así que crea una **sobrecarga nueva** y deja viva la anterior (con el bug), volviendo ambigua la resolución. Siempre `DROP FUNCTION` de la firma antigua. En esta sesión ocurrió y se corrigió al verificar `pg_get_function_identity_arguments`.
+
+---
+
+### Último horario del día — tope configurable a las 18:00
+
+**Requerimiento:** el último horario ofrecido debe ser **18:00**, aunque el servicio termine pasadas las 19:00. **No aplica a cirugías** (evita agendar pabellón que terminaría cerca de las 21:00).
+
+**Implementación:** nuevo parámetro `p_last_slot_cap TIME DEFAULT NULL` en `get_professional_available_slots`, `get_available_slots` y `check_availability`.
+- `NULL` → loop original intacto (retrocompatible con `ai-simulator` y el frontend).
+- Con valor → el límite pasa a ser el **inicio** del slot, permitiendo que la duración exceda el cierre.
+
+Se tocó el RPC y no solo el webhook porque el caso de servicio largo requiere **agregar** el slot de las 18:00, no solo recortar los posteriores.
+
+**Propagación obligatoria a `check_availability`:** `get_available_slots` filtra cada slot con `check_availability`, que a su vez delega en `get_professional_available_slots`. Sin propagar el cap, el slot tope nunca aparecía como disponible en el RPC global (Santiago quedaba en 17:30 en vez de 18:00).
+
+**Webhooks:** el cap se lee de `logistics_config.last_slot_time` con fallback `'18:00'` — ajustable por clínica **sin deploy**, mismo patrón que `routing_mode`.
+- `ycloud-whatsapp-webhook`: se aplica siempre, porque `checkAvail` **ya bloquea cirugías** antes de consultar slots (hard block que deriva a `escalate_to_human`).
+- `meta-whatsapp-webhook`: condicionado a `isSurgery` (allí el bloqueo es solo para AnimalGrace).
+
+### El cierre de 19:00 no estaba surtiendo efecto
+
+`clinic_settings` de Linares quedó con los dos formatos mezclados y contradictorios (`close: 19:00` junto a `end: 18:30`), y el perfil de la profesional conservaba `end: 18:30`. Como el RPC del profesional tiene prioridad, **el cierre efectivo seguía siendo 18:30** y el último slot salía a las 17:30.
+
+Corregido en datos: `clinic_members.working_hours` de la profesional a `19:00` (L–V, sin tocar aperturas ni flags), y `clinic_settings.working_hours` sincronizado (`start`←`open`, `end`←`close`) para eliminar la contradicción.
+
+**Regla permanente:** el horario del **profesional** manda sobre el de la clínica cuando hay un `professionalId` resuelto. Cambiar el horario en Configuración **no** basta: si el profesional tiene horario propio en Mi Perfil, hay que actualizarlo también.
+
+---
+
+### Reglas de negocio — ambas sucursales (solo DB, sin deploy)
+
+**Vacunación — anamnesis antes del precio.** La IA cotizó Triple Felina y Antirrábica *"cada una $25.000"*. Los datos estaban **correctos en todas las fuentes** (Antirrábica $23.000 en `clinic_services` y en el KB): fue arrastre del precio de la primera vacuna a la segunda. Nueva regla en `ai_behavior_rules` + `PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE`:
+1. Antes de cualquier valor: **edad**, **¿está sana?** (enferma no se vacuna → consulta médica), **¿ya fue vacunada?**
+2. Entregar **solo la vacuna principal** (Triple Felina / Séxtuple-Óctuple) con lo que incluye.
+3. **No mencionar la Antirrábica ni su precio** salvo pregunta explícita — la doctora la ofrece en la visita. Listar varias vacunas hace que el tutor sume los valores y crea que pagará mucho más.
+4. Si hay **2 o más mascotas**, ofrecer el Pack Anual como gancho por ahorro.
+5. Prohibido reusar el precio de una vacuna para otra.
+
+**Exámenes son recomendación, nunca requisito.** Regla en `ai_behavior_rules` y en `TARIFARIO_EXAMENES_LABORATORIO_ANIMALGRACE`: decir explícitamente que son opcionales, no condicionar el agendamiento a ellos y no sumarlos al total como obligatorios.
+
+**Prohibido derivar a otra clínica.** El KB `POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO` §4 decía *"Derivar de inmediato a la clínica física más cercana"* — pensado para riesgo vital, pero la IA lo generalizaba a cualquier síntoma y mandaba clientes a la competencia (casos reales: perrita con vómitos, gato decaído). Reescrito en ambas: la **gran mayoría de los casos con síntomas se atienden a domicilio**, se ofrece disponibilidad y se agenda; el tutor decide si puede esperar. Prohibido sugerir otra clínica, urgencias o Google Maps. **Única excepción:** mascota agonizando o riesgo vital inminente → `escalate_to_human`. Por decisión explícita del usuario, **sin** aviso preventivo de urgencia en casos comunes.
+
+### Traslado sin ubicación — solo Linares/Talca
+
+La regla de la sesión 57 quedó demasiado estricta: prohibía indicar cualquier monto *"ni $0, ni $6.000"*, dejando al tutor sin ninguna referencia. Ahora, si no comparte ubicación, la IA **sí puede afirmar** que dentro del **radio urbano** los servicios generales no tienen costo de traslado (excepto desparasitaciones y corte de uñas, que mantienen el piso de $6.000), que fuera del radio sí hay valor adicional, y que **solo con la ubicación exacta se confirma el monto**.
+
+Se armonizaron además los **dos bloques previos** que prohibían decir "$0" (Sección 1 ZONAS CONFIRMADAS y REGLA 3 FLEXIBILIDAD), para no dejar instrucciones contradictorias en el mismo prompt. La prohibición pasa a ser sobre **cifras rurales concretas**, no sobre el criterio general.
+
+Santiago no se tocó en este punto: allí el recargo lo define la **comuna**, no la distancia (ver regla permanente de la sesión 57).
+
+**⚠️ Regla permanente — reglas contradictorias en prompts:** al flexibilizar una regla endurecida en una sesión anterior, buscar **todas** las apariciones del criterio viejo en `ai_behavior_rules`, `ai_personality` y KB antes de dar el cambio por hecho. Dos instrucciones opuestas en el mismo prompt producen comportamiento aleatorio.
+
+### Estado al cierre
+
+`ai_auto_respond` sigue en **`false`** en ambas sucursales desde que Claudia lo apagó durante la caída. Ningún cambio de esta sesión tiene efecto visible hasta que se reactive.
+
+---
+
+### Revisión de seguridad (sesión 58) — fuga de datos personales por policies `USING (true)`
+
+**Hallazgo ALTO, preexistente, confirmado como explotable.** Usando únicamente la **anon key pública** (la que va embebida en el bundle de `vetly.pro`, sin ninguna sesión) se podían leer:
+
+| Tabla | Filas expuestas | Contenido |
+|---|---|---|
+| `debug_logs` | 101.245 | teléfonos de clientes y contenido de conversaciones de WhatsApp |
+| `appointments` | 285 | nombre del tutor, nombre de la mascota, teléfono, servicio médico |
+| `clinic_members` | 4 | roles y `clinic_id` |
+
+**Causa raíz:** las policies RLS **PERMISSIVE se combinan con OR**. Una sola policy con `USING (true)` para el rol `public` (que incluye `anon`) **anula por completo** todas las policies correctas que existen al lado. Las tres culpables eran legacy de desarrollo: `"Public read for appointments"`, `"Public read for clinic members"` y `"Allow all debug_logs"`.
+
+**Por qué no lo detectaron los advisors como error:** `get_advisors(type:'security')` devolvió 207 hallazgos, **todos nivel WARN, cero ERROR**, y solo marcó `debug_logs` en `rls_policy_always_true` (las otras dos no aparecieron). El hallazgo real salió de **probar con la anon key contra la API REST**, no de leer el listado.
+
+**Fix** (migración `20260725000002`): se eliminan las tres policies; `debug_logs` queda solo con `service_role`. Verificado después: `anon` obtiene **0 filas** en las tres tablas y **401** al intentar escribir en `debug_logs`, mientras un usuario autenticado de AnimalGrace **sigue viendo sus 284 citas** (156 Linares + 128 Santiago) y deja de ver la única cita de Vetly HQ — que es exactamente el aislamiento esperado.
+
+**⚠️ Regla permanente — auditar RLS de verdad:** revisar el listado de policies no basta y `get_advisors` tampoco alcanza. La comprobación válida es **golpear la API REST con la anon key** y contar filas por tabla:
+```bash
+curl -s -I "https://<ref>.supabase.co/rest/v1/<tabla>?select=*" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
+  -H "Prefer: count=exact" -H "Range: 0-0" | grep -i content-range
+```
+Cualquier tabla con datos de clientes que devuelva `>0` filas es una fuga. Conviene repetir este barrido tras cualquier cambio de RLS.
+
+**⚠️ Regla permanente — una policy `USING (true)` anula a todas las demás.** Nunca dejar una policy permisiva "de desarrollo" al lado de una correcta creyendo que la restrictiva manda: se combinan con OR, gana la más abierta.
+
+**Falso positivo descartado:** 444 registros de `debug_logs` hacían match con el patrón `EAA[A-Za-z0-9]{30,}` (formato de token de Meta), pero al inspeccionar el contexto resultó ser el parámetro `_nc_oc=` de las URLs de CDN de Meta en los adjuntos de WhatsApp. **No hay credenciales almacenadas en `debug_logs`.**
+
+### Endurecimiento del cambio propio de la sesión
+
+`logistics_config.last_slot_time` es editable desde el dashboard y se envía al RPC como `time without time zone`. No hay riesgo de inyección (PostgREST parametriza y el tipo valida), pero **un valor mal escrito haría fallar el cast y dejaría a la clínica sin agendamiento** ("problema técnico"). Ambos webhooks ahora validan el formato `HH:MM[:SS]` con regex y caen al default `18:00` ante un valor inválido.
+
+**Hallazgo de bajo riesgo, no modificado:** varios `.or()` de PostgREST interpolan el teléfono crudo del payload (`phone_number.eq.${from},…`). Un valor con comas o paréntesis podría alterar el filtro, pero el payload viene con **HMAC verificado** de Meta/YCloud y `normalizePhone` sanea las variantes. Queda anotado; usar siempre el teléfono normalizado sería más robusto.
+
+**Pendiente de plataforma:** `auth_leaked_password_protection` está deshabilitado — activar en Supabase → Authentication el chequeo contra HaveIBeenPwned. Los otros 206 WARN (`security_definer_function_executable`, `function_search_path_mutable`) son el patrón histórico de todo el proyecto, no regresiones de esta sesión.

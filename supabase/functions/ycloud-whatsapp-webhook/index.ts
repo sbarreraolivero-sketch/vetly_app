@@ -1082,6 +1082,21 @@ const checkAvail = async (
     };
   }
 
+  // --- ÚLTIMO HORARIO DEL DÍA ---
+  // El último slot ofrecido es el tope (18:00 por defecto) aunque el servicio
+  // termine pasado el horario de cierre. Solo aplica a servicios normales: las
+  // cirugías ya quedaron bloqueadas en el hard block de arriba, así que todo lo
+  // que llega hasta acá es agenda regular.
+  // Configurable por clínica vía logistics_config.last_slot_time, sin deploy.
+  // Se valida el formato: logistics_config es editable desde el dashboard y un
+  // valor inválido haría fallar el cast a TIME del RPC, dejando a la clínica sin
+  // agendamiento ("problema técnico"). Ante un valor malo se cae al default.
+  const rawSlotCap = (clinic?.logistics_config as any)?.last_slot_time;
+  const lastSlotCap = typeof rawSlotCap === "string" &&
+      /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(rawSlotCap.trim())
+    ? rawSlotCap.trim()
+    : "18:00";
+
   if (professionalId) {
     try {
       const { data, error } = await sb.rpc("get_professional_available_slots", {
@@ -1091,6 +1106,7 @@ const checkAvail = async (
         p_duration: duration,
         p_interval: searchInterval,
         p_timezone: String(timezone).trim(),
+        p_last_slot_cap: lastSlotCap,
       });
 
       if (!error && data) {
@@ -1116,6 +1132,7 @@ const checkAvail = async (
       p_duration: duration,
       p_interval: searchInterval,
       p_timezone: String(timezone).trim(),
+      p_last_slot_cap: lastSlotCap,
     });
     if (error) {
       console.error(

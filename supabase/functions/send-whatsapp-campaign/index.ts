@@ -267,11 +267,11 @@ Deno.serve(async (req) => {
     } catch (error: any) {
         console.error("Campaign failed:", error)
         if (campaign_id) {
-            await supabaseClient
-                .from('campaigns')
-                .update({ status: 'failed' })
-                .eq('id', campaign_id)
-                .catch(() => {})
+            // Los query builders de Supabase no tienen .catch() nativo (no son Promises reales) —
+            // llamarlo directo lanza TypeError no capturado. Usar Promise.resolve(...).then(ok, err).
+            await Promise.resolve(
+                supabaseClient.from('campaigns').update({ status: 'failed' }).eq('id', campaign_id)
+            ).then(() => {}, () => {})
         }
         return new Response(
             JSON.stringify({ error: error.message }),

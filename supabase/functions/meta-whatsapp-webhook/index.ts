@@ -550,10 +550,26 @@ const checkAvail = async (
     return { available: false, reason: "surgery_manual", message: surgeryPrompt };
   }
 
+  // --- ÚLTIMO HORARIO DEL DÍA ---
+  // El último slot ofrecido es el tope (18:00 por defecto) aunque el servicio
+  // termine pasado el horario de cierre. No aplica a cirugías: ahí se mantiene
+  // la regla de que el servicio debe caber completo antes del cierre.
+  // Configurable por clínica vía logistics_config.last_slot_time, sin deploy.
+  // Se valida el formato: logistics_config es editable desde el dashboard y un
+  // valor inválido haría fallar el cast a TIME del RPC, dejando a la clínica sin
+  // agendamiento ("problema técnico"). Ante un valor malo se cae al default.
+  const rawSlotCap = (clinic?.logistics_config as any)?.last_slot_time;
+  const validSlotCap = typeof rawSlotCap === "string" &&
+      /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(rawSlotCap.trim())
+    ? rawSlotCap.trim()
+    : "18:00";
+  const lastSlotCap = isSurgery ? null : validSlotCap;
+
   // Get available slots
   const rpcName = profName ? "get_professional_available_slots" : "get_available_slots";
   const rpcParams: any = { p_clinic_id: clinicId, p_date: date, p_duration: duration };
   if (profName) rpcParams.p_professional_name = profName;
+  if (lastSlotCap) rpcParams.p_last_slot_cap = lastSlotCap;
 
   const { data: slots, error: slotError } = await sb.rpc(rpcName, rpcParams);
   if (slotError) {
@@ -1091,15 +1107,17 @@ const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string,
   if (!tagName) return { success: false, message: "Nombre de etiqueta vacío." };
 
   // Find or create tag
+  // Columnas reales de "tags": id, name, color (no tag_id/tag_name/tag_color) — el select+insert
+  // originales fallaban siempre contra columnas inexistentes. Ver ycloud-whatsapp-webhook.
   let tagId: string;
-  const { data: existingTag } = await sb.from("tags").select("tag_id").eq("clinic_id", clinicId)
-    .ilike("tag_name", tagName).limit(1).maybeSingle();
+  const { data: existingTag } = await sb.from("tags").select("id").eq("clinic_id", clinicId)
+    .ilike("name", tagName).limit(1).maybeSingle();
   if (existingTag) {
-    tagId = existingTag.tag_id;
+    tagId = existingTag.id;
   } else {
-    const { data: newTag } = await sb.from("tags").insert({ clinic_id: clinicId, tag_name: tagName, tag_color: args.tag_color || "#6b7280" }).select("tag_id").single();
+    const { data: newTag } = await sb.from("tags").insert({ clinic_id: clinicId, name: tagName, color: args.tag_color || "#6b7280" }).select("id").single();
     if (!newTag) return { success: false, message: "Error creando etiqueta." };
-    tagId = newTag.tag_id;
+    tagId = newTag.id;
   }
 
   // Find tutor
@@ -1246,6 +1264,7 @@ Deno.serve(async (req) => {
   // Process entries
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
+     try {
       if (change.field !== "messages") continue;
 
       const value = change.value;
@@ -1255,10 +1274,13 @@ Deno.serve(async (req) => {
       const statuses: any[] = value?.statuses ?? [];
 
       // Status updates: mark messages as delivered/read
+      // Nunca usar .catch() directo sobre un query builder de Supabase — es un thenable, no una
+      // Promise nativa, y no tiene ese método (TypeError). Usar Promise.resolve(...).then(ok, err).
       for (const status of statuses) {
         if (status.id) {
-          await sb.from("messages").update({ status: status.status })
-            .eq("ycloud_message_id", status.id).catch(() => {/* non-critical */});
+          await Promise.resolve(
+            sb.from("messages").update({ status: status.status }).eq("ycloud_message_id", status.id)
+          ).then(() => {}, () => {/* non-critical */});
         }
       }
 
@@ -1480,14 +1502,23 @@ Deno.serve(async (req) => {
       }
 
       // CRM auto-sync
+      // "status" no es columna de crm_prospects (tiene stage_id, no status) — el insert
+      // fallaba siempre y el catch vacío lo ocultaba. Ver ycloud-whatsapp-webhook para el
+      // insert de referencia (clinic_id, phone, name, source, stage_id, requires_human).
       try {
         const normalizedFrom = normalizePhone(from);
         const { data: existingProspect } = await sb.from("crm_prospects").select("id")
           .eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom}`).limit(1).maybeSingle();
         if (!existingProspect && !tutor) {
-          await sb.from("crm_prospects").insert({ clinic_id: clinic.id, phone: normalizedFrom, source: "whatsapp_inbound", status: "new" });
+          const { error: crmInsertError } = await sb.from("crm_prospects")
+            .insert({ clinic_id: clinic.id, phone: normalizedFrom, source: "whatsapp_inbound" });
+          if (crmInsertError) {
+            await debugLog(sb, "CRM auto-sync insert error", { error: crmInsertError.message, phone: normalizedFrom });
+          }
         }
-      } catch { /* non-critical */ }
+      } catch (crmErr) {
+        await debugLog(sb, "CRM auto-sync error", { error: (crmErr as Error).message });
+      }
 
       // ── Async Process ────────────────────────────────────────────────────────
       const asyncProcess = async (immediateCtx?: { gps: { lat: number; lng: number }; ruralMins: number; aiContext: string }) => {
@@ -1501,9 +1532,16 @@ Deno.serve(async (req) => {
           }
 
           // requires_human check
+          // Usa .or() con variantes con/sin "+" en tutors (igual que ycloud-whatsapp-webhook) —
+          // un match exacto contra "from" crudo podía dejar pasar la IA con un cliente pausado
+          // si el phone_number guardado no calzaba byte-a-byte.
           const normalizedFrom = normalizePhone(from);
+          const searchPhone = from.startsWith("+") ? from : `+${from}`;
+          const searchPhoneNoPlus = from.startsWith("+") ? from.substring(1) : from;
           const { data: tutorCheck } = await sb.from("tutors").select("requires_human")
-            .eq("clinic_id", clinic.id).eq("phone_number", from).limit(1).maybeSingle();
+            .eq("clinic_id", clinic.id)
+            .or(`phone_number.eq.${from},phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
+            .limit(1).maybeSingle();
           const { data: crmCheck } = await sb.from("crm_prospects").select("requires_human")
             .eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom}`).limit(1).maybeSingle();
           if (tutorCheck?.requires_human || crmCheck?.requires_human) {
@@ -1511,10 +1549,15 @@ Deno.serve(async (req) => {
             return;
           }
 
-          // Reset IA command
+          // Reset IA command — mismas frases que ycloud-whatsapp-webhook para consistencia
+          // con el personal ya entrenado en el flujo viejo.
           const lowerBody = body.toLowerCase().trim();
-          if (lowerBody === "/reset ia" || lowerBody === "reset ia") {
-            await sb.from("tutors").update({ requires_human: false }).eq("clinic_id", clinic.id).eq("phone_number", from);
+          if (
+            lowerBody === "/reset ia" || lowerBody === "reset ia" ||
+            lowerBody === "resetear_ia" || lowerBody === "resetear ia" || lowerBody === "reset_ia"
+          ) {
+            await sb.from("tutors").update({ requires_human: false }).eq("clinic_id", clinic.id)
+              .or(`phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`);
             await sb.from("crm_prospects").update({ requires_human: false }).eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom}`);
             await sendMetaMessage(clinic.meta_phone_number_id, clinic.meta_access_token, from, "✅ IA reactivada. ¿En qué puedo ayudarte?");
             return;
@@ -1794,6 +1837,15 @@ ${knowledgeSummary}
       } else {
         asyncProcess(immediateContext);
       }
+     } catch (syncErr) {
+       // Cualquier excepción síncrona previa a asyncProcess (tutorContext, CRM sync, CAPI, etc.)
+       // tumbaba TODA la invocación sin dejar rastro — Meta reintentaba indefinidamente el mismo
+       // mensaje (tormenta de 500s). Ahora se loguea y se sigue con el resto del payload.
+       await debugLog(sb, "Meta Webhook Sync Error", {
+         error: (syncErr as Error).message,
+         stack: (syncErr as Error).stack,
+       });
+     }
     }
   }
 
