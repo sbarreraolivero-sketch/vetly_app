@@ -1273,15 +1273,47 @@ Deno.serve(async (req) => {
       const messages: any[] = value?.messages ?? [];
       const statuses: any[] = value?.statuses ?? [];
 
-      // Status updates: mark messages as delivered/read
+      // Status updates: sent → delivered → read, o failed. Reportado por Meta vía el mismo
+      // evento "messages" (no hay un tipo de evento separado como en YCloud). Actualiza
+      // messages, reminder_logs (recordatorios de citas) y reminders (recordatorios médicos)
+      // por igual — mismo patrón que "whatsapp.message.updated" en ycloud-whatsapp-webhook.
       // Nunca usar .catch() directo sobre un query builder de Supabase — es un thenable, no una
       // Promise nativa, y no tiene ese método (TypeError). Usar Promise.resolve(...).then(ok, err).
       for (const status of statuses) {
-        if (status.id) {
+        if (!status.id) continue;
+        const rawStatus = (status.status || "").toLowerCase();
+        const isFailure = rawStatus === "failed" || rawStatus === "undelivered";
+
+        if (isFailure) {
+          const errObj = status.errors?.[0];
+          const failText = errObj
+            ? `[${errObj.code ?? "?"}] ${errObj.title || errObj.message || "Message undeliverable"}`
+            : "Message undeliverable";
           await Promise.resolve(
-            sb.from("messages").update({ status: status.status }).eq("ycloud_message_id", status.id)
+            sb.from("messages").update({ status: "failed" }).eq("ycloud_message_id", status.id)
+          ).then(() => {}, () => {/* non-critical */});
+          // Fallo terminal: sobrescribe cualquier estado previo.
+          await Promise.resolve(
+            sb.from("reminder_logs").update({ status: "failed", error_message: failText }).eq("ycloud_message_id", status.id)
+          ).then(() => {}, () => {/* non-critical */});
+          // `reminders` = recordatorios médicos (PART 4 del cron). No tiene columna de error, solo status.
+          await Promise.resolve(
+            sb.from("reminders").update({ status: "failed" }).eq("ycloud_message_id", status.id)
+          ).then(() => {}, () => {/* non-critical */});
+        } else if (rawStatus === "delivered" || rawStatus === "read") {
+          // Escalón positivo. No pisar un 'failed' terminal (los eventos llegan fuera de
+          // orden y repetidos): solo actualizar filas aún no marcadas como fallidas.
+          await Promise.resolve(
+            sb.from("messages").update({ status: rawStatus }).eq("ycloud_message_id", status.id).neq("status", "failed")
+          ).then(() => {}, () => {/* non-critical */});
+          await Promise.resolve(
+            sb.from("reminder_logs").update({ status: rawStatus }).eq("ycloud_message_id", status.id).neq("status", "failed")
+          ).then(() => {}, () => {/* non-critical */});
+          await Promise.resolve(
+            sb.from("reminders").update({ status: rawStatus }).eq("ycloud_message_id", status.id).neq("status", "failed")
           ).then(() => {}, () => {/* non-critical */});
         }
+        // rawStatus === "sent" se ignora: ya se registró al momento de enviar.
       }
 
       if (messages.length === 0) continue;
