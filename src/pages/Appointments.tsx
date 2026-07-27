@@ -31,6 +31,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { GuideBox } from '@/components/ui/GuideBox'
+import { RoutePlanPanel } from '@/components/appointments/RoutePlanPanel'
+import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 
 interface Appointment {
     id: string
@@ -117,6 +119,39 @@ export default function Appointments() {
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week' | 'month'>('all')
     const [showDatePicker, setShowDatePicker] = useState(false)
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+
+    // Plan de ruta (solo clínicas móviles con sectorización configurada)
+    const { timezone } = useClinicTimezone()
+    const clinicId = member?.clinic_id || profile?.clinic_id
+    const [routeSectors, setRouteSectors] = useState<string[] | null>(null)
+    // "Hoy" en la zona de la clínica — nunca derivar de toISOString() (bug UTC recurrente).
+    const todayLocalStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
+
+    useEffect(() => {
+        if (!clinicId) { setRouteSectors(null); return }
+        let cancelled = false
+
+        const fetchRoutingMode = async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data } = await (supabase as any)
+                .from('clinic_settings')
+                .select('logistics_config')
+                .eq('id', clinicId)
+                .maybeSingle()
+            if (cancelled) return
+
+            const cfg = (data?.logistics_config || {}) as any
+            if (cfg.routing_mode !== 'mobile_sectors') { setRouteSectors(null); return }
+            // Sectores configurables desde logistics_config; default = Linares/Talca.
+            const sectors = Array.isArray(cfg.sectors) && cfg.sectors.length > 0
+                ? cfg.sectors.filter((s: unknown) => typeof s === 'string')
+                : ['Linares', 'Talca']
+            setRouteSectors(sectors)
+        }
+
+        fetchRoutingMode()
+        return () => { cancelled = true }
+    }, [clinicId])
 
     // Hour Blocking state
     const [showActionChoiceModal, setShowActionChoiceModal] = useState(false)
@@ -961,6 +996,15 @@ export default function Appointments() {
                     </ul>
                 </div>
             </GuideBox>
+
+            {/* Plan de ruta — solo clínicas móviles con sectorización configurada */}
+            {!isProfessional && routeSectors && routeSectors.length > 0 && clinicId && (
+                <RoutePlanPanel
+                    clinicId={clinicId}
+                    sectors={routeSectors}
+                    todayStr={todayLocalStr}
+                />
+            )}
 
             {/* Filters */}
             <div className="card-soft p-4">

@@ -66,6 +66,7 @@ export interface Database {
                     meta_access_token: string | null
                     meta_waba_id: string | null
                     whatsapp_provider: string | null
+                    logistics_config: Json | null
                 }
                 Insert: {
                     id?: string
@@ -749,6 +750,33 @@ export interface Database {
                     quantity?: number
                     unit_price?: number
                     subtotal?: number
+                }
+            }
+            clinic_route_plan: {
+                Row: {
+                    id: string
+                    clinic_id: string
+                    date: string
+                    allowed_sectors: string[]
+                    note: string | null
+                    created_by: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    clinic_id: string
+                    date: string
+                    allowed_sectors: string[]
+                    note?: string | null
+                    created_by?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    allowed_sectors?: string[]
+                    note?: string | null
+                    updated_at?: string
                 }
             }
         }

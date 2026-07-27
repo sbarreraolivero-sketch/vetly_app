@@ -935,15 +935,34 @@ const checkAvail = async (
     }
   }
 
-  // Paralelizar: clinic_settings + serviceDetails + existingAppts son independientes
-  const [{ data: clinic, error: errClinic }, serviceDetails, { data: existingAppts, error: errAppts }] = await Promise.all([
+  // Horizonte del plan de ruta: el día consultado + 21 días, para poder decirle al
+  // cliente cuándo SÍ se atiende su sector si el día pedido está restringido.
+  const planHorizon = new Date(`${date}T12:00:00Z`);
+  planHorizon.setUTCDate(planHorizon.getUTCDate() + 21);
+  const planHorizonEnd = planHorizon.toISOString().slice(0, 10);
+
+  // Paralelizar: clinic_settings + serviceDetails + existingAppts + routePlan son independientes
+  const [{ data: clinic, error: errClinic }, serviceDetails, { data: existingAppts, error: errAppts }, { data: routePlanRows, error: errRoutePlan }] = await Promise.all([
     sb.from("clinic_settings").select("business_model, latitude, longitude, logistics_config").eq("id", clinicId).single(),
     getServiceDetails(sb, clinicId, serviceName || ""),
     sb.from("appointments")
       .select("id, appointment_date, duration_minutes, duration, professional_id, latitude, longitude, address")
       .eq("clinic_id", clinicId)
       .neq("status", "cancelled"),
+    sb.from("clinic_route_plan")
+      .select("date, allowed_sectors, note")
+      .eq("clinic_id", clinicId)
+      .gte("date", date)
+      .lte("date", planHorizonEnd)
+      .order("date", { ascending: true }),
   ]);
+
+  // Fallar abierto: si el plan de ruta no carga, se agenda como siempre (sin
+  // restricción de sector) en vez de dejar a la clínica sin agendamiento.
+  if (errRoutePlan) console.error("[checkAvail] Error cargando clinic_route_plan (se ignora el plan):", errRoutePlan);
+  const routePlan = (routePlanRows || []).filter(
+    (p: any) => Array.isArray(p.allowed_sectors) && p.allowed_sectors.length > 0,
+  );
 
   // CRÍTICO: si clinic no carga, toda la lógica de sectores (isAnimalGrace,
   // anti-rebote, buffer 60min, filtro Talca 11:30) queda silenciosamente
@@ -1326,6 +1345,33 @@ const checkAvail = async (
     if (isAnimalGrace) {
       const linaresCount = allDayAppts?.filter(a => getSectorAG(a.address, a.latitude) === "Linares").length || 0;
       const targetSector = getSectorAG(address, tutorCoords.lat);
+
+      // --- PLAN DE RUTA DEL DÍA (override esporádico cargado por la clínica) ---
+      // Si el equipo definió que ese día solo se recorre un sector, no se ofrece
+      // ninguna hora para los demás. Se hace ANTES del chequeo de capacidad porque
+      // es una decisión explícita del equipo, no una inferencia del sistema.
+      const dayPlan = routePlan.find((p: any) => p.date === date);
+      if (dayPlan && targetSector && !dayPlan.allowed_sectors.includes(targetSector)) {
+        const fmtDay = (d: string) =>
+          new Date(`${d}T12:00:00`).toLocaleDateString("es-CL", {
+            weekday: "long", day: "numeric", month: "long",
+          });
+        const nextDays = routePlan
+          .filter((p: any) => p.date > date && p.allowed_sectors.includes(targetSector))
+          .slice(0, 3)
+          .map((p: any) => `${fmtDay(p.date)} (${p.date})`);
+
+        console.log(`[AnimalGrace] Plan de ruta ${date}: solo ${dayPlan.allowed_sectors.join("/")}. Sector ${targetSector} bloqueado.`);
+        return {
+          available: false,
+          reason: "sector_not_scheduled",
+          message: `SISTEMA: El ${fmtDay(date)} (${date}) la ruta del móvil está planificada ÚNICAMENTE para el sector ${dayPlan.allowed_sectors.join(" y ")}. NO se atiende ${targetSector} ese día bajo ninguna circunstancia.${dayPlan.note ? ` Nota interna del equipo: ${dayPlan.note}.` : ""} ${
+            nextDays.length > 0
+              ? `Los próximos días con ruta a ${targetSector} son: ${nextDays.join(", ")}. Ofrécele esas fechas al cliente y consulta disponibilidad para el día que elija.`
+              : `No hay otro día con ruta a ${targetSector} planificada en las próximas semanas. Explícale al cliente que ese día solo se recorre ${dayPlan.allowed_sectors.join(" y ")}, pregúntale qué otra fecha le acomoda y consulta disponibilidad para esa fecha.`
+          } Explícaselo de forma natural y amable, como una coordinación de ruta del equipo móvil. NUNCA menciones que existe un "sistema", un "plan" o una "restricción técnica".`,
+        };
+      }
 
       if (linaresCount >= 5 && targetSector === "Talca") {
         console.log(`[AnimalGrace] Capacity reached for LINARES (${linaresCount}/5). Blocking TALCA.`);
@@ -3905,6 +3951,48 @@ Deno.serve(async (req) => {
           weekday: "long",
         });
 
+        // --- PLAN DE RUTA (overrides esporádicos de sector, cargados por la clínica) ---
+        // Solo aplica a clínicas móviles con sectorización (routing_mode = mobile_sectors).
+        // El bloqueo real vive en checkAvail; esto es para que la IA sea proactiva y
+        // ofrezca la fecha correcta en vez de chocar contra un "no hay disponibilidad".
+        let routePlanBlock = "";
+        if ((clinic.logistics_config as any)?.routing_mode === "mobile_sectors") {
+          const planHorizonISO = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000)
+            .toLocaleDateString("en-CA", { timeZone: clinicTz });
+          const { data: planRows, error: planErr } = await sb.from("clinic_route_plan")
+            .select("date, allowed_sectors, note")
+            .eq("clinic_id", clinic.id)
+            .gte("date", localDateISO)
+            .lte("date", planHorizonISO)
+            .order("date", { ascending: true });
+          if (planErr) console.error("[routePlan] Error cargando plan para el prompt:", planErr);
+
+          const activePlan = (planRows || []).filter(
+            (p: any) => Array.isArray(p.allowed_sectors) && p.allowed_sectors.length > 0,
+          );
+          if (activePlan.length > 0) {
+            const planLines = activePlan.map((p: any) => {
+              const label = new Date(`${p.date}T12:00:00`).toLocaleDateString("es-CL", {
+                weekday: "long", day: "numeric", month: "long",
+              });
+              return `- ${label} (${p.date}): SOLO sector ${p.allowed_sectors.join(" y ")}${p.note ? ` — ${p.note}` : ""}`;
+            }).join("\n");
+
+            routePlanBlock = `
+⚠️ PLAN DE RUTA DEL MÓVIL — PRIORIDAD MÁXIMA (POR SOBRE CUALQUIER OTRA REGLA DE SECTORES) ⚠️
+El equipo definió por qué sector se recorre en estas fechas puntuales. Es inviolable:
+${planLines}
+
+Cómo aplicarlo:
+- En esas fechas SOLO puedes ofrecer y agendar citas de los sectores indicados.
+- Si el cliente es de otro sector y pide una de esas fechas, NO le ofrezcas horarios. Explícale con naturalidad que ese día el móvil recorre solo esa zona y ofrécele la fecha más próxima de la lista donde sí se atiende su sector.
+- Si el cliente ya te dijo su comuna, adelántate: menciónale tú el día que corresponde a su zona en vez de esperar a que pida uno bloqueado.
+- Las fechas que NO aparecen en esta lista funcionan con la logística normal de siempre.
+- NUNCA hables de un "plan", un "sistema" ni una "restricción": habla como la coordinación de ruta del equipo móvil.
+`;
+          }
+        }
+
         // Fetch knowledge base summary for system prompt
         const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
 
@@ -3994,7 +4082,7 @@ CONTEXTO DE FECHAS:
 - MAÑANA: ${tomorrowDay}, ${tomorrowISO}
 - PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
 - HORA ACTUAL: ${localTime}
-${surveyFeedbackContextBlock}
+${routePlanBlock}${surveyFeedbackContextBlock}
 ⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 --------------------------------------------------------
