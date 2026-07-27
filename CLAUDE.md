@@ -4208,4 +4208,38 @@ Cualquier tabla con datos de clientes que devuelva `>0` filas es una fuga. Convi
 
 **Hallazgo de bajo riesgo, no modificado:** varios `.or()` de PostgREST interpolan el teléfono crudo del payload (`phone_number.eq.${from},…`). Un valor con comas o paréntesis podría alterar el filtro, pero el payload viene con **HMAC verificado** de Meta/YCloud y `normalizePhone` sanea las variantes. Queda anotado; usar siempre el teléfono normalizado sería más robusto.
 
+---
+
+## Cambios realizados — julio 2026 (sesión 59, 2026-07-27)
+
+### Plan de ruta por fecha — override esporádico de sector (Animalgrace Linares/Talca)
+
+**Motivación:** Claudia necesitaba poder decir "mañana el móvil solo recorre Linares" o "el miércoles solo Talca" para días puntuales, sin que fuera un cambio permanente de la lógica de sectores. Una regla puesta solo en el prompt no era opción — el historial del proyecto (mínimo $15.000, la regla del pin, el rebote de sectores) muestra que reglas solo-texto se diluyen; por eso el enforcement real vive en `checkAvail`, igual que el filtro de las 11:30 en Talca.
+
+**Arquitectura — tabla `clinic_route_plan`** (migración `20260727000001_clinic_route_plan.sql`):
+```sql
+clinic_route_plan (id, clinic_id, date, allowed_sectors TEXT[], note, created_by, created_at, updated_at)
+UNIQUE (clinic_id, date)
+```
+RLS estándar vía `clinic_members`. Una fecha **sin fila** (o con `allowed_sectors = {}`) se comporta exactamente como antes — es un override puntual, no un régimen nuevo.
+
+**Enforcement en dos puntos (`ycloud-whatsapp-webhook`):**
+1. **Filtro duro en `checkAvail`** (antes del chequeo de capacidad de 5 citas): si el sector del tutor (`getSectorAG`) no está en `allowed_sectors` del día pedido, la función retorna `available: false` con un mensaje de sistema que incluye las próximas fechas donde sí se atiende ese sector — la IA no puede ofrecer esa hora porque nunca la recibe.
+2. **Bloque en el system prompt**: plan de los próximos 21 días (mismo helper de fecha/hora que el resto del prompt), marcado como prioridad máxima sobre cualquier otra regla de sectores, para que la IA sea proactiva (mencione la fecha correcta sin esperar a que el cliente choque contra un bloqueo) en vez de reactiva. Instrucción explícita de nunca mencionar "plan", "sistema" ni "restricción" — se explica como coordinación de ruta del equipo móvil.
+
+Ambas rutas fallan abierto: si la query a `clinic_route_plan` falla, se loguea el error y se agenda sin restricción (nunca se deja a la clínica sin agendamiento por un error de este mecanismo).
+
+**Panel `RoutePlanPanel.tsx`** (nuevo, en `Citas Médicas` vía `Appointments.tsx`): chips `Linares` / `Talca` por cada uno de los próximos 14 días, autoguardado (upsert al tocar un chip, delete de la fila al desmarcar todos). Solo se renderiza si `clinic_settings.logistics_config.routing_mode === 'mobile_sectors'` — invisible para Santiago y cualquier clínica sin sectorización. Sectores configurables vía `logistics_config.sectors` (default `['Linares', 'Talca']`) para poder reutilizar el mismo panel si se agrega otra clínica móvil con sectores distintos.
+
+**Regla permanente:** cualquier restricción de agenda que dependa de fecha/sector debe aplicarse en `checkAvail` (el punto donde se generan los slots), nunca solo en el prompt — el prompt sirve para que la IA sea proactiva/explique bien, pero el bloqueo real tiene que ser imposible de saltarse desde el texto.
+
+**Verificado:** insert/lectura de prueba en `clinic_route_plan` contra producción (borrada después); `anon` key devuelve `content-range: */0` en la tabla (sin fuga); `npm run build` limpio; deploy `ycloud-whatsapp-webhook` v242.
+
+### Deploy pendiente de sesiones anteriores — recordatorios vía Meta Cloud API
+
+Al revisar el estado del repo se encontraron 2 archivos con cambios ya funcionando en producción (deployados a Supabase) pero **nunca commiteados a git** — mismo patrón de sesión 46 ("un fix solo cuenta si está commiteado y pusheado a `main`"). Se commitearon en un commit separado del plan de ruta:
+
+- **`cron-process-reminders`**: generalizado para enviar plantillas de recordatorio tanto por YCloud como por Meta Cloud API (`hasMetaChannel`, `sendReminderTemplate`). Antes solo sabía hablar con la API de YCloud, así que ninguna clínica migrada a Meta (Santiago) podía recibir recordatorios de citas por ese canal.
+- **`meta-whatsapp-webhook`**: los eventos de estado de WhatsApp (`sent`→`delivered`→`read`, o `failed`) ahora actualizan `reminder_logs` y `reminders` además de `messages` — extiende a Meta el fix de "ENVIADO que nunca llegaba" de sesión 56, que hasta ahora solo cubría el canal YCloud.
+
 **Pendiente de plataforma:** `auth_leaked_password_protection` está deshabilitado — activar en Supabase → Authentication el chequeo contra HaveIBeenPwned. Los otros 206 WARN (`security_definer_function_executable`, `function_search_path_mutable`) son el patrón histórico de todo el proyecto, no regresiones de esta sesión.
