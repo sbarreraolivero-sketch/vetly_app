@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react'
 import { addDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Route, Check, Loader2, RotateCcw } from 'lucide-react'
+import { Route, Check, Loader2, RotateCcw, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +32,8 @@ interface RoutePlanPanelProps {
 }
 
 export function RoutePlanPanel({ clinicId, sectors, todayStr }: RoutePlanPanelProps) {
+    // Colapsado por defecto: la lista de 14 días ocupa mucho espacio en la página.
+    const [expanded, setExpanded] = useState(false)
     const [plan, setPlan] = useState<Record<string, RoutePlanRow>>({})
     const [loading, setLoading] = useState(true)
     const [savingDate, setSavingDate] = useState<string | null>(null)
@@ -129,26 +131,34 @@ export function RoutePlanPanel({ clinicId, sectors, todayStr }: RoutePlanPanelPr
 
     return (
         <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white">
+            <button
+                type="button"
+                onClick={() => setExpanded(v => !v)}
+                className="w-full text-left bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white"
+            >
                 <div className="flex items-start justify-between gap-3">
                     <div>
                         <p className="text-xs font-bold uppercase tracking-widest text-primary-200 mb-1">Logística</p>
-                        <h3 className="text-lg font-extrabold tracking-tight">Plan de ruta del móvil</h3>
+                        <h3 className="text-lg font-extrabold tracking-tight text-white">Plan de ruta del móvil</h3>
                         <p className="text-xs sm:text-sm text-primary-100 mt-1 max-w-xl">
                             Marca los días en que el móvil recorre solo ciertos sectores. La IA no ofrecerá
                             horas de los sectores no marcados y derivará al cliente al día que sí corresponde.
                             Los días sin marcar funcionan como siempre.
                         </p>
                     </div>
-                    <Route className="w-8 h-8 text-primary-200 shrink-0 hidden sm:block" />
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Route className="w-8 h-8 text-primary-200 hidden sm:block" />
+                        <ChevronDown className={cn('w-5 h-5 text-primary-200 transition-transform', expanded && 'rotate-180')} />
+                    </div>
                 </div>
                 {restrictedCount > 0 && (
                     <p className="text-xs font-bold text-primary-100 mt-3 bg-white/10 rounded-lg px-3 py-1.5 inline-block">
                         {restrictedCount} {restrictedCount === 1 ? 'día con ruta acotada' : 'días con ruta acotada'} en las próximas 2 semanas
                     </p>
                 )}
-            </div>
+            </button>
 
+            {expanded && (
             <div className="p-5">
                 {error && (
                     <div className="mb-4 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
@@ -238,6 +248,7 @@ export function RoutePlanPanel({ clinicId, sectors, todayStr }: RoutePlanPanelPr
                     próxima en que sí se recorre su zona. No afecta a las citas ya agendadas.
                 </p>
             </div>
+            )}
         </div>
     )
 }
