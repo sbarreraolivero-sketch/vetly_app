@@ -4292,3 +4292,57 @@ El usuario preguntó explícitamente si el trabajo había cubierto también Sant
 - **Reordenamiento del prompt en `meta-whatsapp-webhook` (Santiago):** mismo problema exacto que Linares — `ai_behavior_rules` de Santiago mide **28.988 caracteres** (+ `ai_personality` 2.915), y el contenido dinámico (fecha/hora, `globalLocContext` del tutor antepuesto a TODO el prompt) iba antes del bloque estático, anulando el prompt caching de OpenAI en cada llamada. Reordenado con el mismo patrón `staticSysPrompt` + `dynamicSysPrompt` que Linares. Deployado, sin errores nuevos en logs post-deploy.
 
 **Regla permanente (reforzada):** `ycloud-whatsapp-webhook` (Linares, canal YCloud) y `meta-whatsapp-webhook` (Santiago, canal Meta Cloud API) son dos archivos separados que duplican la misma lógica del agente. Un fix de optimización/costo/prompt aplicado a uno **no se propaga automáticamente al otro** — hay que aplicarlo explícitamente a ambos y verificarlo por separado (tamaño real de `ai_behavior_rules`, duplicados en `clinic_services`, orden del prompt), como ya pasa con los fixes de negocio documentados en sesiones anteriores.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 61, 2026-07-28)
+
+### Consolidación de prompts — reducir el tamaño, no solo el precio por token
+
+Continuación directa de la sesión 60: el reordenamiento del prompt habilitó el *prompt caching* de OpenAI (que abarata el token repetido), pero no reducía la **cantidad** de tokens. `ai_behavior_rules` de Linares había crecido a 39.324 caracteres sumando reglas sesión tras sesión desde mayo, sin consolidarse nunca.
+
+**Restricción descubierta y respetada:** `getKnowledgeSummary` inyecta solo los **5 documentos KB más recientes truncados a 500 caracteres**. Verificado en producción: `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` NO llega al prompt en ninguna sucursal (posición 10 en Linares, 6 en Santiago) — la IA solo lo ve si llama `get_knowledge`. **Por eso está prohibido recortar una regla de `ai_behavior_rules` argumentando "ya está en el KB": el KB no es un respaldo del prompt.** Toda la consolidación fue interna (misma regla escrita 2–4 veces dentro del propio campo).
+
+#### 2 contradicciones corregidas (ambas sucursales)
+
+1. **`ai_personality` mandaba derivar a la competencia.** Su Regla de Oro 3 decía *"Ante emergencias vitales, deriva de inmediato a una clínica física"*, en contradicción directa con la regla `PROHIBIDO DERIVAR A OTRA CLÍNICA (ABSOLUTO)` añadida a `ai_behavior_rules` en la sesión 58 (que manda usar `escalate_to_human`). Como `ai_personality` va **primero** en el prompt, la versión vieja tenía ventaja posicional — es exactamente el bug que costó una sesión diagnosticar. Reemplazada por la conducta acordada.
+2. **El peso era requisito y estaba prohibido pedirlo a la vez.** El bloque `PROTOCOLO DE AGENDAMIENTO` exigía *"Especie, peso y edad"*, mientras `REGLA 2` decía *"TERMINANTEMENTE PROHIBIDO pedir el peso como requisito para agendar"* y la sección de agendamiento lo repetía. Se quitó el peso de la lista superior, dejando la nota de que solo aplica a cirugía, sedación y destartraje.
+
+#### Duplicaciones consolidadas (Linares)
+
+El criterio de pin/traslado estaba escrito **tres veces** (§1 `ZONAS CONFIRMADAS`, `REGLA 3 › FLEXIBILIDAD`, `REGLA 3 › SI NO PUEDE ENVIAR EL PIN`), sumando 2.857 caracteres → consolidado a ~1.400. Además: **§7 y §9 eran dos protocolos de cirugía en paralelo** (fusionados en §7 con los 5 pasos, y renumeradas las secciones siguientes); `PROHIBICIÓN DE EXCLUSIVIDAD` literal en §1 y §3; comunas de cada sector en `REGLA DE ORO LOGÍSTICA` y §3; aviso de rango de 2 horas arriba y en §6; remisión al destartraje en `REGLA 3` teniendo la regla completa en §6; y un "Ejemplo INCORRECTO" de 440 caracteres dentro de la propia regla de concisión.
+
+Santiago estaba **notoriamente más limpio** (una sola sección de cirugías, reglas ya condensadas): solo un encabezado anidado que repetía el título de su sección, un nivel de encabezado inconsistente y la tabla de recargos por comuna repetida en §4.
+
+#### Correcciones puntuales
+- Linares §8: typo `siemplo incluye` → `siempre incluye`.
+- Santiago `REGLA 3`: remitía a *"Sección 3"* para destartraje, que es la **Sección 8**.
+- Santiago `REGLA 1`: nombres de documentos mal escritos (`#POTOCOLO_DE_DESTARTRAJE` sin la R, `#PROTOCOLO_DE_SEDACIÓN_A_DOMICILIO`) que no coincidían con los títulos reales en `knowledge_base` — `get_knowledge` podía no encontrarlos.
+
+#### Fix de código — relleno en el JSON de servicios
+El **100% de los servicios** (43 Linares / 58 Santiago) tiene `ai_description` en null, pero el prompt emitía igual `"info_importante":"Sin detalles específicos."` por cada uno. Ahora los campos vacíos se omiten en vez de rellenarse con placeholder (igual para `duracion` cuando es 0). JSON de servicios: Linares 5.371 → 3.089, Santiago 7.369 → 4.568.
+
+#### Resultado medido
+
+| | Linares | Santiago |
+|---|---|---|
+| `ai_behavior_rules` | 39.324 → 36.987 | 28.988 → 28.811 |
+| `ai_personality` | 3.140 → 3.297 (crece: el fix de contradicción es más explícito) | 2.915 → 3.072 |
+| JSON de servicios | 5.371 → 3.089 | 7.369 → 4.568 |
+| **Bloque total** | 47.835 → **43.373 (−9,3%)** | 39.272 → **36.451 (−7,2%)** |
+
+Menos que el ~15% estimado al planificar: la mayor parte de los 39.324 caracteres de Linares resultaron ser reglas legítimas y distintas, no duplicación. El ahorro se **suma** al del prompt caching de la sesión 60 (que actúa sobre el precio por token, mientras esto reduce la cantidad).
+
+#### Respaldo y reversión
+Tabla nueva `prompt_backups` (`clinic_id`, `field`, `content`, `label`, `backed_up_at`), RLS solo `service_role`. Los 4 valores originales quedaron guardados con label `pre_consolidacion_2026_07_28`. Revertir:
+```sql
+UPDATE clinic_settings cs SET ai_behavior_rules = pb.content
+FROM prompt_backups pb
+WHERE pb.clinic_id = cs.id AND pb.field = 'ai_behavior_rules'
+  AND pb.label = 'pre_consolidacion_2026_07_28';
+```
+
+#### Verificación aplicada
+Se extrajeron con regex todos los títulos de regla (`**EN MAYÚSCULA:**`) del respaldo y del texto nuevo, y se diferenciaron: **Santiago no perdió ninguno**; en Linares desaparecieron 8, todos esperados (2 renombrados por la fusión de cirugías, 2 renumerados como PASO 4/5, 4 eliminados por duplicación). Además se comprobó una a una la supervivencia de 12 reglas sustantivas (rango de 2 horas, consulta previa de destartraje, comunas de ambos sectores, radio urbano $0, rural variable, exámenes $55.000, cierre con Claudia, anti-confusión felina $65.000/$60.000, mínimo $15.000, centro quirúrgico, advertencia textual de dirección escrita).
+
+**⚠️ Regla permanente — antes de recortar un prompt:** verificar qué documentos del KB llegan realmente al prompt (`ORDER BY updated_at DESC LIMIT 5`, truncados a 500 chars). Una regla que solo viva en un documento fuera de ese top 5 desaparece del contexto si se borra de `ai_behavior_rules`. Y antes de aplicar cualquier `UPDATE` sobre estos campos, respaldar en `prompt_backups`.
