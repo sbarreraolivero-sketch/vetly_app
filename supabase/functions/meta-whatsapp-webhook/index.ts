@@ -1725,20 +1725,18 @@ Deno.serve(async (req) => {
             .eq("status", "responded").lte("rating", 2).is("feedback_context", null)
             .order("responded_at", { ascending: false }).limit(1).maybeSingle();
 
-          // Build system prompt
-          const sysPrompt = `
+          // --- BLOQUE ESTÁTICO (idéntico entre mensajes/tutores de esta clínica) ---
+          // Va SIEMPRE primero para no romper el prompt caching de OpenAI: el descuento
+          // (~50% en input tokens) solo aplica al PREFIJO común entre llamadas, y se
+          // pierde desde el primer carácter que difiere. Mismo fix aplicado en
+          // ycloud-whatsapp-webhook (sesión 60) — ver ese archivo para más contexto.
+          const staticSysPrompt = `
 ${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
 Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
 Horarios: ${hoursSummary}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone}` : ""}${clinic.transfer_details ? `\nDatos de Pago/Transferencia: ${clinic.transfer_details}` : ""}
 
-CONTEXTO DE FECHAS:
-- HOY: ${todayDay}, ${localDateISO}
-- MAÑANA: ${tomorrowDay}, ${tomorrowISO}
-- PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
-- HORA ACTUAL: ${localTime}
-${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCIÓN NEGATIVA ⚠️\nEste cliente acaba de calificar su última atención con ${pendingFeedbackSurvey.rating} estrella/s. Escucha activamente, muestra empatía, NO intentes vender nada.\n` : ""}
 ⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 --------------------------------------------------------
@@ -1752,9 +1750,19 @@ ${knowledgeSummary}
 ⚠️ NOTA PARA IA: Si existe una discrepancia entre la 'Lista Oficial' y la 'Base de Conocimiento', prioriza SIEMPRE la Base de Conocimiento.
 `;
 
-          const finalSysPrompt = (globalLocContext
-            ? `### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}\n\n${sysPrompt}`
-            : sysPrompt) + (tutorContext || "") + (referralContext || "");
+          // --- BLOQUE DINÁMICO (cambia por mensaje/tutor) — SIEMPRE al final ---
+          const dynamicSysPrompt = `
+
+CONTEXTO DE FECHAS:
+- HOY: ${todayDay}, ${localDateISO}
+- MAÑANA: ${tomorrowDay}, ${tomorrowISO}
+- PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
+- HORA ACTUAL: ${localTime}
+${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCIÓN NEGATIVA ⚠️\nEste cliente acaba de calificar su última atención con ${pendingFeedbackSurvey.rating} estrella/s. Escucha activamente, muestra empatía, NO intentes vender nada.\n` : ""}`;
+
+          const finalSysPrompt = staticSysPrompt + dynamicSysPrompt +
+            (globalLocContext ? `\n\n### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}` : "") +
+            (tutorContext || "") + (referralContext || "");
 
           // Build message history
           let lastOutboundIndex = -1;
