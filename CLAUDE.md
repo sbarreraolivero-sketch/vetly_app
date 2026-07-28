@@ -4208,6 +4208,8 @@ Cualquier tabla con datos de clientes que devuelva `>0` filas es una fuga. Convi
 
 **Hallazgo de bajo riesgo, no modificado:** varios `.or()` de PostgREST interpolan el teléfono crudo del payload (`phone_number.eq.${from},…`). Un valor con comas o paréntesis podría alterar el filtro, pero el payload viene con **HMAC verificado** de Meta/YCloud y `normalizePhone` sanea las variantes. Queda anotado; usar siempre el teléfono normalizado sería más robusto.
 
+**Pendiente de plataforma:** `auth_leaked_password_protection` está deshabilitado — activar en Supabase → Authentication el chequeo contra HaveIBeenPwned. Los otros 206 WARN (`security_definer_function_executable`, `function_search_path_mutable`) son el patrón histórico de todo el proyecto, no regresiones de esta sesión.
+
 ---
 
 ## Cambios realizados — julio 2026 (sesión 59, 2026-07-27)
@@ -4242,4 +4244,41 @@ Al revisar el estado del repo se encontraron 2 archivos con cambios ya funcionan
 - **`cron-process-reminders`**: generalizado para enviar plantillas de recordatorio tanto por YCloud como por Meta Cloud API (`hasMetaChannel`, `sendReminderTemplate`). Antes solo sabía hablar con la API de YCloud, así que ninguna clínica migrada a Meta (Santiago) podía recibir recordatorios de citas por ese canal.
 - **`meta-whatsapp-webhook`**: los eventos de estado de WhatsApp (`sent`→`delivered`→`read`, o `failed`) ahora actualizan `reminder_logs` y `reminders` además de `messages` — extiende a Meta el fix de "ENVIADO que nunca llegaba" de sesión 56, que hasta ahora solo cubría el canal YCloud.
 
-**Pendiente de plataforma:** `auth_leaked_password_protection` está deshabilitado — activar en Supabase → Authentication el chequeo contra HaveIBeenPwned. Los otros 206 WARN (`security_definer_function_executable`, `function_search_path_mutable`) son el patrón histórico de todo el proyecto, no regresiones de esta sesión.
+### `RoutePlanPanel` — colapsable y título en blanco
+
+Ajuste de UI pedido tras ver el panel en producción: el header (todo el bloque celeste) ahora es clickeable con un chevron que rota, y el cuerpo (los 14 días con chips) arranca colapsado — antes ocupaba demasiado espacio en la página siempre expandido. El `<h3>` del título pasó a `text-white` explícito en vez de heredarlo del contenedor.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 60, 2026-07-28)
+
+### Auditoría de la IA en producción — Linares apagada por corte de cuota OpenAI (recurrente)
+
+**Pedido:** revisar si la IA de Animalgrace estaba funcionando bien. Diagnóstico con datos reales de `messages` y `debug_logs`, no con suposiciones.
+
+**Hallazgo — Linares llevaba ~3 horas sin responder al momento de la revisión:** la IA funcionó normal hasta las 17:56 (hora Chile 13:56). A las 18:07 empezó a fallar con el mismo error `insufficient_quota` de OpenAI de la sesión 58 (2026-07-25) — 6 mensajes fallidos a 4 clientes distintos entre 18:07 y 18:40. A las 18:42 `ai_auto_respond` de Linares se puso en `false` (mismo patrón de sesión 58: Claudia lo apaga en respuesta al error). Desde entonces, **solo mensajes entrantes sin respuesta**, incluyendo un caso puntual: un cliente con sordera escribiendo *"Mire podría escribirme soy una persona con sordera..."*, *"Donde puedo hablar"*, *"Por favor"*, sin ninguna respuesta.
+
+**Santiago** seguía apagada desde el 2026-07-27 por decisión ya documentada (pendiente revisar KB/precios antes de reactivar) — no es una sorpresa nueva, pero también solo tenía inbound sin respuesta en las mismas horas.
+
+**Verificado como sano:** el plan de ruta (sesión 59) con 0 filas y sin errores relacionados; agendamiento y recordatorios sin errores mientras la IA sí respondía.
+
+### Causa raíz de por qué $10 USD de OpenAI se agotan en <4 días
+
+El usuario preguntó si era normal que $10 recargados el 25-jul ya se hubieran acabado el 28-jul. Diagnóstico con datos medidos (no estimados a ciegas):
+
+- **El system prompt de Linares mide 52.998 caracteres** (medido directo en un log real de `debug_logs`, mensaje "Prompt Construction"). Desglose: `ai_behavior_rules` = **39.324 caracteres** (crecido sesión tras sesión desde mayo, nunca depurado), `ai_personality` = 3.140, más KB y 48 servicios.
+- **Ese prompt completo se reenvía en cada llamada a OpenAI**, incluyendo cada iteración del tool loop (hasta 5 por turno — `check_availability`, `create_appointment`, etc. cada uno dispara una llamada extra completa). Desde la recarga del 25-jul: **437 turnos de conversación** + **77 ejecuciones de herramientas** en Linares ≈ ~500 llamadas completas en <4 días, cada una cargando ~13.000-16.000 tokens solo de prompt de sistema.
+- Con ese volumen medido, agotar $10 en 3-4 días es matemáticamente consistente — no hace falta un bug de duplicación de llamadas para explicarlo. No hay acceso al dashboard real de OpenAI desde aquí; para el desglose exacto en USD hay que mirar `platform.openai.com/usage`.
+
+**Causa estructural encontrada y corregida — el prompt rompía el prompt caching de OpenAI:**
+El contenido dinámico (fecha/hora actual, geo-data del tutor) estaba intercalado **antes** del bloque de reglas/servicios/KB en el prompt. Como la hora cambia en cada mensaje, el prefijo nunca era idéntico entre llamadas consecutivas, lo que le impedía a OpenAI aplicar su descuento automático de prompt caching (~50% en input tokens repetidos) sobre las ~40.000 caracteres de contenido que sí son idénticos entre turnos.
+
+**Fix aplicado (`ycloud-whatsapp-webhook`, deployado):** reordenado a `staticSysPrompt` (personalidad, datos de la clínica, `ai_behavior_rules`, servicios, KB, plan de ruta — idéntico entre turnos) + `dynamicSysPrompt` (fecha/hora, contexto de encuesta) al final, y `globalLocContext` (geo del tutor, antes antepuesto a TODO el prompt) movido también a la cola dinámica. Mismo contenido, sin cambios de comportamiento — solo el orden.
+
+**Regla permanente:** cualquier contenido que cambie entre llamadas (hora, geo, contexto por-tutor) debe ir al **final** del system prompt, nunca antes del bloque estático — el prompt caching de OpenAI/Anthropic solo aplica al prefijo común entre llamadas, y un solo carácter distinto cerca del principio invalida el cache para todo lo que viene después.
+
+### Limpieza — servicios duplicados en Linares
+
+Se encontraron 7 filas duplicadas (mismo nombre/duración/precio, creadas segundos aparte — doble-submit del form de Settings) en `clinic_services` de Linares: 3× "Medicamento Inyectable 11-20 kilos" $8.000, 2× "Examen de sangre HB + pb" $55.000, 2× "Medicamento Inyectable 26 a 30 kilos" $10.000. Migración `dedup_clinic_services_linares`: reasignadas las referencias de `service_professionals` hacia la fila más antigua de cada grupo y borradas las 4 filas sobrantes (48 → 44 servicios). Impacto menor en el tamaño del prompt, pero limpio.
+
+**Nota, no resuelta esta sesión:** hallazgo de precios inconsistentes para el mismo servicio con nombre casi idéntico (`"Examen de sangre HB + pb"` $55.000 vs `"Examen de sangre hb+ pb"` $45.000, distinta capitalización) — no se tocó por no saber si son dos exámenes distintos o un error de precio; confirmar con Claudia antes de unificar.
