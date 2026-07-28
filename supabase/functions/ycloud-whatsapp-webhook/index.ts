@@ -4070,19 +4070,21 @@ Ya recibió el mensaje de disculpa automático. Tu rol ahora es:
 `
           : "";
 
-        const sysPrompt = `
+        // --- BLOQUE ESTÁTICO (idéntico entre mensajes/tutores de esta clínica) ---
+        // Va SIEMPRE primero. OpenAI aplica prompt caching (~50% descuento en input)
+        // cuando el PREFIJO de la llamada es byte-a-byte igual al de una llamada
+        // reciente — pero el descuento se pierde desde el primer carácter que difiere.
+        // Con ai_behavior_rules solo de esta clínica en ~39.000 caracteres, reenviado
+        // en cada mensaje Y en cada iteración del tool loop (hasta 5 por turno), tener
+        // contenido variable (hora, geo del tutor) ANTES de este bloque anulaba el
+        // cache para TODO el prompt en cada llamada. Ver sección "Bloque dinámico" abajo.
+        const staticSysPrompt = `
 ${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
 Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
 Horarios: ${hoursSummary}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone} (Entrégalo si el cliente pide llamar o hablar con un humano)` : ""}${clinic.transfer_details ? `\nDatos de Pago/Transferencia: ${clinic.transfer_details}` : ""}
 
-CONTEXTO DE FECHAS:
-- HOY: ${todayDay}, ${localDateISO}
-- MAÑANA: ${tomorrowDay}, ${tomorrowISO}
-- PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
-- HORA ACTUAL: ${localTime}
-${routePlanBlock}${surveyFeedbackContextBlock}
 ⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 --------------------------------------------------------
@@ -4094,7 +4096,18 @@ BASE DE CONOCIMIENTO (PROTOCOLOS Y DETALLES ACTUALIZADOS):
 ${knowledgeSummary}
 
 ⚠️ NOTA PARA IA: Si existe una discrepancia entre la 'Lista Oficial' y la 'Base de Conocimiento', prioriza SIEMPRE la Base de Conocimiento, ya que contiene los protocolos y valores más recientemente actualizados por el equipo médico.
-`;
+${routePlanBlock}`;
+
+        // --- BLOQUE DINÁMICO (cambia por mensaje/tutor) ---
+        // SIEMPRE después del bloque estático — nunca antes — para no romper el cache.
+        const dynamicSysPrompt = `
+
+CONTEXTO DE FECHAS:
+- HOY: ${todayDay}, ${localDateISO}
+- MAÑANA: ${tomorrowDay}, ${tomorrowISO}
+- PASADO MAÑANA: ${dayAfterDay}, ${dayAfterISO}
+- HORA ACTUAL: ${localTime}
+${surveyFeedbackContextBlock}`;
 
         const sysPromptHQ = `Eres un Asesor Especialista de Vetly. Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
 
@@ -4102,10 +4115,11 @@ ${knowledgeSummary}
         const orderedMsgs = history;
 
         // --- MOTOR DE PERSISTENCIA GEOGRÁFICA GLOBAL ---
+        // globalLocContext es específico del tutor/conversación actual — va en la cola
+        // dinámica, nunca antepuesto al bloque estático (ver nota de prompt caching arriba).
         const finalSysPrompt = (clinic.id === HQ_ID ? sysPromptHQ : (
-          globalLocContext
-            ? `### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}\n\n${sysPrompt}`
-            : sysPrompt
+          staticSysPrompt + dynamicSysPrompt +
+          (globalLocContext ? `\n\n### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}` : "")
         )) + (tutorContext || "") + (referralContext || "");
 
         await debugLog(sb, `Prompt Construction`, { 
