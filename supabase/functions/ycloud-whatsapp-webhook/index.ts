@@ -4005,13 +4005,19 @@ Cómo aplicarlo:
           .eq("clinic_id", clinic.id)
           .order("id", { ascending: true });
 
+        // Se omiten los campos vacíos en vez de rellenarlos con texto placeholder: hoy
+        // el 100% de los servicios tiene ai_description en null, así que emitir
+        // "Sin detalles específicos." en cada uno agregaba ~1.900 caracteres de ruido al
+        // prompt en CADA llamada a OpenAI (y el prompt se reenvía completo en cada
+        // iteración del tool loop). Igual para duracion cuando es 0.
         const servicesForPrompt = realServices && realServices.length > 0
-          ? realServices.map((s) => ({
-            nombre: s.name,
-            duracion: `${s.duration} min`,
-            precio: `$${s.price.toLocaleString("es-CL")}`,
-            info_importante: s.ai_description || "Sin detalles específicos.",
-          }))
+          ? realServices.map((s) => {
+            const item: Record<string, string> = { nombre: s.name };
+            if (s.duration) item.duracion = `${s.duration} min`;
+            item.precio = `$${s.price.toLocaleString("es-CL")}`;
+            if (s.ai_description) item.info_importante = s.ai_description;
+            return item;
+          })
           : clinic.services || [];
 
         // Build a readable string of hours in SPANISH to match the AI rules and context

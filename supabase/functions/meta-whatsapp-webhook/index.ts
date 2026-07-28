@@ -1708,8 +1708,17 @@ Deno.serve(async (req) => {
           // para que el prompt caching de OpenAI funcione (ver ycloud-whatsapp-webhook).
           const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
           const { data: realServices } = await sb.from("clinic_services").select("name, duration, price, ai_description").eq("clinic_id", clinic.id).order("id", { ascending: true });
+          // Campos vacíos omitidos en vez de rellenados con placeholder — hoy el 100% de
+          // los servicios tiene ai_description en null, así que "Sin detalles específicos."
+          // sumaba ~2.550 caracteres de ruido al prompt en cada llamada a OpenAI.
           const servicesForPrompt = realServices && realServices.length > 0
-            ? realServices.map((s: any) => ({ nombre: s.name, duracion: `${s.duration} min`, precio: `$${s.price.toLocaleString("es-CL")}`, info_importante: s.ai_description || "Sin detalles específicos." }))
+            ? realServices.map((s: any) => {
+              const item: Record<string, string> = { nombre: s.name };
+              if (s.duration) item.duracion = `${s.duration} min`;
+              item.precio = `$${s.price.toLocaleString("es-CL")}`;
+              if (s.ai_description) item.info_importante = s.ai_description;
+              return item;
+            })
             : clinic.services || [];
 
           const daysMap: Record<string, string> = { monday: "lunes", tuesday: "martes", wednesday: "miércoles", thursday: "jueves", friday: "viernes", saturday: "sábado", sunday: "domingo" };
