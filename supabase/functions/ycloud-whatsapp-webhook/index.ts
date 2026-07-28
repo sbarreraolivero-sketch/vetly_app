@@ -3997,9 +3997,13 @@ Cómo aplicarlo:
         const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
 
         // Fetch REAL services from the 'clinic_services' table (not the legacy JSON field)
+        // ORDER BY id: sin esto Postgres no garantiza el mismo orden de filas entre
+        // llamadas — un orden que cambiara silenciosamente (autovacuum, HOT update)
+        // rompería el prefijo del prompt y anularía el prompt caching de OpenAI.
         const { data: realServices } = await sb.from("clinic_services")
           .select("name, duration, price, ai_description")
-          .eq("clinic_id", clinic.id);
+          .eq("clinic_id", clinic.id)
+          .order("id", { ascending: true });
 
         const servicesForPrompt = realServices && realServices.length > 0
           ? realServices.map((s) => ({

@@ -1704,8 +1704,10 @@ Deno.serve(async (req) => {
           const dayAfterDay = dayAfter.toLocaleDateString("es-CL", { timeZone: clinicTz, weekday: "long" });
 
           // Knowledge and services
+          // ORDER BY id: garantiza el mismo orden de filas entre llamadas — necesario
+          // para que el prompt caching de OpenAI funcione (ver ycloud-whatsapp-webhook).
           const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
-          const { data: realServices } = await sb.from("clinic_services").select("name, duration, price, ai_description").eq("clinic_id", clinic.id);
+          const { data: realServices } = await sb.from("clinic_services").select("name, duration, price, ai_description").eq("clinic_id", clinic.id).order("id", { ascending: true });
           const servicesForPrompt = realServices && realServices.length > 0
             ? realServices.map((s: any) => ({ nombre: s.name, duracion: `${s.duration} min`, precio: `$${s.price.toLocaleString("es-CL")}`, info_importante: s.ai_description || "Sin detalles específicos." }))
             : clinic.services || [];
