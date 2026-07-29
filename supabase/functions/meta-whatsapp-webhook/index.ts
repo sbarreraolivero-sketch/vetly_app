@@ -1083,6 +1083,36 @@ const getKnowledgeSummary = async (sb: ReturnType<typeof createClient>, clinicId
   return docs.slice(0, 5).map(d => `- [${d.category}] ${d.title}: ${d.content.substring(0, 500)}...`).join("\n");
 };
 
+// --- CONOCIMIENTO FORZADO (sesión 62) — mismo mecanismo que ycloud-whatsapp-webhook.
+// El resumen de arriba solo trae los 5 docs KB más recientes truncados a 500 chars;
+// verificado que documentos con tabla de precios sin respaldo en clinic_services
+// (cirugía, sedación) quedan fuera de ese top 5, y la tool get_knowledge casi nunca se
+// llama en la práctica. Estos 3 se fuerzan completos cuando el mensaje toca el tema.
+const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
+  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "esterili", "castra", "pabell"] },
+  { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
+  { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
+];
+
+const getForcedKnowledgeBlock = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+  userText: string,
+): Promise<string> => {
+  const text = (userText || "").toLowerCase();
+  const matched = FORCED_KB_TOPICS.filter((t) => t.keywords.some((kw) => text.includes(kw)));
+  if (matched.length === 0) return "";
+  try {
+    const docs = await getKnowledgeDocs(sb, clinicId);
+    const blocks = matched
+      .map((t) => docs.find((d: any) => d.title === t.title))
+      .filter((d): d is any => !!d)
+      .map((d: any) => `📄 ${d.title} (contenido completo — consulta obligatoria para este tema):\n${d.content}`);
+    if (blocks.length === 0) return "";
+    return `\n\n⚠️ INFORMACIÓN FORZADA — EL MENSAJE DEL CLIENTE TOCA UN TEMA CRÍTICO DE PRECIO/POLÍTICA ⚠️\nUsa ESTA información como fuente, no la inventes ni la deduzcas de otro servicio:\n${blocks.join("\n\n")}`;
+  } catch { return ""; }
+};
+
 // ── Escalate to Human ─────────────────────────────────────────────────────────
 const escalateToHuman = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string) => {
   const normalizedPhone = normalizePhone(phone);
@@ -1736,6 +1766,16 @@ Deno.serve(async (req) => {
             .eq("status", "responded").lte("rating", 2).is("feedback_context", null)
             .order("responded_at", { ascending: false }).limit(1).maybeSingle();
 
+          // Texto de mensajes entrantes recientes, para detectar si corresponde forzar
+          // alguno de los 3 documentos KB de riesgo (cirugía/sedación/visita fallida).
+          // No se usa burstInbound (se define más abajo, después de necesitarlo aquí).
+          const recentUserText = history
+            .filter((m: any) => m.direction === "inbound")
+            .slice(-5)
+            .map((m: any) => m.content || "")
+            .join(" ");
+          const forcedKnowledgeBlock = await getForcedKnowledgeBlock(sb, clinic.id, recentUserText);
+
           // --- BLOQUE ESTÁTICO (idéntico entre mensajes/tutores de esta clínica) ---
           // Va SIEMPRE primero para no romper el prompt caching de OpenAI: el descuento
           // (~50% en input tokens) solo aplica al PREFIJO común entre llamadas, y se
@@ -1759,7 +1799,7 @@ BASE DE CONOCIMIENTO (PROTOCOLOS Y DETALLES ACTUALIZADOS):
 ${knowledgeSummary}
 
 ⚠️ NOTA PARA IA: Si existe una discrepancia entre la 'Lista Oficial' y la 'Base de Conocimiento', prioriza SIEMPRE la Base de Conocimiento.
-`;
+${forcedKnowledgeBlock}`;
 
           // --- BLOQUE DINÁMICO (cambia por mensaje/tutor) — SIEMPRE al final ---
           const dynamicSysPrompt = `

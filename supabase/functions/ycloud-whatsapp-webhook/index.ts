@@ -2546,6 +2546,44 @@ const getKnowledgeSummary = async (
   }
 };
 
+// --- CONOCIMIENTO FORZADO (sesión 62) ---
+// El resumen automático de arriba solo incluye los 5 documentos KB más recientes
+// truncados a 500 caracteres — verificado en producción que documentos con tabla de
+// precios sin ningún respaldo en clinic_services (cirugía, sedación) quedan fuera de
+// ese top 5, y la tool `get_knowledge` casi nunca se llama en la práctica (10% de las
+// conversaciones reales sobre estos temas). Resultado: la IA "adivinaba" precios de
+// cirugía/sedación sin consultar ninguna fuente real. Estos 3 documentos se fuerzan
+// completos en el prompt cuando el mensaje del cliente toca el tema — no dependen de
+// que la IA decida buscarlos.
+const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
+  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "esterili", "castra", "pabell"] },
+  { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
+  { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
+];
+
+const getForcedKnowledgeBlock = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+  userText: string,
+): Promise<string> => {
+  const text = (userText || "").toLowerCase();
+  const matched = FORCED_KB_TOPICS.filter((t) => t.keywords.some((kw) => text.includes(kw)));
+  if (matched.length === 0) return "";
+
+  try {
+    const docs = await getKnowledgeDocs(sb, clinicId);
+    const blocks = matched
+      .map((t) => docs.find((d: any) => d.title === t.title))
+      .filter((d): d is any => !!d)
+      .map((d: any) => `📄 ${d.title} (contenido completo — consulta obligatoria para este tema):\n${d.content}`);
+
+    if (blocks.length === 0) return "";
+    return `\n\n⚠️ INFORMACIÓN FORZADA — EL MENSAJE DEL CLIENTE TOCA UN TEMA CRÍTICO DE PRECIO/POLÍTICA ⚠️\nUsa ESTA información como fuente, no la inventes ni la deduzcas de otro servicio:\n${blocks.join("\n\n")}`;
+  } catch {
+    return "";
+  }
+};
+
 const processFunc = async (
   sb: ReturnType<typeof createClient>,
   clinicId: string,
@@ -4067,6 +4105,11 @@ Cómo aplicarlo:
           }
         }
 
+        // Texto de los mensajes entrantes recientes, usado para detectar si corresponde
+        // forzar alguno de los 3 documentos KB de riesgo (cirugía/sedación/visita fallida).
+        const recentUserText = burstInbound.map((m) => m.content || "").join(" ");
+        const forcedKnowledgeBlock = await getForcedKnowledgeBlock(sb, clinic.id, recentUserText);
+
         const surveyFeedbackContextBlock = pendingFeedbackSurvey
           ? `
 ⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCIÓN NEGATIVA ⚠️
@@ -4106,7 +4149,7 @@ BASE DE CONOCIMIENTO (PROTOCOLOS Y DETALLES ACTUALIZADOS):
 ${knowledgeSummary}
 
 ⚠️ NOTA PARA IA: Si existe una discrepancia entre la 'Lista Oficial' y la 'Base de Conocimiento', prioriza SIEMPRE la Base de Conocimiento, ya que contiene los protocolos y valores más recientemente actualizados por el equipo médico.
-${routePlanBlock}`;
+${routePlanBlock}${forcedKnowledgeBlock}`;
 
         // --- BLOQUE DINÁMICO (cambia por mensaje/tutor) ---
         // SIEMPRE después del bloque estático — nunca antes — para no romper el cache.
