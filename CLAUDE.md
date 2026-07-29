@@ -4346,3 +4346,31 @@ WHERE pb.clinic_id = cs.id AND pb.field = 'ai_behavior_rules'
 Se extrajeron con regex todos los títulos de regla (`**EN MAYÚSCULA:**`) del respaldo y del texto nuevo, y se diferenciaron: **Santiago no perdió ninguno**; en Linares desaparecieron 8, todos esperados (2 renombrados por la fusión de cirugías, 2 renumerados como PASO 4/5, 4 eliminados por duplicación). Además se comprobó una a una la supervivencia de 12 reglas sustantivas (rango de 2 horas, consulta previa de destartraje, comunas de ambos sectores, radio urbano $0, rural variable, exámenes $55.000, cierre con Claudia, anti-confusión felina $65.000/$60.000, mínimo $15.000, centro quirúrgico, advertencia textual de dirección escrita).
 
 **⚠️ Regla permanente — antes de recortar un prompt:** verificar qué documentos del KB llegan realmente al prompt (`ORDER BY updated_at DESC LIMIT 5`, truncados a 500 chars). Una regla que solo viva en un documento fuera de ese top 5 desaparece del contexto si se borra de `ai_behavior_rules`. Y antes de aplicar cualquier `UPDATE` sobre estos campos, respaldar en `prompt_backups`.
+
+---
+
+## Cambios realizados — julio 2026 (sesión 62, 2026-07-28/29)
+
+### Conocimiento forzado — cirugía, sedación y visita fallida ya no dependen de que la IA decida buscarlos
+
+**Origen:** al explicar por qué `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` no entra al resumen automático (top 5 por `updated_at`), se verificó con conversaciones reales si al menos la tool `get_knowledge` compensaba el hueco. **No lo hacía:** de 15 conversaciones reales sobre cirugía, `get_knowledge` se llamó **1 vez**. Peor — en un caso real (canino 10kg, castración) la IA respondió **$70.000 sin haber llamado la tool ni una vez**, y ese número resultó ser el correcto por la matriz real. No fue un mecanismo confiable: fue una coincidencia sobre un mismo diseño que ya había fallado antes (sesiones 9 y 40: gata cotizada en $85.000 y $80.000 en vez de $65.000).
+
+**Por qué destartraje NO tiene el mismo problema (verificado, no asumido):** sus 4 precios por peso ($90.000–$135.000) están duplicados en `clinic_services` (la Lista Oficial de Servicios, que siempre va en el prompt). Un caso real (mascota 4,6 kg) mostró la IA respondiendo $90.000 correctamente sin tocar `get_knowledge` — porque el dato ya estaba en el prompt por otra vía, no por casualidad.
+
+**Auditoría de los 5 documentos fuera del top 5, con evidencia real:**
+
+| Documento | Respaldo fuera del KB | Riesgo |
+|---|---|---|
+| `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` | Ninguno (`clinic_services` tiene solo "Cirugía" a $0) | **Alto** — forzado |
+| `Protocolo_de_Sedación_a_Domicilio` | Ninguno | **Alto** — forzado (10% de 20 conversaciones de agresividad/sedación llamó `get_knowledge`) |
+| `POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO` | Parcial — orden médica, prohibición de derivar y riesgo vital ya están en `ai_behavior_rules`. Huérfanos: política de visita fallida (cobro no reembolsable) y 2 restricciones de vacunación (cachorro 7 días en el hogar, no vacunar con cirugía programada en 7 días) | **Medio** — forzado (solo la parte huérfana importa) |
+| `PROTOCOLO_LOGISTICA_CIRUGIAS_ANIMALGRACE` | La tabla T1/T2/T3 ($0/$8.000/$16.000) está duplicada dentro de `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` — forzar ese documento ya cubre el riesgo de precio | **Bajo** — no forzado |
+| `Protocolo_de_Destartraje` | Precios reales ya en `clinic_services` (verificado con caso real) | **Bajo** — no forzado |
+
+**Fix — `getForcedKnowledgeBlock()` (ambos webhooks):** detecta keywords en los mensajes recientes del cliente (`cirug/esterili/castra/pabell`, `sedaci/agresiv/anestesi/inquiet`, `reembols/devuelv/cancela/visita fallida`) y, si hay match, inyecta el documento KB **completo** (no truncado) al final del bloque estático del prompt (`staticSysPrompt`), antes del bloque dinámico. Se ubica ahí a propósito: todo el prefijo grande (reglas, servicios, KB summary, plan de ruta) sigue siendo idéntico entre llamadas y se beneficia del prompt caching de la sesión 60 — solo se pierde el cache en la cola condicional, y solo para los mensajes que tocan estos 3 temas.
+
+**Regla permanente:** cuando una regla del prompt dice "consulta `#NombreDocumento`" para un dato crítico (precio, política), verificar con datos reales de `messages`/`debug_logs` si la IA efectivamente llama `get_knowledge` cuando corresponde — no asumir que lo hace porque el prompt se lo pide. Si el documento no tiene respaldo en otra fuente siempre presente (como `clinic_services`), la única forma confiable es forzarlo, no delegarlo a la decisión del modelo.
+
+**Nota lateral — costo:** este fix no ataca el consumo de créditos OpenAI (esa es una investigación separada, ver sesión 60/61). Solo agrega ~2-3 KB al prompt, y únicamente en las conversaciones que tocan estos 3 temas — impacto marginal frente al ahorro ya logrado.
+
+**Verificado:** deploy de ambos webhooks sin errores nuevos en `get_logs` (solo el 500 preexistente de `cron-process-surveys`, no relacionado).
