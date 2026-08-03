@@ -2556,7 +2556,7 @@ const getKnowledgeSummary = async (
 // completos en el prompt cuando el mensaje del cliente toca el tema — no dependen de
 // que la IA decida buscarlos.
 const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
-  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "esterili", "castra", "pabell"] },
+  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell"] },
   { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
 ];
@@ -3847,6 +3847,25 @@ Deno.serve(async (req) => {
         
         let history = (rawHistory || []).reverse();
 
+        // Se calcula temprano (antes se calculaba mucho más abajo, después de usarse
+        // en el bloque de encuesta/forced-knowledge, lo que lanzaba ReferenceError por
+        // TDZ en cada mensaje). orderedMsgs/burstInbound dependen solo de `history`,
+        // que ya está disponible aquí y no se reasigna en el resto de la función.
+        const orderedMsgs = history;
+        let lastOutboundIndex = -1;
+        for (let i = orderedMsgs.length - 1; i >= 0; i--) {
+          if (orderedMsgs[i].direction === "outbound") {
+            lastOutboundIndex = i;
+            break;
+          }
+        }
+        const pastContext = lastOutboundIndex >= 0
+          ? orderedMsgs.slice(0, lastOutboundIndex + 1)
+          : [];
+        const burstInbound = lastOutboundIndex >= 0
+          ? orderedMsgs.slice(lastOutboundIndex + 1)
+          : orderedMsgs;
+
         // Generic Map Link Processing
         const lastUserMsg = [...history].reverse().find(m => m.direction === "inbound" && !m.ai_generated);
         if (lastUserMsg && googleMapsApiKey && (lastUserMsg.content.includes("maps.app.goo.gl") || lastUserMsg.content.includes("google.com/maps"))) {
@@ -4107,7 +4126,15 @@ Cómo aplicarlo:
 
         // Texto de los mensajes entrantes recientes, usado para detectar si corresponde
         // forzar alguno de los 3 documentos KB de riesgo (cirugía/sedación/visita fallida).
-        const recentUserText = burstInbound.map((m) => m.content || "").join(" ");
+        // Se escanean los últimos ~20 mensajes del tutor (orderedMsgs), no solo el burst
+        // actual: en una cotización real, el tutor dice "quiero esterilizar" en un turno
+        // y da el peso/ubicación varios turnos después — si solo se mirara el burst
+        // actual, la palabra clave ya no estaría presente justo cuando la IA calcula
+        // el precio final, y el bloqueo forzado nunca se activaría.
+        const recentUserText = orderedMsgs
+          .filter((m) => m.direction === "inbound")
+          .map((m) => m.content || "")
+          .join(" ");
         const forcedKnowledgeBlock = await getForcedKnowledgeBlock(sb, clinic.id, recentUserText);
 
         const surveyFeedbackContextBlock = pendingFeedbackSurvey
@@ -4164,9 +4191,6 @@ ${surveyFeedbackContextBlock}`;
 
         const sysPromptHQ = `Eres un Asesor Especialista de Vetly. Tu meta es que el prospecto descubra por sí mismo que NECESITA mejorar su gestión, y que Vetly es el camino más sencillo.`;
 
-        // The 'history' variable is already fetched and reversed at the top of the asyncProcess.
-        const orderedMsgs = history;
-
         // --- MOTOR DE PERSISTENCIA GEOGRÁFICA GLOBAL ---
         // globalLocContext es específico del tutor/conversación actual — va en la cola
         // dinámica, nunca antepuesto al bloque estático (ver nota de prompt caching arriba).
@@ -4184,22 +4208,6 @@ ${surveyFeedbackContextBlock}`;
         });
 
         const historyArr = (history && Array.isArray(history)) ? history : [];
-
-        // Find where the last outbound message is so we can group all recent inbound ones
-        let lastOutboundIndex = -1;
-        for (let i = orderedMsgs.length - 1; i >= 0; i--) {
-          if (orderedMsgs[i].direction === "outbound") {
-            lastOutboundIndex = i;
-            break;
-          }
-        }
-
-        const pastContext = lastOutboundIndex >= 0
-          ? orderedMsgs.slice(0, lastOutboundIndex + 1)
-          : [];
-        const burstInbound = lastOutboundIndex >= 0
-          ? orderedMsgs.slice(lastOutboundIndex + 1)
-          : orderedMsgs;
 
         const msgs: Msg[] = [
           { role: "system", content: finalSysPrompt },

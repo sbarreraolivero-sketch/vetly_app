@@ -1089,7 +1089,7 @@ const getKnowledgeSummary = async (sb: ReturnType<typeof createClient>, clinicId
 // (cirugía, sedación) quedan fuera de ese top 5, y la tool get_knowledge casi nunca se
 // llama en la práctica. Estos 3 se fuerzan completos cuando el mensaje toca el tema.
 const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
-  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "esterili", "castra", "pabell"] },
+  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell"] },
   { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
 ];
