@@ -4374,3 +4374,404 @@ Se extrajeron con regex todos los títulos de regla (`**EN MAYÚSCULA:**`) del r
 **Nota lateral — costo:** este fix no ataca el consumo de créditos OpenAI (esa es una investigación separada, ver sesión 60/61). Solo agrega ~2-3 KB al prompt, y únicamente en las conversaciones que tocan estos 3 temas — impacto marginal frente al ahorro ya logrado.
 
 **Verificado:** deploy de ambos webhooks sin errores nuevos en `get_logs` (solo el 500 preexistente de `cron-process-surveys`, no relacionado).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 63, 2026-08-05)
+
+### Estrategia de crecimiento — plan de entrada agresivo + referidos B2B
+
+**Contexto de negocio:** el usuario quiere lanzar una campaña de adquisición masiva de clínicas veterinarias vía contenido orgánico, con un precio de entrada muy agresivo en el plan Core (todo menos el agente IA conversacional) y un programa de referidos entre clínicas para crecimiento viral. También se planea un canal de YouTube con tutoriales para reducir la dependencia de demos 1:1.
+
+**Recomendación de pricing dada (no requiere código):** $17/mes es viable como precio de **lanzamiento** (no permanente) porque el Core actual ($39) es casi puro margen — reducirlo permanentemente ancla mal la percepción de valor y agranda la brecha psicológica hacia Starter ($97). Se recomendó implementarlo como **cupón de descuento con tope de cupos**, no como cambio de precio base.
+
+### Fix — "Módulo de inventario" faltaba en el listado de features de todos los planes
+
+El plan Core (y por herencia Starter/Pro/Enterprise vía "Todo lo de Core") no mencionaba el módulo de inventario en ningún listado de features, aunque el módulo existe desde sesión 30-32. Agregado "Módulo de inventario" en:
+- `src/lib/mercadopago.ts` (features de Core)
+- `src/lib/lemonsqueezy.ts` (features de Core)
+- `public/landing.html` (tarjeta de precios de Core, landing real de producción)
+- `src/pages/Pricing.tsx` (ruta `/pricing`, sí enrutada — a diferencia de `src/pages/Landing.tsx`, que es código muerto desde sesión 17 y no se tocó)
+
+**El precio de Core sigue en $39 en todos lados.** No se agregó ningún aviso de "$17 lanzamiento" en la landing — el cupón todavía no existe en LemonSqueezy ni MercadoPago (confirmado explícitamente con el usuario). Poner "$17" en la landing antes de que el cupón exista habría creado un mismatch real entre lo prometido y lo que el checkout cobra de verdad.
+
+### Sistema de referidos B2B (clínica refiere clínica) — implementación completa
+
+**Distinto del sistema de referidos ya existente** (`tutors.referral_code` / `/r/:code`, sesión 27), que es para que un tutor refiera a otro tutor dentro de la misma clínica. Este es nuevo: una clínica cliente de Vetly refiere a otra clínica/veterinario para que se suscriba.
+
+**Reglas de recompensa (decisión de negocio):**
+- Referido toma plan **Core** → referidor recibe **2 meses gratis**, aplicados automáticamente (solo se extiende `subscriptions.current_period_end`, sin dinero de por medio).
+- Referido toma **Starter / Pro / Enterprise** → referidor gana **50% del primer pago**, como comisión pagada **manualmente por transferencia vía HQ** (el sistema solo registra y permite marcar como pagada — no hay payout automatizado).
+
+**DB (migración `clinic_referrals_system`):**
+- `clinic_settings.partner_referral_code TEXT UNIQUE` — trigger `BEFORE INSERT` que genera 6 caracteres (mismo patrón que `trigger_generate_tutor_referral_code`), con backfill retroactivo para las 3 clínicas existentes.
+- Tabla `clinic_referrals` (`referrer_clinic_id`, `referred_clinic_id UNIQUE`, `referral_code`, `referred_plan`, `status` enum `pending|qualified|paid`, `reward_type` enum `free_months|cash_commission`, `reward_amount`, `reward_currency`, `rewarded_at`, `paid_at`, `paid_by`). El `UNIQUE` en `referred_clinic_id` da idempotencia gratis: una clínica solo puede ser "la referida" una vez.
+- RLS: miembros de la clínica referidora ven sus propios referidos vía `clinic_members`; `service_role` acceso total; sin policy de escritura para `authenticated` (todo pasa por RPC o service role).
+- RPCs `SECURITY DEFINER` (verifican `platform_admins`): `mark_referral_paid(p_referral_id)` y `get_admin_referrals()` (evita el problema de hacer 2 joins a `clinic_settings` desde la misma tabla vía PostgREST embeds). Se revocó `EXECUTE` de `PUBLIC`/`anon` sobre ambas tras detectarlo con `get_advisors` (hardening, sin cambio de comportamiento — las funciones ya se auto-protegían internamente).
+
+**Captura al signup:**
+- `Register.tsx` lee `?ref=CODIGO` de la URL (o acepta un código escrito a mano si no viene en el link) y lo pasa a `AuthContext.signUp` (ahora acepta `paymentProvider` y `referralCode` como parámetros opcionales adicionales — nota: `paymentProvider` sigue sin reenviarse al backend, ese es un bug preexistente de otra sesión que **no se tocó**, fuera de alcance).
+- `signup-handler` (edge function, v19): si llega `referral_code`, busca la clínica dueña de ese código y crea la fila `clinic_referrals` en `pending`, de forma no bloqueante (si falla, el signup continúa igual — mismo criterio que el email de bienvenida).
+
+**Recompensa automática al primer pago real:**
+- El signup en sí **no cobra nada** — la clínica queda en modo trial/`pending_activation`. El pago real ocurre después, cuando el dueño hace upgrade desde Settings (`redirectToLemonCheckout` o `createSubscriptionPreference`), lo cual dispara `lemonsqueezy-webhook` o `mercadopago-webhook`.
+- **`lemonsqueezy-webhook` (v23):** el bloque de recompensa vive dentro de `case 'subscription_created'` — evento que LemonSqueezy solo dispara una vez por suscripción (las renovaciones van por `subscription_payment_success`), así que no hace falta lógica extra de idempotencia ahí.
+- **`mercadopago-webhook` (v14):** MercadoPago no distingue primera vez de renovación por tipo de evento — el bloque corre dentro de `if (subscriptionStatus === 'active')`, que se ejecuta en cada pago aprobado. La idempotencia la da el propio estado de la fila: solo actúa si encuentra `clinic_referrals.status = 'pending'`; una vez que pasa a `qualified`, ningún pago futuro (renovación) la vuelve a tocar.
+- Ambos bloques van en `try/catch` que solo loguea — **nunca pueden romper la activación real del pago**, que es lo que ya funciona hoy en producción para Animalgrace. Precios de referencia hardcodeados por plan (USD en LS, CLP en MP) para calcular el 50% — mismo patrón de duplicación de constantes ya establecido en el proyecto (ver regla de "5 lugares" para precios).
+- `charge-trials/index.ts` (flujo legado, referencia "Citenly AI", no fija `metadata.clinic_id`) se dejó **fuera de alcance a propósito** — no está conectado de forma confiable al resto del sistema, así que un referido que se active por ese camino no dispararía la recompensa. No es un problema práctico hoy porque ese flujo ya estaba desconectado del resto del sistema de créditos/planes antes de esta sesión.
+
+**Frontend nuevo:**
+- `src/pages/PartnerReferral.tsx` — página "Recomienda Vetly" (ruta `/app/partner-referral`, sección Marketing del nav junto a Fidelización): muestra el link de invitación (`{origin}/registro?ref={code}`), las reglas de recompensa, y la lista de referidos propios con badge de estado.
+- `src/pages/hq/AdminReferrals.tsx` — panel HQ (`/hq/referrals`, nav en `AdminLayout.tsx`): stats + tabla de todos los referidos vía `get_admin_referrals()`, botón "Marcar como pagado" (mismo patrón confirm→loading-por-fila→RPC→refetch que `AdminClinics.tsx`) solo visible para comisiones en efectivo `qualified`.
+- `src/lib/permissions.ts`: nuevo `PageKey` `'partner_referral'` — `true` para owner/admin, `false` para el resto (dato financiero de la clínica).
+
+#### Pendiente — próxima sesión
+
+- [ ] **Crear el cupón de $17 (primeros 100 clientes)** en LemonSqueezy y MercadoPago. Es un paso manual en el dashboard de cada pasarela — no requiere código. Una vez creado, actualizar la landing (`public/landing.html`) para mostrar el precio de lanzamiento junto al normal ($39), dejando claro que es por tiempo/cupo limitado.
+- [ ] **Banner o pop-up post-pago** para agendar la primera reunión de onboarding. Diseño acordado: reutilizar el agente HQ (Andrés) vía WhatsApp en vez de construir un flujo de agenda nuevo.
+- [ ] **Canal de YouTube + sección de tutoriales** dentro de la plataforma (o un link directo al canal). Grabar los videos es trabajo del usuario; lo que falta construir es solo el punto de acceso desde la plataforma.
+- [ ] Verificar en producción, con un referido real, que el flujo completo funciona end-to-end (signup con `?ref=`, primer pago, aplicación de la recompensa) — lo verificado en esta sesión fue `tsc --noEmit` limpio y `get_advisors` sin hallazgos nuevos de severidad ERROR, no un caso real de punta a punta.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 64, 2026-08-05)
+
+### Migración de Animalgrace Linares/Talca de YCloud a Meta Cloud API — en progreso
+
+**Motivación:** el saldo de YCloud de Linares se agotó (mismo problema recurrente que Santiago tuvo antes de migrar — sesiones 33/40), y como Santiago viene funcionando bien con Meta Cloud API vía coexistencia desde sesión 57 (sin necesitar tarjeta ni saldo prepago), se decidió migrar también Linares al mismo modelo.
+
+#### Código — paridad `clinic_route_plan` portada a `meta-whatsapp-webhook` (v19, deployado)
+
+**Gap encontrado:** el enforcement del "plan de ruta por fecha" (sesión 59 — el panel donde Claudia restringe qué sector móvil se atiende cada día) vivía solo en `ycloud-whatsapp-webhook`. Si Linares migraba a Meta sin portarlo, ese panel dejaría de tener efecto real en silencio — justo el control más sensible para esa sucursal (rebote de sectores Talca↔Linares).
+
+**3 bloques portados literalmente** (mismo texto/lógica que `ycloud-whatsapp-webhook`, solo adaptados a los nombres de variables locales de `meta-whatsapp-webhook`):
+1. Query paralela a `clinic_route_plan` dentro de `checkAvail` (antes del `Promise.all` de `clinic_settings`/`serviceDetails`/`existingAppts`), con horizonte de 21 días y fail-open (`errRoutePlan` logueado, nunca bloquea el agendamiento si la query falla).
+2. Filtro duro con `dayPlan`/`allowed_sectors` dentro del bloque `if (isAnimalGrace)`, ANTES del chequeo de capacidad de 5 citas — reutiliza `targetSector` ya calculado ahí mismo.
+3. Bloque `routePlanBlock` inyectado en `staticSysPrompt` (después de `forcedKnowledgeBlock`), condicionado a `routing_mode === "mobile_sectors"`, para que la IA sea proactiva ofreciendo la fecha correcta en vez de chocar contra un "no disponible".
+
+**Verificación de seguridad antes del deploy:** `clinic_route_plan` tenía 0 filas para el `clinic_id` de Santiago (la única clínica que hoy usa este webhook en producción) — el cambio fue confirmado inerte para Santiago antes de deployar. Deploy limpio (`supabase functions deploy meta-whatsapp-webhook --no-verify-jwt`, v18→v19), `verify_jwt: false` preservado, sin errores nuevos en `get_logs` post-deploy.
+
+**Conclusión de la investigación de código previa al deploy:** todo el resto de la infraestructura (`MetaWhatsAppConnect.tsx`, `meta-embedded-signup`, resolución de clínica en `meta-whatsapp-webhook` por `meta_phone_number_id`, `cron-process-reminders` con `hasMetaChannel`/`hasYCloudChannel`) ya es genérico por `clinic_id` desde que se construyó para Santiago — no hizo falta tocar nada más para que el flujo de conexión sirva para Linares.
+
+#### Operativo — desconexión de YCloud, bloqueada por moneda AUD (sin resolver al cierre de sesión)
+
+**Hallazgo 1 — YCloud tenía control total sobre la WABA de Linares vía Business Manager.** En `business.facebook.com` (business_id `587379105060987`, "Agencia Digital - Publymed" — el mismo Business Manager que ya usamos para la conexión de Santiago), existía una WABA **"Animal Grace vetmóvil Linares"** (ID `10010918923567`) con **YCloud como "Socio con control total"**.
+
+**Hallazgo 2 — la WABA estaba en AUD, mismo patrón que el problema original de Santiago.** La pestaña "Resumen" de esa WABA mostraba `Divisa: AUD` y sin método de pago asociado. Confirmado con evidencia externa (no solo precedente interno): existe un caso documentado donde Meta bloquea explícitamente vincular un número si la moneda de la WABA no es USD (*"the error indicated that a WhatsApp Business Account phone number cannot be linked because the currency is not US Dollars"*). La moneda de una WABA **no es editable desde la interfaz de Business Manager** una vez creada — solo existe una API de "migración de moneda" que clona la WABA en una nueva, no un toggle simple.
+
+**Secuencia de desconexión ejecutada** (en el Business Manager de Publymed y en el teléfono de Linares, +56958897996):
+1. Quitado YCloud como Socio de la WABA "Animal Grace vetmóvil Linares" (Business Manager → Cuentas de WhatsApp → esa cuenta → Socios → Administrar).
+2. Desconectado desde WhatsApp Business App en el teléfono (Ajustes → Cuenta → Plataforma empresarial → Desconectar cuenta).
+3. **WABA "Animal Grace vetmóvil Linares" eliminada por completo** (no alcanzaba con quitar el socio y desconectar — el bloqueo de moneda vive en la WABA misma).
+4. Reintento del Embedded Signup → nuevo bloqueo: *"El número de teléfono ya está vinculado a una página de Facebook"* → desvinculado desde Business Manager → Páginas → la página con el número conectado.
+5. Reintento → nuevo bloqueo: *"El negocio ya comparte esta cuenta de WhatsApp Business con un socio... deberás desconectar el socio actual en la app de WhatsApp Business"* → reconfirmado en el teléfono (captura de pantalla de la app mostrando la pantalla de "Conéctate a la plataforma para empresas" limpia, sin ningún socio activo).
+6. **El error del punto 5 persistió incluso después de confirmar que la app ya no mostraba conexión alguna.** Diagnóstico: no es un vínculo más por desconectar, es Meta tardando en propagar internamente el borrado de la WABA + desvinculación de la Página + desconexión de la app (cada una tiene su propia sincronización, no necesariamente instantánea).
+
+**Descartado como causa — partnership Nexflow Ai System sobre la Página "Animal Grace - Veterinaria Móvil".** Esta Página (ID `114060250435261`, distinta de la WABA borrada) tenía a Nexflow Ai System (el negocio dueño de la app Vetly Omnicanal) como Socio con control total. Se investigó como posible causa del bloqueo, pero el usuario confirmó que esa asignación fue un intento manual propio, anterior, para vincular el número de Santiago, que **nunca llegó a completarse con éxito** — no es la relación que sostiene la conexión real de Santiago (que pasa por la WABA `903775156940145`, distinta). Se decidió no tocarla por ahora dado que no es necesaria para destrabar Linares y removerla sin certeza total agregaba un riesgo innecesario sobre una cuenta compartida.
+
+**Estado al cierre de la sesión:** Linares sigue sin conectar a Meta. Plan: esperar varias horas (o al día siguiente) sin reintentar cada pocos minutos, reintentar con una sesión nueva del diálogo de Embedded Signup (no reutilizar el popup ya usado, por posible caché), y si el error persiste más allá de eso, escalar directamente a soporte de Meta con el detalle exacto de los 3 objetos ya desconectados/eliminados (WABA, Página, socio de la app), pidiendo confirmación de que el número quedó completamente liberado del lado de ellos — mismo tipo de gestión ("Manual Release de backend") que se necesitó para destrabar a Santiago en su momento (sesión 53).
+
+#### Pendiente para cuando la conexión de Linares se complete
+
+- [ ] Verificar en DB que `clinic_settings` de Linares quedó con `meta_phone_number_id`, `meta_waba_id`, `meta_access_token` poblados y `whatsapp_provider = 'meta'`.
+- [ ] **Recrear las 6 plantillas de WhatsApp en la WABA nueva** — nace sin ninguna aprobada. Mismos nombres que ya usa Santiago como referencia de texto/variables: `24hrs_recordatorio_cita`, `2hrs_recordatorio_cita`, `confirmacion_visita` (de `reminder_settings`), `recordatorio_vacunas`/`recordatorio_vacunacion`, `recordatorio_desparasitacion`, `seguimiento_medico` (de `clinic_settings`). Sin esto, los recordatorios fallarán igual que le pasó a Santiago al principio (`WHATSAPP_TEMPLATE_UNAVAILABLE`).
+- [ ] Mandar un mensaje de prueba real y confirmar en `debug_logs` que `meta-whatsapp-webhook` lo recibe — con `ai_auto_respond` en `false` hasta confirmar que toda la lógica de sectores/logística responde bien.
+- [ ] Recién ahí, activar `ai_auto_respond = true` para Linares.
+- [ ] **No limpiar los campos `ycloud_api_key`/`ycloud_phone_number`/`ycloud_webhook_secret` de Linares todavía** — el cron ya prioriza Meta sobre YCloud automáticamente (`hasMetaChannel` antes que `hasYCloudChannel`), así que dejarlos no genera conflicto y sirven de respaldo. Limpiar recién después de confirmar unos días de funcionamiento estable, igual que se hizo con Santiago.
+- [ ] Hay una campaña de Meta Ads con tráfico Click-to-WhatsApp corriendo hacia este número — **debe quedar pausada durante toda la migración** (evita gastar en clics sin respuesta y datos sucios de CAPI). Antes de reactivarla, revisar en Ads Manager (con la campaña todavía pausada) que el destino de WhatsApp del anuncio siga apuntando correctamente al +56958897996 — el número no cambia, pero vale la pena confirmarlo antes de volver a gastar. Pausar/reactivar no pierde historial ni datos de la campaña.
+
+### Regla permanente — checklist de liberación de un número de WhatsApp para reconectarlo a un nuevo Tech Provider
+
+Cuando un número activo con WhatsApp Business API/App necesita moverse de un BSP a otro (o a Vetly Omnicanal vía coexistencia), hay que soltar **todos** estos vínculos — son independientes entre sí y Meta los va exponiendo de a uno en cada reintento fallido, no todos juntos:
+
+1. **Socio de la WABA** en Business Manager → Cuentas de WhatsApp → esa cuenta → Socios → quitar el BSP anterior.
+2. **La WABA misma**, si fue creada por el BSP anterior con una moneda distinta a USD (ej. AUD) — la moneda no es editable, así que no alcanza con quitar el socio: hay que **eliminar la WABA completa** y dejar que el nuevo Tech Provider cree una nueva durante el Embedded Signup.
+3. **Vínculo del número a una Página de Facebook** — Business Manager → Páginas → la página con el número conectado → desvincular. Es un objeto separado de la WABA; es el que usan los anuncios Click-to-WhatsApp como destino (no la WABA directamente).
+4. **Socio de plataforma empresarial en la propia app de WhatsApp Business** (el teléfono) — Ajustes → Cuenta → Plataforma empresarial → Desconectar cuenta. Esta es la única vía que documenta Meta para este paso — el API de "Deregister" no funciona si el número está en uso simultáneo con Cloud API + la app (coexistencia).
+
+**Después de soltar los 4**, esperar propagación — puede tardar bien más de los 2-5 minutos que suele citarse; en el caso de Linares no alcanzó ni con varias horas de margen entre intentos individuales. No reintentar en loop corto; probar de nuevo tras un descanso largo (horas) con una sesión nueva del diálogo, y si persiste, escalar a soporte de Meta pidiendo confirmación de liberación completa del número.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 65, 2026-08-10)
+
+### Linares conectado a Meta Cloud API — cierre exitoso de la migración
+
+**Bloqueo final y cómo se destrabó:** después de ~48 horas y de agotar WABA borrada + Página desvinculada + socio desconectado en "Plataforma empresarial" (sesión 64), el Embedded Signup seguía rechazando el número con el mismo error de "socio compartido". **Contactar a soporte de Meta se descartó explícitamente** — el usuario ya lo había intentado sin éxito durante todo el proceso de Santiago (sesiones 50-57), nunca logró contacto humano, y no quería repetir esa vía. La solución que funcionó fue un **downgrade completo**: convertir WhatsApp Business a cuenta personal desde el teléfono (Ajustes → Cuenta → Cambiar a cuenta personal) y volver a subir a WhatsApp Business desde cero — un reseteo más agresivo que simplemente desconectar el socio, que limpió cualquier residuo que ningún menú dejaba tocar directamente.
+
+**Resultado verificado en DB:**
+```
+whatsapp_provider:     meta
+meta_phone_number_id:  1319298197922642
+meta_waba_id:          1039327445154499   (WABA completamente nueva)
+meta_access_token:     presente
+```
+Confirmado en `debug_logs`: `[META SIGNUP] Coexistencia conectada para clinic fd11b7e4-...` con `subscribed: true` — la app quedó suscrita a los eventos de la WABA. `ycloud_api_key`/`ycloud_phone_number` de Linares quedaron en `NULL` (se limpiaron durante el proceso, antes de lo planeado, pero sin impacto porque Meta ya es el canal activo).
+
+**Nota — por qué Santiago no necesitó recrear plantillas y Linares sí:** la WABA final de Santiago (`903775156940145`) nunca fue realmente nueva — es la misma que existía desde los primeros intentos on-premise (sesión 50); lo que en sesión 55 se documentó como "eliminada" en realidad nunca desapareció del todo del lado de Meta (confirmado en sesión 57), así que las plantillas creadas en intentos anteriores sobrevivieron. La WABA de Linares (`1039327445154499`) sí es genuinamente nueva — cero historial, cero plantillas.
+
+### Bug encontrado: `ycloud-templates` no soportaba clínicas conectadas por Meta
+
+**Síntoma:** la página "Plantillas" del dashboard (`src/pages/Templates.tsx`) mostraba *"Error al sincronizar plantillas — Hubo un problema al conectar con YCloud: YCloud API Key not configured for this clinic"* para **Santiago**, que lleva conectada a Meta desde sesión 57. El error es real pero **no afecta el envío real de mensajes** — eso lo maneja `cron-process-reminders`, que sí tiene la rama Meta correcta (`hasMetaChannel`) y funciona perfecto (verificado con `reminder_logs` reales: últimos envíos `delivered`/`read`, sin fallos).
+
+**Causa raíz:** la edge function `ycloud-templates` (que sirve tanto al listado como a la creación/borrado de plantillas desde el dashboard) hacía `SELECT ycloud_api_key` únicamente y tiraba error si no lo encontraba — nunca se actualizó para reconocer `whatsapp_provider = 'meta'`. Como Linares también acababa de migrar a Meta, iba a pegarle el mismo bug apenas alguien abriera esa página.
+
+**Fix — `supabase/functions/ycloud-templates/index.ts` (deployado):**
+- El `SELECT` ahora trae `whatsapp_provider, ycloud_api_key, meta_waba_id, meta_access_token`.
+- Nueva variable `isMeta` gatea las 3 operaciones (`list`, `create`, `delete`) hacia la API nativa de Meta (`https://graph.facebook.com/v21.0/{waba_id}/message_templates`, header `Authorization: Bearer {token}`) en vez de la API de YCloud — mismo patrón/versión ya usado en `cron-process-reminders`'s `getVarCount`/`sendReminderTemplate`, para consistencia.
+- `list`: mapea la respuesta de Graph API (`result.data`) al mismo shape `{id, name, language, status, category, body}` que ya esperaba el frontend — sin tocar `src/pages/Templates.tsx` ni `src/services/retentionService.ts`.
+- `create`: arma el payload de componentes (`BODY` + `BUTTONS` opcional + `example.body_text` autogenerado para variables `{{n}}`) **una sola vez** y lo reutiliza en ambas ramas — para Meta se hace `POST` directo al WABA ya conocido (`meta_waba_id`, guardado en `clinic_settings`); para YCloud se mantiene el paso extra de resolver el `wabaId` vía `/phoneNumbers` (YCloud no lo tiene guardado de antemano en Vetly).
+- `delete`: `DELETE {META_BASE}?name={templateName}` con Bearer, en vez del `DELETE {YCLOUD_BASE}/{templateName}` con `X-API-Key`.
+- El fallback genérico de POST (para acciones no reconocidas) sigue existiendo solo para YCloud — para Meta tira un error explícito en vez de silenciosamente pegarle a la API equivocada.
+
+**Verificado en producción (curl directo a la function, sin pasar por el frontend):**
+- Linares (`fd11b7e4-...`, Meta): `{"templates":[]}` — sin error, WABA nueva vacía como se esperaba.
+- Santiago (`13472ea4-...`, Meta): devuelve las 7 plantillas reales aprobadas con su texto completo — confirma que el fix no rompió nada y que Santiago ya tenía plantillas aprobadas todo este tiempo, solo invisibles en el dashboard.
+
+**Bug preexistente encontrado de paso, no corregido (fuera de alcance):** `Templates.tsx` deja elegir categoría (Marketing/Utility/Authentication) en el formulario de creación, pero `retentionService.createRemoteTemplate()` nunca envía ese campo — la edge function siempre usa el default `MARKETING`. No se tocó porque no era parte de lo pedido esta sesión.
+
+### Las 6 plantillas de Linares creadas y enviadas a revisión de Meta
+
+Usando el fix de arriba, se crearon directo desde Vetly (vía la edge function, con el mismo contenido ya aprobado y probado en producción para Santiago) las 6 plantillas que `reminder_settings`/`clinic_settings` de Linares ya tenían configuradas por nombre:
+
+| Plantilla | Estado tras crear | Nota |
+|---|---|---|
+| `24hrs_recordatorio_cita` | PENDING | Mismo texto que Santiago |
+| `2hrs_recordatorio_cita` | PENDING | Mismo texto que Santiago |
+| `confirmacion_visita` | PENDING | Con botones: "Si, Confirmo" / "Cancelar Cita" / "Quiero Reagendar" |
+| `recordatorio_vacunas` | PENDING | Texto de `recordatorio_vacunacion` de Santiago — Linares usa el nombre `recordatorio_vacunas` en su config |
+| `recordatorio_desparasitacion` | PENDING | Mismo texto que Santiago |
+| `seguimiento_medico` | PENDING | Mismo texto que Santiago |
+
+Todas quedaron en `PENDING` (revisión de Meta, minutos a 24h típicamente). Como el contenido es idéntico al ya aprobado para Santiago en la misma categoría (`MARKETING`), la aprobación debería ser rápida — no requiere ninguna acción adicional, `cron-process-reminders` las recogerá automáticamente en cuanto pasen a `APPROVED`.
+
+### Estado al cierre — pendiente para la próxima sesión
+
+- [ ] Confirmar que las 6 plantillas pasaron a `APPROVED` (chequear vía la página Plantillas, ya arreglada, o `reminder_logs`/`reminders` de Linares en las próximas horas).
+- [ ] Mandar un mensaje de prueba real al +56958897996 y confirmar en `debug_logs` que `meta-whatsapp-webhook` responde bien — con `ai_auto_respond` todavía en `false`.
+- [ ] Activar `ai_auto_respond = true` para Linares recién después de confirmar lo anterior.
+- [ ] Revisar el destino de la campaña de Ads (sigue pausada) antes de reactivarla — confirmar que sigue apuntando al +56958897996 correctamente tras la reconexión.
+- [ ] Considerar limpiar `ycloud_api_key`/`ycloud_phone_number`/`ycloud_webhook_secret` de Linares (ya están en `NULL`, así que este punto ya está resuelto de hecho, no hace falta acción).
+
+### Regla permanente — `ycloud-templates` es multi-canal
+
+Cualquier clínica que migre de YCloud a Meta (o se cree nueva ya en Meta) usa automáticamente la rama correcta en `ycloud-templates` según `whatsapp_provider` — no hace falta tocar código de nuevo para la próxima migración. Si en el futuro se agrega un tercer proveedor de WhatsApp, extender el mismo patrón de `isMeta` acá y en `cron-process-reminders` (`hasMetaChannel`/`hasYCloudChannel`).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 66, 2026-08-10)
+
+> Nota de numeración: esta sesión se solapó en el tiempo con otra sesión de Claude Code trabajando en paralelo sobre este mismo repo (la migración de Linares a Meta Cloud API, documentada arriba como "sesión 65, 2026-08-10"). Ambas escribieron al archivo casi al mismo tiempo — esta entrada se renumeró de "65" a "66" para no pisar esa otra entrada. Si en el futuro aparece otro desorden de numeración similar, es probablemente la misma causa: sesiones concurrentes sobre el mismo CLAUDE.md.
+
+### Pendiente #2 de sesión 63 completado — banner post-pago de onboarding con Andrés
+
+Implementado y deployado en producción:
+
+- **`src/components/settings/PostPaymentOnboardingBanner.tsx`** (nuevo): banner con gradiente emerald que aparece en Settings tras la primera conversión trial→pago. CTA abre `wa.me/56993089185` con mensaje pre-llenado ("acabo de suscribirme al plan X") que dispara el reconocimiento de Andrés.
+- **`src/pages/Settings.tsx`**: en `handlePlanSelection`, captura `subscription?.plan === 'trial'` (única señal fiable de "primera conversión real", capturada ANTES de redirigir al checkout, vía `sessionStorage` para sobrevivir el round-trip fuera del SPA — las renovaciones automáticas nunca producen una navegación con `?payment=success`, así que no hace falta tocar los webhooks de pago). Al volver con `?payment=success`, si el flag está presente, muestra el banner y marca `subscriptions.onboarding_call_prompted_at` (fire-and-forget, nunca bloquea el flujo de pago si falla).
+- **Migración `20260808000001_add_onboarding_call_prompted_at.sql`**: columna `subscriptions.onboarding_call_prompted_at TIMESTAMPTZ`, aplicada en producción.
+- **`clinic_settings.hq_sales_agent_prompt` (HQ_ID)**: nueva sección "CLIENTE YA PAGADO — reconocimiento inmediato" insertada entre APERTURA y CALIFICACIÓN — si el mensaje entrante indica un pago reciente, Andrés salta la calificación y va directo a pedir día/hora para `agendar_videollamada`. Cambio de contenido en DB, sin deploy (el prompt se carga dinámicamente, patrón de sesión 20). Respaldado en `prompt_backups` (label `pre_onboarding_cliente_pagado_2026_08_08`).
+
+`npm run build` limpio, `git diff --stat` confirmado acotado a los 3 archivos — sin tocar `lemonsqueezy-webhook`/`mercadopago-webhook`/`agendar_videollamada`.
+
+### Migración de cuenta MercadoPago — guía entregada, ejecución pendiente del usuario
+
+La cuenta MercadoPago vinculada a Vetly hoy es personal; el usuario ahora tiene Root de empresa (Nextflow) y quiere migrar. Confirmado en código: Vetly solo depende de **`MERCADOPAGO_ACCESS_TOKEN`** y **`MERCADOPAGO_WEBHOOK_SECRET`** (secrets de Supabase, usados en `mercadopago-webhook`, `mercadopago-create-subscription`, `mercadopago-create-credits-preference`) — no hay public key en el frontend, así que la migración no requiere ningún cambio de código, solo:
+1. Crear cuenta MercadoPago tipo Empresa con el RUT de Nextflow (correo distinto al de la cuenta personal — MP no permite duplicar email).
+2. Verificación KYC (puede tardar horas/días).
+3. Generar Access Token de producción en el panel de developers de la cuenta nueva.
+4. Configurar el webhook (`https://ehmncwawzdciajvuallg.supabase.co/functions/v1/mercadopago-webhook`) en la cuenta nueva y obtener el nuevo secret de firma.
+5. Reemplazar ambos secrets en Supabase.
+6. Probar con un pago real antes de desactivar la cuenta vieja.
+
+**⚠️ Verificar antes de migrar:** confirmar que ninguna clínica aparte de Animalgrace (que paga por transferencia, `manually_active=true`, no pasa por este flujo) tiene una suscripción MercadoPago activa cobrándose recurrentemente con la cuenta personal — cambiar el Access Token cortaría esos cobros.
+
+### LemonSqueezy — dos caminos posibles, pendiente que el usuario elija
+
+LemonSqueezy es Merchant of Record — no tiene el concepto de cuenta personal/empresa de MercadoPago. Se le presentaron dos opciones, sin decidir aún:
+1. **Solo actualizar payout/tax info** (Settings → Payouts + Tax) para que el dinero y la facturación queden a nombre de Nextflow, manteniendo el mismo Store ID/API Key — cero cambios de código, recomendado por simplicidad.
+2. **Transferir la tienda a una cuenta nueva** — requeriría regenerar `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_API_KEY` y recrear todos los `LS_VARIANT_*` (planes + packs), ya que los variant IDs no viajan entre tiendas (regla ya documentada en sesión 13).
+
+### Nueva feature definida — Plan Core con 30 días de prueba gratis, sin tarjeta (prioridad estratégica, pendiente de implementar próxima sesión)
+
+**Objetivo de negocio (tal como lo planteó el usuario):** competir directamente con el resto del software veterinario del mercado ofreciendo un plan de entrada con más funcionalidades y una prueba mucho más generosa que lo habitual — 30 días gratis, sin pedir tarjeta de crédito. La prioridad es maximizar la adopción del plan Core como puerta de entrada.
+
+**Comportamiento esperado (a diseñar y confirmar al inicio de la próxima sesión, no implementado aún):**
+1. **Sin checkout para crear la cuenta.** El signup para este plan específico no debe pasar por LemonSqueezy/MercadoPago en absoluto — se activa directo, sin datos de pago.
+2. **Landing dedicada** dentro de `public/` para vender específicamente este plan (distinta de `public/landing.html`, que vende los 4 planes). Necesita copy y diseño propios, pensados para competir feature-por-feature contra otros softwares veterinarios del mercado.
+3. **Duración especial de 30 días** — distinta al trial genérico actual de 7 días que aplica hoy a cualquier plan elegido en `Register.tsx`. Requiere decidir si esto es una duración por-plan en el modelo de datos (`subscriptions`/`clinic_settings`) o un tratamiento completamente aparte solo para esta landing.
+4. **Al día 30, la suscripción se detiene** — probablemente reutilizando el mecanismo de bloqueo por trial vencido que ya existe hoy (`DashboardLayout.tsx` redirige a `/app/settings?tab=subscription&expired=1` cuando el período venció y `manually_active` es falso), a confirmar si aplica igual o necesita variantes.
+5. **El banner de onboarding (`PostPaymentOnboardingBanner`, implementado esta sesión) debe adaptarse** para mostrar la fecha exacta de vencimiento de los 30 días — esto es distinto de su función actual (aparece solo tras un pago real vía checkout); como este flujo nuevo NO pasa por checkout, hay que definir si se reutiliza el mismo componente con lógica de trigger distinta, o se crea una variante/banner nuevo específico para countdown de trial sin pago.
+
+**Contexto de roadmap relevante para el diseño de la landing:** el usuario mencionó que próximamente se implementará una **sección de contabilidad/tesorería** (alertas de cuándo pagar el IVA, etc.) como diferenciador competitivo adicional — vale la pena que el copy de la landing deje espacio o mencione este roadmap ("próximamente") si ayuda a la propuesta de valor frente a la competencia.
+
+**Nota:** el usuario decidió explícitamente dejar esto para la próxima sesión en vez de arrancarlo ahora, dado el tamaño (landing nueva + cambio de flujo de signup + modelo de datos de trial + banner) — no hay código ni diseño de este feature todavía, solo el spec de negocio arriba.
+
+### Diagnóstico completo de LemonSqueezy — causa raíz encontrada: verificación de identidad rechazada
+
+Al intentar configurar el cupón $17 (pendiente de sesión 63), la tienda de LemonSqueezy (**"Vetly AI"**, Store ID `327603`, `vetly.lemonsqueezy.com`) resultó estar completamente bloqueada. Diagnóstico hecho vía API directa (no por dashboard, cuyos botones no respondían) usando un API key temporal generado por el usuario y corrido desde su propia Terminal — la key nunca se compartió en el chat.
+
+**Hallazgos, en orden:**
+1. **Store confirmada como la real de producción** — vía `GET /v1/stores` se confirmó `id=327603`, nombre "Vetly AI", coincide con `vetly.lemonsqueezy.com`. Se descartó la hipótesis de "tienda equivocada".
+2. **Los 12 productos del catálogo tienen `test_mode: true`** — incluyendo los 4 planes de suscripción. `total_revenue`/`total_sales` en $0 de por vida. Esto confirma que **el checkout USD/internacional de Vetly nunca procesó un pago real**, desde que se armó.
+3. **Gotcha de `curl` encontrado en el camino:** los filtros `?filter[store_id]=...` fallaban en silencio (`-s` ocultaba el error) porque `curl` interpreta `[...]` como "URL globbing" (rangos tipo `archivo[1-5].html`) salvo que se pase `-g`/`--globoff`. Cualquier curl futuro contra la API de LemonSqueezy con filtros de query debe incluir `-g`.
+4. **Causa raíz real, encontrada por el usuario en el dashboard** (Settings → General → "Activación de la tienda"): **verificación de identidad en estado "Rechazado"**, sin motivo visible, y el botón para reintentarla ("Verifica tu identidad") también aparece deshabilitado — igual que el toggle de Test Mode y el botón "Add Discount" del checklist de Setup.
+5. **LemonSqueezy no tiene chat en vivo** — confirmado que es un feature pendiente en su propio tablero público de roadmap. Su único canal de soporte es email: `hello@lemonsqueezy.com`, 24-48h de respuesta típica.
+6. **Contexto crítico encontrado por búsqueda web:** LemonSqueezy fue **comprado por Stripe en 2024**. Desde entonces hay un patrón **documentado y repetido** entre sus comerciantes — verificaciones rechazadas sin explicación, botones de reenvío bloqueados, procesos de 2+ semanas, fondos congelados, soporte lento — exactamente lo que le pasó a Vetly. Stripe está migrando todo hacia su propio producto ("Stripe Managed Payments"); LemonSqueezy como marca separada parece estar en modo de mantenimiento mientras dura la transición.
+
+**Se redactó un email para `hello@lemonsqueezy.com`** (asunto: "Identity verification rejected and resubmit button is disabled") con el detalle completo (Store ID, síntomas, checklist ya completado). **No quedó confirmado si el usuario efectivamente lo envió** — verificar al inicio de la próxima sesión.
+
+### LemonSqueezy vs. Paddle — comparación y decisión de explorar Paddle en paralelo
+
+| | LemonSqueezy | Paddle |
+|---|---|---|
+| Modelo | Merchant of Record | Merchant of Record (igual) |
+| Comisión base | 5% + $0.50 | 5% + $0.50 |
+| Comisión real para Vetly | ~7–8.5% efectivo (+0.5% por ser suscripción, +1.5% por transacción internacional — el 100% del negocio de Vetly en LS cae en ambos recargos) | Comisión plana, sin recargos adicionales |
+| Chile como vendedor | Sí (ya configurado) | Confirmado, soportado |
+| Soporte | Solo email, sin chat, 24-48h | Sin datos verificados — pendiente de confirmar si se avanza |
+| Estabilidad | En transición post-adquisición por Stripe, con patrón de fallas documentado igual al de Vetly | Empresa establecida desde 2012, sin señales similares encontradas |
+
+**Recomendación dada:** no abandonar LemonSqueezy todavía (ya se mandó/se va a mandar el ticket de soporte), pero **arrancar en paralelo la creación de cuenta en Paddle** como respaldo, dado que el patrón de "2+ semanas de verificación" está documentado como común en la comunidad de LemonSqueezy post-adquisición.
+
+### dLocal descartado como alternativa inmediata
+
+El usuario preguntó por dLocal. Verificado por búsqueda: **no es Merchant of Record** (Nextflow tendría que asumir compliance fiscal en cada país por su cuenta), **no tiene alta de autoservicio** (requiere proceso de ventas/KYB directo con su equipo comercial, clientes de referencia tipo Microsoft/Amazon/Spotify/Uber), y está pensado para plataformas de alto volumen que necesitan métodos de pago locales específicos (PIX, OXXO, boleto) en muchos países a la vez. Mucho más de lo que Vetly necesita hoy (cobrar tarjeta en USD). Se descarta por ahora — reconsiderar solo si en el futuro hace falta un método de pago local puntual en un mercado específico.
+
+### Bug de precios USD encontrado y corregido — 3 fuentes que no coincidían entre sí
+
+Al armar el catálogo de Paddle, se cruzaron los precios reales del catálogo de LemonSqueezy (vía API) contra el código y el historial de este documento, y **ninguna de las 3 fuentes coincidía completamente**:
+
+| Plan | Código (viejo) | CLAUDE.md (histórico) | LemonSqueezy real (API) |
+|---|---|---|---|
+| Core | $39 | $39 | $39 |
+| Starter | $97 | $99 | $99 |
+| Pro | $167 | $169 | $169 |
+| Enterprise | $297 | $349 | $379 |
+
+Se usó el skill de `pricing` + `.agents/product-marketing.md` para resolver, en vez de adivinar. Hallazgo clave: **$89 para Starter** (no $97 ni $99) es el número que ya está incrustado en **18 artículos de blog publicados**, en copy de ads aprobado, y en la definición de audiencias de Meta Ads — incluyendo el cálculo exacto del gancho "86% más barato que una recepcionista" ($89/$650). Cambiar el contenido ya publicado sale más caro que corregir un producto que además está inactivo (test mode).
+
+**Precios finales confirmados por el usuario:** Core $39 · Starter **$89** · Pro **$169** · Enterprise **$349**.
+
+**Corregido en 3 archivos** (`tsc --noEmit` limpio después de cada uno):
+- `src/lib/lemonsqueezy.ts` (`LS_PLANS` — fuente que usan Settings.tsx/Register.tsx)
+- `public/landing.html` (tabla de precios principal + 2 menciones sueltas de "$97" en otras secciones)
+- `src/pages/Pricing.tsx` — **copia duplicada no documentada hasta ahora**, con su propio array `plans` hardcodeado, mismos valores viejos
+
+**Pendiente, no corregido esta sesión:** el lado CLP (`src/lib/mercadopago.ts`) probablemente tiene el mismo tipo de inconsistencia — se detectó que Enterprise ahí muestra `$282.000` mientras que `.agents/product-marketing.md` documenta `$333.000`. Mismo patrón de bug, distinta moneda.
+
+**⚠️ Actualización a la regla permanente de "5 lugares para precios"** (documentada en sesión 23): agregar **`src/pages/Pricing.tsx`** a la lista — es un 6to lugar con su propia copia hardcodeada de planes/precios que no se actualiza automáticamente con los otros. Vale la pena evaluar, en algún momento, refactorizar `Pricing.tsx` para que importe `PLANS`/`LS_PLANS` en vez de mantener su propio array — eliminaría esta clase de bug de raíz.
+
+### Script de creación de catálogo en Paddle — armado, no ejecutado
+
+Node.js (usa `fetch` nativo, sin dependencias) que crea los 4 productos + precios recurrentes mensuales (Core/Starter/Pro/Enterprise, con los precios finales ya confirmados) y el descuento de lanzamiento `LANZAMIENTO17` (mismo criterio que LemonSqueezy: $22 off → Core a $17/mes, `recur: true` sin límite de intervalos = indefinido, `usage_limit: 100`).
+
+**Ubicación:** `/private/tmp/claude-501/-Users-sebabarrera-Desktop-Vetly-App/5f7d4236-b145-47ea-b7d7-5fa30d94d848/scratchpad/create-paddle-catalog.js` — **es un directorio de scratchpad temporal de esta sesión, no el repo.** Si se sigue este camino, mover el script a un lugar persistente antes de la próxima sesión (ej. `scripts/` en el repo) o pedir que se regenere.
+
+Sintaxis validada (`node --check`). **No corrido** — requiere cuenta de Paddle creada primero. Alcance acotado a Fase 1 (solo catálogo, cero cambios al código de Vetly/checkout/webhooks). Los packs de créditos/recordatorios quedaron fuera de este script — tienen su propia complejidad (el truco de `custom_price` que se usó en LemonSqueezy por el mínimo de $0.50) y se abordarían en una segunda pasada.
+
+### Estado real al cierre de sesión — pendientes para la próxima
+
+- [ ] **Plan Core 30 días sin tarjeta** (spec completo en la sección de arriba) — sigue como prioridad #1 estratégica, sin tocar esta sesión.
+- [ ] **Confirmar si el email a soporte de LemonSqueezy fue enviado** — quedó redactado y listo, no confirmado como enviado.
+- [ ] **Revocar la API key temporal de LemonSqueezy** usada para el diagnóstico (Settings → API) — buena práctica de higiene aunque nunca haya sido compartida fuera de la Terminal del usuario.
+- [ ] **Crear cuenta en Paddle** (paddle.com, datos de Nextflow) y correr `create-paddle-catalog.js --sandbox` primero, después sin el flag para producción — mover el script del scratchpad a un lugar persistente antes.
+- [ ] **Cupón $17 USD** — bloqueado hasta que LemonSqueezy se active O hasta que Paddle esté listo (lo que ocurra primero). El código de MercadoPago no aplica acá (ese es un cupón CLP aparte, sin avances esta sesión).
+- [ ] **Reconciliar precios CLP** en `src/lib/mercadopago.ts` — mismo tipo de bug que se encontró y corrigió del lado USD, detectado pero no corregido.
+- [ ] **Canal de YouTube + tutoriales** dentro de la plataforma — sin cambios desde sesión 63.
+- [ ] **Verificar referidos B2B end-to-end** con un caso real — sin cambios desde sesión 63.
+- [ ] **Migración de cuenta MercadoPago** a Nextflow empresa — el usuario ya envió la solicitud de apertura de cuenta Checkout Pro/empresa (confirmado con captura de pantalla), esperando que MP lo contacte. Próximos pasos ya documentados arriba (Access Token, webhook, secrets).
+- [ ] **Decisión LemonSqueezy payout/tax vs. transferencia de tienda** — quedó en segundo plano frente al problema más grave de activación; retomar solo si LS se destraba.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 67, 2026-08-11)
+
+### Conexión Paddle vía MCP — catálogo sandbox creado (sin usar el script)
+
+**Cuenta de Paddle creada** (Nextflow) y conectada por MCP en vez de correr `create-paddle-catalog.js` — Paddle expone un servidor MCP oficial (`mcp.paddle.com` para live, `sandbox-mcp.paddle.com` para sandbox) que permite crear catálogo directo por conversación, sin manejar API keys en un script en disco.
+
+**Bug encontrado en el primer intento de conexión:** el comando inicial apuntaba a `https://mcp.paddle.com/mcp` (producción) usando una key sandbox (`pdl_sdbx_apikey_...`) — Paddle usa **hosts completamente separados** por entorno (no la misma URL con distinta key), así que devolvía 403 "You aren't permitted to perform this request" sin importar que la key fuera válida. Fix: recrear el servidor MCP contra `https://sandbox-mcp.paddle.com/mcp`.
+
+**Config vive en `.mcp.json`** (raíz del proyecto, scope de proyecto — compartido entre todas las sesiones de Claude Code sobre este repo), no en `~/.claude.json`. Contiene el header `Authorization: Bearer <key>` en texto plano. **Se agregó `.mcp.json` a `.gitignore`** — el archivo no estaba ignorado y quedaba `??` (untracked) en `git status`; si se hubiera hecho `git add -A`/`git add .` en algún momento, la key habría quedado commiteada al repo público.
+
+**Catálogo creado en Paddle sandbox** (`tax_category: saas`, IDs reales — quedan para reutilizar en la Fase 2 de checkout/webhooks cuando se implemente el flujo de pago con Paddle):
+
+| Plan | Product ID | Price ID | Precio |
+|---|---|---|---|
+| Core | `pro_01kzsgkhgw3asdh7yprga5n6gt` | `pri_01kzsgkhmwc0a0aazfgermnyn8` | $39/mes |
+| Starter | `pro_01kzsgkhv8h2mbkjg9p7gh4a1s` | `pri_01kzsgkhzg4jn0zwpmp9b6yp6q` | $89/mes |
+| Pro | `pro_01kzsgkj5p23rywepdhva05ea3` | `pri_01kzsgkj9mabpzn0h7b4gc7f57` | $169/mes |
+| Enterprise | `pro_01kzsgkjfnvpvw2tyxx6h80bv6` | `pri_01kzsgkjksfatz4hmwxrvbjn1v` | $349/mes |
+
+**Descuento `LANZAMIENTO17`** (`dsc_01kzsgkjrvhnxbtsrmfx8grx42`): flat $22 USD off, recurrente sin límite de ciclos, tope de 100 usos, restringido al producto Core (→ $17/mes efectivo mientras dure), habilitado para checkout.
+
+**El script `create-paddle-catalog.js` del scratchpad de sesión 66 queda obsoleto** — no se necesitó, el catálogo se creó por MCP. No hace falta rescatarlo del scratchpad temporal.
+
+**Fuera de alcance esta sesión (sin cambios de código):** checkout, webhooks de Paddle, y cualquier integración con `Settings.tsx`/`Register.tsx` — sigue siendo solo Fase 1 (catálogo), igual que documentó sesión 66. Cuando se decida activar Paddle en producción real, correr el mismo bloque de creación por MCP contra el servidor `paddle-live` (mismos precios, mismo `LANZAMIENTO17`) y recién ahí conectar el código de checkout.
+
+### Regla permanente — conexión MCP de Paddle (y cualquier proveedor con entornos sandbox/live separados)
+
+Verificar siempre la URL exacta del host antes de asumir que sandbox/live es solo un parámetro o una key distinta contra el mismo endpoint. En Paddle son dos hosts:
+- Sandbox: `https://sandbox-mcp.paddle.com/mcp` (keys `pdl_sdbx_apikey_...`)
+- Live: `https://mcp.paddle.com/mcp` (keys `pdl_live_apikey_...`)
+
+Mezclar key de un entorno con la URL del otro da un 403 de autorización que parece (pero no es) un problema de permisos de la key.
+
+### Pendientes actualizados
+
+- [x] ~~Crear cuenta en Paddle y correr `create-paddle-catalog.js --sandbox`~~ → hecho por MCP en su lugar, ver arriba.
+- [ ] Cuando se confirme avanzar con Paddle en producción: repetir la creación de catálogo contra `paddle-live` con los mismos precios/descuento, y ahí sí planificar la Fase 2 (checkout + webhooks + `Settings.tsx`/`Register.tsx`).
+- [ ] Sigue pendiente decidir Paddle vs. LemonSqueezy (o ambos) como proveedor definitivo — ver comparación de sesión 66.
+- [ ] Resto de pendientes de sesión 66 sin cambios (Plan Core 30 días sin tarjeta, precios CLP en `mercadopago.ts`, migración MercadoPago a Nextflow, YouTube/tutoriales, referidos B2B end-to-end).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 68, 2026-08-12)
+
+### Campo de correo electrónico (opcional) en citas — ambas sucursales
+
+**Motivación:** poder contactar por correo a los tutores y que el agente de IA lo recopile al agendar, sin que sea un dato bloqueante.
+
+#### DB y tipos
+- **Migración `20260811000002_add_email_to_appointments.sql`**: `ALTER TABLE appointments ADD COLUMN email TEXT` — mismo patrón que `phone_number`/`address` (dato del tutor duplicado en la cita, sin prefijo).
+- **`src/types/database.ts`**: `email: string | null` agregado a `appointments.Row` (ya existía en `tutors.Row` desde antes).
+
+#### Frontend — `src/pages/Appointments.tsx`
+- Input "Correo Electrónico" (no obligatorio, `type="email"`) justo después de Teléfono en el modal de crear/editar cita.
+- Se precarga si el tutor seleccionado desde el autocomplete ya tiene `email` guardado (`handleTutorSelect`).
+- Se guarda en `INITIAL_FORM_STATE` y en los ~5 puntos donde el formulario se puebla al editar (calendario desktop/mobile, menú de tabla, tarjetas).
+- **Sync a `tutors.email`**: al guardar cualquier cita con `tutor_id` conocido, si hay email, se hace un `update` fire-and-forget a `tutors.email` — por eso el correo pasa a aparecer automáticamente como dato de contacto en `TutorDetails.tsx` (que ya renderizaba `tutor.email` condicionalmente desde antes) y en la búsqueda de `Tutors.tsx` — **no hizo falta tocar ninguna de las dos**, ya consumían el campo.
+
+#### Agente de IA — tool `create_appointment`
+**Hallazgo de contexto clave:** Linares ya no depende de YCloud — migró a Meta Cloud API en la sesión 65. Hoy **ambas sucursales** (Linares y Santiago) reciben sus conversaciones de WhatsApp por `meta-whatsapp-webhook`. Prioricé ese archivo:
+- Parámetro `email` agregado al schema del tool (opcional, nunca en `required`).
+- `createAppt`: si viene `args.email`, se hace `trim()` y se sincroniza a `tutors.email`; se guarda también en el INSERT de `appointments`.
+- Repliqué el mismo cambio en `ycloud-whatsapp-webhook` por consistencia con la regla ya documentada del proyecto ("un fix aplicado a un webhook no se propaga automáticamente al otro"), aunque ese canal no reciba tráfico real hoy — sirve de base para una futura clínica que se conecte vía YCloud.
+- Deploy de ambos: `supabase functions deploy meta-whatsapp-webhook --no-verify-jwt` y `ycloud-whatsapp-webhook --no-verify-jwt`. Verificado sin errores nuevos en `get_logs` post-deploy.
+
+#### Prompt — `ai_behavior_rules` (Linares y Santiago)
+- Respaldo previo en `prompt_backups` (label `pre_email_field_2026_08_12`) antes de tocar el campo, siguiendo el patrón de sesión 61/62.
+- Sección "REQUISITOS Y EJECUCIÓN DEL AGENDAMIENTO" de ambas clínicas: agregado un ítem nuevo a la lista de datos a solicitar ("Correo electrónico (OPCIONAL)...") y una aclaración explícita en la REGLA DE EJECUCIÓN de que ese punto **no cuenta como dato faltante** — evita que el modelo bloquee `create_appointment` esperando el correo si el tutor no lo entrega.
+- Aplicado vía `REPLACE()` en SQL (no en migraciones — vive solo en DB, como el resto de los fixes de prompt/KB documentados en sesiones previas).
+
+### Revisión de seguridad + push a producción
+
+**Bug de tooling encontrado:** el skill `security-review` fallaba con `fatal: ambiguous argument 'origin/HEAD'` porque el repo nunca tenía seteado el symref local de `origin/HEAD` (aunque el remoto sí reporta `HEAD branch: main`). Fix no destructivo: `git remote set-head origin main`. Vale la pena dejarlo anotado por si vuelve a pasar en otra máquina/clon del repo.
+
+**Hallazgo operativo:** al pedir el diff para revisar, salió a la luz que `meta-whatsapp-webhook/index.ts` y `ycloud-whatsapp-webhook/index.ts` ya tenían cambios sin commitear **de sesiones anteriores** (el código de "plan de ruta" de sesiones 59/64, ya deployado en producción pero nunca llevado a git) mezclados en los mismos archivos que edité para el campo de email. Decisión: commitear y pushear **únicamente los 5 archivos de este feature** (`Appointments.tsx`, `database.ts`, ambos webhooks, la migración nueva) — el resto del working tree (Paddle, `PostPaymentOnboardingBanner.tsx`, `PartnerReferral.tsx`, `AdminReferrals.tsx`, imágenes borradas, `.env.example`, etc., acumulado de sesiones 63-67) se dejó intacto sin commitear, por ser trabajo no relacionado con esta tarea.
+
+**Resultado de la revisión (sin hallazgos HIGH/MEDIUM):**
+- El `email` que entrega el LLM solo se usa como valor de un `update`/`insert` parametrizado de Supabase — el filtro de la query (`clinic_id` + `phone_number` normalizado) no depende del texto libre del modelo, así que no hay inyección posible.
+- Grep confirmado: **ningún** edge function de Vetly lee hoy `tutors.email` ni `appointments.email` para enviar correos — no existe (todavía) un vector de inyección de headers de email a través de este campo.
+- Input del frontend es un `<input type="email">` controlado por React, sin `dangerouslySetInnerHTML` — sin riesgo de XSS.
+
+**Commit `531a205` pusheado a `main`** — dispara el deploy de Vercel para el frontend. Las edge functions ya estaban deployadas directo a Supabase antes del commit, así que git y producción quedaron sincronizados.
+
+### Regla permanente — separar el diff antes de commitear en un repo con backlog sin commitear
+
+Cuando el working tree tiene cambios acumulados de sesiones anteriores mezclados con el trabajo de la sesión actual (visible con `git status` al inicio de la conversación), **no asumir que todo el diff pertenece a la tarea en curso**. Antes de `git add`/`git commit`, listar explícitamente solo los archivos tocados por el trabajo actual (`git add <archivo1> <archivo2> ...`, nunca `-A`/`.` en este escenario) y confirmar con `git status --short` que el staging quedó acotado. El resto del backlog queda para que el usuario lo revise y decida cuándo commitearlo — no es responsabilidad de la sesión actual empaquetarlo "de paso".
+
+### Pendiente — backlog de sesiones 63-67 sigue sin commitear
+
+Sigue sin commitear en el working tree (no tocado esta sesión, ver detalle en sesiones respectivas): migración a Paddle (catálogo sandbox + `paddle.ts` + edge functions `paddle-create-transaction`/`paddle-webhook`), sistema de referidos B2B (`PartnerReferral.tsx`, `AdminReferrals.tsx`, migración `clinic_referrals`), banner de onboarding post-pago (`PostPaymentOnboardingBanner.tsx`), migración de LemonSqueezy a Paddle en `lemonsqueezy-webhook`, y varios archivos sueltos (imágenes borradas, `.env.example`, `package.json`, skills de Higgsfield). Revisar y commitear en una sesión dedicada cuando el usuario confirme que ese trabajo está listo.
