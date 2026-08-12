@@ -387,6 +387,11 @@ const functions = [
             "Nombre REAL y completo del tutor/dueño, tal como él lo indicó en la conversación. NUNCA uses placeholders como '[Nombre del Tutor]', 'Cliente' o 'Tutor'. Si el cliente aún no ha dicho su nombre, NO llames esta función: pregúntale primero su nombre completo.",
         },
         patient_name: { type: "string", description: "Nombre de la mascota" },
+        email: {
+          type: "string",
+          description:
+            "Correo electrónico del tutor (opcional). Pídelo siempre al agendar, pero si el cliente no quiere darlo o no responde, agenda igual sin él — nunca es un requisito.",
+        },
         date: { type: "string", description: "Fecha YYYY-MM-DD" },
         time: { type: "string", description: "Hora HH:MM (24h)" },
         service_name: { type: "string" },
@@ -1701,6 +1706,7 @@ const createAppt = async (
     pet_name?: string;
     pet_details?: string;
     visit_reason?: string;
+    email?: string;
     date: string;
     time: string;
     service_name: string;
@@ -1750,15 +1756,22 @@ const createAppt = async (
 
   // Save address if provided in creation
   if (args.address) {
-    await sb.from("tutors").update({ 
+    await sb.from("tutors").update({
       address: args.address,
       address_references: args.address_references || null
     }).eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
 
-    await sb.from("crm_prospects").update({ 
+    await sb.from("crm_prospects").update({
       address: args.address,
       address_references: args.address_references || null
     }).eq("clinic_id", clinicId).eq("phone", normalizedPhone);
+  }
+
+  // Propaga el correo a la ficha del tutor para que quede como dato de contacto.
+  const tutorEmail = (args.email || "").trim() || null;
+  if (tutorEmail) {
+    await sb.from("tutors").update({ email: tutorEmail })
+      .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
   }
   // FEAT: Support Combined Services
   const serviceDetails = await getServiceDetails(
@@ -1957,6 +1970,7 @@ const createAppt = async (
     patient_name: args.patient_name,
     tutor_name: args.tutor_name || tutorGeo?.name || null,
     phone_number: normalizedPhone,
+    email: tutorEmail,
     service: args.service_name,
     appointment_date: appointmentDateWithOffset,
     address: args.address || tutorGeo?.address || null,

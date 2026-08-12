@@ -252,6 +252,7 @@ export interface Database {
                     latitude: number | null
                     longitude: number | null
                     duration_minutes: number
+                    email: string | null
                 }
                 Insert: {
                     id?: string

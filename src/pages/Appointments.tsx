@@ -24,6 +24,7 @@ import {
     MessageCircle,
     MapPin,
     ExternalLink,
+    Mail,
 } from 'lucide-react'
 import { cn, formatPhoneNumber, getStatusColor, getStatusLabel } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -39,6 +40,7 @@ interface Appointment {
     patient_name: string
     tutor_name?: string | null
     phone_number: string
+    email?: string | null
     service: string
     appointment_date: string
     appointment_time: string
@@ -76,6 +78,7 @@ const INITIAL_FORM_STATE = {
     patient_name: '',
     tutor_name: '',
     phone_number: '',
+    email: '',
     service: '',
     appointment_date: '',
     appointment_time: '',
@@ -559,6 +562,7 @@ export default function Appointments() {
             ...newAppointment,
             tutor_name: tutor.name || '',
             phone_number: tutor.phone_number || '',
+            email: tutor.email || '',
             address: tutor.address || '',
             tutor_id: isValidUuid ? tutor.id : null,
             patient_name: '',
@@ -615,6 +619,7 @@ export default function Appointments() {
             // este campo como parámetro de plantilla y Meta rechaza plantillas con
             // parámetros vacíos (errorCode 131008). Fallback consistente con tutor_name.
             const safePatientName = (newAppointment.patient_name || '').trim() || 'Sin nombre'
+            const safeEmail = (newAppointment.email || '').trim() || null
 
             let appointmentId = editingId
             let googleEventId = null
@@ -625,6 +630,7 @@ export default function Appointments() {
                     patient_name: safePatientName,
                     tutor_name: newAppointment.tutor_name,
                     phone_number: normalizedPhone,
+                    email: safeEmail,
                     service: selectedServices.join(' + '),
                     appointment_date: appointmentDate,
                     notes: newAppointment.notes,
@@ -655,6 +661,7 @@ export default function Appointments() {
                     patient_name: safePatientName,
                     tutor_name: newAppointment.tutor_name,
                     phone_number: normalizedPhone,
+                    email: safeEmail,
                     service: selectedServices.join(' + '),
                     appointment_date: appointmentDate,
                     status: 'pending',
@@ -693,6 +700,19 @@ export default function Appointments() {
                         })
                         .catch(() => { /* el tracking no debe romper el flujo de agenda */ })
                 }
+            }
+
+            // El correo queda guardado en la cita, y se propaga a la ficha del
+            // tutor para que aparezca como dato de contacto (TutorDetails/Tutors).
+            if (safeEmail && newAppointment.tutor_id) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                void (supabase as any)
+                    .from('tutors')
+                    .update({ email: safeEmail })
+                    .eq('id', newAppointment.tutor_id)
+                    .then(({ error: tutorEmailError }: { error: unknown }) => {
+                        if (tutorEmailError) console.error('Error syncing tutor email:', tutorEmailError)
+                    })
             }
 
             // Sync with Google Calendar (Create or Update)
@@ -1225,6 +1245,7 @@ export default function Appointments() {
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
                                     phone_number: event.resource.phone_number || '',
+                                    email: event.resource.email || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1257,6 +1278,7 @@ export default function Appointments() {
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
                                     phone_number: event.resource.phone_number || '',
+                                    email: event.resource.email || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1293,6 +1315,7 @@ export default function Appointments() {
                                     patient_name: event.resource.patient_name,
                                     tutor_name: event.resource.tutor_name || '',
                                     phone_number: event.resource.phone_number || '',
+                                    email: event.resource.email || '',
                                     service: event.resource.service,
                                     appointment_date: format(event.start, 'yyyy-MM-dd'),
                                     appointment_time: format(event.start, 'HH:mm'),
@@ -1455,6 +1478,7 @@ export default function Appointments() {
                                                                         patient_name: appointment.patient_name,
                                                                         tutor_name: appointment.tutor_name || '',
                                                                         phone_number: appointment.phone_number,
+                                                                        email: appointment.email || '',
                                                                         service: appointment.service,
                                                                         appointment_date: appointment.appointment_date.split('T')[0],
                                                                         appointment_time: (appointment.appointment_date.split('T')[1] ?? '00:00').slice(0, 5),
@@ -1624,6 +1648,7 @@ export default function Appointments() {
                                                     patient_name: appointment.patient_name,
                                                     tutor_name: appointment.tutor_name || '',
                                                     phone_number: appointment.phone_number,
+                                                    email: appointment.email || '',
                                                     service: appointment.service,
                                                     appointment_date: appointment.appointment_date.split('T')[0],
                                                     appointment_time: (appointment.appointment_date.split('T')[1] ?? '00:00').slice(0, 5),
@@ -1866,6 +1891,22 @@ export default function Appointments() {
                                         placeholder="Ej: 56912345678"
                                         className="input-soft w-full"
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-charcoal mb-2">
+                                        Correo Electrónico
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="email"
+                                            value={newAppointment.email}
+                                            onChange={(e) => setNewAppointment({ ...newAppointment, email: e.target.value })}
+                                            placeholder="Ej: correo@ejemplo.com"
+                                            className="input-soft w-full pl-10"
+                                        />
+                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
+                                    </div>
                                 </div>
 
                                 <div>
