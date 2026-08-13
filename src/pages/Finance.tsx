@@ -15,6 +15,7 @@ import {
     Calendar,
     CalendarRange,
     Lightbulb,
+    Tag,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
@@ -139,6 +140,8 @@ const Finance = () => {
     const [incomes, setIncomes] = useState<Income[]>([])
     const [loading, setLoading] = useState(true)
     const [itemMetrics, setItemMetrics] = useState<any>(null)
+    const [discountMetrics, setDiscountMetrics] = useState<any>(null)
+    const [prevDiscountPct, setPrevDiscountPct] = useState<number | null>(null)
     const [activeTab, setActiveTab] = useState<'dashboard' | 'cajas' | 'expenses' | 'incomes' | 'analysis'>('dashboard')
     const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
     const [cajaToClose, setCajaToClose] = useState<string | null>(null)  // date 'YYYY-MM-DD'
@@ -195,9 +198,15 @@ const Finance = () => {
                 end   = range.end
             }
 
+            // Período inmediatamente anterior, de la misma duración, para poder decir
+            // si el descuento está subiendo o bajando en vez de mostrar un número suelto.
+            const spanDays = differenceInCalendarDays(end, start) + 1
+            const prevStart = startOfDay(addDays(start, -spanDays))
+            const prevEnd   = endOfDay(addDays(end, -spanDays))
+
             // allSettled: que un fallo en una query no tumbe a las demás. Con Promise.all,
             // un solo rechazo dejaba toda la UI sin actualizar (datos viejos hasta refrescar).
-            const [statsR, expR, incR, metR, crR, csR] = await Promise.allSettled([
+            const [statsR, expR, incR, metR, crR, csR, discR, prevDiscR] = await Promise.allSettled([
                 financeService.getStats(clinicId, start, end),
                 financeService.getExpenses(clinicId, start, end),
                 financeService.getIncomes(clinicId, start, end),
@@ -205,6 +214,8 @@ const Finance = () => {
                 financeService.getCashRegisters(clinicId, start, end),
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name, currency').eq('id', clinicId).single()).then((r: any) => r),
+                financeService.getDiscountMetrics(clinicId, start, end),
+                financeService.getDiscountMetrics(clinicId, prevStart, prevEnd),
             ])
 
             if (statsR.status === 'fulfilled') setStats(statsR.value)
@@ -215,6 +226,14 @@ const Finance = () => {
             const cs = csR.status === 'fulfilled' ? (csR.value as any) : null
             if (cs?.data?.clinic_name) setClinicName(cs.data.clinic_name)
             if (cs?.data?.currency) setCurrency(cs.data.currency)
+            setDiscountMetrics(discR.status === 'fulfilled' ? discR.value : null)
+            // Sin ventas en el período anterior no hay comparación posible: null
+            // (se muestra un guion), nunca 0% — que se leería como "no descontaron".
+            setPrevDiscountPct(
+                prevDiscR.status === 'fulfilled' && prevDiscR.value && Number(prevDiscR.value.total_sales) > 0
+                    ? Number(prevDiscR.value.discount_pct)
+                    : null
+            )
 
             const failed = [statsR, expR, incR, metR, crR].filter(r => r.status === 'rejected')
             if (failed.length > 0) {
@@ -881,7 +900,7 @@ const Finance = () => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="card-soft p-4 flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                         <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -931,6 +950,54 @@ const Finance = () => {
                         )}>
                             {loading ? '...' : formatCurrency(stats?.net_profit || 0)}
                         </p>
+                    ) : (
+                        <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
+                    )}
+                </div>
+
+                {/* Descuentos otorgados. No se resta de la ganancia: los ingresos ya
+                    están netos. Es dinero que se dejó de cobrar, y el % sobre el bruto
+                    es lo comparable — el monto sube y baja solo con el volumen. */}
+                <div className="card-soft p-4 flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                            <Tag className="w-5 h-5 text-amber-600" />
+                        </div>
+                        {can('finance_metrics') && !loading && discountMetrics && (
+                            prevDiscountPct === null ? (
+                                <span className="text-xs font-medium text-charcoal/40 bg-silk-beige px-2 py-1 rounded-full">
+                                    {Number(discountMetrics.discount_pct ?? 0).toLocaleString('es-CL')}% del bruto
+                                </span>
+                            ) : (() => {
+                                const delta = Number(discountMetrics.discount_pct ?? 0) - prevDiscountPct
+                                const subio = delta > 0.05
+                                const bajo  = delta < -0.05
+                                return (
+                                    <span className={cn(
+                                        "text-xs font-semibold px-2 py-1 rounded-full",
+                                        subio ? "bg-amber-50 text-amber-700"
+                                          : bajo ? "bg-emerald-50 text-emerald-700"
+                                          : "bg-silk-beige text-charcoal/50"
+                                    )} title="Comparado con el período anterior de la misma duración">
+                                        {subio ? '↑' : bajo ? '↓' : '='} {Math.abs(delta).toFixed(1)} pts
+                                    </span>
+                                )
+                            })()
+                        )}
+                    </div>
+                    <p className="text-sm text-charcoal/60">Descuentos otorgados</p>
+                    {can('finance_metrics') ? (
+                        <>
+                            <p className="text-2xl font-bold mt-1 text-amber-600">
+                                {loading ? '...' : formatCurrency(Number(discountMetrics?.total_discount ?? 0))}
+                            </p>
+                            {!loading && discountMetrics && (
+                                <p className="text-xs text-charcoal/40 mt-1">
+                                    {Number(discountMetrics.discount_pct ?? 0).toLocaleString('es-CL')}% del facturado bruto ·
+                                    {' '}{discountMetrics.sales_with_discount ?? 0} de {discountMetrics.total_sales ?? 0} ventas
+                                </p>
+                            )}
+                        </>
                     ) : (
                         <p className="text-sm text-charcoal/40 italic mt-2">No disponible</p>
                     )}
@@ -1392,6 +1459,90 @@ const Finance = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Descuentos otorgados — lo que se dejó de cobrar y en qué */}
+                        {discountMetrics && Number(discountMetrics.total_discount ?? 0) > 0 && (
+                            <div className="card-soft overflow-hidden">
+                                <div className="p-5 border-b border-silk-beige">
+                                    <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                                        <h3 className="font-bold text-charcoal">Descuentos otorgados</h3>
+                                        <span className="text-sm font-bold text-amber-600">
+                                            {formatCurrency(Number(discountMetrics.total_discount))}
+                                            <span className="text-xs font-medium text-charcoal/40 ml-1.5">
+                                                ({Number(discountMetrics.discount_pct ?? 0).toLocaleString('es-CL')}% del bruto)
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-charcoal/50 mt-0.5">
+                                        Facturado bruto {formatCurrency(Number(discountMetrics.gross_revenue ?? 0))} ·
+                                        {' '}cobrado {formatCurrency(Number(discountMetrics.net_revenue ?? 0))}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 divide-x divide-silk-beige/60 border-b border-silk-beige">
+                                    <div className="p-4">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40">Ventas con descuento</p>
+                                        <p className="text-lg font-extrabold text-charcoal mt-1">
+                                            {discountMetrics.sales_with_discount ?? 0}
+                                            <span className="text-xs font-normal text-charcoal/40"> / {discountMetrics.total_sales ?? 0}</span>
+                                        </p>
+                                    </div>
+                                    <div className="p-4">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40">Descuento promedio</p>
+                                        <p className="text-lg font-extrabold text-charcoal mt-1">
+                                            {formatCurrency(Number(discountMetrics.avg_discount ?? 0))}
+                                        </p>
+                                    </div>
+                                    <div className="p-4">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40">Mayor descuento</p>
+                                        <p className="text-lg font-extrabold text-charcoal mt-1">
+                                            {formatCurrency(Number(discountMetrics.max_discount ?? 0))}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-silk-beige/60">
+                                    <div className="p-5">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40 mb-3">Por motivo</p>
+                                        {(discountMetrics.by_reason ?? []).map((r: any, i: number) => {
+                                            const sinMotivo = r.reason === '__SIN_MOTIVO__'
+                                            return (
+                                                <div key={i} className="flex items-center justify-between py-1.5 text-sm">
+                                                    <span className={cn('truncate pr-3', sinMotivo ? 'italic text-charcoal/40' : 'text-charcoal')}>
+                                                        {sinMotivo ? 'Sin motivo registrado' : r.reason}
+                                                        <span className="text-charcoal/40 text-xs ml-1.5">×{r.times}</span>
+                                                    </span>
+                                                    <span className="font-bold text-charcoal shrink-0">{formatCurrency(Number(r.amount))}</span>
+                                                </div>
+                                            )
+                                        })}
+                                        {(discountMetrics.by_reason ?? []).some((r: any) => r.reason === '__SIN_MOTIVO__') && (
+                                            <p className="text-xs text-charcoal/40 mt-3 leading-relaxed">
+                                                Los descuentos sin motivo son de antes de que se pidiera registrarlo.
+                                                Los nuevos ya lo exigen, así que este desglose se irá completando solo.
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="p-5">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40 mb-3">Qué se descuenta más</p>
+                                        {(discountMetrics.top_items ?? []).slice(0, 6).map((it: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between py-1.5 text-sm">
+                                                <span className="truncate pr-3 text-charcoal">
+                                                    {it.name}
+                                                    <span className="text-charcoal/40 text-xs ml-1.5">×{it.times}</span>
+                                                </span>
+                                                <span className="font-bold text-amber-600 shrink-0">
+                                                    −{formatCurrency(Number(it.discount_amount))}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {(discountMetrics.top_items ?? []).length === 0 && (
+                                            <p className="text-sm text-charcoal/40 italic">Sin detalle de ítems</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Ítems libres — ventas escritas a mano, sin catálogo.
                             Solo se muestra si existen: verlas acá es la señal de que

@@ -20,6 +20,18 @@ interface TutorOption {
     name: string
 }
 
+// Motivos de descuento predefinidos. Antes era un texto libre opcional y el
+// resultado fue 0 de 39 descuentos con motivo: sin esto, el reporte muestra
+// cuánto se regaló pero nunca por qué. Un clic tiene fricción casi nula.
+const DISCOUNT_REASONS = [
+    'Promoción / pack',
+    'Cliente frecuente',
+    'Convenio',
+    'Caso social',
+    'Ajuste de cobro',
+    'Otro',
+] as const
+
 const PAYMENT_OPTIONS = [
     { value: 'efectivo',      label: 'Efectivo' },
     { value: 'transferencia', label: 'Transferencia' },
@@ -99,7 +111,15 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     // Descuento
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
     const [discountValue, setDiscountValue] = useState<number>(editingIncome?.discount ?? 0)
-    const [discountReason, setDiscountReason] = useState<string>(editingIncome?.discount_reason ?? '')
+    // Un motivo guardado que no esté en la lista (ej. texto libre antiguo) se
+    // edita como "Otro" con su texto, en vez de perderse.
+    const initialReason = editingIncome?.discount_reason ?? ''
+    const [reasonChoice, setReasonChoice] = useState<string>(
+        !initialReason ? '' : (DISCOUNT_REASONS as readonly string[]).includes(initialReason) ? initialReason : 'Otro'
+    )
+    const [reasonOther, setReasonOther] = useState<string>(
+        initialReason && !(DISCOUNT_REASONS as readonly string[]).includes(initialReason) ? initialReason : ''
+    )
     // IVA
     const [ivaEnabled, setIvaEnabled] = useState(false)
     const [ivaRate, setIvaRate] = useState(19)
@@ -181,6 +201,11 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         ? Math.round(finalAmount * ivaRate / (100 + ivaRate))
         : 0
     const netAmount = finalAmount - ivaAmount
+
+    // Motivo efectivo que se guarda: el chip elegido, o el texto libre si es "Otro".
+    const effectiveDiscountReason = reasonChoice === 'Otro' ? reasonOther.trim() : reasonChoice
+    // Con descuento, el motivo es obligatorio.
+    const discountReasonMissing = discountAmount > 0 && !effectiveDiscountReason
 
     // Categoría auto-calculada
     const autoCategory = selectedProducts.length > 0 && selectedServices.length === 0 ? 'product' : 'service'
@@ -284,6 +309,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (finalAmount <= 0 && subtotal <= 0) return
+        if (discountReasonMissing) return
         const allServices = [
             ...selectedServices.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'service' })),
             ...selectedProducts.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'product' })),
@@ -293,7 +319,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
             description,
             amount:          finalAmount,
             discount:        discountAmount,
-            discount_reason: discountReason.trim() || undefined,
+            discount_reason: effectiveDiscountReason || undefined,
             iva_amount:      ivaAmount || undefined,
             category:        autoCategory,
             date,
@@ -591,14 +617,43 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                         </div>
 
                         {discountAmount > 0 && (
-                            <input
-                                type="text"
-                                maxLength={80}
-                                className="w-full text-sm border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 placeholder:text-emerald-400 text-emerald-800"
-                                placeholder='Motivo del descuento (ej: "cliente frecuente", "alianza Petshop X")'
-                                value={discountReason}
-                                onChange={e => setDiscountReason(e.target.value)}
-                            />
+                            <div className="pt-1">
+                                <label className="block text-xs font-semibold text-charcoal mb-1.5">
+                                    Motivo del descuento <span className="text-red-500">*</span>
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {DISCOUNT_REASONS.map(r => (
+                                        <button
+                                            key={r}
+                                            type="button"
+                                            onClick={() => setReasonChoice(reasonChoice === r ? '' : r)}
+                                            className={cn(
+                                                'px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                                                reasonChoice === r
+                                                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                                    : 'bg-white border-silk-beige text-charcoal/60 hover:border-amber-300 hover:text-amber-700'
+                                            )}
+                                        >{r}</button>
+                                    ))}
+                                </div>
+                                {reasonChoice === 'Otro' && (
+                                    <input
+                                        type="text"
+                                        maxLength={80}
+                                        autoFocus
+                                        className="mt-2 w-full text-sm border border-amber-200 bg-amber-50 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 placeholder:text-amber-400 text-amber-900"
+                                        placeholder="Escribe el motivo"
+                                        value={reasonOther}
+                                        onChange={e => setReasonOther(e.target.value)}
+                                    />
+                                )}
+                                {discountReasonMissing && (
+                                    <p className="text-xs text-amber-600 mt-1.5">
+                                        Indica el motivo para poder guardar. Sirve para saber después
+                                        qué descuentos conviene mantener.
+                                    </p>
+                                )}
+                            </div>
                         )}
 
                         {subtotal > 0 && (
@@ -676,7 +731,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={finalAmount <= 0 && subtotal <= 0}
+                        disabled={(finalAmount <= 0 && subtotal <= 0) || discountReasonMissing}
                         className="btn-primary disabled:opacity-50"
                     >
                         {isEdit ? 'Guardar cambios' : 'Registrar Ingreso'}

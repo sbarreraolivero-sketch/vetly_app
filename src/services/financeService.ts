@@ -268,6 +268,31 @@ export const financeService = {
     },
 
     // ── Métricas avanzadas con appointment_items ───────────────────────
+    // Descuentos otorgados en el período. El % va sobre el bruto (neto + descuento):
+    // "de todo lo que pude cobrar, cuánto se regaló".
+    async getDiscountMetrics(clinicId: string, startDate: Date, endDate: Date) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .rpc('get_finance_discount_metrics', {
+                p_clinic_id: clinicId,
+                p_start: startDate.toISOString(),
+                p_end: endDate.toISOString(),
+            })
+        if (error) throw error
+        return data as {
+            total_discount: number
+            gross_revenue: number
+            net_revenue: number
+            discount_pct: number
+            total_sales: number
+            sales_with_discount: number
+            avg_discount: number
+            max_discount: number
+            by_reason: Array<{ reason: string; times: number; amount: number }> | null
+            top_items: Array<{ name: string; discount_amount: number; times: number }> | null
+        } | null
+    },
+
     async getItemMetrics(clinicId: string, startDate: Date, endDate: Date) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
