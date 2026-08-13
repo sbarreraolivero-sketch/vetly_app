@@ -18,12 +18,17 @@ import {
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
-    startOfMonth, endOfMonth,
+    startOfMonth, endOfMonth, startOfWeek,
     getDay, addDays, addMonths, subMonths,
     isSameDay, isBefore, isAfter,
+    differenceInCalendarDays,
     format as dateFnsFormat,
 } from 'date-fns'
 import { es as esLocale } from 'date-fns/locale'
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid,
+    Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+} from 'recharts'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
@@ -75,6 +80,13 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 }
 
 const translatePaymentMethod = (m?: string | null) => (m ? (PAYMENT_METHOD_LABELS[m.toLowerCase()] ?? m) : '—')
+
+// Serie de ingresos y de gastos del gráfico. Verde/rojo — la convención obvia —
+// está descartada a propósito: es la peor combinación para daltonismo
+// (deuteranopía, ~6% de los hombres). Este par sí separa bien: el teal es el
+// primary de la marca y el naranja se lee igual como "salida de dinero".
+const CHART_INCOME_COLOR  = '#0d9488'
+const CHART_EXPENSE_COLOR = '#ea580c'
 
 // Tipos de ítem dentro de un ingreso. 'custom' = ítem libre escrito a mano,
 // sin catálogo — no se puede clasificar como servicio ni producto.
@@ -216,6 +228,66 @@ const Finance = () => {
                 sales_with_products: itemMetrics.appt_metrics.appts_with_products,
             }
             : null)
+
+    // Serie temporal Ingresos vs Gastos. Se agrupa en el cliente sobre los datos
+    // que ya cargó loadData() — sin queries extra. La granularidad se ajusta para
+    // que el gráfico nunca pase de ~14 barras por serie y siga siendo legible.
+    const chartData = useMemo(() => {
+        let start: Date, end: Date
+        if (filterType === 'custom' && customRange) {
+            start = startOfDay(customRange.start)
+            end   = endOfDay(customRange.end)
+        } else {
+            const r = getDateRange(filterType as 'day' | 'week' | 'month' | 'year')
+            start = r.start
+            end   = r.end
+        }
+
+        const totalDays = differenceInCalendarDays(end, start) + 1
+        const grain: 'day' | 'week' | 'month' =
+            totalDays <= 14 ? 'day' : totalDays <= 92 ? 'week' : 'month'
+
+        const bucketStart = (d: Date) =>
+            grain === 'month' ? startOfMonth(d)
+          : grain === 'week'  ? startOfWeek(d, { weekStartsOn: 1 })
+          :                     startOfDay(d)
+
+        const keyOf   = (d: Date) => dateFnsFormat(bucketStart(d), 'yyyy-MM-dd')
+        const labelOf = (d: Date) =>
+            grain === 'month' ? dateFnsFormat(bucketStart(d), 'MMM', { locale: esLocale })
+          : grain === 'week'  ? dateFnsFormat(bucketStart(d), 'd MMM', { locale: esLocale })
+          :                     dateFnsFormat(bucketStart(d), 'd MMM', { locale: esLocale })
+
+        // Buckets pre-creados en orden: un período sin movimiento debe verse como
+        // cero, no desaparecer del eje.
+        const buckets = new Map<string, { label: string; ingresos: number; gastos: number }>()
+        let cursor = bucketStart(start)
+        while (cursor <= end) {
+            buckets.set(keyOf(cursor), { label: labelOf(cursor), ingresos: 0, gastos: 0 })
+            cursor = grain === 'month' ? addMonths(cursor, 1)
+                   : grain === 'week'  ? addDays(cursor, 7)
+                   :                     addDays(cursor, 1)
+        }
+
+        // Mediodía local para que el parseo no corra el día por zona horaria.
+        const bump = (dateStr: string, field: 'ingresos' | 'gastos', amount: number) => {
+            if (!dateStr) return
+            const b = buckets.get(keyOf(new Date(`${dateStr}T12:00:00`)))
+            if (b) b[field] += Number(amount) || 0
+        }
+        incomes.forEach(i => bump(i.date, 'ingresos', i.amount))
+        expenses.forEach(e => bump(e.date, 'gastos', e.amount))
+
+        return Array.from(buckets.values())
+    }, [incomes, expenses, filterType, customRange, timezone])
+
+    const hasChartData = chartData.some(d => d.ingresos > 0 || d.gastos > 0)
+
+    // Eje Y compacto: los montos completos en CLP son ilegibles como etiqueta.
+    const formatAxisAmount = (n: number) =>
+        Math.abs(n) >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M`
+      : Math.abs(n) >= 1_000     ? `${Math.round(n / 1_000)}K`
+      :                            String(n)
 
     // ── Currency formatter ──
     const formatCurrency = (amount: number) => {
@@ -906,12 +978,66 @@ const Finance = () => {
             <div className="space-y-6">
                 {activeTab === 'dashboard' && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Chart Placeholders */}
+                        {/* Ingresos vs Gastos */}
                         <div className="lg:col-span-2 card-soft p-6">
-                            <h3 className="font-semibold text-charcoal mb-4">Ingresos vs Gastos</h3>
-                            <div className="h-64 flex items-center justify-center bg-ivory rounded-soft border border-dashed border-silk-beige">
-                                <p className="text-charcoal/40 text-sm">Gráfico de barras (Próximamente)</p>
+                            <div className="flex items-baseline justify-between mb-4 gap-3 flex-wrap">
+                                <h3 className="font-semibold text-charcoal">Ingresos vs Gastos</h3>
+                                <span className="text-xs text-charcoal/40">{getFilterLabel()}</span>
                             </div>
+                            {!can('finance_metrics') ? (
+                                <div className="h-64 flex items-center justify-center">
+                                    <p className="text-charcoal/40 text-sm italic">No disponible</p>
+                                </div>
+                            ) : loading ? (
+                                <div className="h-64 flex items-center justify-center">
+                                    <p className="text-charcoal/40 text-sm">Cargando…</p>
+                                </div>
+                            ) : !hasChartData ? (
+                                <div className="h-64 flex items-center justify-center">
+                                    <p className="text-charcoal/40 text-sm">Sin movimientos en este período</p>
+                                </div>
+                            ) : (
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={chartData} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                                            <CartesianGrid vertical={false} stroke="#ece9e4" />
+                                            <XAxis
+                                                dataKey="label"
+                                                axisLine={false}
+                                                tickLine={false}
+                                                tick={{ fontSize: 11, fill: '#9b9691' }}
+                                            />
+                                            <YAxis
+                                                axisLine={false}
+                                                tickLine={false}
+                                                tick={{ fontSize: 11, fill: '#9b9691' }}
+                                                tickFormatter={formatAxisAmount}
+                                            />
+                                            <RechartsTooltip
+                                                cursor={{ fill: 'rgba(0,0,0,0.035)' }}
+                                                formatter={(value: any, name: any) => [formatCurrency(Number(value)), name]}
+                                                contentStyle={{
+                                                    borderRadius: 12,
+                                                    border: '1px solid #ece9e4',
+                                                    fontSize: 12,
+                                                    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                                                }}
+                                            />
+                                            {/* El texto de la leyenda va en tinta, no en el color de la
+                                                serie: el swatch ya carga la identidad y un texto de color
+                                                claro es ilegible sobre fondo blanco. */}
+                                            <Legend
+                                                iconSize={10}
+                                                iconType="circle"
+                                                wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+                                                formatter={(value) => <span style={{ color: '#4a4642' }}>{value}</span>}
+                                            />
+                                            <Bar dataKey="ingresos" name="Ingresos" fill={CHART_INCOME_COLOR} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                                            <Bar dataKey="gastos"   name="Gastos"   fill={CHART_EXPENSE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
                         </div>
 
                         {/* Recent Incomes Mini List */}
@@ -1175,7 +1301,10 @@ const Finance = () => {
                                                 "text-xs px-2 py-0.5 rounded-full font-semibold",
                                                 ITEM_TYPE_STYLES[t.item_type as string] ?? ITEM_TYPE_STYLES.custom
                                             )}>
-                                                {ITEM_TYPE_LABELS[t.item_type as string] ?? 'Ítems libres'}
+                                                {/* Fallback al nombre crudo, nunca a otra etiqueta: un tipo
+                                                    nuevo mal etiquetado (dos veces "Productos") es peor que
+                                                    uno sin traducir. */}
+                                                {ITEM_TYPE_LABELS[t.item_type as string] ?? t.item_type}
                                             </span>
                                             <span className="text-sm font-bold text-charcoal">{formatCurrency(t.total_revenue)}</span>
                                         </div>
