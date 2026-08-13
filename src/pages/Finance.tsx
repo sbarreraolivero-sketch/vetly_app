@@ -76,6 +76,20 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 const translatePaymentMethod = (m?: string | null) => (m ? (PAYMENT_METHOD_LABELS[m.toLowerCase()] ?? m) : '—')
 
+// Tipos de ítem dentro de un ingreso. 'custom' = ítem libre escrito a mano,
+// sin catálogo — no se puede clasificar como servicio ni producto.
+const ITEM_TYPE_LABELS: Record<string, string> = {
+    service: 'Servicios',
+    product: 'Productos',
+    custom:  'Ítems libres',
+}
+
+const ITEM_TYPE_STYLES: Record<string, string> = {
+    service: 'bg-primary-100 text-primary-600',
+    product: 'bg-violet-100 text-violet-600',
+    custom:  'bg-amber-100 text-amber-700',
+}
+
 // parseLocalDate now comes from useClinicTimezone hook
 
 // ── Component ────────────────────────────────────────────────────────
@@ -191,6 +205,18 @@ const Finance = () => {
     const [expenseDefaultDate, setExpenseDefaultDate] = useState<string | undefined>(undefined)
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
+    // Métricas de venta del período. `sale_metrics` es la clave nueva (calculada
+    // sobre `incomes`); `appt_metrics` es el alias de compatibilidad que emite el
+    // RPC para no romper un frontend viejo cacheado durante el deploy.
+    const saleMetrics = itemMetrics?.sale_metrics
+        ?? (itemMetrics?.appt_metrics
+            ? {
+                avg_ticket:          itemMetrics.appt_metrics.avg_ticket,
+                total_sales:         itemMetrics.appt_metrics.total_appts,
+                sales_with_products: itemMetrics.appt_metrics.appts_with_products,
+            }
+            : null)
+
     // ── Currency formatter ──
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('es-MX', {
@@ -277,14 +303,13 @@ const Finance = () => {
     const syncProductStockForIncome = async (incomeId: string, services: any[] | undefined, tutorId?: string) => {
         if (!clinicId) return
         try {
-            const products = (services ?? [])
-                .filter((s: any) => s.type === 'product' && s.id)
-                .map((s: any) => ({ id: s.id, name: s.name, price: s.price }))
             const location = await inventoryService.getActiveForSalesLocation(clinicId)
             await inventoryService.syncIncomeProductMovements({
                 clinicId,
                 incomeId,
-                products,
+                // Se pasan TODOS los ítems: los servicios vinculados a un producto
+                // de inventario también descuentan stock (ej. una vacuna).
+                items: services ?? [],
                 tutorId: tutorId ?? null,
                 locationId: location?.id ?? null,
             })
@@ -1116,38 +1141,41 @@ const Finance = () => {
                 {/* ── TAB ANÁLISIS ── */}
                 {activeTab === 'analysis' && (
                     <div className="space-y-6">
-                        {/* Métricas avanzadas */}
-                        {itemMetrics?.appt_metrics && (
+                        {/* Métricas avanzadas — todo calculado sobre los ingresos del período */}
+                        {saleMetrics && (
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="card-soft p-4">
                                     <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Ticket promedio</p>
                                     <p className="text-2xl font-extrabold text-charcoal mt-1">
-                                        {formatCurrency(itemMetrics.appt_metrics.avg_ticket ?? 0)}
+                                        {formatCurrency(saleMetrics.avg_ticket ?? 0)}
+                                    </p>
+                                    <p className="text-xs text-charcoal/40 mt-0.5">
+                                        sobre {saleMetrics.total_sales ?? 0} {(saleMetrics.total_sales ?? 0) === 1 ? 'venta' : 'ventas'}
                                     </p>
                                 </div>
                                 <div className="card-soft p-4">
-                                    <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Citas con productos</p>
+                                    <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Ventas con productos</p>
                                     <p className="text-2xl font-extrabold text-charcoal mt-1">
-                                        {itemMetrics.appt_metrics.appts_with_products ?? 0}
+                                        {saleMetrics.sales_with_products ?? 0}
                                         <span className="text-sm font-normal text-charcoal/40 ml-1">
-                                            / {itemMetrics.appt_metrics.total_appts ?? 0}
+                                            / {saleMetrics.total_sales ?? 0}
                                         </span>
                                     </p>
                                     <p className="text-xs text-charcoal/40 mt-0.5">
-                                        {itemMetrics.appt_metrics.total_appts
-                                            ? Math.round((itemMetrics.appt_metrics.appts_with_products / itemMetrics.appt_metrics.total_appts) * 100)
-                                            : 0}% de las visitas
+                                        {saleMetrics.total_sales
+                                            ? Math.round((saleMetrics.sales_with_products / saleMetrics.total_sales) * 100)
+                                            : 0}% incluyó algún producto
                                     </p>
                                 </div>
                                 <div className="card-soft p-4">
                                     <p className="text-xs text-charcoal/50 uppercase tracking-wider font-bold">Ingresos por tipo</p>
-                                    {(itemMetrics.by_type ?? []).map((t: any) => (
+                                    {(itemMetrics?.by_type ?? []).map((t: any) => (
                                         <div key={t.item_type} className="flex justify-between items-center mt-1.5">
                                             <span className={cn(
                                                 "text-xs px-2 py-0.5 rounded-full font-semibold",
-                                                t.item_type === 'service' ? "bg-primary-100 text-primary-600" : "bg-violet-100 text-violet-600"
+                                                ITEM_TYPE_STYLES[t.item_type as string] ?? ITEM_TYPE_STYLES.custom
                                             )}>
-                                                {t.item_type === 'service' ? 'Servicios' : 'Productos'}
+                                                {ITEM_TYPE_LABELS[t.item_type as string] ?? 'Ítems libres'}
                                             </span>
                                             <span className="text-sm font-bold text-charcoal">{formatCurrency(t.total_revenue)}</span>
                                         </div>
@@ -1210,6 +1238,35 @@ const Finance = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Ítems libres — ventas escritas a mano, sin catálogo.
+                            Solo se muestra si existen: verlas acá es la señal de que
+                            conviene crearlas como servicio o producto del catálogo. */}
+                        {(itemMetrics?.top_custom ?? []).length > 0 && (
+                            <div className="card-soft overflow-hidden">
+                                <div className="p-5 border-b border-silk-beige">
+                                    <h3 className="font-bold text-charcoal">Top Ítems Libres</h3>
+                                    <p className="text-xs text-charcoal/50">
+                                        Escritos a mano, fuera del catálogo. Crearlos como servicio o producto los
+                                        hace medibles y permite descontar stock.
+                                    </p>
+                                </div>
+                                <div className="divide-y divide-silk-beige/40">
+                                    {(itemMetrics?.top_custom ?? []).map((c: any, i: number) => (
+                                        <div key={i} className="flex items-center justify-between px-5 py-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <span className="w-6 h-6 shrink-0 rounded-full bg-amber-100 text-amber-700 text-xs font-black flex items-center justify-center">{i + 1}</span>
+                                                <span className="text-sm font-medium text-charcoal truncate">{c.name}</span>
+                                            </div>
+                                            <div className="text-right shrink-0 ml-3">
+                                                <p className="text-sm font-bold text-charcoal">{formatCurrency(c.revenue)}</p>
+                                                <p className="text-xs text-charcoal/40">{c.units} unid.</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {loading && (
                             <div className="text-center py-8 text-charcoal/40 text-sm">Cargando métricas...</div>

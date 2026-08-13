@@ -346,7 +346,11 @@ export default function Dashboard() {
                     cancelledAppointments: cancelledCountRes.count || 0,
                     aiMessages: aiMessagesCountRes.count || 0,
                     aiAppointments: aiAppointmentsCountRes.count || 0,
-                    avgTicket: itemMetricsRes?.appt_metrics?.avg_ticket ?? 0,
+                    // sale_metrics es la clave nueva (ticket promedio real, sobre
+                    // incomes); appt_metrics queda como alias de compatibilidad.
+                    avgTicket: itemMetricsRes?.sale_metrics?.avg_ticket
+                        ?? itemMetricsRes?.appt_metrics?.avg_ticket
+                        ?? 0,
                 })
 
                 setInventoryAlert({

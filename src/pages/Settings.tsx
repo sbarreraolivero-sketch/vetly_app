@@ -39,13 +39,15 @@ import {
     Phone,
     ShieldAlert,
     Settings2,
+    Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PLANS, type PlanId, normalizePlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
-import { LS_PLANS, type LSPlanId, LS_CREDIT_PACKS, redirectToLemonCheckout, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
+import { PADDLE_PLANS, type PaddlePlanId, PADDLE_CREDIT_PACKS, openPaddleSubscriptionCheckout, openPaddleCreditsCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { TagManager } from '@/components/settings/TagManager'
+import PostPaymentOnboardingBanner from '@/components/settings/PostPaymentOnboardingBanner'
 import Team from './settings/Team'
 import MyProfile from './settings/MyProfile'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
@@ -125,6 +127,11 @@ export default function Settings() {
     const [newServiceName, setNewServiceName] = useState('')
     const [newServiceDuration, setNewServiceDuration] = useState<string>('30')
     const [newServicePrice, setNewServicePrice] = useState<string>('')
+    // Producto del inventario que consume este servicio (ej. el servicio
+    // "Vacuna Antirrábica" descuenta 1 unidad del producto "Vacuna antirrábica").
+    const [newServiceLinkedProductId, setNewServiceLinkedProductId] = useState<string>('')
+    const [newServiceLinkedProductQty, setNewServiceLinkedProductQty] = useState<string>('1')
+    const [inventoryProducts, setInventoryProducts] = useState<any[]>([])
 
     // Professional assignment state for service modal
     const [clinicProfessionals, setClinicProfessionals] = useState<any[]>([])
@@ -170,6 +177,10 @@ export default function Settings() {
     const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For purchase, keep legacy values for payment backend
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
+    // Proveedor real de facturación (distinto de paymentRegion, que es solo el toggle
+    // de moneda para explorar precios — no cambia hasta que el usuario efectivamente
+    // paga con el otro proveedor). Usado para decidir si mostrar "Gestionar en Mercado Pago".
+    const [currentPaymentProvider, setCurrentPaymentProvider] = useState<string | null>(null)
     const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
     const [copiedWebhook, setCopiedWebhook] = useState(false)
 
@@ -264,6 +275,50 @@ export default function Settings() {
 
     // Payment return message state
     const [paymentMessage, setPaymentMessage] = useState<{ type: 'success' | 'error' | 'pending'; text: string } | null>(null)
+    // Plan recién adquirido en la primera conversión trial→pago (dispara el banner de onboarding)
+    const [onboardingPromptPlan, setOnboardingPromptPlan] = useState<PlanId | null>(null)
+
+    // CTA de onboarding: solo si este pago fue la primera conversión trial→pago real.
+    // Lee el flag de sessionStorage (seteado antes de abrir el checkout) y lo consume una
+    // sola vez. Se llama tanto desde el retorno con ?payment=success (MercadoPago, redirect)
+    // como desde el evento checkout.completed de Paddle (overlay, sin redirect ni URL param).
+    const checkPendingOnboardingPrompt = (clinicIdForUpdate: string | null | undefined): boolean => {
+        try {
+            const raw = sessionStorage.getItem('vetly_pending_onboarding_prompt')
+            if (raw) {
+                const pending = JSON.parse(raw)
+                setOnboardingPromptPlan(pending.planId as PlanId)
+                sessionStorage.removeItem('vetly_pending_onboarding_prompt')
+
+                if (clinicIdForUpdate) {
+                    // Fire-and-forget: nunca debe romper el flujo de pago si falla
+                    ;(supabase as any)
+                        .from('subscriptions')
+                        .update({ onboarding_call_prompted_at: new Date().toISOString() })
+                        .eq('clinic_id', clinicIdForUpdate)
+                        .is('onboarding_call_prompted_at', null)
+                        .then(({ error }: any) => {
+                            if (error) console.error('No se pudo marcar onboarding_call_prompted_at:', error)
+                        })
+                }
+                return true
+            }
+        } catch (e) {
+            console.error('Error leyendo onboarding prompt flag:', e)
+        }
+        return false
+    }
+
+    // Retorno de checkout de Paddle (overlay, sin redirect ni ?payment=success en la URL).
+    // Se dispara desde el eventCallback de checkout.completed en handleSubscribe.
+    const handlePaddleSubscriptionSuccess = (clinicIdForUpdate: string | null | undefined) => {
+        setActiveTab('subscription')
+        setPaymentMessage({
+            type: 'success',
+            text: '¡Pago procesado exitosamente! Tu suscripción ha sido activada. Los cambios pueden demorar unos segundos en reflejarse.'
+        })
+        checkPendingOnboardingPrompt(clinicIdForUpdate)
+    }
 
     // Read tab from URL params (for deep linking) + handle payment returns
     useEffect(() => {
@@ -279,6 +334,7 @@ export default function Settings() {
                         type: 'success',
                         text: '¡Pago procesado exitosamente! Tu suscripción ha sido activada. Los cambios pueden demorar unos segundos en reflejarse.'
                     })
+                    checkPendingOnboardingPrompt(clinicId)
                     break
                 case 'failure':
                     setPaymentMessage({
@@ -322,14 +378,16 @@ export default function Settings() {
                     { data: profData, error: profError },
                     { data: webhooksData },
                     { data: poolData },
+                    { data: productsData },
                 ] = await Promise.all([
                     safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', clinicId).single()),
                     safe((supabase as any).from('clinic_settings').select('*').eq('id', clinicId).single()),
                     safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', clinicId).single()),
-                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description').eq('clinic_id', clinicId)),
+                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty').eq('clinic_id', clinicId)),
                     safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: clinicId })),
                     safe((supabase as any).from('webhooks').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: true })),
                     safe((supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: clinicId })),
+                    safe((supabase as any).from('inventory_products').select('id, name, unit, stock_quantity').eq('clinic_id', clinicId).eq('is_active', true).order('name')),
                 ])
 
                 // Blocked dates tiene su propio loading state — corre en background
@@ -379,7 +437,8 @@ export default function Settings() {
                     setAiActiveModel(clinicData.ai_active_model || 'hybrid')
                     setAiAutoRespond(clinicData.ai_auto_respond !== false)
                     setBusinessModel(clinicData.business_model || 'physical')
-                    setPaymentRegion(clinicData.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
+                    setPaymentRegion(clinicData.payment_provider === 'paddle' ? 'international' : 'chile')
+                    setCurrentPaymentProvider(clinicData.payment_provider || null)
                     if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
                 }
 
@@ -391,13 +450,18 @@ export default function Settings() {
                         name: s.name,
                         duration: s.duration,
                         price: s.price,
-                        aiDescription: s.ai_description
+                        aiDescription: s.ai_description,
+                        linkedProductId: s.linked_product_id,
+                        linkedProductQty: s.linked_product_qty,
                     })))
                 }
 
                 // --- Procesar profesionales ---
                 if (profError) console.error('Error fetching professionals:', profError)
                 if (profData) setClinicProfessionals(profData)
+
+                // --- Productos de inventario (para vincular a servicios) ---
+                if (productsData) setInventoryProducts(productsData)
 
                 // --- Procesar webhooks ---
                 if (webhooksData) setWebhooks(webhooksData)
@@ -458,7 +522,11 @@ export default function Settings() {
                     setSubscription({
                         plan: planName,
                         status: subData.status,
-                        trialEndsAt: subData.trial_ends_at,
+                        // subscriptions.trial_ends_at no existe como columna — el trial real
+                        // se rastrea en clinic_settings.trial_end_date (bug preexistente
+                        // encontrado en sesión 68: el countdown nunca se mostraba porque
+                        // siempre leía undefined de una columna inexistente).
+                        trialEndsAt: clinicData?.trial_end_date || null,
                         monthlyLimit: subData.monthly_appointments_limit,
                         monthlyUsed: subData.monthly_appointments_used || 0,
                         manuallyActive: subData.manually_active ?? false
@@ -488,7 +556,12 @@ export default function Settings() {
         if (!clinicId || !user?.email) return
         try {
             if (paymentRegion === 'international') {
-                await redirectToLemonCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
+                // Overlay de Paddle: recargar la página al completar el pago para
+                // refrescar el saldo (mismo efecto neto que el redirect de LS).
+                onPaddleCheckoutEvent((event) => {
+                    if (event.name === 'checkout.completed') window.location.reload()
+                })
+                await openPaddleCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
             } else {
                 await redirectToCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
             }
@@ -982,9 +1055,20 @@ export default function Settings() {
             return
         }
 
+        // Primera conversión real (trial → plan pago): guardar flag para mostrar
+        // el CTA de onboarding al volver del checkout. sessionStorage sobrevive
+        // el round-trip fuera del SPA sin persistir entre sesiones futuras.
+        const isFirstConversion = subscription?.plan === 'trial'
+        if (isFirstConversion) {
+            sessionStorage.setItem('vetly_pending_onboarding_prompt', JSON.stringify({ planId, clinicName }))
+        }
+
         try {
             if (paymentRegion === 'international') {
-                await redirectToLemonCheckout(clinicId, user.email, planId as LSPlanId)
+                onPaddleCheckoutEvent((event) => {
+                    if (event.name === 'checkout.completed') handlePaddleSubscriptionSuccess(clinicId)
+                })
+                await openPaddleSubscriptionCheckout(clinicId, user.email, planId as PaddlePlanId)
             } else {
                 await redirectToCheckout({
                     clinicId: clinicId,
@@ -994,6 +1078,9 @@ export default function Settings() {
             }
         } catch (error) {
             console.error('Checkout error:', error)
+            if (isFirstConversion) {
+                sessionStorage.removeItem('vetly_pending_onboarding_prompt')
+            }
             alert('Error al iniciar el proceso de pago. Por favor intenta más tarde.')
         }
     }
@@ -1001,11 +1088,24 @@ export default function Settings() {
     const [serviceSaved, setServiceSaved] = useState(false) // Success state
     const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
 
+    // Los cuatro puntos que cerraban el modal limpiaban campos distintos (el botón
+    // "Cancelar" solo borraba el nombre), así que quedaban valores del servicio
+    // anterior al abrirlo de nuevo. Un único helper para todos.
+    const resetServiceForm = () => {
+        setNewServiceName('')
+        setNewServiceDuration('30')
+        setNewServicePrice('')
+        setNewServiceLinkedProductId('')
+        setNewServiceLinkedProductQty('1')
+    }
+
     const handleEditService = async (service: any) => {
         setEditingServiceId(service.id)
         setNewServiceName(service.name)
         setNewServiceDuration(service.duration.toString())
         setNewServicePrice(service.price.toString())
+        setNewServiceLinkedProductId(service.linkedProductId ?? '')
+        setNewServiceLinkedProductQty(String(service.linkedProductQty ?? 1))
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
@@ -1041,7 +1141,9 @@ export default function Settings() {
                 clinic_id: clinicId,
                 name: newServiceName.trim(),
                 duration: parseInt(newServiceDuration) || 0,
-                price: parseFloat(newServicePrice) || 0
+                price: parseFloat(newServicePrice) || 0,
+                linked_product_id: newServiceLinkedProductId || null,
+                linked_product_qty: Math.max(1, parseInt(newServiceLinkedProductQty) || 1),
             }
 
             let savedServiceId = editingServiceId
@@ -1056,11 +1158,15 @@ export default function Settings() {
 
                 if (error) throw error
 
+                // Se conserva el resto de la fila (ej. aiDescription) — antes se perdía
+                // al reemplazar el objeto completo con solo los campos del formulario.
                 setServices(services.map(s => s.id === editingServiceId ? {
-                    id: editingServiceId,
+                    ...s,
                     name: serviceData.name,
                     duration: serviceData.duration,
-                    price: serviceData.price
+                    price: serviceData.price,
+                    linkedProductId: serviceData.linked_product_id,
+                    linkedProductQty: serviceData.linked_product_qty,
                 } : s))
             } else {
                 // Insert new service
@@ -1080,7 +1186,9 @@ export default function Settings() {
                     name: data.name,
                     duration: data.duration,
                     price: data.price,
-                    ai_description: data.ai_description
+                    aiDescription: data.ai_description,
+                    linkedProductId: data.linked_product_id,
+                    linkedProductQty: data.linked_product_qty,
                 }])
             }
 
@@ -1119,9 +1227,7 @@ export default function Settings() {
             }
 
             // Reset form
-            setNewServiceName('')
-            setNewServiceDuration('30')
-            setNewServicePrice('')
+            resetServiceForm()
 
             setAssignedProfessionals({})
             setPrimaryProfessional('')
@@ -1664,6 +1770,8 @@ export default function Settings() {
                                         onClick={() => {
                                             setAssignedProfessionals({})
                                             setPrimaryProfessional('')
+                                            setEditingServiceId(null)
+                                            resetServiceForm()
                                             setShowServiceModal(true)
                                         }}
                                         className="btn-ghost flex items-center gap-2 text-primary-500"
@@ -1679,8 +1787,19 @@ export default function Settings() {
                                             key={service.id}
                                             className="flex items-center gap-4 p-4 bg-ivory rounded-soft"
                                         >
-                                            <div className="flex-1">
-                                                <p className="font-medium text-charcoal">{service.name}</p>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="font-medium text-charcoal">{service.name}</p>
+                                                    {service.linkedProductId && (
+                                                        <span
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full"
+                                                            title="Al venderse descuenta stock del inventario"
+                                                        >
+                                                            <Package className="w-2.5 h-2.5" />
+                                                            Descuenta stock
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-charcoal/50">
                                                     {service.duration} minutos · {currencySymbols[currency]}{service.price.toLocaleString()} {currency}
                                                 </p>
@@ -1719,9 +1838,7 @@ export default function Settings() {
                                                 onClick={() => {
                                                     setShowServiceModal(false);
                                                     setEditingServiceId(null);
-                                                    setNewServiceName('');
-                                                    setNewServiceDuration('30');
-                                                    setNewServicePrice('');
+                                                    resetServiceForm();
                                                 }}
                                                 className="p-2 hover:bg-silk-beige rounded-soft transition-colors"
                                             >
@@ -1765,6 +1882,56 @@ export default function Settings() {
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* Descuento de stock — el servicio es el concepto que se cobra,
+                                            el producto vinculado es lo que se consume del inventario. */}
+                                        {inventoryProducts.length > 0 && (
+                                            <div className="border-t border-silk-beige pt-4 mt-4">
+                                                <p className="text-sm font-medium text-charcoal flex items-center gap-2 mb-1">
+                                                    <Package className="w-4 h-4 text-violet-500" />
+                                                    Descuenta stock del inventario
+                                                </p>
+                                                <p className="text-xs text-charcoal/50 mb-3">
+                                                    Opcional. Si este servicio consume un producto (ej. una vacuna), al venderlo
+                                                    se descuenta solo del inventario. El ingreso se sigue contando como servicio.
+                                                </p>
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    <div className="col-span-2">
+                                                        <select
+                                                            value={newServiceLinkedProductId}
+                                                            onChange={(e) => setNewServiceLinkedProductId(e.target.value)}
+                                                            className="input-soft"
+                                                        >
+                                                            <option value="">Sin producto vinculado</option>
+                                                            {inventoryProducts.map((p: any) => (
+                                                                <option key={p.id} value={p.id}>
+                                                                    {p.name} ({p.stock_quantity} en stock)
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            step="1"
+                                                            value={newServiceLinkedProductQty}
+                                                            onChange={(e) => setNewServiceLinkedProductQty(e.target.value)}
+                                                            disabled={!newServiceLinkedProductId}
+                                                            className="input-soft disabled:opacity-40"
+                                                            placeholder="1"
+                                                            title="Unidades que consume cada venta"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {newServiceLinkedProductId && (
+                                                    <p className="text-xs text-violet-600 mt-2">
+                                                        Cada venta descontará {Math.max(1, parseInt(newServiceLinkedProductQty) || 1)} unidad
+                                                        {Math.max(1, parseInt(newServiceLinkedProductQty) || 1) === 1 ? '' : 'es'} del inventario.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Professional Assignment Section */}
                                         {clinicProfessionals.length > 0 && (
@@ -1839,7 +2006,7 @@ export default function Settings() {
                                                 onClick={() => {
                                                     setShowServiceModal(false);
                                                     setEditingServiceId(null);
-                                                    setNewServiceName(''); // Reset form
+                                                    resetServiceForm();
                                                 }}
                                                 className="btn-ghost flex-1"
                                             >
@@ -1874,6 +2041,19 @@ export default function Settings() {
                                     <p className="text-sm font-bold">{paymentMessage.text}</p>
                                     <button onClick={() => setPaymentMessage(null)} className="ml-auto p-1 hover:opacity-70">✕</button>
                                 </div>
+                            )}
+
+                            {/* Post-payment onboarding CTA — solo en la primera conversión trial→pago */}
+                            {onboardingPromptPlan && (
+                                <PostPaymentOnboardingBanner
+                                    clinicName={clinicName || 'tu clínica'}
+                                    planName={
+                                        paymentRegion === 'international'
+                                            ? PADDLE_PLANS[onboardingPromptPlan as PaddlePlanId]?.name || onboardingPromptPlan
+                                            : PLANS[onboardingPromptPlan as PlanId]?.name || onboardingPromptPlan
+                                    }
+                                    onDismiss={() => setOnboardingPromptPlan(null)}
+                                />
                             )}
 
                             {/* Expired Trial Banner */}
@@ -1934,7 +2114,7 @@ export default function Settings() {
                                             {(() => {
                                                 const np = normalizePlanId(subscription?.plan || '')
                                                 const clpPrice = PLANS[np as PlanId]?.price
-                                                const usdPrice = LS_PLANS[np as LSPlanId]?.price
+                                                const usdPrice = PADDLE_PLANS[np as PaddlePlanId]?.price
                                                 return (
                                                     <div>
                                                         {clpPrice ? <p className="text-2xl font-black text-charcoal">${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span></p> : null}
@@ -1964,14 +2144,16 @@ export default function Settings() {
                                             Activar Plan Premium
                                         </button>
                                     )}
-                                    <a
-                                        href="https://www.mercadopago.com.mx/subscriptions"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn-ghost"
-                                    >
-                                        Gestionar en Mercado Pago
-                                    </a>
+                                    {currentPaymentProvider === 'mercadopago' && (
+                                        <a
+                                            href="https://www.mercadopago.com.mx/subscriptions"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn-ghost"
+                                        >
+                                            Gestionar en Mercado Pago
+                                        </a>
+                                    )}
                                     {subscription?.status === 'active' && (
                                         <button
                                             onClick={async () => {
@@ -2032,7 +2214,7 @@ export default function Settings() {
                                             onClick={async () => {
                                                 setPaymentRegion('international');
                                                 if (clinicId) {
-                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'lemonsqueezy' }).eq('id', clinicId);
+                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'paddle' }).eq('id', clinicId);
                                                 }
                                             }}
                                             className={cn(
@@ -2050,7 +2232,7 @@ export default function Settings() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-5">
                                     {(Object.keys(PLANS) as PlanId[]).map((planId) => {
                                         const mpPlan = PLANS[planId]
-                                        const lsPlan = LS_PLANS[planId as LSPlanId]
+                                        const paddlePlan = PADDLE_PLANS[planId as PaddlePlanId]
                                         const normalizedCurrent = normalizePlanId(subscription?.plan || '')
                                         const isCurrentPlan = planId === normalizedCurrent
                                         const isPro = planId === 'pro'
@@ -2077,7 +2259,7 @@ export default function Settings() {
                                                         {paymentRegion === 'international' ? (
                                                             <>
                                                                 <div className="flex items-baseline gap-1 flex-wrap">
-                                                                    <span className="text-3xl font-black text-charcoal">US${lsPlan?.price ?? 0}</span>
+                                                                    <span className="text-3xl font-black text-charcoal">US${paddlePlan?.price ?? 0}</span>
                                                                     <span className="text-xs font-bold text-charcoal/40 uppercase">USD/mes</span>
                                                                 </div>
                                                                 <p className="text-xs font-semibold text-charcoal/40 mt-0.5">${mpPlan.price.toLocaleString()} CLP/mes</p>
@@ -2088,8 +2270,8 @@ export default function Settings() {
                                                                     <span className="text-3xl font-black text-charcoal">${mpPlan.price.toLocaleString()}</span>
                                                                     <span className="text-xs font-bold text-charcoal/40 uppercase">CLP/mes</span>
                                                                 </div>
-                                                                {lsPlan && (
-                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${lsPlan.price} USD/mes</p>
+                                                                {paddlePlan && (
+                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${paddlePlan.price} USD/mes</p>
                                                                 )}
                                                             </>
                                                         )}
@@ -3237,8 +3419,8 @@ export default function Settings() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {(() => {
                                         const mpPacks = { ...CREDIT_PACKS };
-                                        const lsPacks = { ...LS_CREDIT_PACKS };
-                                        const currentPacks = paymentRegion === 'international' ? lsPacks : mpPacks;
+                                        const paddlePacks = { ...PADDLE_CREDIT_PACKS };
+                                        const currentPacks = paymentRegion === 'international' ? paddlePacks : mpPacks;
                                         const currencySymbol = paymentRegion === 'international' ? 'US$' : '$';
                                         const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP';
 

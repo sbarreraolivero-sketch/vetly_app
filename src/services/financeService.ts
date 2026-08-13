@@ -281,6 +281,9 @@ export const financeService = {
             by_type: Array<{ item_type: string; item_count: number; total_revenue: number; total_units: number }> | null
             top_services: Array<{ name: string; revenue: number; units: number }> | null
             top_products: Array<{ name: string; revenue: number; units: number }> | null
+            top_custom: Array<{ name: string; revenue: number; units: number }> | null
+            sale_metrics: { total_sales: number; sales_with_products: number; avg_ticket: number; total_revenue: number } | null
+            /** @deprecated alias de compatibilidad de `sale_metrics` — usar ese. */
             appt_metrics: { total_appts: number; appts_with_products: number; avg_ticket: number } | null
         } | null
     },

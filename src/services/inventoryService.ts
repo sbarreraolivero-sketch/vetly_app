@@ -315,14 +315,64 @@ export const inventoryService = {
     // desvincula, luego inserta un 'sale' fresco por cada producto vigente.
     // Nunca debe bloquear el guardado del ingreso — el llamador la envuelve
     // en try/catch y solo loguea si falla.
+    // Recibe TODOS los ítems de la venta (no solo los productos): un servicio
+    // vinculado a un producto de inventario — ej. el servicio "Vacuna Antirrábica"
+    // vinculado al producto "Vacuna antirrábica" — también consume stock, aunque
+    // el ingreso se atribuya al servicio.
     async syncIncomeProductMovements(params: {
         clinicId: string
         incomeId: string
-        products: Array<{ id: string; name: string; price: number }>
+        items: Array<{ id?: string; name?: string; price?: number; type?: string }>
         tutorId?: string | null
         locationId?: string | null
     }): Promise<void> {
         const sb = supabase as any
+        // Los ítems libres traen un id sintético ("custom-<ts>-<rand>"), no un UUID.
+        const isUuid = (v: unknown): v is string =>
+            typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+
+        // Un mismo producto puede consumirse por varias vías en la misma venta
+        // (vendido directo + vinculado a un servicio): se acumulan.
+        const consumption = new Map<string, { qty: number; unitPrice: number }>()
+        const addConsumption = (productId: string, qty: number, unitPrice: number) => {
+            const prev = consumption.get(productId)
+            if (prev) prev.qty += qty
+            else consumption.set(productId, { qty, unitPrice })
+        }
+
+        const items = params.items ?? []
+
+        // 1. Productos elegidos explícitamente en la venta.
+        for (const it of items) {
+            if (it?.type === 'product' && isUuid(it.id)) {
+                addConsumption(it.id, 1, Number(it.price) || 0)
+            }
+        }
+
+        // 2. Servicios con producto vinculado.
+        const serviceIds = items
+            .filter(it => it?.type === 'service' && isUuid(it.id))
+            .map(it => it.id as string)
+
+        if (serviceIds.length > 0) {
+            const { data: linked, error: linkErr } = await sb
+                .from('clinic_services')
+                .select('id, linked_product_id, linked_product_qty')
+                .in('id', serviceIds)
+                .not('linked_product_id', 'is', null)
+            if (linkErr) throw linkErr
+
+            const byId = new Map<string, any>((linked ?? []).map((s: any) => [s.id, s]))
+            for (const it of items) {
+                if (it?.type !== 'service' || !isUuid(it.id)) continue
+                const svc = byId.get(it.id)
+                if (!svc?.linked_product_id) continue
+                const qty = Number(svc.linked_product_qty) || 1
+                // El precio se reparte entre las unidades consumidas para que el
+                // análisis ABC de inventario no infle los ingresos del producto.
+                addConsumption(svc.linked_product_id, qty, (Number(it.price) || 0) / qty)
+            }
+        }
 
         const { data: existing, error: fetchErr } = await sb
             .from('inventory_movements')
@@ -351,13 +401,13 @@ export const inventoryService = {
             if (detachErr) throw detachErr
         }
 
-        if (params.products.length > 0) {
-            const rows = params.products.map(p => ({
+        if (consumption.size > 0) {
+            const rows = Array.from(consumption.entries()).map(([productId, c]) => ({
                 clinic_id:   params.clinicId,
-                product_id:  p.id,
+                product_id:  productId,
                 type:        'sale' as const,
-                quantity:    -1,
-                unit_price:  p.price,
+                quantity:    -c.qty,
+                unit_price:  c.unitPrice,
                 income_id:   params.incomeId,
                 tutor_id:    params.tutorId ?? null,
                 location_id: params.locationId ?? null,
@@ -406,6 +456,9 @@ export const inventoryService = {
             by_type: Array<{ item_type: string; item_count: number; total_revenue: number; total_units: number }> | null
             top_services: Array<{ name: string; revenue: number; units: number }> | null
             top_products: Array<{ name: string; revenue: number; units: number }> | null
+            top_custom: Array<{ name: string; revenue: number; units: number }> | null
+            sale_metrics: { total_sales: number; sales_with_products: number; avg_ticket: number; total_revenue: number } | null
+            /** @deprecated alias de compatibilidad de `sale_metrics` — usar ese. */
             appt_metrics: { total_appts: number; appts_with_products: number; avg_ticket: number } | null
         }
     },
