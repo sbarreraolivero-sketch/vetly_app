@@ -135,10 +135,10 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                 const scheduledDate = new Date()
                 scheduledDate.setDate(scheduledDate.getDate() + parseInt(checkupDays))
 
-                // Fetch clinic_id and patient phone from patient record
+                // Fetch clinic_id and tutor_id from patient record
                 const { data: patientData } = await (supabase as any)
                     .from('patients')
-                    .select('clinic_id, tutors(phone)')
+                    .select('clinic_id, tutor_id')
                     .eq('id', patientId)
                     .single()
 
@@ -155,16 +155,17 @@ export function MedicalEventForm({ patientId, event, onClose, onSave }: MedicalE
                     checkupTemplate = settingsData?.checkup_reminder_template || ''
                 }
 
-                await (supabase as any).from('reminders').insert({
+                const { error: reminderError } = await (supabase as any).from('reminders').insert({
                     patient_id: patientId,
+                    tutor_id: patientData?.tutor_id || null,
                     clinic_id: clinicId || null,
                     title: `Control Médico — ${parseInt(checkupDays)} días`,
                     type: 'checkup',
                     scheduled_date: scheduledDate.toISOString().split('T')[0],
                     status: 'pending',
-                    template_name: checkupTemplate || null,
-                    notes: `Recordatorio de control generado desde historial clínico. Días configurados: ${checkupDays}`,
+                    whatsapp_template: checkupTemplate || null,
                 })
+                if (reminderError) console.error('Error creating checkup reminder:', reminderError)
             }
 
             onSave()
