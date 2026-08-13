@@ -306,6 +306,67 @@ export const inventoryService = {
         }
     },
 
+    // ── Sync de stock para ventas registradas vía "+ Ingreso" ────────────
+    // Los productos seleccionados en NewIncomeForm se guardan en incomes.services
+    // pero nunca generaban un movimiento de inventario — el stock nunca se
+    // descontaba. Esta función crea/reconcilia esos movimientos, idempotente
+    // ante ediciones: revierte los movimientos 'sale' que quedaron ligados a
+    // este income (income_id) con un 'adjustment' de signo contrario y los
+    // desvincula, luego inserta un 'sale' fresco por cada producto vigente.
+    // Nunca debe bloquear el guardado del ingreso — el llamador la envuelve
+    // en try/catch y solo loguea si falla.
+    async syncIncomeProductMovements(params: {
+        clinicId: string
+        incomeId: string
+        products: Array<{ id: string; name: string; price: number }>
+        tutorId?: string | null
+        locationId?: string | null
+    }): Promise<void> {
+        const sb = supabase as any
+
+        const { data: existing, error: fetchErr } = await sb
+            .from('inventory_movements')
+            .select('id, product_id, quantity, location_id')
+            .eq('income_id', params.incomeId)
+            .eq('type', 'sale')
+        if (fetchErr) throw fetchErr
+
+        if (existing && existing.length > 0) {
+            const reversals = existing.map((m: any) => ({
+                clinic_id:   params.clinicId,
+                product_id:  m.product_id,
+                type:        'adjustment' as const,
+                quantity:    Math.abs(m.quantity),
+                location_id: m.location_id,
+                notes:       'Reversión automática por edición/eliminación de ingreso',
+            }))
+            const { error: revErr } = await sb.from('inventory_movements').insert(reversals)
+            if (revErr) throw revErr
+
+            const { error: detachErr } = await sb
+                .from('inventory_movements')
+                .update({ income_id: null })
+                .eq('income_id', params.incomeId)
+                .eq('type', 'sale')
+            if (detachErr) throw detachErr
+        }
+
+        if (params.products.length > 0) {
+            const rows = params.products.map(p => ({
+                clinic_id:   params.clinicId,
+                product_id:  p.id,
+                type:        'sale' as const,
+                quantity:    -1,
+                unit_price:  p.price,
+                income_id:   params.incomeId,
+                tutor_id:    params.tutorId ?? null,
+                location_id: params.locationId ?? null,
+            }))
+            const { error: saleErr } = await sb.from('inventory_movements').insert(rows)
+            if (saleErr) throw saleErr
+        }
+    },
+
     async getAppointmentItems(appointmentId: string): Promise<AppointmentItem[]> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)

@@ -29,6 +29,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { supabase } from '@/lib/supabase'
 import { financeService, type FinanceStats, type Expense, type Income, type CashRegister } from '@/services/financeService'
+import { inventoryService } from '@/services/inventoryService'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
 import { printCajaReport } from '@/components/finance/CajaReport'
@@ -269,10 +270,33 @@ const Finance = () => {
     }
 
     // ── Income handlers ──
+    // Los productos de un ingreso manual (incomeData.services, type='product') nunca
+    // descontaban stock — se registraba el ingreso pero el inventario no se enteraba.
+    // Esta función crea/reconcilia los movimientos de inventario correspondientes.
+    // Nunca debe bloquear el guardado/borrado del ingreso: solo loguea si falla.
+    const syncProductStockForIncome = async (incomeId: string, services: any[] | undefined, tutorId?: string) => {
+        if (!clinicId) return
+        try {
+            const products = (services ?? [])
+                .filter((s: any) => s.type === 'product' && s.id)
+                .map((s: any) => ({ id: s.id, name: s.name, price: s.price }))
+            const location = await inventoryService.getActiveForSalesLocation(clinicId)
+            await inventoryService.syncIncomeProductMovements({
+                clinicId,
+                incomeId,
+                products,
+                tutorId: tutorId ?? null,
+                locationId: location?.id ?? null,
+            })
+        } catch (error) {
+            console.warn('No se pudo sincronizar el stock para este ingreso:', error)
+        }
+    }
+
     const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
         if (!clinicId) { toast.error('No se pudo identificar la clínica'); return }
         try {
-            await financeService.addIncome({
+            const created = await financeService.addIncome({
                 clinic_id:       clinicId,
                 description:     incomeData.description,
                 amount:          incomeData.amount,
@@ -286,6 +310,7 @@ const Finance = () => {
                 notes:           incomeData.notes,
                 payment_method:  incomeData.payment_method,
             } as any)
+            if (created?.id) await syncProductStockForIncome(created.id, incomeData.services, incomeData.tutor_id)
             toast.success('Ingreso registrado')
             setShowIncomeModal(false)
             loadData()
@@ -311,6 +336,7 @@ const Finance = () => {
                 notes:           incomeData.notes,
                 payment_method:  incomeData.payment_method,
             } as any)
+            await syncProductStockForIncome(editingIncome.id, incomeData.services, incomeData.tutor_id)
             toast.success('Ingreso actualizado')
             setEditingIncome(null)
             loadData()
@@ -329,6 +355,10 @@ const Finance = () => {
         const prevIncomes = incomes
         setIncomes(curr => curr.filter(i => i.id !== incomeId))
         try {
+            // Revertir el stock ANTES de borrar — al borrar el ingreso, el FK de
+            // inventory_movements.income_id (ON DELETE SET NULL) desvincularía los
+            // movimientos y ya no podríamos encontrarlos para revertirlos.
+            await syncProductStockForIncome(incomeId, [])
             await financeService.deleteIncome(incomeId)
             toast.success('Ingreso eliminado')
             loadData() // re-sincroniza totales y cajas en segundo plano

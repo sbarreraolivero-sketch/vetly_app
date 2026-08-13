@@ -267,11 +267,14 @@ export default function Dashboard() {
                         .select('id, status, rating, created_at')
                         .gte('created_at', startOfMonth)
                         .eq('clinic_id', profile.clinic_id),
-                    // 8. Reminders sent (using reminder_logs for accuracy)
+                    // 8. Reminders sent (using reminder_logs for accuracy).
+                    // 'sent' por sí solo subestima mucho: un recordatorio exitoso avanza a
+                    // 'delivered'/'read' vía el webhook de estado y deja de contar como 'sent'.
+                    // Contamos todo lo que no sea 'failed' como "enviado con éxito".
                     supabase
                         .from('reminder_logs')
                         .select('*', { count: 'exact', head: true })
-                        .eq('status', 'sent')
+                        .in('status', ['sent', 'delivered', 'read'])
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
@@ -308,7 +311,7 @@ export default function Dashboard() {
                     supabase.from('messages').select('*', { count: 'exact', head: true })
                         .eq('direction', 'outbound').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('reminder_logs').select('*', { count: 'exact', head: true })
-                        .eq('status', 'sent').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                        .in('status', ['sent', 'delivered', 'read']).gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('appointments').select('*', { count: 'exact', head: true })
                         .eq('status', 'cancelled').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     // Ticket promedio (reutiliza el RPC de Finanzas — fallback a null en vez de tumbar todo el Promise.all)
