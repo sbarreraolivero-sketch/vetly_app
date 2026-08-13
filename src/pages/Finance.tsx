@@ -81,6 +81,20 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 const translatePaymentMethod = (m?: string | null) => (m ? (PAYMENT_METHOD_LABELS[m.toLowerCase()] ?? m) : '—')
 
+// Monedas sin subunidad en circulación: mostrarles centavos es incorrecto.
+const CURRENCIES_WITHOUT_DECIMALS = new Set(['CLP', 'COP', 'PYG', 'JPY', 'KRW', 'ISK', 'VND'])
+
+const CURRENCY_LOCALES: Record<string, string> = {
+    CLP: 'es-CL', ARS: 'es-AR', COP: 'es-CO', PEN: 'es-PE',
+    MXN: 'es-MX', UYU: 'es-UY', PYG: 'es-PY', BOB: 'es-BO',
+    USD: 'en-US', EUR: 'es-ES', BRL: 'pt-BR',
+}
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+    CLP: '$', ARS: '$', COP: '$', MXN: '$', UYU: '$', USD: '$',
+    PEN: 'S/', PYG: '₲', BOB: 'Bs', EUR: '€', BRL: 'R$',
+}
+
 // Serie de ingresos y de gastos del gráfico. Verde/rojo — la convención obvia —
 // está descartada a propósito: es la peor combinación para daltonismo
 // (deuteranopía, ~6% de los hombres). Este par sí separa bien: el teal es el
@@ -110,6 +124,8 @@ const Finance = () => {
     const { can, isOwner } = usePermissions()
     const clinicId = member?.clinic_id || profile?.clinic_id
     const [clinicName, setClinicName] = useState<string>((member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica')
+    // Moneda real de la clínica; CLP como fallback razonable para este mercado.
+    const [currency, setCurrency] = useState<string>('CLP')
 
     // Timezone-aware date utilities from clinic settings
     const {
@@ -188,7 +204,7 @@ const Finance = () => {
                 financeService.getItemMetrics(clinicId, start, end),
                 financeService.getCashRegisters(clinicId, start, end),
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name').eq('id', clinicId).single()).then((r: any) => r),
+                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name, currency').eq('id', clinicId).single()).then((r: any) => r),
             ])
 
             if (statsR.status === 'fulfilled') setStats(statsR.value)
@@ -198,6 +214,7 @@ const Finance = () => {
             if (crR.status === 'fulfilled') setCashRegisters(crR.value)
             const cs = csR.status === 'fulfilled' ? (csR.value as any) : null
             if (cs?.data?.clinic_name) setClinicName(cs.data.clinic_name)
+            if (cs?.data?.currency) setCurrency(cs.data.currency)
 
             const failed = [statsR, expR, incR, metR, crR].filter(r => r.status === 'rejected')
             if (failed.length > 0) {
@@ -290,10 +307,18 @@ const Finance = () => {
       :                            String(n)
 
     // ── Currency formatter ──
+    // Estaba fijo en pesos mexicanos, así que a una clínica chilena le mostraba
+    // "284,312.50" (formato MX con centavos) donde el CLP no usa decimales.
+    // Se toma la moneda real de la clínica y se omiten los decimales en las
+    // monedas que no los usan.
+    const currencySymbol = CURRENCY_SYMBOLS[currency] ?? '$'
+
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-MX', {
+        const noDecimals = CURRENCIES_WITHOUT_DECIMALS.has(currency)
+        return new Intl.NumberFormat(CURRENCY_LOCALES[currency] ?? 'es-CL', {
             style: 'currency',
-            currency: 'MXN'
+            currency,
+            maximumFractionDigits: noDecimals ? 0 : 2,
         }).format(amount)
     }
 
@@ -1098,7 +1123,7 @@ const Finance = () => {
                                         incomes={dayInc}
                                         expenses={dayExp}
                                         cashRegister={cashReg}
-                                        currency="$"
+                                        currency={currencySymbol}
                                         onCloseCaja={(d) => setCajaToClose(d)}
                                         onAddIncome={(d) => {
                                             setIncomeDefaultDate(d)
@@ -1511,7 +1536,7 @@ const Finance = () => {
                 <ExportModal
                     clinicId={clinicId}
                     clinicName={clinicName}
-                    currency="$"
+                    currency={currencySymbol}
                     timezone={timezone}
                     onClose={() => setShowExportModal(false)}
                 />
@@ -1530,7 +1555,7 @@ const Finance = () => {
                             })
                         } catch { return d }
                     })()}
-                    currency="$"
+                    currency={currencySymbol}
                     userId={user.id}
                     editingExpense={editingExpense}
                     onSave={editingExpense ? handleUpdateExpense : handleAddExpenseFromCaja}
@@ -1568,7 +1593,7 @@ const Finance = () => {
                         byMethod={byMethod}
                         citasAtendidas={dayIncForModal.length}
                         gastosList={dayExpForModal.map((e: any) => ({ description: e.description, amount: e.amount, payment_method: e.payment_method }))}
-                        currency="$"
+                        currency={currencySymbol}
                         loading={closingCaja}
                         onConfirm={(notes) => handleCloseCaja(cajaToClose, notes)}
                         onCancel={() => setCajaToClose(null)}

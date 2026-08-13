@@ -36,6 +36,15 @@ import { inventoryService } from '@/services/inventoryService'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 
+// Monedas sin subunidad en circulación: mostrarles centavos es incorrecto.
+const CURRENCIES_WITHOUT_DECIMALS = new Set(['CLP', 'COP', 'PYG', 'JPY', 'KRW', 'ISK', 'VND'])
+
+const CURRENCY_LOCALES: Record<string, string> = {
+    CLP: 'es-CL', ARS: 'es-AR', COP: 'es-CO', PEN: 'es-PE',
+    MXN: 'es-MX', UYU: 'es-UY', PYG: 'es-PY', BOB: 'es-BO',
+    USD: 'en-US', EUR: 'es-ES', BRL: 'pt-BR',
+}
+
 interface DashboardStats {
     appointmentsToday: number
     messagesToday: number
@@ -127,16 +136,18 @@ export default function Dashboard() {
 
     // Estado real del agente IA (clinic_settings.ai_auto_respond)
     const [aiActive, setAiActive] = useState<boolean | null>(null)
+    const [currency, setCurrency] = useState<string>('CLP')
     useEffect(() => {
         const fetchAiStatus = async () => {
             if (!profile?.clinic_id) { setAiActive(null); return }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ai_auto_respond')
+                .select('ai_auto_respond, currency')
                 .eq('id', profile.clinic_id)
                 .single()
             setAiActive(data?.ai_auto_respond ?? false)
+            if (data?.currency) setCurrency(data.currency)
         }
         fetchAiStatus()
     }, [profile?.clinic_id])
@@ -461,8 +472,14 @@ export default function Dashboard() {
         ? `vs. ${differenceInCalendarDays(customRange.end, customRange.start) + 1}d ant.`
         : ({ day: 'vs. ayer', week: 'vs. sem. ant.', month: 'vs. mes ant.', year: 'vs. año ant.' } as Record<string, string>)[timeRange] ?? 'vs. ant.'
 
+    // Estaba fijo en pesos mexicanos: a una clínica chilena le mostraba centavos
+    // que el CLP no usa. Se toma la moneda real de la clínica.
     const formatCurrency = (amount: number) =>
-        new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount)
+        new Intl.NumberFormat(CURRENCY_LOCALES[currency] ?? 'es-CL', {
+            style: 'currency',
+            currency,
+            maximumFractionDigits: CURRENCIES_WITHOUT_DECIMALS.has(currency) ? 0 : 2,
+        }).format(amount)
 
     const manualAppointments = Math.max(0, stats.appointmentsToday - extraStats.aiAppointments)
 
