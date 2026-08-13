@@ -4778,6 +4778,61 @@ Sigue sin commitear en el working tree (no tocado esta sesión, ver detalle en s
 
 ---
 
+## Cambios realizados — agosto 2026 (sesión 68, 2026-08-11/12)
+
+### Migración completa LemonSqueezy → Paddle — implementada y verificada end-to-end en sandbox
+
+Decisión del usuario: descartar LemonSqueezy por completo (cuenta bloqueada desde sesión 66 por verificación de identidad rechazada) y mover todo el cobro internacional en USD a Paddle. Se ejecutó el plan completo de la Fase A (sandbox) aprobado en sesión 67/68, con verificación real de un pago de punta a punta.
+
+**Diferencia arquitectónica clave (no es un simple swap de proveedor):** LS generaba una URL de checkout vía backend y redirigía (`window.location.href`). Paddle usa un modelo cliente-servidor con **overlay**: el frontend carga Paddle.js (paquete npm `@paddle/paddle-js`, lazy-loaded) y abre `Paddle.Checkout.open({items, discountId, customData})` para catálogo fijo (planes, packs), o crea una **transacción draft no-catálogo** en el backend (precio calculado siempre server-side) para montos variables (recordatorios por unidad, créditos de campaña). El checkout nunca navega fuera de la SPA — el refresco de balance/plan depende de escuchar el evento `checkout.completed` vía `onPaddleCheckoutEvent()`, no de un redirect con `?payment=success`.
+
+**Archivos nuevos:**
+- `src/lib/paddle.ts` — reemplaza `lemonsqueezy.ts`. `PADDLE_PLANS`, `PADDLE_CREDIT_PACKS`/`_4O`, `PADDLE_REMINDER_PACKS`, funciones `openPaddle*Checkout()`, `onPaddleCheckoutEvent()`.
+- `supabase/functions/paddle-create-transaction/` — transacciones draft para precio variable (mismo cálculo $0.15/unidad que LS, server-side).
+- `supabase/functions/paddle-webhook/` — verificación de firma `Paddle-Signature` (`ts=...;h1=...`, HMAC-SHA256, payload `ts:rawBody`), idempotencia vía tabla nueva `paddle_webhook_events` (Paddle reintenta webhooks — sin esto los packs se duplicarían), routing por `event_type`+`custom_data.type`, referidos B2B con precios corregidos (89/169/349, no los 97/167/297 desactualizados que tenía LS).
+- `scripts/create-paddle-packs.js` — crea los 9 packs de precio fijo + 1 producto contenedor vía API REST de Paddle (reutilizable para Fase B/live cambiando `PADDLE_ENVIRONMENT`).
+- Migración `20260811000001_migrate_lemonsqueezy_to_paddle.sql` — columnas `subscriptions.paddle_subscription_id`, `clinic_settings.paddle_customer_id`, tabla `paddle_webhook_events`.
+
+**Archivos eliminados:** `src/lib/lemonsqueezy.ts`, `supabase/functions/lemonsqueezy-create-checkout/`, `supabase/functions/lemonsqueezy-webhook/`. Secrets de Supabase dados de baja: `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_WEBHOOK_SECRET`, los 9 `LS_VARIANT_*` restantes.
+
+**Secrets nuevos:** `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_ENVIRONMENT=sandbox`, `PADDLE_CONTAINER_PRODUCT_ID` (Supabase); `VITE_PADDLE_CLIENT_TOKEN`, `VITE_PADDLE_ENVIRONMENT=sandbox` (`.env`, frontend — el client-side token es público, seguro de exponer).
+
+**Catálogo Paddle sandbox completo** (creado entre sesión 67 y 68): 4 planes + descuento `LANZAMIENTO17` + 9 packs + 1 producto contenedor. IDs completos en el código (`src/lib/paddle.ts`) y en el output del script.
+
+### Bugs reales encontrados y corregidos durante la verificación end-to-end
+
+Ejecutar el flujo completo (signup → checkout → webhook → DB) sacó a la luz 7 bugs, algunos preexistentes y sin relación directa con Paddle, otros introducidos al portar la lógica de LS:
+
+1. **`Register.tsx` — precios hardcodeados ignorando el toggle de región.** Un array estático `[{id:'core', price:33}, ...]` (valores USD desactualizados) se mostraba siempre, sin importar si el toggle decía "Chile" o "Internacional", y sin usar `.toLocaleString()`. Reemplazado por un array derivado de `PLANS` (CLP)/`PADDLE_PLANS` (USD) según `paymentRegion`.
+2. **`Register.tsx` — número de WhatsApp de soporte hardcodeado a un cliente real.** El botón "¿Tienes dudas con el registro?" enlazaba a `+56958897996` (el número real de Animalgrace Linares) en vez del número de soporte de Vetly (`+56993089185`). Corregido — era el único lugar del código con ese número filtrado.
+3. **`paddle-webhook` — `trial_ends_at: null` en el upsert de `subscriptions`, columna que no existe.** Heredado literal de `lemonsqueezy-webhook`. Habría hecho fallar el upsert completo en cualquier `subscription.created` real. **Mismo bug confirmado en `mercadopago-webhook`** (línea con `updateData.trial_ends_at = null` dentro del bloque `if (periodEnd)`) — no corregido en esta sesión (fuera de alcance), pero es un hallazgo real: cualquier suscripción de MercadoPago que llegue a estado activo con `periodEnd` definido fallaría silenciosamente al actualizar. Pendiente para otra sesión.
+4. **`subscriptions.plan` vs `subscriptions.plan_id` — dos columnas de plan, el webhook solo escribía una.** `Settings.tsx` lee `plan_id` como fuente primaria (mismo patrón que ya usa `mercadopago-webhook`), pero `paddle-webhook` solo escribía `plan`. Resultado: tras un upgrade real, la UI seguía mostrando el plan viejo aunque `clinic_settings.subscription_plan` sí se hubiera actualizado. Corregido escribiendo ambas columnas.
+5. **`Settings.tsx` — "Gestionar en Mercado Pago" se mostraba siempre**, sin condicionar al proveedor real de la clínica (a diferencia de `paymentRegion`, que es solo un toggle de exploración de precios, no el proveedor de facturación real). Se agregó estado `currentPaymentProvider` fijado una vez al cargar, y el botón ahora solo aparece si `currentPaymentProvider === 'mercadopago'`.
+6. **`Settings.tsx` — countdown de días de prueba nunca se mostraba.** Leía `subscriptions.trial_ends_at` (columna inexistente, ver punto 3) en vez de `clinic_settings.trial_end_date` (la columna real donde vive el trial). Corregido.
+7. **`PendingActivation.tsx` — botón "Saltar y entrar al Dashboard" sin estado de carga**, lo que llevaba a clics repetidos mientras la respuesta tardaba (mismo patrón de "doble submit" ya documentado en sesión 23 para invitaciones de equipo). Se agregó `isSkippingActivation` + mensajes de error visibles en vez de fallar en silencio si `profile.clinic_id` no estaba listo.
+
+### Configuración de Paddle — pasos no obvios documentados para la Fase B (live)
+
+- **"Default payment link" es obligatorio a nivel de cuenta.** Sin configurarlo en Paddle → Checkout → Checkout Settings, **cualquier** transacción falla con `400 transaction_default_checkout_url_not_set` — no depende del código, es un requisito de cuenta. Hay que repetirlo también en la cuenta live.
+- **El "Secret key" de una notification destination no es lo mismo que su "Notification ID".** El ID de la destination tiene el formato `ntfset_...` y es visible en la URL; el secret real es un string distinto y más largo (`pdl_ntfset_<id>_<random>`, con botón de copiar en "Edit destination"). Confundirlos produce 401 "Invalid signature" con un secret que *parece* válido (tiene contenido, longitud razonable) — el error no distingue "secret vacío" de "secret equivocado", hay que loguear el prefijo/longitud para diferenciarlos en debug.
+- **`supabase secrets set` corrido como una serie de comandos en el mismo bloque no garantiza que todos se ejecuten** — en esta sesión, de 4 comandos pegados juntos en la terminal del usuario, solo 1 se aplicó cada vez (confirmado con `supabase secrets list` después de cada intento). Regla operativa: verificar siempre con `supabase secrets list` después de configurar secrets en lote, nunca asumir que "correrlos" significó que los 4 se guardaron.
+
+### Patrón de diagnóstico — logging temporal en `debug_logs` para verificar HMAC
+
+Mismo patrón ya usado en sesiones anteriores (Meta CAPI, sesión 47): cuando un webhook falla verificación de firma y no hay acceso a los `console.log` de la función vía las herramientas disponibles, insertar un log temporal en `debug_logs` con metadatos seguros de comparar (longitud del secret, primeros caracteres, ambos digests HMAC, si coinciden) — nunca el secret completo ni el rawBody entero. Se agregó, se usó para encontrar el secret equivocado, y se quitó del código antes de cerrar la sesión.
+
+### Estado al cierre — Fase A completa, Fase B pendiente
+
+- [x] Catálogo sandbox completo (planes + descuento + packs).
+- [x] Checkout de suscripción verificado end-to-end (overlay abre, pago procesa, webhook firma válida, `subscriptions` y `clinic_settings` actualizados correctamente, referidos B2B con precios corregidos).
+- [x] Código de LemonSqueezy eliminado del repo y secrets dados de baja.
+- [ ] **No verificado en esta sesión:** checkout de packs de precio fijo (créditos IA, recordatorios fijos) ni de monto variable (`paddle-create-transaction` — reminders por unidad, créditos de campaña). El código está escrito y deployado, pero ningún flujo de packs se probó con un pago real todavía.
+- [ ] Fase B (producción): repetir catálogo + Default payment link + notification destination en la cuenta **live** de Paddle (bloqueado hasta confirmar verificación KYB, ver sesión 66), generar secrets live, y recién ahí cambiar `PADDLE_ENVIRONMENT`/`VITE_PADDLE_ENVIRONMENT` a `production` en el entorno de Vercel.
+- [ ] Arreglar el bug de `trial_ends_at` en `mercadopago-webhook` (hallazgo de esta sesión, no corregido — ver punto 3 arriba).
+- [ ] Todo el trabajo de esta sesión sigue sin commitear — ver nota de la sección anterior sobre el backlog acumulado de sesiones 63-68.
+
+---
+
 ## Cambios realizados — agosto 2026 (sesión 69, 2026-08-13)
 
 Sesión larga en dos partes: (1) revamp planificado de Dashboard/Finanzas con `/plan`, y (2) una auditoría de varios bugs reales reportados por el usuario sobre ese mismo módulo, que terminó revelando un error de cálculo de fondo en Finanzas mucho más grave que los síntomas puntuales. Cerró con una feature de visibilidad de descuentos. Todo el código de esta sesión sí quedó commiteado y pusheado (a diferencia del backlog de sesiones 63-68 documentado arriba, que sigue intacto sin tocar).
@@ -4835,3 +4890,66 @@ A pedido explícito del usuario, con alcance completo confirmado por `AskUserQue
 - **`get_finance_item_metrics` y cualquier reporte de Finanzas debe leer de `incomes`, nunca de `appointments`** — ya es la segunda vez que este mismo error de fondo aparece en el módulo (ver también sesión 44, que fue la que estableció la regla original).
 - **Antes de aplicar cualquier backfill o reclasificación retroactiva sobre datos de producción, confirmar explícitamente con el usuario** (`AskUserQuestion`), incluso cuando la lógica sea clara — un ajuste "obviamente correcto" en abstracto puede chocar con correcciones manuales que el usuario ya hizo por su cuenta.
 - **Paleta de gráficos: correr el validador de la skill `dataviz`, nunca asumir verde=bien/rojo=mal por defecto** — es justo la combinación que falla para daltonismo (deuteranopía).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 70, 2026-08-13)
+
+### Ecografía y radiografía en Santiago — derivación obligatoria a Claudia (sin revelar que son externos)
+
+**Motivación del usuario:** la IA de Santiago daba mal la información sobre ecografías y radiografías. Se pidió: confirmar que el servicio SÍ existe, pero al momento de agendar, derivar siempre a Claudia — estos exámenes los realizan profesionales externos a nombre de AnimalGrace (igual que cirugías), y el cliente NUNCA debe enterarse de ese detalle.
+
+**Diagnóstico:** el KB de Santiago no tenía ningún documento sobre estos exámenes, y `clinic_services` tampoco tenía precio cargado — sin ninguna fuente de verdad, cualquier respuesta de la IA sobre el tema era, en el mejor caso, un placeholder de REGLA 1 ("no lo realizamos"), y en el peor, una alucinación de precio.
+
+**Fix (solo Santiago, DB — respaldo en `prompt_backups` label `pre_ecografia_radiografia_2026_08_13`):**
+- KB nuevo `PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA_ANIMALGRACE`: confirma el servicio, prohíbe inventar precio, define el flujo (confirmar → recolectar datos del caso → `escalate_to_human`, nunca `create_appointment`), y la nota de confidencialidad explícita (nunca mencionar que es un profesional externo).
+- `ai_behavior_rules`: bullet crítico al inicio (mismo nivel que la regla de citología existente) + referencia agregada a la lista de documentos "verificados" de REGLA 1 + nueva sección 6B con el protocolo paso a paso, calcado del patrón de Cirugías.
+- **Código** (`meta-whatsapp-webhook`, canal activo de Santiago, + `ycloud-whatsapp-webhook` por paridad de código): nuevo tema en `FORCED_KB_TOPICS` (mecanismo de sesión 62) con keywords `ecograf`, `radiograf`, `rayos x`, `eco abdominal`/`de abdomen`, `imagenolog` — el documento se inyecta completo cuando el cliente toca el tema, sin depender de que el modelo llame `get_knowledge` por su cuenta. Deployado en ambas funciones directo con `supabase functions deploy` — **cambio de código aún sin commitear a git** (ver nota de drift al final de esta sesión).
+
+### Bug real: "no realizamos corte de uñas para gatos" — causa raíz confirmada como alucinación de GPT-4o-mini, no un cambio de código
+
+**Síntoma:** Linares negó el corte de uñas para gatos en una conversación real, contradiciendo el catálogo (`clinic_services` tiene "Corte de Uñas" genérico por peso, sin distinción de especie, igual que el KB).
+
+**Diagnóstico con datos reales (`messages`):** de 57 respuestas históricas de Linares mencionando "corte de uñas", **esta fue la única vez** que se negó para gatos. El mensaje que falló fue generado por `ai_model: "mini"` — las otras 16 respuestas de mini sobre el mismo tema fueron correctas, igual que las 37 de `4o_pro`. No hubo ningún cambio de prompt o código que lo causara: fue la primera vez que esta combinación puntual ocurrió (mensaje inicial de conversación nueva, sin ninguna keyword de `selectModelTier`/`schedulingSignals` que fuerce el routing a 4o para "disponibilidad de servicio genérico") y GPT-4o-mini tiene una debilidad ya documentada en el proyecto (sesiones 15, 66) de alucinar restricciones cuando razona sin apoyo fuerte del contexto.
+
+**Fix aplicado en AMBAS sucursales** (Linares y Santiago comparten el mismo texto de KB para "Corte de Uñas", byte a byte — mismo riesgo latente confirmado en las dos, aunque solo se había manifestado en Linares; respaldo previo en `prompt_backups` label `pre_corte_unas_gatos_2026_08_13`): bullet crítico al inicio de `ai_behavior_rules` de ambas clínicas — mismo patrón que la regla de citología — dejando explícito que Corte de Uñas aplica igual a perros y gatos, mismo precio por peso, nunca negarlo para ninguna especie.
+
+**Regla permanente:** no toda respuesta incorrecta del agente es un bug de prompt/KB — antes de asumir causa raíz, revisar en `messages` qué `ai_model` generó la respuesta. Si es la única falla entre muchas respuestas correctas sobre el mismo tema y coincide con el tier `mini`, es la debilidad conocida del modelo económico, no una regresión — el fix sigue siendo el mismo (reforzar la regla en el prompt para que sea inequívoca sin importar qué tier responda), pero el diagnóstico cambia la urgencia y evita perseguir un cambio de código que nunca ocurrió.
+
+### Auditoría de recordatorios — Santiago sano, Linares roto por 3 causas apiladas (ya resuelto)
+
+A pedido del usuario se revisó el estado real de envío de recordatorios en ambas sucursales.
+
+**Santiago:** sano — 87 de 88 recordatorios de citas (24h+2h) `delivered`/`read` en 14 días, solo 1 fallo por tipo (ruido normal).
+
+**Linares — 100% de fallos en los 14 días previos, tres causas distintas apiladas en el tiempo:**
+1. Hasta el 10 de agosto: `BALANCE_INSUFFICIENT` de YCloud (problema crónico ya conocido, resuelto solo porque el canal cambió).
+2. 10 de agosto 19:00 (migración recién completada, sesión 65): plantilla `confirmacion_visita` aún no aprobada en la WABA nueva de Meta — verificado en esta sesión que las 6 plantillas ya están `APPROVED`.
+3. Desde el 10 de agosto 20:00 hasta el momento del diagnóstico: **100% de fallos** con `[131042] Business eligibility payment issue` — la WABA nueva de Linares (creada en la migración de sesión 65) nunca tuvo un método de pago asociado en el Business Manager que la administra, a diferencia de la WABA de Santiago (más antigua, ya facturando desde antes).
+
+**Resolución:** el usuario asoció el método de pago al Business Manager de la WABA de Linares. Verificado post-cambio: el siguiente envío (24h, 19:00 UTC) quedó `read` sin error, confirmando el fix.
+
+### Bug real: recordatorios de "Control Médico" nunca se crearon, en ninguna clínica, nunca
+
+**Reporte de Claudia (via el usuario):** los recordatorios de control médico jamás se han enviado — solo vacunas y desparasitaciones.
+
+**Confirmado con SQL:** cero filas `type='checkup'` en la tabla `reminders`, para ambas clínicas, en toda la historia. No es un problema de envío — nunca llegó a crearse el registro.
+
+**Causa raíz (`src/components/patients/MedicalEventForm.tsx`):** el insert a `reminders` usaba `template_name` y `notes` — columnas que **no existen** en la tabla real (que tiene `whatsapp_template`, no `notes`). El insert fallaba el 100% de las veces desde que existe el toggle "Recordatorio de Control Médico" en el formulario de historial clínico. El resto del pipeline (plantilla configurable en Ajustes → Recordatorios, procesamiento del cron PART 4 con fallback a `clinic_settings.checkup_reminder_template`) siempre estuvo correctamente armado — era una feature completa rota en un solo punto. Bug secundario: tampoco se seteaba `tutor_id`, que el cron necesita para resolver el teléfono al enviar (a diferencia de `VaccineForm.tsx`/`DewormingForm.tsx`, que sí lo hacen).
+
+**Fix aplicado:**
+- `template_name` → `whatsapp_template` (columna real); eliminado `notes` (no existe); agregado `tutor_id` desde `patients.tutor_id`.
+- El error del insert ahora se loguea (`console.error`) en vez de propagarse y tumbar el guardado completo del evento médico con un mensaje confuso (la consulta médica sí se guardaba antes; solo el recordatorio fallaba en silencio y con un error visible superpuesto).
+- **No es recuperable el histórico** — como el insert nunca persistió nada, no hay ningún rastro estructurado de qué controles debieron programarse en el pasado. Solo los controles registrados desde el deploy en adelante generan el recordatorio.
+- Commit `218f77e`, pusheado a `main` — Vercel lo despliega automáticamente (es un cambio de frontend puro, sin edge function ni migración).
+
+### Nota de drift — cambios de código deployados hoy sin commitear a git
+
+`meta-whatsapp-webhook/index.ts` y `ycloud-whatsapp-webhook/index.ts` recibieron el cambio de `FORCED_KB_TOPICS` (ecografía/radiografía) y ya están deployados en producción vía `supabase functions deploy`, pero **no se commitearon a git en esta sesión** (el usuario solo pidió commitear el fix de `MedicalEventForm.tsx`). Mismo patrón de riesgo ya documentado en sesiones 46 y 68 — un fix "solo cuenta" cuando está commiteado y pusheado a `main`. Pendiente: commitear ambos archivos en la próxima sesión que toque este tema, o cuando el usuario lo pida explícitamente.
+
+### Reglas permanentes de esta sesión
+
+- **Antes de concluir que una respuesta incorrecta del agente es un bug de prompt/código, revisar `messages.ai_model` de esa respuesta puntual** — si el resto del historial sobre el mismo tema es correcto y coincide con el tier `mini`, es la debilidad conocida del modelo económico (ya documentada en sesiones 15 y 66), no una regresión.
+- **Cuando un documento del KB es idéntico byte a byte entre dos clínicas, un riesgo de alucinación confirmado en una aplica igual a la otra** — se corrigió el bullet de "Corte de Uñas" en ambas sucursales aunque el bug solo se había manifestado en Linares.
+- **`reminders.checkup_reminder_template` y el flujo de "Control Médico" ya estaban completos end-to-end salvo un solo INSERT roto** — antes de asumir que una feature "nunca se implementó", verificar si existe la UI/estado/backend y solo el punto de persistencia está fallando en silencio.
+- **Error `[131042] Business eligibility payment issue` de Meta = falta método de pago en el Business Manager que administra esa WABA específica** — no es un error de plantillas ni de código; es exclusivamente una acción de facturación externa a Vetly.
