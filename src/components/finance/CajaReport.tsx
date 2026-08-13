@@ -10,6 +10,7 @@ interface IncomeEntry {
     discount?: number
     payment_method?: string | null
     tutor_name?: string | null
+    notes?: string | null
 }
 
 interface ExpenseEntry {
@@ -100,7 +101,7 @@ export function printCajaReport(data: CajaReportData) {
 
     const incRows = incomes.map(inc => `
         <tr>
-            <td>${esc(inc.description) || '—'}</td>
+            <td>${esc(inc.description) || '—'}${inc.notes ? `<div class="row-note">📝 ${esc(inc.notes)}</div>` : ''}</td>
             <td>${esc(inc.tutor_name) || 'Sin tutor vinculado'}${inc.discount ? ` · Desc. ${fmt(inc.discount)}` : ''}</td>
             <td>${esc(fmtMethod(inc.payment_method))}</td>
             <td class="amount">${fmt(inc.amount ?? 0)}</td>
@@ -149,6 +150,7 @@ export function printCajaReport(data: CajaReportData) {
   .summary-total td { font-size: 15px !important; font-weight: 800 !important; }
   .method-table td:last-child { text-align: right; font-weight: 600; }
   .notes { margin-top: 18px; padding: 10px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 12px; color: #92400e; }
+  .row-note { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 2px; }
   .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #9ca3af; }
   @media print {
     body { padding: 16px; }

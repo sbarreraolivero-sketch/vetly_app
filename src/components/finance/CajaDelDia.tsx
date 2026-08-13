@@ -29,6 +29,7 @@ interface IncomeEntry {
     payment_method?: string | null
     category: string
     tutor_name?: string | null
+    notes?: string | null
 }
 
 interface ExpenseEntry {
@@ -57,6 +58,8 @@ interface CajaDelDiaProps {
     onViewReceipt?: (storagePath: string) => void
     onEditIncome?: (incomeId: string) => void
     onDeleteIncome?: (incomeId: string, description: string) => void
+    onEditExpense?: (expenseId: string) => void
+    onDeleteExpense?: (expenseId: string, description: string) => void
     onReopenCaja?: (date: string) => void
     canReopen?: boolean
     isClosing?: boolean
@@ -114,6 +117,8 @@ export function CajaDelDia({
     onViewReceipt,
     onEditIncome,
     onDeleteIncome,
+    onEditExpense,
+    onDeleteExpense,
     onReopenCaja,
     canReopen = false,
     isClosing = false,
@@ -286,6 +291,9 @@ export function CajaDelDia({
                                         )}
                                         {inc.discount ? ` · Desc. ${fmt(inc.discount)}` : ''}
                                     </p>
+                                    {inc.notes && (
+                                        <p className="text-[11px] text-charcoal/40 italic truncate">📝 {inc.notes}</p>
+                                    )}
                                 </div>
                                 {inc.payment_method && (
                                     <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-charcoal/40 font-medium shrink-0">
@@ -351,6 +359,28 @@ export function CajaDelDia({
                                         </button>
                                     )}
                                     <span className="text-xs font-bold text-rose-700 shrink-0">− {fmt(exp.amount ?? 0)}</span>
+                                    {!isClosed && (onEditExpense || onDeleteExpense) && (
+                                        <div className="flex items-center gap-0.5 shrink-0">
+                                            {onEditExpense && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onEditExpense(exp.id) }}
+                                                    className="p-1.5 text-rose-300 hover:text-rose-600 active:text-rose-600 transition-colors rounded"
+                                                    title="Editar gasto"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            {onDeleteExpense && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onDeleteExpense(exp.id, exp.description) }}
+                                                    className="p-1.5 text-rose-300 hover:text-rose-600 active:text-rose-600 transition-colors rounded"
+                                                    title="Eliminar gasto"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

@@ -11,6 +11,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Trash2,
+    Pencil,
     Calendar,
     CalendarRange,
     Lightbulb,
@@ -49,6 +50,31 @@ const CATEGORY_LABELS_EXPENSE: Record<string, string> = {
 
 const translateCategoryExpense = (cat: string) => CATEGORY_LABELS_EXPENSE[cat] ?? cat
 
+const CATEGORY_LABELS_INCOME: Record<string, string> = {
+    service: 'Servicio',
+    product: 'Producto',
+    adjustment: 'Ajuste',
+    other: 'Otro',
+}
+
+const translateCategoryIncome = (cat: string) => CATEGORY_LABELS_INCOME[cat] ?? cat
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    efectivo: 'Efectivo',
+    cash: 'Efectivo',
+    transferencia: 'Transferencia',
+    transfer: 'Transferencia',
+    tarjeta: 'Tarjeta crédito',
+    'tarjeta credito': 'Tarjeta crédito',
+    'tarjeta crédito': 'Tarjeta crédito',
+    debito: 'Tarjeta débito',
+    débito: 'Tarjeta débito',
+    'tarjeta debito': 'Tarjeta débito',
+    'tarjeta débito': 'Tarjeta débito',
+}
+
+const translatePaymentMethod = (m?: string | null) => (m ? (PAYMENT_METHOD_LABELS[m.toLowerCase()] ?? m) : '—')
+
 // parseLocalDate now comes from useClinicTimezone hook
 
 // ── Component ────────────────────────────────────────────────────────
@@ -70,7 +96,7 @@ const Finance = () => {
     const [incomes, setIncomes] = useState<Income[]>([])
     const [loading, setLoading] = useState(true)
     const [itemMetrics, setItemMetrics] = useState<any>(null)
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'cajas' | 'expenses' | 'analysis'>('dashboard')
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'cajas' | 'expenses' | 'incomes' | 'analysis'>('dashboard')
     const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
     const [cajaToClose, setCajaToClose] = useState<string | null>(null)  // date 'YYYY-MM-DD'
     const [closingCaja, setClosingCaja] = useState(false)
@@ -162,6 +188,7 @@ const Finance = () => {
     const [showExportModal, setShowExportModal] = useState(false)
     const [showCajaExpenseModal, setShowCajaExpenseModal] = useState(false)
     const [expenseDefaultDate, setExpenseDefaultDate] = useState<string | undefined>(undefined)
+    const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
     // ── Currency formatter ──
     const formatCurrency = (amount: number) => {
@@ -215,6 +242,29 @@ const Finance = () => {
         } catch (error) {
             console.error('Error deleting expense:', error)
             toast.error('Error al eliminar el gasto')
+        }
+    }
+
+    const handleUpdateExpense = async (expenseData: {
+        id?: string; description: string; amount: number; category: string
+        payment_method: string | null; receipt_url: string | null; date: string
+    }) => {
+        if (!editingExpense?.id) return
+        try {
+            await financeService.updateExpense(editingExpense.id, {
+                description:    expenseData.description,
+                amount:         expenseData.amount,
+                category:       expenseData.category as Expense['category'],
+                date:           expenseData.date,
+                payment_method: expenseData.payment_method,
+                receipt_url:    expenseData.receipt_url,
+            }, clinicId ?? undefined)
+            toast.success('Gasto actualizado')
+            setEditingExpense(null)
+            loadData()
+        } catch (error) {
+            console.error('Error updating expense:', error)
+            toast.error('Error al actualizar el gasto')
         }
     }
 
@@ -773,6 +823,17 @@ const Finance = () => {
                         Gastos
                     </button>
                     <button
+                        onClick={() => setActiveTab('incomes')}
+                        className={cn(
+                            "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                            activeTab === 'incomes'
+                                ? "border-emerald-500 text-emerald-600"
+                                : "border-transparent text-charcoal/60 hover:text-charcoal"
+                        )}
+                    >
+                        Ingresos
+                    </button>
+                    <button
                         onClick={() => setActiveTab('analysis')}
                         className={cn(
                             "py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
@@ -874,6 +935,11 @@ const Finance = () => {
                                             if (inc) setEditingIncome(inc)
                                         }}
                                         onDeleteIncome={handleDeleteIncome}
+                                        onEditExpense={(expenseId) => {
+                                            const exp = expenses.find(e => e.id === expenseId)
+                                            if (exp) setEditingExpense(exp)
+                                        }}
+                                        onDeleteExpense={handleDeleteExpense}
                                         onReopenCaja={handleReopenCaja}
                                         canReopen={isOwner}
                                         isClosing={closingCaja && cajaToClose === date}
@@ -917,12 +983,20 @@ const Finance = () => {
                                                 -{formatCurrency(expense.amount)}
                                             </td>
                                             <td className="px-6 py-3 text-right">
-                                                <button
-                                                    onClick={() => handleDeleteExpense(expense.id, expense.description)}
-                                                    className="text-red-500 hover:underline inline-flex items-center gap-1 text-xs font-medium"
-                                                >
-                                                    <Trash2 className="w-3 h-3" /> Eliminar
-                                                </button>
+                                                <div className="inline-flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => setEditingExpense(expense)}
+                                                        className="text-primary-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <Pencil className="w-3 h-3" /> Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteExpense(expense.id, expense.description)}
+                                                        className="text-red-500 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" /> Eliminar
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -930,6 +1004,76 @@ const Finance = () => {
                                         <tr>
                                             <td colSpan={5} className="px-6 py-8 text-center text-charcoal/50">
                                                 No hay gastos registrados en este período
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── TAB INGRESOS ── */}
+                {activeTab === 'incomes' && (
+                    <div className="card-soft overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-silk-beige/30 text-charcoal/70 uppercase text-xs">
+                                    <tr>
+                                        <th className="px-6 py-3 font-medium">Fecha</th>
+                                        <th className="px-6 py-3 font-medium">Descripción</th>
+                                        <th className="px-6 py-3 font-medium">Tutor</th>
+                                        <th className="px-6 py-3 font-medium">Categoría</th>
+                                        <th className="px-6 py-3 font-medium">Método de pago</th>
+                                        <th className="px-6 py-3 font-medium text-right">Monto</th>
+                                        <th className="px-6 py-3 font-medium text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-silk-beige">
+                                    {incomes.map((income) => (
+                                        <tr key={income.id} className="hover:bg-ivory/50">
+                                            <td className="px-6 py-3 text-charcoal/80">
+                                                {formatInTz(income.date, 'dd/MM/yyyy')}
+                                            </td>
+                                            <td className="px-6 py-3 font-medium text-charcoal">
+                                                {income.description}
+                                            </td>
+                                            <td className="px-6 py-3 text-charcoal/70">
+                                                {income.tutor_name || <span className="italic text-charcoal/40">Sin tutor</span>}
+                                            </td>
+                                            <td className="px-6 py-3">
+                                                <span className="bg-silk-beige text-charcoal/70 px-2 py-1 rounded text-xs capitalize">
+                                                    {translateCategoryIncome(income.category)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-3 text-charcoal/70">
+                                                {translatePaymentMethod(income.payment_method)}
+                                            </td>
+                                            <td className="px-6 py-3 font-medium text-right text-emerald-600">
+                                                {formatCurrency(income.amount)}
+                                            </td>
+                                            <td className="px-6 py-3 text-right">
+                                                <div className="inline-flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => setEditingIncome(income)}
+                                                        className="text-primary-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <Pencil className="w-3 h-3" /> Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteIncome(income.id, income.description)}
+                                                        className="text-red-500 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" /> Eliminar
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {incomes.length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} className="px-6 py-8 text-center text-charcoal/50">
+                                                No hay ingresos registrados en este período
                                             </td>
                                         </tr>
                                     )}
@@ -1158,21 +1302,23 @@ const Finance = () => {
             )}
 
             {/* Modal gasto desde caja */}
-            {showCajaExpenseModal && clinicId && user?.id && expenseDefaultDate && (
+            {(showCajaExpenseModal || editingExpense) && clinicId && user?.id && (editingExpense?.date ?? expenseDefaultDate) && (
                 <CajaExpenseModal
                     clinicId={clinicId}
-                    date={expenseDefaultDate}
+                    date={editingExpense?.date ?? expenseDefaultDate!}
                     dateLabel={(() => {
+                        const d = editingExpense?.date ?? expenseDefaultDate!
                         try {
-                            return new Date(expenseDefaultDate + 'T12:00:00').toLocaleDateString('es-CL', {
+                            return new Date(d + 'T12:00:00').toLocaleDateString('es-CL', {
                                 weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
                             })
-                        } catch { return expenseDefaultDate }
+                        } catch { return d }
                     })()}
                     currency="$"
                     userId={user.id}
-                    onSave={handleAddExpenseFromCaja}
-                    onCancel={() => { setShowCajaExpenseModal(false); setExpenseDefaultDate(undefined) }}
+                    editingExpense={editingExpense}
+                    onSave={editingExpense ? handleUpdateExpense : handleAddExpenseFromCaja}
+                    onCancel={() => { setShowCajaExpenseModal(false); setEditingExpense(null); setExpenseDefaultDate(undefined) }}
                 />
             )}
 

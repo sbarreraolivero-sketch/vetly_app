@@ -15,6 +15,8 @@ import {
     ChevronRight,
     CalendarRange,
     X,
+    DollarSign,
+    AlertTriangle,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
@@ -28,6 +30,9 @@ import { es as esLocale } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
+import { usePermissions } from '@/hooks/usePermissions'
+import { financeService } from '@/services/financeService'
+import { inventoryService } from '@/services/inventoryService'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 
@@ -67,6 +72,7 @@ interface ServiceRanking {
 
 export default function Dashboard() {
     const { user, profile } = useAuth()
+    const { can, canAccess } = usePermissions()
     const [loading, setLoading] = useState(true)
     const [stats, setStats] = useState<DashboardStats>({
         appointmentsToday: 0,
@@ -89,7 +95,11 @@ export default function Dashboard() {
         newProspects: 0,
         cancelledAppointments: 0,
         aiMessages: 0,
+        aiAppointments: 0,
+        avgTicket: 0,
     })
+
+    const [inventoryAlert, setInventoryAlert] = useState({ lowStock: 0, expiringSoon: 0 })
 
     const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
     const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
@@ -177,6 +187,7 @@ export default function Dashboard() {
                 // ⚡ PERFORMANCE: Run ALL queries in parallel instead of sequential
                 const [
                     appointmentsCountRes,
+                    aiAppointmentsCountRes,
                     messagesCountRes,
                     appointmentsRes,
                     messagesRes,
@@ -192,12 +203,22 @@ export default function Dashboard() {
                     prevProspectsRes, // Changed from count to data for unique counting
                     prevAiMessagesRes,
                     prevRemindersRes,
-                    prevCancelledRes
+                    prevCancelledRes,
+                    itemMetricsRes,
+                    inventoryStatsRes,
                 ] = await Promise.all([
-                    // 1. Appointments created in period (Performance of IA)
+                    // 1. Appointments created in period (total: IA + manuales)
                     supabase
                         .from('appointments')
                         .select('*', { count: 'exact', head: true })
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
+                        .eq('clinic_id', profile.clinic_id),
+                    // 1b. De esas, cuántas agendó el agente IA (booking_source)
+                    supabase
+                        .from('appointments')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('booking_source', 'ai_agent')
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
@@ -290,6 +311,10 @@ export default function Dashboard() {
                         .eq('status', 'sent').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
                     supabase.from('appointments').select('*', { count: 'exact', head: true })
                         .eq('status', 'cancelled').gte('created_at', startOfPrev).lte('created_at', endOfPrev).eq('clinic_id', profile.clinic_id),
+                    // Ticket promedio (reutiliza el RPC de Finanzas — fallback a null en vez de tumbar todo el Promise.all)
+                    financeService.getItemMetrics(profile.clinic_id, new Date(startOfStats), new Date(endOfStats)).catch(() => null),
+                    // Alertas de inventario (bajo stock / por vencer)
+                    inventoryService.getInventoryStats(profile.clinic_id).catch(() => null),
                 ])
 
                 // Si el filtro cambió mientras esperábamos, descartar estos resultados
@@ -317,6 +342,13 @@ export default function Dashboard() {
                     newProspects: currentProspectsCount,
                     cancelledAppointments: cancelledCountRes.count || 0,
                     aiMessages: aiMessagesCountRes.count || 0,
+                    aiAppointments: aiAppointmentsCountRes.count || 0,
+                    avgTicket: itemMetricsRes?.appt_metrics?.avg_ticket ?? 0,
+                })
+
+                setInventoryAlert({
+                    lowStock: inventoryStatsRes?.lowStock ?? 0,
+                    expiringSoon: inventoryStatsRes?.expiringSoon ?? 0,
                 })
 
                 setPrevStats({
@@ -422,14 +454,36 @@ export default function Dashboard() {
         ? `vs. ${differenceInCalendarDays(customRange.end, customRange.start) + 1}d ant.`
         : ({ day: 'vs. ayer', week: 'vs. sem. ant.', month: 'vs. mes ant.', year: 'vs. año ant.' } as Record<string, string>)[timeRange] ?? 'vs. ant.'
 
-    const statCards = [
+    const formatCurrency = (amount: number) =>
+        new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount)
+
+    const manualAppointments = Math.max(0, stats.appointmentsToday - extraStats.aiAppointments)
+
+    const statCards: {
+        name: string
+        value: string
+        subtext?: string
+        icon: typeof Calendar
+        color: string
+        bg: string
+        change: number | null
+    }[] = [
         {
-            name: 'CITAS AGENDADAS POR IA',
+            name: 'CITAS TOTALES',
             value: stats.appointmentsToday.toString(),
+            subtext: `🤖 ${extraStats.aiAppointments} por IA · 👤 ${manualAppointments} manual`,
             icon: Calendar,
             color: 'text-primary-500',
             bg: 'bg-primary-500/10',
             change: calculatePercentage(stats.appointmentsToday, prevStats.appointments)
+        },
+        {
+            name: 'TICKET PROMEDIO',
+            value: formatCurrency(extraStats.avgTicket),
+            icon: DollarSign,
+            color: 'text-emerald-500',
+            bg: 'bg-emerald-500/10',
+            change: null
         },
         {
             name: 'CONVERSACIONES ÚNICAS',
@@ -469,7 +523,7 @@ export default function Dashboard() {
             icon: TrendingUp,
             color: 'text-emerald-500',
             bg: 'bg-emerald-500/10',
-            change: null as number | null
+            change: null
         }
     ]
 
@@ -685,7 +739,7 @@ export default function Dashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {statCards.map((stat) => (
                     <div key={stat.name} className="bg-white p-5 rounded-xl border border-silk-beige shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
                         <div className="flex items-center justify-between mb-4">
@@ -694,11 +748,50 @@ export default function Dashboard() {
                             </div>
                             <ChangeBadge change={stat.change} />
                         </div>
-                        <p className="text-3xl font-extrabold text-charcoal tracking-tight">{stat.value}</p>
+                        {can('dashboard_metrics') ? (
+                            <>
+                                <p className="text-3xl font-extrabold text-charcoal tracking-tight">{stat.value}</p>
+                                {stat.subtext && (
+                                    <p className="text-[11px] text-charcoal/40 mt-1">{stat.subtext}</p>
+                                )}
+                            </>
+                        ) : (
+                            <p className="italic text-charcoal/40 text-sm mt-1">No disponible</p>
+                        )}
                         <p className="text-xs text-charcoal/40 mt-1 font-medium">{stat.name}</p>
                     </div>
                 ))}
             </div>
+
+            {/* Alertas de inventario — banner condicional */}
+            {canAccess('inventory') && (inventoryAlert.lowStock > 0 || inventoryAlert.expiringSoon > 0) && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-rose-50 px-5 py-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
+                        </div>
+                        <p className="text-sm text-charcoal/80">
+                            {inventoryAlert.lowStock > 0 && (
+                                <span className="font-semibold text-amber-700">
+                                    {inventoryAlert.lowStock} producto{inventoryAlert.lowStock === 1 ? '' : 's'} con bajo stock
+                                </span>
+                            )}
+                            {inventoryAlert.lowStock > 0 && inventoryAlert.expiringSoon > 0 && ' · '}
+                            {inventoryAlert.expiringSoon > 0 && (
+                                <span className="font-semibold text-rose-700">
+                                    {inventoryAlert.expiringSoon} producto{inventoryAlert.expiringSoon === 1 ? '' : 's'} por vencer en 30 días
+                                </span>
+                            )}
+                        </p>
+                    </div>
+                    <Link
+                        to="/app/inventory"
+                        className="shrink-0 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg transition-colors"
+                    >
+                        Ver inventario →
+                    </Link>
+                </div>
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import type { Expense } from '@/services/financeService'
 
 interface CajaExpenseModalProps {
     clinicId: string
@@ -18,7 +19,9 @@ interface CajaExpenseModalProps {
     dateLabel: string
     currency: string
     userId: string
+    editingExpense?: Expense | null
     onSave: (expense: {
+        id?: string
         description: string
         amount: number
         category: string
@@ -60,18 +63,20 @@ export function CajaExpenseModal({
     date,
     dateLabel,
     currency,
+    editingExpense,
     onSave,
     onCancel,
 }: CajaExpenseModalProps) {
-    const [description, setDescription] = useState('')
-    const [amount, setAmount] = useState<number | ''>('')
-    const [category, setCategory] = useState('supplies')
-    const [paymentMethod, setPaymentMethod] = useState<string | null>(null)
+    const [description, setDescription] = useState(editingExpense?.description ?? '')
+    const [amount, setAmount] = useState<number | ''>(editingExpense?.amount ?? '')
+    const [category, setCategory] = useState<string>(editingExpense?.category ?? 'supplies')
+    const [paymentMethod, setPaymentMethod] = useState<string | null>(editingExpense?.payment_method ?? null)
     const [file, setFile] = useState<File | null>(null)
     const [filePreview, setFilePreview] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [dragOver, setDragOver] = useState(false)
+    const [keepExistingReceipt, setKeepExistingReceipt] = useState(!!editingExpense?.receipt_url)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const handleFile = (f: File) => {
@@ -128,11 +133,14 @@ export function CajaExpenseModal({
             }
 
             onSave({
+                ...(editingExpense ? { id: editingExpense.id } : {}),
                 description: description.trim(),
                 amount: Number(amount),
                 category,
                 payment_method: paymentMethod,
-                receipt_url: receiptUrl,
+                receipt_url: file
+                    ? receiptUrl
+                    : (keepExistingReceipt ? (editingExpense?.receipt_url ?? null) : null),
                 date,
             })
         } finally {
@@ -148,7 +156,7 @@ export function CajaExpenseModal({
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-silk-beige shrink-0">
                     <div>
-                        <h3 className="font-bold text-charcoal">Registrar gasto</h3>
+                        <h3 className="font-bold text-charcoal">{editingExpense ? 'Editar gasto' : 'Registrar gasto'}</h3>
                         <p className="text-xs text-charcoal/50 mt-0.5 capitalize">{dateLabel}</p>
                     </div>
                     <button onClick={onCancel} className="text-charcoal/40 hover:text-charcoal">
@@ -250,6 +258,21 @@ export function CajaExpenseModal({
                                     </button>
                                 </div>
                             </div>
+                        ) : keepExistingReceipt && editingExpense?.receipt_url ? (
+                            <div className="border border-silk-beige rounded-xl p-3 flex items-center gap-3">
+                                <div className="w-10 h-10 bg-rose-50 rounded-lg flex items-center justify-center shrink-0">
+                                    <Paperclip className="w-5 h-5 text-rose-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-charcoal">Boleta ya adjunta</p>
+                                    <button
+                                        onClick={() => setKeepExistingReceipt(false)}
+                                        className="text-[11px] text-rose-500 hover:text-rose-700 mt-0.5 font-medium"
+                                    >
+                                        Reemplazar / quitar
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             <div
                                 onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -298,7 +321,7 @@ export function CajaExpenseModal({
                         className="flex-1 bg-rose-600 text-white font-semibold py-2 rounded-lg text-sm hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         {(saving || uploading) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                        {uploading ? 'Subiendo...' : saving ? 'Guardando...' : 'Registrar gasto'}
+                        {uploading ? 'Subiendo...' : saving ? 'Guardando...' : editingExpense ? 'Guardar cambios' : 'Registrar gasto'}
                     </button>
                 </div>
             </div>

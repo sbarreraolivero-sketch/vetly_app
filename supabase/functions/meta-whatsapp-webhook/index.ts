@@ -1013,6 +1013,7 @@ const createAppt = async (
     address: args.address || tutorGeo?.address || null,
     address_references: args.address_references || null,
     status: "pending",
+    booking_source: "ai_agent",
     duration,
     price,
     professional_id: professionalId,
