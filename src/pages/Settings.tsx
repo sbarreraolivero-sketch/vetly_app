@@ -43,11 +43,10 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PLANS, type PlanId, normalizePlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
-import { PADDLE_PLANS, type PaddlePlanId, PADDLE_CREDIT_PACKS, openPaddleSubscriptionCheckout, openPaddleCreditsCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
+import { LS_PLANS, type LSPlanId, LS_CREDIT_PACKS, redirectToLemonCheckout, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { TagManager } from '@/components/settings/TagManager'
-import PostPaymentOnboardingBanner from '@/components/settings/PostPaymentOnboardingBanner'
 import Team from './settings/Team'
 import MyProfile from './settings/MyProfile'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
@@ -177,10 +176,6 @@ export default function Settings() {
     const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For purchase, keep legacy values for payment backend
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
-    // Proveedor real de facturación (distinto de paymentRegion, que es solo el toggle
-    // de moneda para explorar precios — no cambia hasta que el usuario efectivamente
-    // paga con el otro proveedor). Usado para decidir si mostrar "Gestionar en Mercado Pago".
-    const [currentPaymentProvider, setCurrentPaymentProvider] = useState<string | null>(null)
     const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
     const [copiedWebhook, setCopiedWebhook] = useState(false)
 
@@ -275,50 +270,6 @@ export default function Settings() {
 
     // Payment return message state
     const [paymentMessage, setPaymentMessage] = useState<{ type: 'success' | 'error' | 'pending'; text: string } | null>(null)
-    // Plan recién adquirido en la primera conversión trial→pago (dispara el banner de onboarding)
-    const [onboardingPromptPlan, setOnboardingPromptPlan] = useState<PlanId | null>(null)
-
-    // CTA de onboarding: solo si este pago fue la primera conversión trial→pago real.
-    // Lee el flag de sessionStorage (seteado antes de abrir el checkout) y lo consume una
-    // sola vez. Se llama tanto desde el retorno con ?payment=success (MercadoPago, redirect)
-    // como desde el evento checkout.completed de Paddle (overlay, sin redirect ni URL param).
-    const checkPendingOnboardingPrompt = (clinicIdForUpdate: string | null | undefined): boolean => {
-        try {
-            const raw = sessionStorage.getItem('vetly_pending_onboarding_prompt')
-            if (raw) {
-                const pending = JSON.parse(raw)
-                setOnboardingPromptPlan(pending.planId as PlanId)
-                sessionStorage.removeItem('vetly_pending_onboarding_prompt')
-
-                if (clinicIdForUpdate) {
-                    // Fire-and-forget: nunca debe romper el flujo de pago si falla
-                    ;(supabase as any)
-                        .from('subscriptions')
-                        .update({ onboarding_call_prompted_at: new Date().toISOString() })
-                        .eq('clinic_id', clinicIdForUpdate)
-                        .is('onboarding_call_prompted_at', null)
-                        .then(({ error }: any) => {
-                            if (error) console.error('No se pudo marcar onboarding_call_prompted_at:', error)
-                        })
-                }
-                return true
-            }
-        } catch (e) {
-            console.error('Error leyendo onboarding prompt flag:', e)
-        }
-        return false
-    }
-
-    // Retorno de checkout de Paddle (overlay, sin redirect ni ?payment=success en la URL).
-    // Se dispara desde el eventCallback de checkout.completed en handleSubscribe.
-    const handlePaddleSubscriptionSuccess = (clinicIdForUpdate: string | null | undefined) => {
-        setActiveTab('subscription')
-        setPaymentMessage({
-            type: 'success',
-            text: '¡Pago procesado exitosamente! Tu suscripción ha sido activada. Los cambios pueden demorar unos segundos en reflejarse.'
-        })
-        checkPendingOnboardingPrompt(clinicIdForUpdate)
-    }
 
     // Read tab from URL params (for deep linking) + handle payment returns
     useEffect(() => {
@@ -334,7 +285,6 @@ export default function Settings() {
                         type: 'success',
                         text: '¡Pago procesado exitosamente! Tu suscripción ha sido activada. Los cambios pueden demorar unos segundos en reflejarse.'
                     })
-                    checkPendingOnboardingPrompt(clinicId)
                     break
                 case 'failure':
                     setPaymentMessage({
@@ -437,8 +387,7 @@ export default function Settings() {
                     setAiActiveModel(clinicData.ai_active_model || 'hybrid')
                     setAiAutoRespond(clinicData.ai_auto_respond !== false)
                     setBusinessModel(clinicData.business_model || 'physical')
-                    setPaymentRegion(clinicData.payment_provider === 'paddle' ? 'international' : 'chile')
-                    setCurrentPaymentProvider(clinicData.payment_provider || null)
+                    setPaymentRegion(clinicData.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
                     if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
                 }
 
@@ -522,11 +471,7 @@ export default function Settings() {
                     setSubscription({
                         plan: planName,
                         status: subData.status,
-                        // subscriptions.trial_ends_at no existe como columna — el trial real
-                        // se rastrea en clinic_settings.trial_end_date (bug preexistente
-                        // encontrado en sesión 68: el countdown nunca se mostraba porque
-                        // siempre leía undefined de una columna inexistente).
-                        trialEndsAt: clinicData?.trial_end_date || null,
+                        trialEndsAt: subData.trial_ends_at,
                         monthlyLimit: subData.monthly_appointments_limit,
                         monthlyUsed: subData.monthly_appointments_used || 0,
                         manuallyActive: subData.manually_active ?? false
@@ -556,12 +501,7 @@ export default function Settings() {
         if (!clinicId || !user?.email) return
         try {
             if (paymentRegion === 'international') {
-                // Overlay de Paddle: recargar la página al completar el pago para
-                // refrescar el saldo (mismo efecto neto que el redirect de LS).
-                onPaddleCheckoutEvent((event) => {
-                    if (event.name === 'checkout.completed') window.location.reload()
-                })
-                await openPaddleCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
+                await redirectToLemonCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
             } else {
                 await redirectToCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
             }
@@ -1055,20 +995,9 @@ export default function Settings() {
             return
         }
 
-        // Primera conversión real (trial → plan pago): guardar flag para mostrar
-        // el CTA de onboarding al volver del checkout. sessionStorage sobrevive
-        // el round-trip fuera del SPA sin persistir entre sesiones futuras.
-        const isFirstConversion = subscription?.plan === 'trial'
-        if (isFirstConversion) {
-            sessionStorage.setItem('vetly_pending_onboarding_prompt', JSON.stringify({ planId, clinicName }))
-        }
-
         try {
             if (paymentRegion === 'international') {
-                onPaddleCheckoutEvent((event) => {
-                    if (event.name === 'checkout.completed') handlePaddleSubscriptionSuccess(clinicId)
-                })
-                await openPaddleSubscriptionCheckout(clinicId, user.email, planId as PaddlePlanId)
+                await redirectToLemonCheckout(clinicId, user.email, planId as LSPlanId)
             } else {
                 await redirectToCheckout({
                     clinicId: clinicId,
@@ -1078,9 +1007,6 @@ export default function Settings() {
             }
         } catch (error) {
             console.error('Checkout error:', error)
-            if (isFirstConversion) {
-                sessionStorage.removeItem('vetly_pending_onboarding_prompt')
-            }
             alert('Error al iniciar el proceso de pago. Por favor intenta más tarde.')
         }
     }
@@ -2043,19 +1969,6 @@ export default function Settings() {
                                 </div>
                             )}
 
-                            {/* Post-payment onboarding CTA — solo en la primera conversión trial→pago */}
-                            {onboardingPromptPlan && (
-                                <PostPaymentOnboardingBanner
-                                    clinicName={clinicName || 'tu clínica'}
-                                    planName={
-                                        paymentRegion === 'international'
-                                            ? PADDLE_PLANS[onboardingPromptPlan as PaddlePlanId]?.name || onboardingPromptPlan
-                                            : PLANS[onboardingPromptPlan as PlanId]?.name || onboardingPromptPlan
-                                    }
-                                    onDismiss={() => setOnboardingPromptPlan(null)}
-                                />
-                            )}
-
                             {/* Expired Trial Banner */}
                             {searchParams.get('expired') === '1' && (
                                 <div className="p-5 rounded-soft bg-red-50 border-2 border-red-300 flex items-start gap-4">
@@ -2114,7 +2027,7 @@ export default function Settings() {
                                             {(() => {
                                                 const np = normalizePlanId(subscription?.plan || '')
                                                 const clpPrice = PLANS[np as PlanId]?.price
-                                                const usdPrice = PADDLE_PLANS[np as PaddlePlanId]?.price
+                                                const usdPrice = LS_PLANS[np as LSPlanId]?.price
                                                 return (
                                                     <div>
                                                         {clpPrice ? <p className="text-2xl font-black text-charcoal">${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span></p> : null}
@@ -2144,16 +2057,14 @@ export default function Settings() {
                                             Activar Plan Premium
                                         </button>
                                     )}
-                                    {currentPaymentProvider === 'mercadopago' && (
-                                        <a
-                                            href="https://www.mercadopago.com.mx/subscriptions"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="btn-ghost"
-                                        >
-                                            Gestionar en Mercado Pago
-                                        </a>
-                                    )}
+                                    <a
+                                        href="https://www.mercadopago.com.mx/subscriptions"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn-ghost"
+                                    >
+                                        Gestionar en Mercado Pago
+                                    </a>
                                     {subscription?.status === 'active' && (
                                         <button
                                             onClick={async () => {
@@ -2214,7 +2125,7 @@ export default function Settings() {
                                             onClick={async () => {
                                                 setPaymentRegion('international');
                                                 if (clinicId) {
-                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'paddle' }).eq('id', clinicId);
+                                                    await (supabase as any).from('clinic_settings').update({ payment_provider: 'lemonsqueezy' }).eq('id', clinicId);
                                                 }
                                             }}
                                             className={cn(
@@ -2232,7 +2143,7 @@ export default function Settings() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-5">
                                     {(Object.keys(PLANS) as PlanId[]).map((planId) => {
                                         const mpPlan = PLANS[planId]
-                                        const paddlePlan = PADDLE_PLANS[planId as PaddlePlanId]
+                                        const lsPlan = LS_PLANS[planId as LSPlanId]
                                         const normalizedCurrent = normalizePlanId(subscription?.plan || '')
                                         const isCurrentPlan = planId === normalizedCurrent
                                         const isPro = planId === 'pro'
@@ -2259,7 +2170,7 @@ export default function Settings() {
                                                         {paymentRegion === 'international' ? (
                                                             <>
                                                                 <div className="flex items-baseline gap-1 flex-wrap">
-                                                                    <span className="text-3xl font-black text-charcoal">US${paddlePlan?.price ?? 0}</span>
+                                                                    <span className="text-3xl font-black text-charcoal">US${lsPlan?.price ?? 0}</span>
                                                                     <span className="text-xs font-bold text-charcoal/40 uppercase">USD/mes</span>
                                                                 </div>
                                                                 <p className="text-xs font-semibold text-charcoal/40 mt-0.5">${mpPlan.price.toLocaleString()} CLP/mes</p>
@@ -2270,8 +2181,8 @@ export default function Settings() {
                                                                     <span className="text-3xl font-black text-charcoal">${mpPlan.price.toLocaleString()}</span>
                                                                     <span className="text-xs font-bold text-charcoal/40 uppercase">CLP/mes</span>
                                                                 </div>
-                                                                {paddlePlan && (
-                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${paddlePlan.price} USD/mes</p>
+                                                                {lsPlan && (
+                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${lsPlan.price} USD/mes</p>
                                                                 )}
                                                             </>
                                                         )}
@@ -3419,8 +3330,8 @@ export default function Settings() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {(() => {
                                         const mpPacks = { ...CREDIT_PACKS };
-                                        const paddlePacks = { ...PADDLE_CREDIT_PACKS };
-                                        const currentPacks = paymentRegion === 'international' ? paddlePacks : mpPacks;
+                                        const lsPacks = { ...LS_CREDIT_PACKS };
+                                        const currentPacks = paymentRegion === 'international' ? lsPacks : mpPacks;
                                         const currencySymbol = paymentRegion === 'international' ? 'US$' : '$';
                                         const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP';
 
