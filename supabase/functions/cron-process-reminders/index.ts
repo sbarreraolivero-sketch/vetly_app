@@ -567,6 +567,13 @@ Deno.serve(async (req) => {
         const subMap: Record<string, any> = {}
         for (const s of (allSubs || [])) subMap[s.clinic_id] = s
 
+        // Mapa de hora preferida (mismo campo que usan los recordatorios de citas — reminder_settings.preferred_hour)
+        const { data: allRemSettings } = await supabaseClient
+            .from('reminder_settings')
+            .select('clinic_id, preferred_hour')
+        const remSettingsMap: Record<string, any> = {}
+        for (const rs of (allRemSettings || [])) remSettingsMap[rs.clinic_id] = rs
+
         if (allClinicsError) {
             console.error('Error fetching clinics for general reminders', allClinicsError)
         } else {
@@ -580,6 +587,14 @@ Deno.serve(async (req) => {
                 if (effLimit !== null && poolUsed >= effLimit) continue
 
                 const timeZone = clinic.timezone || 'America/Santiago'
+
+                // Hora prudente: no enviar recordatorios médicos antes de la hora preferida de la clínica
+                // (evita envíos de madrugada por el catch-up del cron horario).
+                const clinicNowForHour = new Date(new Date().toLocaleString('en-US', { timeZone }))
+                const currentHour = clinicNowForHour.getHours()
+                const [prefHourStrGen] = (remSettingsMap[clinic.id]?.preferred_hour || '09:00').split(':')
+                const prefHourGen = parseInt(prefHourStrGen)
+                if (currentHour < prefHourGen) continue
 
                 // Calculate "Tomorrow" in clinic timezone
                 const clinicNow = new Date(new Date().toLocaleString('en-US', { timeZone }))
