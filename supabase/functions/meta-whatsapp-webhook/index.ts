@@ -1150,6 +1150,24 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
   { title: "PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE", keywords: ["eutan", "sacrific", "dormir a mi", "dormirlo", "dormirla", "dormir al", "dormir a la", "que no sufra", "no siga sufriendo", "no sufra mas", "no sufra más", "descanse en paz", "quitarle el sufrimiento", "dejarla ir", "dejarlo ir", "ponerle fin"] },
+  { title: "PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA_ANIMALGRACE", keywords: ["ecograf", "radiograf", "rayos x", "eco abdominal", "eco de abdomen", "imagenolog"] },
+  // Sesión 71: el resumen top-5/500-chars corta este doc justo antes de la tabla real
+  // de comunas Tramo A/B/C/D — la IA solo veía la intro y alucinaba recargos (ej: San
+  // Bernardo, que es Tramo A/$0, cotizado como $6.000). Se fuerza completo cuando el
+  // cliente menciona cualquier comuna de cobertura, para que la tabla real (y la regla
+  // anti-error de $6.000 exclusivo a Las Condes) siempre esté disponible sin depender
+  // de que la IA decida llamar get_knowledge.
+  { title: "#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES", keywords: [
+    "recargo", "traslado",
+    "santiago centro", "ñuñoa", "nunoa", "conchali", "conchalí", "recoleta", "cerro navia",
+    "pudahuel", "quinta normal", "maipu", "maipú", "san bernardo", "cerrillos",
+    "san joaquin", "san joaquín", "peñalolen", "penalolen", "peñalolén", "puente alto",
+    "san ramon", "san ramón", "la granja", "providencia", "independencia", "huechuraba",
+    "renca", "quilicura", "lo prado", "estacion central", "estación central", "lo espejo",
+    "el bosque", "san miguel", "la reina", "la florida", "macul", "la pintana",
+    "pedro aguirre cerda", "la cisterna", "las condes", "vitacura", "ciudad satelite",
+    "ciudad satélite", "ciudad de los valles", "pirque", "buin", "padre hurtado", "valle grande",
+  ] },
 ];
 
 const getForcedKnowledgeBlock = async (

@@ -4953,3 +4953,50 @@ A pedido del usuario se revisó el estado real de envío de recordatorios en amb
 - **Cuando un documento del KB es idéntico byte a byte entre dos clínicas, un riesgo de alucinación confirmado en una aplica igual a la otra** — se corrigió el bullet de "Corte de Uñas" en ambas sucursales aunque el bug solo se había manifestado en Linares.
 - **`reminders.checkup_reminder_template` y el flujo de "Control Médico" ya estaban completos end-to-end salvo un solo INSERT roto** — antes de asumir que una feature "nunca se implementó", verificar si existe la UI/estado/backend y solo el punto de persistencia está fallando en silencio.
 - **Error `[131042] Business eligibility payment issue` de Meta = falta método de pago en el Business Manager que administra esa WABA específica** — no es un error de plantillas ni de código; es exclusivamente una acción de facturación externa a Vetly.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 71, 2026-08-13)
+
+### Vacuna "Intratac Oral" — nueva opción, reemplazo funcional de KC (ambas sucursales)
+
+**Motivación del usuario:** Animalgrace incorpora la vacuna Intratac Oral, que cubre la misma enfermedad que la vacuna KC pero por vía oral en vez de intranasal. Debe quedar disponible para que el profesional la registre en la ficha clínica del paciente, y entrar en el mismo grupo de descuentos por cantidad que ya cubría a KC.
+
+**Cambios aplicados:**
+- **`src/components/patients/VaccineForm.tsx`** (`DOG_VACCINES`): agregada "Intratac Oral" como opción del desplegable de vacunación canina, antes de "Otra". Es una lista fija compartida por toda la app (sin catálogo por clínica en este formulario), así que la opción queda disponible para cualquier clínica que use Vetly, no solo Animalgrace.
+- **KB `PROMOCIONES_Y_DESCUENTOS_VIGENTES`** (DB, ambas clínicas): agregada al Grupo A de vacunas especiales — `*(Incluye: Triple Felina, Leucemia Felina, Puppy DP, KC, Intratac Oral)*` — mismo tramo de descuento por cantidad que KC.
+- **`clinic_services`** (DB, ambas clínicas): creado el servicio **"Vacuna Intratac Oral" a $25.000** (mismo precio que "Vacuna KC"), duración heredada de KC por sucursal (45 min Santiago, 30 min Linares). Decisión confirmada con el usuario vía `AskUserQuestion`: se agrega como servicio **nuevo**, sin tocar ni eliminar "Vacuna KC" — ambas quedan disponibles en el catálogo. `linked_product_id` se dejó vacío porque no existe todavía un producto de inventario para Intratac Oral (a diferencia del KC de Santiago, que sí tiene uno vinculado) — si se quiere que descuente stock automáticamente, hay que crear el producto en Inventario y vincularlo desde Ajustes → Servicios.
+
+**No se tocó** `ai_behavior_rules` ni el protocolo de vacunación del KB (reglas de "primera vez solo una vacuna", anamnesis antes del precio, etc.) — esas reglas hablan de "la vacuna" en genérico y ya cubren a Intratac Oral igual que a KC sin cambios adicionales.
+
+**Regla permanente:** cuando se agrega un servicio "equivalente" a uno existente (misma enfermedad/función, distinta presentación), verificar 3 capas antes de darlo por completo: (1) el formulario de ficha clínica donde el profesional lo registra, (2) el KB de precios/descuentos que usa el agente de IA, y (3) `clinic_services` — el catálogo real del que la IA saca el precio individual fuera de promociones. Faltar la capa 3 deja a la IA sin precio para cotizar el servicio suelto, con riesgo de alucinación (ver historial de bugs de precio de sesiones 9, 40, 66).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 72, 2026-08-13)
+
+### Bug: San Bernardo cotizado con $6.000 de recargo (correcto: $0) — Santiago
+
+**Reporte de Claudia (capturas de WhatsApp reales):** el agente cotizó $6.000 de recargo de traslado para San Bernardo en dos mensajes seguidos de la misma conversación, cuando San Bernardo es Tramo A ($0) según el KB.
+
+**Causa raíz — no fue alucinación aleatoria, es un vacío estructural:** `getKnowledgeSummary` arma el resumen de KB que se inyecta en el prompt tomando los 5 documentos más recientes por `updated_at` y truncando cada uno a **500 caracteres** (`.substring(0, 500)`). El documento `#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES` (5.159 caracteres) sí entra en ese top-5, pero los primeros 500 caracteres solo alcanzan la introducción del documento — la tabla real de comunas (Tramo A/B/C/D) y la regla anti-error ("$6.000 aplica EXCLUSIVAMENTE a Las Condes") están más adelante en el texto y nunca llegan al prompt por defecto. Confirmado con `messages`: ambas respuestas incorrectas fueron generadas por `4o_pro` (no fue debilidad de `mini`) — sin la tabla real disponible, ni el modelo más caro pudo evitar el error. `ai_behavior_rules` sí menciona algunas comunas de ejemplo ("Quilicura, Quinta Normal, Maipú, Ñuñoa, etc.") pero usa "etc." — San Bernardo no está nombrado ahí, así que sin el KB completo el modelo no tenía de dónde inferirlo.
+
+Es el mismo tipo de vacío que la sesión 62 resolvió para cirugía/sedación/eutanasia con el mecanismo de "conocimiento forzado" (`FORCED_KB_TOPICS`), pero nunca se había extendido a este documento — pese a que las consultas de "¿cuánto cobran en mi comuna?" son, por volumen, de las más frecuentes de toda la clínica.
+
+**Fix aplicado (`meta-whatsapp-webhook` y `ycloud-whatsapp-webhook`, deployados):** agregado `#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES` a `FORCED_KB_TOPICS` con las ~45 comunas de las 4 tablas (Tramo A/B/C/D) como keywords, más `"recargo"`/`"traslado"` como red de seguridad. Cuando el cliente menciona cualquier comuna de cobertura, el documento completo (tabla real + regla anti-error) se inyecta entero en el prompt, sin depender de que el modelo decida llamar `get_knowledge` — igual que ya ocurre con cirugía/sedación/eutanasia/ecografía.
+
+**De paso, cerrada la deuda de drift documentada en sesión 71:** la adición de `PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA_ANIMALGRACE` a `FORCED_KB_TOPICS` (sesión 70) seguía sin commitear a git — quedó incluida en el mismo commit que este fix.
+
+**Regla permanente (refuerzo de sesión 62):** cualquier documento del KB con una tabla de precios/reglas usada para responder preguntas frecuentes y estructuradas (comuna → recargo, peso → precio, etc.) debe evaluarse para `FORCED_KB_TOPICS` si su contenido útil queda más allá de los primeros 500 caracteres — no basta con que el documento esté en el top-5 por `updated_at`, el corte de 500 caracteres es ciego al contenido.
+
+### Investigación: "la IA dejó de responder" (Pudahuel, esterilización de gata) — no era un bug de la IA
+
+**Reporte de Claudia:** una segunda captura mostraba una conversación donde, aparentemente, nadie respondió durante un tiempo prolongado.
+
+**Diagnóstico con `messages` completo de la conversación (fecha y hora en Chile):** los mensajes que la captura mostraba como respuestas del negocio ("Muy buenos días", "¿De qué comuna nos escribes?", precio con formato "$70,000" con coma) **no existen en ningún registro de Vetly** — ni contenido, ni `ai_model`, ni tampoco respetan el estilo obligatorio de Ary (falta el aviso de rango horario, no pide pin de ubicación, formato de coma en vez de punto para pesos). Todo indica que fueron enviados manualmente por alguien del equipo desde la app de WhatsApp Business — y como el número está en coexistencia, esas respuestas manuales **nunca llegan a la base de datos de Vetly** (los eventos `whatsapp.smb.message.echoes` se ignoran explícitamente desde sesión 56/57).
+
+Lo que sí está en `messages`: el mensaje "Da lo mismo en que comuna, y cuántos meses tenga?" es del **cliente** (no del negocio), y 27 segundos después Ary respondió correctamente (edad mínima de 4 meses, precio $70.000, comuna sin recargo), y la conversación cerró bien de ahí en adelante. Sin errores ni cuota agotada en ese período.
+
+**Conclusión:** no hubo ninguna falla de la IA en este hilo. El riesgo real que sí queda expuesto: en un número en coexistencia, si alguien del equipo responde manualmente por la app, **la IA queda completamente ciega a esas respuestas** — no las ve en su historial de contexto. Si el cliente vuelve más tarde, la IA puede repetir preguntas o información ya entregada manualmente, que es exactamente lo que generó la apariencia de "silencio"/desorden en esta conversación. No se aplicó ningún cambio de código para esto — capturar los echoes manuales en `messages` sería un cambio de alcance mayor (revertiría una decisión explícita de sesión 56/57 de ignorarlos) y no se decidió hacerlo esta sesión.
+
+**Regla permanente:** ante un reporte de "la IA no respondió" o "dejó de responder", reconstruir la conversación completa desde `messages` con conversión a hora de Chile antes de asumir una falla — en números conectados por coexistencia, una respuesta visible en la app del teléfono no implica que haya pasado por Vetly ni que la IA la conozca.
