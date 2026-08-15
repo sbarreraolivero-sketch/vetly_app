@@ -11,6 +11,9 @@ import {
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// Canal de respaldo cuando WhatsApp no puede entregar la alerta.
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const ALERT_EMAIL = Deno.env.get("HQ_ALERT_EMAIL") || "sbarrera.olivero@gmail.com";
 const HQ_ID = "00000000-0000-0000-0000-000000000000";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" };
@@ -42,17 +45,26 @@ Deno.serve(async (req) => {
     const threshold = Number(hq.hq_ycloud_balance_threshold ?? 5);
     const alerts: string[] = [];
 
-    // 1. OpenAI connectivity.
+    // 1. OpenAI: conectividad Y saldo (ver checkOpenAI — /v1/models solo no detecta
+    //    la cuota agotada, que es la causa #1 de agentes mudos).
     const openai = await checkOpenAI(OPENAI_API_KEY);
-    if (!openai.ok) {
+    if (openai.outOfCredits) {
+        alerts.push(
+            `🔴 *OpenAI SIN CRÉDITOS* — TODOS los agentes de WhatsApp están mudos ahora mismo. ` +
+            `Recarga en platform.openai.com/settings/organization/billing`,
+        );
+    } else if (!openai.ok) {
         alerts.push(`🔴 *OpenAI* no responde (status ${openai.status}). Los agentes pueden quedar mudos.`);
     }
 
-    // 2. Per-clinic diagnostics (operational clinics with YCloud).
+    // 2. Per-clinic diagnostics — clínicas operativas por CUALQUIER canal.
+    //    El filtro anterior exigía ycloud_api_key, así que tras la migración de ambas
+    //    sucursales a Meta el cron dejó de revisar clínicas en silencio (clinics_checked: 0)
+    //    y las alertas de recordatorios fallidos / agente mudo quedaron muertas.
     const { data: clinics } = await sb
         .from("clinic_settings")
-        .select("id, clinic_name, ycloud_api_key")
-        .not("ycloud_api_key", "is", null)
+        .select("id, clinic_name, ycloud_api_key, meta_phone_number_id")
+        .or("ycloud_api_key.not.is.null,meta_phone_number_id.not.is.null")
         .neq("id", HQ_ID);
     const list = (clinics || []) as { id: string; clinic_name: string }[];
 
@@ -78,24 +90,93 @@ Deno.serve(async (req) => {
     }
 
     // 4. Notify only when there is something actionable.
+    //
+    // El canal de salida se trata como falible a propósito: el 15-ago-2026 el cron
+    // detectó correctamente una alerta y no la entregó porque el número del HQ había
+    // dejado de estar registrado en YCloud (403 WHATSAPP_PHONE_NUMBER_UNAVAILABLE)
+    // tras la migración a Meta. Un monitor que solo sabe avisar por un canal que
+    // puede morir en silencio no es un monitor. Ahora: la alerta SIEMPRE queda
+    // registrada, se intenta WhatsApp, y si falla se cae a email.
     let notified = false;
     let notifyMsgId: string | undefined;
-    if (alerts.length > 0 && hq.ycloud_api_key && hq.hq_escalation_phone) {
+    let notifyChannel: string | undefined;
+    let notifyError: string | undefined;
+
+    if (alerts.length > 0) {
         const ts = new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" });
         const message = `🛟 *Vetly — Reporte de salud*\n${ts}\n\n${alerts.join("\n\n")}\n\n_Responde "status" para ver el detalle._`;
-        try {
-            const resp = await sendWhatsApp(hq.ycloud_api_key, hq.ycloud_phone_number || "+56993089185", hq.hq_escalation_phone, message);
-            notified = true;
-            notifyMsgId = resp.id;
-            // Log message ID so delivery can be verified in YCloud dashboard.
-            console.log("[cron-system-health] alert queued, YCloud msgId:", resp.id, "status:", resp.status);
-        } catch (e) {
-            console.error("[cron-system-health] alert send failed:", e);
+
+        // 4a. Rastro persistente ANTES de intentar cualquier envío: si todos los
+        //     canales fallan, la alerta sigue siendo consultable en debug_logs.
+        await sb.from("debug_logs").insert({
+            message: "[cron-system-health] ALERTA",
+            payload: { ts, alerts, clinics_checked: list.length },
+        });
+
+        // 4b. Canal principal: WhatsApp al fundador.
+        if (hq.ycloud_api_key && hq.hq_escalation_phone) {
+            try {
+                const resp = await sendWhatsApp(
+                    hq.ycloud_api_key,
+                    hq.ycloud_phone_number || "+56993089185",
+                    hq.hq_escalation_phone,
+                    message,
+                );
+                notified = true;
+                notifyChannel = "whatsapp";
+                notifyMsgId = resp.id;
+                console.log("[cron-system-health] alert queued, YCloud msgId:", resp.id, "status:", resp.status);
+            } catch (e) {
+                notifyError = String(e).slice(0, 300);
+                console.error("[cron-system-health] alert send failed:", e);
+            }
+        } else {
+            notifyError = "HQ sin ycloud_api_key o hq_escalation_phone configurados";
+        }
+
+        // 4c. Respaldo: email. Solo se usa si WhatsApp no salió, para no duplicar avisos.
+        if (!notified && RESEND_API_KEY && ALERT_EMAIL) {
+            try {
+                const r = await fetch("https://api.resend.com/emails", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${RESEND_API_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        from: "Vetly Salud <hola@vetly.pro>",
+                        to: ALERT_EMAIL,
+                        subject: `🛟 Vetly — ${alerts.length} alerta(s) de salud del sistema`,
+                        // <pre> preserva los saltos de línea del mismo texto que va por WhatsApp.
+                        html: `<pre style="font-family:ui-monospace,Menlo,monospace;font-size:13px;white-space:pre-wrap">${
+                            message.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))
+                        }</pre><p style="font-family:Arial,sans-serif;font-size:12px;color:#888">Enviado por email porque el canal de WhatsApp falló: ${notifyError ?? "sin detalle"}</p>`,
+                    }),
+                });
+                if (r.ok) {
+                    notified = true;
+                    notifyChannel = "email";
+                    console.log("[cron-system-health] alert sent by email fallback");
+                } else {
+                    const txt = await r.text();
+                    console.error("[cron-system-health] email fallback failed:", txt.slice(0, 200));
+                }
+            } catch (e) {
+                console.error("[cron-system-health] email fallback threw:", e);
+            }
         }
     }
 
     return new Response(
-        JSON.stringify({ status: "ok", clinics_checked: list.length, alerts: alerts.length, notified, notify_msg_id: notifyMsgId }),
+        JSON.stringify({
+            status: "ok",
+            clinics_checked: list.length,
+            alerts: alerts.length,
+            notified,
+            notify_channel: notifyChannel,
+            notify_msg_id: notifyMsgId,
+            notify_error: notifyError,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
 });

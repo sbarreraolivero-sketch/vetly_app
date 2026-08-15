@@ -75,16 +75,58 @@ export const getYCloudBalance = async (
 };
 
 // ---- OpenAI connectivity (free, no tokens consumed) ----
+// Chequea que OpenAI responda Y que la cuenta tenga saldo.
+// IMPORTANTE: /v1/models responde 200 aunque la cuenta esté SIN CRÉDITOS — sólo valida
+// la API key. Por eso este cron estuvo ciego durante los cortes por cuota agotada
+// (25-jul, 13-ago y 15-ago 2026), que son la causa #1 de que los agentes queden mudos.
+// El saldo sólo se puede verificar intentando una inferencia real: se hace la más barata
+// posible (mini, 1 token de salida) y se mira si vuelve 429/insufficient_quota.
 export const checkOpenAI = async (
     apiKey: string,
-): Promise<{ ok: boolean; status: number; detail?: string }> => {
+): Promise<{
+    ok: boolean;
+    status: number;
+    detail?: string;
+    outOfCredits?: boolean;
+}> => {
     try {
         const r = await fetch("https://api.openai.com/v1/models", {
             headers: { Authorization: `Bearer ${apiKey}` },
         });
-        if (r.ok) return { ok: true, status: r.status };
-        const txt = await r.text();
-        return { ok: false, status: r.status, detail: txt.slice(0, 300) };
+        if (!r.ok) {
+            const txt = await r.text();
+            return { ok: false, status: r.status, detail: txt.slice(0, 300) };
+        }
+    } catch (e) {
+        return { ok: false, status: 0, detail: String(e) };
+    }
+
+    // Sonda de saldo: inferencia mínima real.
+    try {
+        const probe = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: "ping" }],
+                max_completion_tokens: 1,
+            }),
+        });
+        if (probe.ok) return { ok: true, status: 200 };
+
+        const txt = await probe.text();
+        // 429 puede ser rate-limit (transitorio) o cuota agotada (crítico, requiere pago).
+        const outOfCredits = /insufficient_quota|no credits remaining|billing_hard_limit/i
+            .test(txt);
+        return {
+            ok: false,
+            status: probe.status,
+            detail: txt.slice(0, 300),
+            outOfCredits,
+        };
     } catch (e) {
         return { ok: false, status: 0, detail: String(e) };
     }
@@ -248,7 +290,9 @@ export const runClinicDiagnostics = async (
 ): Promise<ClinicHealth> => {
     const { data: clinic } = await sb
         .from("clinic_settings")
-        .select("clinic_name, ycloud_api_key, ycloud_webhook_secret, ycloud_phone_number")
+        .select(
+            "clinic_name, ycloud_api_key, ycloud_webhook_secret, ycloud_phone_number, whatsapp_provider, meta_phone_number_id, meta_access_token",
+        )
         .eq("id", clinicId)
         .maybeSingle();
 
@@ -269,17 +313,35 @@ export const runClinicDiagnostics = async (
         ycloud_api_key: string | null;
         ycloud_webhook_secret: string | null;
         ycloud_phone_number: string | null;
+        whatsapp_provider: string | null;
+        meta_phone_number_id: string | null;
+        meta_access_token: string | null;
     };
 
-    // 1. Config checks
-    if (!c.ycloud_api_key) {
-        findings.push({ severity: "critical", code: "no_api_key", summary: "Sin API Key de YCloud configurada.", suggestedFix: "Configura la API Key en Configuración." });
-    }
-    if (!c.ycloud_webhook_secret) {
-        findings.push({ severity: "warning", code: "no_secret", summary: "Sin Webhook Secret — la firma no se verifica (modo permisivo).", suggestedFix: "Pega el Webhook Secret de YCloud en Configuración." });
+    // Canal activo: una clínica migrada a Meta Cloud API no tiene (ni necesita)
+    // credenciales de YCloud — exigírselas generaba falsas alarmas críticas.
+    const isMeta = c.whatsapp_provider === "meta" || !!c.meta_phone_number_id;
+
+    // 1. Config checks — según el proveedor real
+    if (isMeta) {
+        if (!c.meta_phone_number_id || !c.meta_access_token) {
+            findings.push({
+                severity: "critical",
+                code: "no_meta_credentials",
+                summary: "Credenciales de Meta Cloud API incompletas — el agente no puede responder.",
+                suggestedFix: "Reconecta el número en Configuración → Integraciones.",
+            });
+        }
+    } else {
+        if (!c.ycloud_api_key) {
+            findings.push({ severity: "critical", code: "no_api_key", summary: "Sin API Key de YCloud configurada.", suggestedFix: "Configura la API Key en Configuración." });
+        }
+        if (!c.ycloud_webhook_secret) {
+            findings.push({ severity: "warning", code: "no_secret", summary: "Sin Webhook Secret — la firma no se verifica (modo permisivo).", suggestedFix: "Pega el Webhook Secret de YCloud en Configuración." });
+        }
     }
 
-    // 2. YCloud balance
+    // 2. YCloud balance (no aplica en Meta: se factura contra el método de pago del Business Manager)
     if (c.ycloud_api_key) {
         balance = await getYCloudBalance(c.ycloud_api_key);
         if (balance && balance.amount < balanceThreshold) {

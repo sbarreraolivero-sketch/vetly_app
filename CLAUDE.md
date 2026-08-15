@@ -5095,3 +5095,89 @@ A pedido explícito del usuario a mitad de sesión ("no subas los cambios a prod
 - **`incomes.loyalty_redeemed` nunca debe fusionarse con `discount`.** Son conceptos distintos: uno es un descuento comercial (con motivo obligatorio y reporte propio desde la sesión 69), el otro es el uso de un pasivo ya devengado.
 - **Todo campo del tutor que la UI necesite debe verificarse contra su RPC de origen.** El saldo llega por `select` directo a `tutors`, pero varias pantallas consumen `get_unified_contacts`, que devuelve un subconjunto de columnas (bug de sesión 52).
 - **Cualquier funcionalidad que dependa de un dato que solo la IA puede capturar necesita una vía manual equivalente**, o queda inutilizable en el plan Core y frágil en el resto. La atribución de referidos era el caso: existía solo por WhatsApp con IA.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 74, 2026-08-15)
+
+Sesión de seguridad y lanzamiento. Empezó como una revisión del trabajo de fidelización (sesión 73) y terminó encontrando un problema de aislamiento entre clínicas mucho mayor que lo auditado. Cerró con todo desplegado y el programa encendido.
+
+### 🔴 Hallazgo principal: la RLS no filtraba por clínica
+
+**Cualquier usuario autenticado de cualquier clínica podía leer, modificar y borrar los datos de todas las demás.** La policy de `tutors` era literalmente:
+
+```sql
+ALL · USING (auth.role() = ANY (ARRAY['authenticated','service_role']))
+```
+
+Sin mención de `clinic_id`. Confirmado que **no existía ninguna policy `RESTRICTIVE`** en todo el esquema que lo acotara (0 filas). Afectaba a 13 tablas: `tutors`, `patients`, `incomes`, `medical_history`, `clinical_records`, `dewormings`, `vaccinations`, `reminders`, `satisfaction_surveys`, `blocked_dates`, `crm_pipeline_stages`, `crm_tags`, `crm_prospect_tags`.
+
+**No era teórico:** existe `sparkcabin.shop@gmail.com`, owner de "Clínica de prueba Core", una cuenta ajena que podía leer los 713 clientes de Animalgrace con teléfono y dirección, sus 120 historiales médicos y sus 436 registros de facturación.
+
+Es el mismo patrón que la sesión 58 corrigió con `USING (true)`, pero **pasó aquel barrido porque no es literalmente `true`** — usa `auth.role()`, que parece un control de acceso y no lo es.
+
+Además, `clinic_settings` tenía una policy `final_update` con `USING (auth.uid() IS NOT NULL)`: cualquier usuario logueado podía modificar la configuración de cualquier clínica, **incluidos los prompts de la IA y los tokens de WhatsApp**.
+
+**Fix** (migración `multi_tenant_rls_isolation_core_tables`): se reemplazan por `is_clinic_member(clinic_id)`, que ya existía, es `SECURITY DEFINER` (no recursa sobre la RLS de `clinic_members`) y **ya devuelve TRUE para platform admins**, con lo que el panel HQ conservó su acceso global sin tratamiento especial. Las tablas sin `clinic_id` (`medical_history`, `clinical_records`, `dewormings`, `vaccinations`) validan contra `patients.clinic_id`, y `crm_prospect_tags` contra `crm_prospects` — su `WITH CHECK` **no puede** referenciar una columna `clinic_id` que no existe. `demo_requests` y `diagnostic_leads` (leads comerciales de Vetly, no de las clínicas) pasaron a `is_platform_admin()`.
+
+**Verificación con sesión real de navegador**, no solo leyendo policies:
+
+| Prueba desde la cuenta ajena | Resultado |
+|---|---|
+| Listar clientes de Animalgrace | `[]` |
+| Leer su `clinic_settings` (tokens Meta, prompts) | `[]` |
+| `create_clinic_income` sobre Linares | `No autorizado` |
+| UPDATE / DELETE cross-tenant | 0 filas afectadas |
+| Leer leads comerciales | `[]` |
+
+Y en paralelo: Claudia (owner de **ambas** sedes) conserva 713 tutores / 567 pacientes / 436 ingresos; Mauricio (solo Santiago) ve 207 tutores y **0 de Linares**; el platform admin sigue viendo las 4 clínicas.
+
+### Bypass de `auth.uid()` en las RPCs de la sesión 73
+
+El patrón `IF auth.uid() IS NOT NULL AND NOT EXISTS (...)` se salta el control **cuando `auth.uid()` es NULL, que es el caso de `service_role` PERO TAMBIÉN de `anon`**. Como la clave pública viaja en el bundle de vetly.pro, cualquiera podía crear y editar ingresos de cualquier clínica. Corregido por la sesión paralela con `COALESCE(auth.role(),'service_role') <> 'service_role'`; esta sesión encontró una cuarta función con el mismo patrón (`get_finance_discount_metrics`) y la armonizó.
+
+**`REVOKE ... FROM anon` no basta.** PostgreSQL concede `EXECUTE` a `PUBLIC` por defecto y `anon` hereda de ahí: tras revocar solo de `anon`, `has_function_privilege('anon', ...)` seguía devolviendo `true`. El patrón correcto es `REVOKE FROM PUBLIC, anon` + `GRANT` explícito a `authenticated, service_role`.
+
+### Carnet digital: identificador no adivinable
+
+`/p/:code` se identificaba con `referral_code`: **6 caracteres HEX = 16.777.216 combinaciones**. Con 713 tutores, 1 de cada ~23.500 intentos acierta — minutos de fuerza bruta para exponer nombre, mascotas, diagnósticos médicos y saldo.
+
+**No se alargó `referral_code`**, porque cumple otra función con otro riesgo: es el código que el cliente dicta por WhatsApp para recomendar, y adivinarlo solo permite atribuirse una recomendación. Se separaron los conceptos con **`tutors.portal_token`** (22 caracteres base64url sobre `gen_random_bytes(16)`). Backfill de los 713; el enlace llevaba roto desde la migración a Meta, así que **nadie tenía un identificador en uso** y regenerar salió gratis.
+
+⚠️ **El token es sensible a mayúsculas.** `PetOwnerPortal.tsx` hacía `code.toUpperCase()` sobre el parámetro de la URL — se quitó, o habría roto todos los carnets.
+
+### Integridad: el referidor debe ser de la misma clínica
+
+`referred_by` lo escriben el frontend y el webhook, y ninguno validaba la clínica: un UUID ajeno enviado por la API habría cobrado el bono de $5.000. La validación se puso en `sync_income_loyalty`, el único punto por el que pasa todo camino de acreditación. Verificado: un tutor de Linares con `referred_by` apuntando a Santiago no genera bienvenida ni premio.
+
+### `cron-system-health` — el monitor estaba ciego, y luego mudo
+
+Tres fallas encadenadas, todas consecuencia de la migración a Meta:
+
+1. **Filtraba clínicas por `ycloud_api_key`**, hoy `NULL` en ambas sedes → `clinics_checked: 0`. El cron llevaba semanas sin revisar nada, en silencio. Corregido a `.or("ycloud_api_key.not.is.null,meta_phone_number_id.not.is.null")`, y `runClinicDiagnostics` dejó de exigir credenciales YCloud a una clínica Meta.
+2. **`checkOpenAI` usaba `/v1/models`, que responde 200 con la cuota agotada** — o sea, no habría detectado ninguno de los 5 cortes por falta de saldo (abr, may, jun, 25-jul, 15-ago), que son la causa #1 de agentes mudos. Ahora hace una inferencia real mínima (mini, 1 token) y distingue `insufficient_quota` de un rate-limit transitorio.
+3. **El canal de alertas estaba muerto** (encontrado en esta sesión al ejecutarlo): el cron detectaba correctamente pero devolvía `notified: false`. Causa real en los logs: `YCloud 403 WHATSAPP_PHONE_NUMBER_UNAVAILABLE — Phone number +56993089185 has not been registered`. El número del HQ dejó de estar registrado en YCloud.
+
+**Fix del canal:** la alerta **siempre** se registra en `debug_logs` antes de intentar cualquier envío, se intenta WhatsApp, y si falla se cae a **email vía Resend**. El response expone `notify_channel` y `notify_error`. Verificado forzando una alerta real: `notified: true`, `notify_channel: "email"`, con el 403 de YCloud reportado como motivo.
+
+⚠️ **Pendiente operativo:** el número +56993089185 sigue sin registrar en YCloud. Mientras tanto las alertas llegan por email, pero conviene reactivarlo o migrar el HQ a Meta.
+
+### Lanzamiento del programa de fidelización
+
+Desplegado y **encendido en ambas sedes** (`loyalty_enabled = true`). Secuencia: migraciones → verificación de aislamiento → commit selectivo (27 archivos, `git add` explícito) → build desde `git worktree` limpio → push → verificación del bundle real → webhooks → prompt → interruptor.
+
+**El bundle se verificó mal la primera vez:** se buscó el marcador en `index-*.js` y dio falso negativo, porque estos cambios viven en chunks lazy (`Finance-*.js`, `Loyalty-*.js`, `PetOwnerPortal-*.js`). El `index` no cambia cuando el cambio está en una ruta cargada bajo demanda.
+
+**Prueba end-to-end real conseguida**: a las 17:34 la IA de Linares agendó una cita con un cliente real y cerró con el mensaje del programa, después del aviso de rango horario y antes de la despedida, tal como pide la regla. Y el motor se probó por el camino real (mismo RPC que llama el formulario, con sesión de usuario autenticado): primera compra de $60.000 de un referido acreditó $9.000 al cliente y $5.000 al referidor.
+
+Estado final: 0 transacciones, 0 saldos, base limpia. Santiago quedó con `ai_auto_respond = false` **por decisión de Claudia**, que la reactivará cuando lo necesite.
+
+### Reglas permanentes
+
+- **`auth.role() = 'authenticated'` en una policy NO es control de acceso multi-tenant.** Es el equivalente a `USING (true)` para cualquiera con cuenta. Toda policy sobre datos de clínica debe nombrar `clinic_id` (o resolverlo por su tabla padre). Un barrido que solo busque `USING (true)` no lo detecta.
+- **Nunca usar `auth.uid() IS NULL` como señal de "llamada interna"**: también es NULL para `anon`. Usar `auth.role()`.
+- **`REVOKE ... FROM anon` deja vivo el permiso heredado de `PUBLIC`.** Revocar de ambos y conceder explícitamente a los roles que sí deben ejecutar. Verificar siempre con `has_function_privilege`, no asumiendo.
+- **Verificar la RLS golpeando la API con credenciales reales**, no leyendo las policies. La verificación válida es iniciar sesión (`/auth/v1/token`) con una cuenta de otra clínica e intentar leer y escribir. Leer definiciones fue justo lo que dejó pasar este agujero durante meses.
+- **Un monitor con un solo canal de salida no es un monitor.** Registrar siempre el hallazgo de forma persistente antes de intentar entregarlo, y tener un canal alternativo. El de Vetly detectó correctamente y no avisó a nadie porque su número había dejado de existir.
+- **Al verificar un deploy, buscar el marcador en el chunk correcto.** Los cambios de una página lazy no alteran `index-*.js`; buscar ahí produce falsos negativos.
+- **`is_clinic_member(clinic_id)` es el helper estándar** para RLS por clínica: ya contempla al platform admin, así que no hay que añadir una policy aparte para el panel HQ.
