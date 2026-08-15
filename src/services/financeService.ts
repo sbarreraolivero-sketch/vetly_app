@@ -48,6 +48,8 @@ export interface Income {
     services?: any[] | null
     notes?: string | null
     payment_method?: string | null
+    /** Pesos de fidelización canjeados. Separado de `discount`: no es un descuento comercial. */
+    loyalty_redeemed?: number | null
     created_at: string
 }
 
@@ -166,6 +168,7 @@ export const financeService = {
             p_payment_method:  income.payment_method || null,
             p_discount_reason: income.discount_reason || null,
             p_iva_amount:      income.iva_amount ?? null,
+            p_loyalty_redeemed: income.loyalty_redeemed ?? 0,
         })
 
         if (error) throw error
@@ -186,6 +189,7 @@ export const financeService = {
             p_payment_method:  (income as any).payment_method || null,
             p_discount_reason: (income as any).discount_reason || null,
             p_iva_amount:      (income as any).iva_amount ?? null,
+            p_loyalty_redeemed: (income as any).loyalty_redeemed ?? 0,
         })
         if (error) throw error
         return data?.[0] as Income

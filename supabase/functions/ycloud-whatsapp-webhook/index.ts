@@ -3172,7 +3172,7 @@ Deno.serve(async (req) => {
     // Check if this user is already a known Tutor (Client)
     const { data: tutor } = await sb.from("tutors")
       .select(
-        "id, name, referred_by, ctwa_clid, capi_lead_sent_at, capi_purchase_sent_at, patients(id, name, species)",
+        "id, name, referred_by, referral_code, portal_token, loyalty_points, ctwa_clid, capi_lead_sent_at, capi_purchase_sent_at, patients(id, name, species)",
       )
       .eq("clinic_id", clinic.id)
       .eq("phone_number", from)
@@ -3222,6 +3222,22 @@ Deno.serve(async (req) => {
       if (hasPendingAppointmentToday) {
         tutorContext += `[¡ATENCIÓN CRÍTICA! ESTE CLIENTE TIENE UNA CITA PENDIENTE PARA HOY. Si dice "voy en camino", "estoy llegando" o manda su ubicación, NO le pidas datos para agendar ni actúes como si fuera la primera vez. Confírmale que el equipo está avisado y esperándolo.]\n`;
       }
+
+      // Datos del programa de fidelización. Se inyectan en el contexto en vez de
+      // exponerse como tool: son dos campos que ya vienen en el SELECT del tutor y
+      // así no se gasta una iteración del tool loop en cada consulta de saldo.
+      if (clinic.loyalty_enabled) {
+        const balance = Number((tutor as any).loyalty_points ?? 0);
+        // La Ficha Digital usa `portal_token` (largo, no adivinable) y NO el
+        // referral_code de 6 caracteres, que sí se entrega para recomendar.
+        const token = (tutor as any).portal_token;
+        const refCode = (tutor as any).referral_code;
+        const unit = clinic.loyalty_points_name || "puntos";
+        tutorContext += `[FIDELIZACIÓN — DATOS REALES, no inventar: saldo acumulado = $${balance.toLocaleString("es-CL")} ${unit}.`;
+        if (token) tutorContext += ` Ficha Digital de este cliente: vetly.pro/p/${token}`;
+        if (refCode) tutorContext += ` Código para recomendar: ${refCode}`;
+        tutorContext += `]\n`;
+      }
     }
 
     // ===== REFERRAL CODE DETECTION =====
@@ -3256,7 +3272,10 @@ Deno.serve(async (req) => {
                 referred_by: referrer.id,
               }, { onConflict: "clinic_id,phone_number", ignoreDuplicates: false });
             }
-            referralContext = `\n[SISTEMA: Este cliente llegó REFERIDO por ${referrer.name} (código ${code}). Menciónale que la recomendación de su amigo/a fue registrada y dale una bienvenida cálida.]`;
+            const bonusLabel = clinic.loyalty_welcome_bonus_type === "percentage"
+              ? `${clinic.loyalty_welcome_bonus}% de su primera atención`
+              : `$${Number(clinic.loyalty_welcome_bonus || 0).toLocaleString("es-CL")}`;
+            referralContext = `\n[SISTEMA: Este cliente llegó REFERIDO por ${referrer.name} (código ${code}). Dale una bienvenida cálida y menciónale que, por venir recomendado, recibirá ${bonusLabel} en ${clinic.loyalty_points_name || "puntos"} cuando se atienda por primera vez, para descontar de futuras visitas.]`;
             break;
           }
         }

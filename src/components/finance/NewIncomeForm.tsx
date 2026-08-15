@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine } from 'lucide-react'
+import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine, Gift, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +18,18 @@ interface ProductOption {
 interface TutorOption {
     id: string
     name: string
+    loyalty_points: number
+    referred_by: string | null
+}
+
+interface LoyaltyConfig {
+    enabled: boolean
+    earnPercentage: number
+    welcomeBonus: number
+    welcomeBonusType: 'fixed' | 'percentage'
+    referralBonus: number
+    pointsName: string
+    symbol: string
 }
 
 // Motivos de descuento predefinidos. Antes era un texto libre opcional y el
@@ -50,6 +62,7 @@ interface EditingIncome {
     services?: any[] | null
     notes?: string | null
     payment_method?: string | null
+    loyalty_redeemed?: number | null
 }
 
 interface NewIncomeFormProps {
@@ -69,6 +82,9 @@ interface NewIncomeFormProps {
         services?: any[]
         notes?: string
         payment_method?: string
+        loyalty_redeemed?: number
+        /** Tutor que recomendó a este cliente, elegido a mano en su primera compra. */
+        referrer_id?: string
     }) => void
 }
 
@@ -124,6 +140,22 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const [ivaEnabled, setIvaEnabled] = useState(false)
     const [ivaRate, setIvaRate] = useState(19)
 
+    // Fidelización
+    const [loyaltyCfg, setLoyaltyCfg] = useState<LoyaltyConfig | null>(null)
+    const [loyaltyRedeemed, setLoyaltyRedeemed] = useState<number>(editingIncome?.loyalty_redeemed ?? 0)
+    // Escape para ventas sin cliente identificado (mostrador, cliente de paso).
+    // Sin esto, exigir tutor dejaría a caja sin forma de registrar el ingreso.
+    const [allowNoTutor, setAllowNoTutor] = useState(false)
+    // `null` mientras se resuelve: evita anunciar el bono equivocado en el preview.
+    const [tutorHasPrevious, setTutorHasPrevious] = useState<boolean | null>(null)
+    // Referidor elegido a mano. La detección automática del código solo existe en
+    // el canal de WhatsApp con IA; sin esto, un cliente que llega recomendado por
+    // teléfono o de palabra no puede registrarse, y en el plan Core (sin IA) el
+    // programa de referidos sería inalcanzable.
+    const [referrerId, setReferrerId] = useState<string | null>(null)
+    const [referrerSearch, setReferrerSearch] = useState('')
+    const [showReferrerDropdown, setShowReferrerDropdown] = useState(false)
+
     const formatMoney = (n: number) =>
         new Intl.NumberFormat('es-CL', {
             style: 'currency',
@@ -135,18 +167,28 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         const loadData = async () => {
             if (!clinicId) return
             const [tutorsRes, servicesRes, productsRes, clinicRes] = await Promise.all([
-                supabase.from('tutors').select('id, name').eq('clinic_id', clinicId).order('name'),
+                supabase.from('tutors').select('id, name, loyalty_points, referred_by').eq('clinic_id', clinicId).order('name'),
                 (supabase as any).from('clinic_services').select('id, name, price').eq('clinic_id', clinicId).order('name'),
                 (supabase as any).from('inventory_products').select('id, name, sale_price').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
-                (supabase as any).from('clinic_settings').select('currency, iva_enabled, iva_rate').eq('id', clinicId).single(),
+                (supabase as any).from('clinic_settings').select(
+                    'currency, iva_enabled, iva_rate, loyalty_enabled, loyalty_points_percentage, ' +
+                    'loyalty_welcome_bonus, loyalty_welcome_bonus_type, loyalty_referral_bonus, ' +
+                    'loyalty_points_name, loyalty_currency_symbol'
+                ).eq('id', clinicId).single(),
             ])
 
             if (tutorsRes.data) {
-                setTutors(tutorsRes.data as TutorOption[])
-                setFilteredTutors(tutorsRes.data as TutorOption[])
+                const list = (tutorsRes.data as any[]).map(t => ({
+                    id: t.id,
+                    name: t.name,
+                    loyalty_points: t.loyalty_points ?? 0,
+                    referred_by: t.referred_by ?? null,
+                })) as TutorOption[]
+                setTutors(list)
+                setFilteredTutors(list)
                 // Pre-rellenar tutor en modo edición
                 if (editingIncome?.tutor_id) {
-                    const found = (tutorsRes.data as TutorOption[]).find(t => t.id === editingIncome.tutor_id)
+                    const found = list.find(t => t.id === editingIncome.tutor_id)
                     if (found) { setSelectedTutor(found); setTutorSearch(found.name) }
                 }
             }
@@ -162,6 +204,18 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
             if (clinicRes.data?.currency) setCurrency(clinicRes.data.currency)
             setIvaEnabled(clinicRes.data?.iva_enabled ?? false)
             setIvaRate(clinicRes.data?.iva_rate ?? 19)
+
+            if (clinicRes.data) {
+                setLoyaltyCfg({
+                    enabled:          clinicRes.data.loyalty_enabled ?? false,
+                    earnPercentage:   Number(clinicRes.data.loyalty_points_percentage ?? 0),
+                    welcomeBonus:     Number(clinicRes.data.loyalty_welcome_bonus ?? 0),
+                    welcomeBonusType: (clinicRes.data.loyalty_welcome_bonus_type ?? 'fixed') as 'fixed' | 'percentage',
+                    referralBonus:    Number(clinicRes.data.loyalty_referral_bonus ?? 0),
+                    pointsName:       clinicRes.data.loyalty_points_name || 'Puntos',
+                    symbol:           clinicRes.data.loyalty_currency_symbol || 'pts',
+                })
+            }
 
             // Pre-rellenar servicios/productos en modo edición
             if (editingIncome?.services && editingIncome.services.length > 0) {
@@ -188,6 +242,36 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         setFilteredProducts(lower ? availableProducts.filter(p => p.name.toLowerCase().includes(lower)) : availableProducts)
     }, [productSearch, availableProducts])
 
+    // ¿El tutor ya compró antes? Define si esta venta acumula el % de recompra o
+    // si es su primera (y entonces solo gana algo si llegó referido). En modo
+    // edición se excluye el propio ingreso para no contarlo como compra previa.
+    useEffect(() => {
+        let cancelled = false
+        if (!selectedTutor || !clinicId) { setTutorHasPrevious(null); return }
+        ;(async () => {
+            let q = (supabase as any)
+                .from('incomes')
+                .select('id')
+                .eq('clinic_id', clinicId)
+                .eq('tutor_id', selectedTutor.id)
+                .limit(1)
+            if (editingIncome?.id) q = q.neq('id', editingIncome.id)
+            const { data, error } = await q
+            if (cancelled) return
+            // Ante un error de red preferimos no anunciar nada a anunciar mal:
+            // `null` deja el preview oculto en vez de prometer un bono equivocado.
+            setTutorHasPrevious(error ? null : (data?.length ?? 0) > 0)
+        })()
+        return () => { cancelled = true }
+    }, [selectedTutor?.id, clinicId, editingIncome?.id])
+
+    // Al cambiar de tutor, el canje y el referidor del anterior dejan de tener sentido.
+    useEffect(() => {
+        if (!selectedTutor) setLoyaltyRedeemed(0)
+        setReferrerId(null)
+        setReferrerSearch('')
+    }, [selectedTutor?.id])
+
     const serviceSubtotal = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
     const productSubtotal = selectedProducts.reduce((sum, p) => sum + Number(p.price || 0), 0)
     const customSubtotal = customItems.reduce((sum, i) => sum + Number(i.price || 0), 0)
@@ -196,11 +280,58 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const discountAmount = discountType === 'percentage'
         ? Math.round(subtotal * discountValue / 100)
         : Math.min(discountValue, subtotal)
-    const finalAmount = Math.max(0, subtotal - discountAmount)
+    const afterDiscount = Math.max(0, subtotal - discountAmount)
+
+    // ── Canje ──────────────────────────────────────────────────────────────
+    // Nunca puede superar el saldo del tutor ni el monto de la boleta. El RPC
+    // vuelve a topearlo del lado del servidor; esto es solo la barrera visual.
+    const loyaltyActive  = !!loyaltyCfg?.enabled
+    const tutorBalance   = selectedTutor?.loyalty_points ?? 0
+    const maxRedeemable  = Math.min(tutorBalance, afterDiscount)
+    const redeemAmount   = loyaltyActive && selectedTutor
+        ? Math.max(0, Math.min(Math.round(loyaltyRedeemed), maxRedeemable))
+        : 0
+
+    const finalAmount = Math.max(0, afterDiscount - redeemAmount)
     const ivaAmount = ivaEnabled && finalAmount > 0
         ? Math.round(finalAmount * ivaRate / (100 + ivaRate))
         : 0
     const netAmount = finalAmount - ivaAmount
+
+    // ── Qué acumulará esta venta ───────────────────────────────────────────
+    // Espeja exactamente la lógica de sync_income_loyalty: la bienvenida es
+    // exclusiva de clientes referidos; el resto acumula solo desde la 2ª compra.
+    // Es la primera compra y no tiene referidor registrado: el momento exacto en
+    // que preguntar "¿quién te recomendó?" tiene sentido, porque es cuando se paga.
+    const isFirstPurchase   = loyaltyActive && !!selectedTutor && tutorHasPrevious === false
+    const canAssignReferrer = isFirstPurchase && !selectedTutor!.referred_by
+    const effectiveReferrer = selectedTutor?.referred_by ?? referrerId
+
+    const loyaltyPreview: { amount: number; label: string } | null = (() => {
+        if (!loyaltyActive || !selectedTutor || finalAmount <= 0 || tutorHasPrevious === null) return null
+        if (!tutorHasPrevious) {
+            if (!effectiveReferrer) return null
+            const amount = loyaltyCfg!.welcomeBonusType === 'percentage'
+                ? Math.round(finalAmount * loyaltyCfg!.welcomeBonus / 100)
+                : loyaltyCfg!.welcomeBonus
+            return amount > 0 ? { amount, label: 'Bono de bienvenida por referido' } : null
+        }
+        const amount = Math.round(finalAmount * loyaltyCfg!.earnPercentage / 100)
+        return amount > 0 ? { amount, label: `Acumulación ${loyaltyCfg!.earnPercentage}% por recompra` } : null
+    })()
+
+    // El referidor no puede ser el propio comprador ni un tutor inexistente.
+    const referrerOptions = referrerSearch.trim()
+        ? tutors.filter(t =>
+            t.id !== selectedTutor?.id &&
+            t.name.toLowerCase().includes(referrerSearch.trim().toLowerCase())
+          ).slice(0, 8)
+        : []
+    const selectedReferrer = referrerId ? tutors.find(t => t.id === referrerId) : null
+
+    // Con el programa activo, una venta sin tutor es saldo que el cliente
+    // reclamará después y no existe. En Linares eso pasaba en 1 de cada 4 ventas.
+    const tutorRequired = loyaltyActive && subtotal > 0 && !selectedTutor && !allowNoTutor
 
     // Motivo efectivo que se guarda: el chip elegido, o el texto libre si es "Otro".
     const effectiveDiscountReason = reasonChoice === 'Otro' ? reasonOther.trim() : reasonChoice
@@ -310,6 +441,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         e.preventDefault()
         if (finalAmount <= 0 && subtotal <= 0) return
         if (discountReasonMissing) return
+        if (tutorRequired) return
         const allServices = [
             ...selectedServices.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'service' })),
             ...selectedProducts.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'product' })),
@@ -327,6 +459,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
             services:        allServices.length > 0 ? allServices : undefined,
             notes:           notes.trim() || undefined,
             payment_method:  paymentMethod || undefined,
+            loyalty_redeemed: redeemAmount || 0,
+            referrer_id:      canAssignReferrer && referrerId ? referrerId : undefined,
         })
     }
 
@@ -349,7 +483,9 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
 
                     {/* Tutor */}
                     <div className="relative">
-                        <label className="block text-sm font-medium text-charcoal mb-1">Tutor Asociado (Opcional)</label>
+                        <label className="block text-sm font-medium text-charcoal mb-1">
+                            {loyaltyActive ? 'Tutor Asociado' : 'Tutor Asociado (Opcional)'}
+                        </label>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
                             <input
@@ -388,7 +524,157 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                 ⚠ Este ingreso se guardará sin tutor vinculado. Selecciona uno de la lista o borra el texto.
                             </p>
                         )}
+
+                        {/* Sin tutor no hay a quién acreditar los pesos de la venta. */}
+                        {tutorRequired && !tutorNeedsResolution && (
+                            <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                                <p className="text-xs text-amber-700 font-semibold">
+                                    Selecciona el tutor para que la venta acumule sus {loyaltyCfg?.pointsName}.
+                                </p>
+                                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={allowNoTutor}
+                                        onChange={e => setAllowNoTutor(e.target.checked)}
+                                        className="w-3.5 h-3.5 accent-amber-500"
+                                    />
+                                    <span className="text-xs text-amber-700/80">
+                                        Venta sin cliente registrado (no acumula)
+                                    </span>
+                                </label>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Saldo de fidelización y canje */}
+                    {loyaltyActive && selectedTutor && (
+                        <div className={cn(
+                            "rounded-xl border px-4 py-3",
+                            tutorBalance > 0
+                                ? "bg-gradient-to-br from-primary-50 to-emerald-50 border-primary-200"
+                                : "bg-ivory border-silk-beige"
+                        )}>
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <Gift className={cn("w-4 h-4 shrink-0", tutorBalance > 0 ? "text-primary-600" : "text-charcoal/30")} />
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-charcoal/40 leading-none">
+                                            {loyaltyCfg?.pointsName} acumulados
+                                        </p>
+                                        <p className={cn("text-lg font-black leading-tight", tutorBalance > 0 ? "text-primary-700" : "text-charcoal/40")}>
+                                            {formatMoney(tutorBalance)}
+                                        </p>
+                                    </div>
+                                </div>
+                                {tutorBalance > 0 && maxRedeemable > 0 && redeemAmount === 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setLoyaltyRedeemed(maxRedeemable)}
+                                        className="shrink-0 px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700 transition-colors"
+                                    >
+                                        Canjear {formatMoney(maxRedeemable)}
+                                    </button>
+                                )}
+                            </div>
+
+                            {tutorBalance > 0 && maxRedeemable > 0 && (
+                                <div className="mt-3 pt-3 border-t border-primary-200/60">
+                                    <label className="block text-xs font-semibold text-charcoal/70 mb-1.5">
+                                        ¿Desea canjear sus {loyaltyCfg?.pointsName}?
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={maxRedeemable}
+                                            value={loyaltyRedeemed || ''}
+                                            onChange={e => setLoyaltyRedeemed(Number(e.target.value) || 0)}
+                                            placeholder="0"
+                                            className="input-soft flex-1"
+                                        />
+                                        {redeemAmount > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setLoyaltyRedeemed(0)}
+                                                className="px-3 py-2 text-xs font-bold text-charcoal/50 hover:text-red-500 transition-colors"
+                                            >
+                                                Quitar
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p className="text-[11px] text-charcoal/40 mt-1.5">
+                                        Máximo canjeable en esta boleta: {formatMoney(maxRedeemable)}
+                                    </p>
+                                </div>
+                            )}
+
+                            {tutorBalance === 0 && !canAssignReferrer && (
+                                <p className="text-xs text-charcoal/40 mt-1">Aún no tiene saldo acumulado.</p>
+                            )}
+
+                            {/* Primera compra sin referidor registrado: es el único momento
+                                en que el bono de bienvenida y el premio al referidor pueden
+                                pagarse, así que aquí es donde se pregunta. */}
+                            {canAssignReferrer && (
+                                <div className="mt-3 pt-3 border-t border-primary-200/60 relative">
+                                    <label className="block text-xs font-semibold text-charcoal/70 mb-1.5">
+                                        Primera visita — ¿alguien lo recomendó? <span className="font-normal text-charcoal/40">(opcional)</span>
+                                    </label>
+
+                                    {selectedReferrer ? (
+                                        <div className="flex items-center justify-between gap-2 bg-white border border-primary-200 rounded-lg px-3 py-2">
+                                            <span className="text-sm font-semibold text-charcoal truncate">
+                                                Recomendado por {selectedReferrer.name}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setReferrerId(null); setReferrerSearch('') }}
+                                                className="shrink-0 text-charcoal/40 hover:text-red-500 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
+                                            <input
+                                                type="text"
+                                                value={referrerSearch}
+                                                onChange={e => { setReferrerSearch(e.target.value); setShowReferrerDropdown(true) }}
+                                                onFocus={() => setShowReferrerDropdown(true)}
+                                                className="input-soft pl-9"
+                                                placeholder="Buscar quién lo recomendó..."
+                                            />
+                                        </div>
+                                    )}
+
+                                    {showReferrerDropdown && !selectedReferrer && referrerOptions.length > 0 && (
+                                        <div className="absolute z-20 w-full mt-1 bg-white border border-silk-beige rounded-soft shadow-lg max-h-40 overflow-y-auto">
+                                            {referrerOptions.map(t => (
+                                                <div
+                                                    key={t.id}
+                                                    onClick={() => {
+                                                        setReferrerId(t.id)
+                                                        setReferrerSearch('')
+                                                        setShowReferrerDropdown(false)
+                                                    }}
+                                                    className="px-4 py-2 hover:bg-silk-beige cursor-pointer text-sm text-charcoal transition-colors"
+                                                >
+                                                    {t.name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {selectedReferrer && loyaltyCfg && (
+                                        <p className="text-[11px] text-charcoal/50 mt-1.5">
+                                            {selectedReferrer.name} recibirá {formatMoney(loyaltyCfg.referralBonus)} al guardar esta venta.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Servicios */}
                     <div>
@@ -658,7 +944,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
 
                         {subtotal > 0 && (
                             <div className="pt-2 space-y-1 text-sm border-t border-silk-beige">
-                                {discountAmount > 0 && (
+                                {(discountAmount > 0 || redeemAmount > 0) && (
                                     <div className="flex justify-between text-charcoal/50">
                                         <span>Subtotal</span>
                                         <span>{formatMoney(subtotal)}</span>
@@ -670,10 +956,24 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                         <span>−{formatMoney(discountAmount)}</span>
                                     </div>
                                 )}
+                                {redeemAmount > 0 && (
+                                    <div className="flex justify-between text-primary-600">
+                                        <span>{loyaltyCfg?.pointsName} canjeados</span>
+                                        <span>−{formatMoney(redeemAmount)}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between font-bold text-charcoal">
                                     <span>Total a registrar</span>
                                     <span className="text-primary-600">{formatMoney(finalAmount)}</span>
                                 </div>
+                                {loyaltyPreview && (
+                                    <div className="flex items-center gap-1.5 pt-1 text-xs text-emerald-700">
+                                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                                        <span>
+                                            Acumulará <strong>{formatMoney(loyaltyPreview.amount)}</strong> — {loyaltyPreview.label}
+                                        </span>
+                                    </div>
+                                )}
                                 {ivaEnabled && ivaAmount > 0 && (
                                     <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-1">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Desglose IVA incluido</p>
@@ -731,7 +1031,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={(finalAmount <= 0 && subtotal <= 0) || discountReasonMissing}
+                        disabled={(finalAmount <= 0 && subtotal <= 0) || discountReasonMissing || tutorRequired}
                         className="btn-primary disabled:opacity-50"
                     >
                         {isEdit ? 'Guardar cambios' : 'Registrar Ingreso'}
@@ -739,9 +1039,9 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 </div>
             </div>
 
-            {(showTutorDropdown || showServiceDropdown) && (
+            {(showTutorDropdown || showServiceDropdown || showReferrerDropdown) && (
                 <div className="fixed inset-0 z-0"
-                    onClick={() => { setShowTutorDropdown(false); setShowServiceDropdown(false); setShowProductDropdown(false) }} />
+                    onClick={() => { setShowTutorDropdown(false); setShowServiceDropdown(false); setShowProductDropdown(false); setShowReferrerDropdown(false) }} />
             )}
         </div>
     )

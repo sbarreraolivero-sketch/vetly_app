@@ -16,11 +16,22 @@ interface Patient {
     sex: string | null; dob: string | null; is_sterilized: boolean
     vaccines: Vaccine[]; dewormings: Deworming[]; medical_history: MedicalEvent[]
 }
+interface Appt { service: string; appointment_date: string; status: string; patient_name: string }
+interface LoyaltyMovement { type: string; points: number; description: string | null; created_at: string }
 interface PortalData {
     tutor: { name: string; loyalty_points: number; referral_code: string; referral_count: number }
-    clinic: { name: string; phone: string; loyalty_points_name: string | null; loyalty_currency_symbol: string | null; loyalty_enabled: boolean }
+    clinic: {
+        name: string; phone: string
+        loyalty_points_name: string | null; loyalty_currency_symbol: string | null; loyalty_enabled: boolean
+        earn_percentage: number; welcome_bonus: number
+        welcome_bonus_type: 'fixed' | 'percentage'; referral_bonus: number
+    }
     patients: Patient[]
-    appointments: { service: string; appointment_date: string; status: string; patient_name: string }[]
+    /** Citas futuras aún no atendidas. */
+    upcoming: Appt[]
+    /** Citas ya pasadas. */
+    appointments: Appt[]
+    loyalty_movements: LoyaltyMovement[]
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -82,7 +93,9 @@ export default function PetOwnerPortal() {
 
     useEffect(() => {
         if (!code) { setLoading(false); return }
-        ;(publicClient as any).rpc('get_pet_owner_portal', { p_code: code.toUpperCase() })
+        // Sin `.toUpperCase()`: el identificador del carnet es un token base64url
+        // sensible a mayúsculas, no el código de referido de 6 caracteres.
+        ;(publicClient as any).rpc('get_pet_owner_portal', { p_code: code })
             .then(({ data: res, error: e }: any) => {
                 if (e) console.error('[Portal]', e)
                 setData(res ?? null)
@@ -112,7 +125,22 @@ export default function PetOwnerPortal() {
     )
 
     const { tutor, clinic, patients, appointments } = data
+    const upcoming  = data.upcoming ?? []
+    const movements = data.loyalty_movements ?? []
     const sym = clinic.loyalty_currency_symbol || 'pts'
+    const pointsName = clinic.loyalty_points_name || 'Puntos'
+    // El saldo es dinero (1 punto = 1 peso), así que se muestra con separador de miles.
+    const money = (n: number) => new Intl.NumberFormat('es-CL').format(Math.round(n))
+    const welcomeLabel = clinic.welcome_bonus_type === 'percentage'
+        ? `${clinic.welcome_bonus}%`
+        : `${sym}${money(clinic.welcome_bonus)}`
+    const MOVEMENT_LABEL: Record<string, string> = {
+        earn:            'Acumulación por visita',
+        welcome_bonus:   'Bono de bienvenida',
+        referral_reward: 'Bono por referido',
+        redeem:          'Canje',
+        adjustment:      'Ajuste',
+    }
 
     // Gradient styles reutilizables
     const grad = 'from-teal-400 to-cyan-500'
@@ -143,14 +171,40 @@ export default function PetOwnerPortal() {
 
             <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
-                {/* Puntos + referido */}
+                {/* Próximas atenciones — lo primero que un tutor viene a mirar */}
+                {upcoming.length > 0 && (
+                    <GradCard>
+                        <div className={`${gradBg} px-4 py-2.5`}>
+                            <p className="text-[11px] font-black uppercase tracking-widest text-white">Próximas atenciones</p>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {upcoming.map((a, i) => {
+                                const d = new Date(a.appointment_date)
+                                return (
+                                    <div key={i} className="px-4 py-3 flex items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-gray-800 text-sm truncate">{a.service}</p>
+                                            <p className="text-xs text-gray-500 truncate">
+                                                {a.patient_name} · {fmt(a.appointment_date)} · {d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                        <Pill label={statusLabel(a.status)} cls={statusStyle(a.status)} />
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </GradCard>
+                )}
+
+                {/* Saldo + referido */}
                 {clinic.loyalty_enabled && (
                     <GradCard>
                         <div className="flex divide-x divide-gray-100">
                             <div className="flex-1 px-4 py-5 text-center">
-                                <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Saldo</p>
-                                <p className="text-3xl font-black text-gray-800">{tutor.loyalty_points || 0}
-                                    <span className="text-sm font-bold text-teal-500 ml-1">{sym}</span>
+                                <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">{pointsName}</p>
+                                <p className="text-3xl font-black text-gray-800">
+                                    <span className="text-sm font-bold text-teal-500 mr-0.5">{sym}</span>
+                                    {money(tutor.loyalty_points || 0)}
                                 </p>
                             </div>
                             <div className="flex-1 px-4 py-5 text-center">
@@ -158,6 +212,30 @@ export default function PetOwnerPortal() {
                                 <p className="text-3xl font-black text-gray-800">{tutor.referral_count || 0}</p>
                             </div>
                         </div>
+
+                        {/* Reglas vigentes, leídas de la configuración real de la clínica */}
+                        <div className="border-t border-gray-100 px-4 py-3 space-y-1.5">
+                            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Cómo acumulas</p>
+                            {clinic.earn_percentage > 0 && (
+                                <p className="text-xs text-gray-600">
+                                    · <strong>{clinic.earn_percentage}%</strong> de cada atención, desde tu segunda visita.
+                                </p>
+                            )}
+                            {clinic.referral_bonus > 0 && (
+                                <p className="text-xs text-gray-600">
+                                    · <strong>{sym}{money(clinic.referral_bonus)}</strong> cuando alguien que recomiendas se atiende por primera vez.
+                                </p>
+                            )}
+                            {clinic.welcome_bonus > 0 && (
+                                <p className="text-xs text-gray-600">
+                                    · Quien llega con tu enlace recibe <strong>{welcomeLabel}</strong> de bienvenida.
+                                </p>
+                            )}
+                            <p className="text-xs text-gray-400 pt-0.5">
+                                No vencen. Puedes usarlos cuando quieras para pagar parte de tu atención.
+                            </p>
+                        </div>
+
                         <div className="border-t border-gray-100 px-4 py-3">
                             <p className="text-xs text-gray-400 font-medium mb-2">Tu enlace de referido:</p>
                             <button onClick={copyLink} className={`w-full flex items-center justify-between ${gradBg} rounded-xl px-4 py-2.5 active:scale-[.98] transition-transform`}>
@@ -165,6 +243,25 @@ export default function PetOwnerPortal() {
                                 <span className="text-xs font-black text-white/80 ml-2 flex-shrink-0">{copied ? '✓ Copiado' : 'Copiar'}</span>
                             </button>
                         </div>
+
+                        {movements.length > 0 && (
+                            <div className="border-t border-gray-100 px-4 py-3">
+                                <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Últimos movimientos</p>
+                                <div className="space-y-1.5">
+                                    {movements.map((m, i) => (
+                                        <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                                            <div className="min-w-0">
+                                                <p className="text-gray-700 truncate">{MOVEMENT_LABEL[m.type] || m.type}</p>
+                                                <p className="text-gray-400">{fmt(m.created_at)}</p>
+                                            </div>
+                                            <span className={`font-black flex-shrink-0 ${m.points < 0 ? 'text-gray-400' : 'text-emerald-600'}`}>
+                                                {m.points < 0 ? '−' : '+'}{sym}{money(Math.abs(m.points))}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </GradCard>
                 )}
 
@@ -302,7 +399,7 @@ export default function PetOwnerPortal() {
                 {appointments.length > 0 && (
                     <GradCard>
                         <div className="px-4 pt-4 pb-1">
-                            <p className="text-sm font-black text-gray-600">📅 Citas recientes</p>
+                            <p className="text-sm font-black text-gray-600">📅 Atenciones anteriores</p>
                         </div>
                         <div className="divide-y divide-gray-50">
                             {appointments.map((a, i) => {

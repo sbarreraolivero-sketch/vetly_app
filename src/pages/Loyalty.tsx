@@ -79,15 +79,18 @@ export default function Loyalty() {
                     .eq('clinic_id', profile.clinic_id)
                     .order('created_at', { ascending: false })
                     .limit(50),
+                // Fallback a contact_phone: ycloud_phone_number quedó en NULL en las
+                // clínicas migradas a Meta Cloud API, y sin él los enlaces de referido
+                // no llevaban a ninguna parte.
                 (supabase as any)
                     .from('clinic_settings')
-                    .select('ycloud_phone_number')
+                    .select('ycloud_phone_number, contact_phone')
                     .eq('id', profile.clinic_id)
                     .maybeSingle()
             ])
             setSettings(s)
             setTutors(tDataRes.data || [])
-            setClinicPhone(clinicSettingsRes.data?.ycloud_phone_number || '')
+            setClinicPhone(clinicSettingsRes.data?.ycloud_phone_number || clinicSettingsRes.data?.contact_phone || '')
             setRewards(rData || [])
             setTransactions(transDataRes.data || [])
 
@@ -318,7 +321,7 @@ export default function Loyalty() {
                         )}
                         <div className="flex items-center gap-2 text-xs font-bold text-charcoal/40 bg-silk-beige/30 px-4 py-2 rounded-full">
                             <TrendingUp className="w-3 h-3" />
-                            REGLA ACTUAL: {settings?.loyalty_points_percentage}% DE ACUMULACIÓN
+                            REGLA ACTUAL: {settings?.loyalty_points_percentage}% DESDE LA 2ª VISITA
                         </div>
                     </div>
 
@@ -399,9 +402,9 @@ export default function Loyalty() {
                                             <Share2 className="w-3 h-3" />
                                             Referido
                                         </button>
-                                        {tutor.referral_code && (
+                                        {tutor.portal_token && (
                                             <a
-                                                href={`/p/${tutor.referral_code}`}
+                                                href={`/p/${tutor.portal_token}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-full text-xs font-bold hover:bg-primary-100 transition-colors"
@@ -461,7 +464,9 @@ export default function Loyalty() {
                                 <Target className="w-8 h-8 mb-4 text-primary-200" />
                                 <h3 className="text-lg font-bold mb-2 text-white">Manual de Embajadores</h3>
                                 <p className="text-sm text-white/80 mb-4">
-                                    Cada tutor tiene un código único. Cuando un amigo lo mencione o use su link en el Chat IA, ambos reciben beneficios.
+                                    Cada tutor tiene un código único. Cuando un amigo llega con su enlace y
+                                    <strong> se atiende por primera vez</strong>, el referidor gana su bono y el nuevo
+                                    cliente su bienvenida. El premio se paga con la compra, no con el saludo.
                                 </p>
                                 <Link
                                     to="/app/templates"
@@ -685,13 +690,19 @@ export default function Loyalty() {
                             <Trophy className="w-8 h-8 mb-4 text-primary-200" />
                             <h3 className="text-lg font-bold mb-2 text-white">Reglas de Bienvenida</h3>
                             <p className="text-sm text-primary-100 mb-6">
-                                Define cuántos {settings?.loyalty_points_name} recibe un tutor la primera vez que agenda.
+                                Lo que recibe un tutor que llega <strong>con el enlace de un referidor</strong>, en su
+                                primera compra registrada. Un cliente nuevo sin referidor no recibe bienvenida:
+                                empieza a acumular desde su segunda visita.
                             </p>
                             <div className="bg-black/20 rounded-soft p-4 border border-white/10">
                                 <label className="text-xs uppercase font-black mb-2 block tracking-widest text-white/60">Bono Actual</label>
                                 <div className="flex items-center gap-2">
                                     <span className="text-2xl font-black text-white">{settings?.loyalty_welcome_bonus}</span>
-                                    <span className="text-xs text-white/60 uppercase font-bold">{settings?.loyalty_currency_symbol}</span>
+                                    <span className="text-xs text-white/60 uppercase font-bold">
+                                        {settings?.loyalty_welcome_bonus_type === 'percentage'
+                                            ? '% de la primera compra'
+                                            : settings?.loyalty_currency_symbol}
+                                    </span>
                                 </div>
                             </div>
                         </div>

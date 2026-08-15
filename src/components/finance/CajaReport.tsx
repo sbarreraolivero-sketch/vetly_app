@@ -11,6 +11,7 @@ interface IncomeEntry {
     payment_method?: string | null
     tutor_name?: string | null
     notes?: string | null
+    loyalty_redeemed?: number | null
 }
 
 interface ExpenseEntry {
@@ -102,7 +103,7 @@ export function printCajaReport(data: CajaReportData) {
     const incRows = incomes.map(inc => `
         <tr>
             <td>${esc(inc.description) || '—'}${inc.notes ? `<div class="row-note">📝 ${esc(inc.notes)}</div>` : ''}</td>
-            <td>${esc(inc.tutor_name) || 'Sin tutor vinculado'}${inc.discount ? ` · Desc. ${fmt(inc.discount)}` : ''}</td>
+            <td>${esc(inc.tutor_name) || 'Sin tutor vinculado'}${inc.discount ? ` · Desc. ${fmt(inc.discount)}` : ''}${inc.loyalty_redeemed ? ` · Canje ${fmt(inc.loyalty_redeemed)}` : ''}</td>
             <td>${esc(fmtMethod(inc.payment_method))}</td>
             <td class="amount">${fmt(inc.amount ?? 0)}</td>
         </tr>`).join('')

@@ -22,6 +22,8 @@ export interface LoyaltySettings {
     loyalty_points_percentage: number
     loyalty_referral_bonus: number
     loyalty_welcome_bonus: number
+    /** 'percentage' = el bono de bienvenida es un % de la primera compra. */
+    loyalty_welcome_bonus_type: 'fixed' | 'percentage'
     loyalty_program_mode: 'points' | 'money' | 'percentage'
     loyalty_points_name: string
     loyalty_currency_symbol: string
@@ -79,7 +81,7 @@ export const loyaltyService = {
     async getSettings(clinicId: string): Promise<LoyaltySettings> {
         const { data, error } = await supabase
             .from('clinic_settings')
-            .select('loyalty_enabled, loyalty_points_percentage, loyalty_referral_bonus, loyalty_welcome_bonus, loyalty_program_mode, loyalty_points_name, loyalty_currency_symbol')
+            .select('loyalty_enabled, loyalty_points_percentage, loyalty_referral_bonus, loyalty_welcome_bonus, loyalty_welcome_bonus_type, loyalty_program_mode, loyalty_points_name, loyalty_currency_symbol')
             .eq('id', clinicId)
             .single()
         if (error) throw error

@@ -5000,3 +5000,98 @@ Lo que sí está en `messages`: el mensaje "Da lo mismo en que comuna, y cuánto
 **Conclusión:** no hubo ninguna falla de la IA en este hilo. El riesgo real que sí queda expuesto: en un número en coexistencia, si alguien del equipo responde manualmente por la app, **la IA queda completamente ciega a esas respuestas** — no las ve en su historial de contexto. Si el cliente vuelve más tarde, la IA puede repetir preguntas o información ya entregada manualmente, que es exactamente lo que generó la apariencia de "silencio"/desorden en esta conversación. No se aplicó ningún cambio de código para esto — capturar los echoes manuales en `messages` sería un cambio de alcance mayor (revertiría una decisión explícita de sesión 56/57 de ignorarlos) y no se decidió hacerlo esta sesión.
 
 **Regla permanente:** ante un reporte de "la IA no respondió" o "dejó de responder", reconstruir la conversación completa desde `messages` con conversión a hora de Chile antes de asumir una falla — en números conectados por coexistencia, una respuesta visible en la app del teléfono no implica que haya pasado por Vetly ni que la IA la conozca.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 73, 2026-08-13/14)
+
+> Nota de numeración: otra sesión trabajó en paralelo sobre este repo el mismo día y ocupó los números 71 y 72. Esta entrada es de una sesión distinta, dedicada por completo al módulo de Fidelización/Referidos.
+
+### Auditoría del sistema de referidos — nunca atribuyó nada, y por tres causas distintas
+
+**Pedido del usuario:** convertir Fidelización en un programa operativo (acumulación por recompra, bono de bienvenida, premio al referidor, canje en el punto de venta) y auditar por qué aparecían "puntos otorgados a personas que no corresponde".
+
+**Hallazgo que corrige la premisa del reporte:** los 8.600 pts repartidos entre 42 tutores de Linares **no venían del sistema de referidos**. Eran 43 transacciones `welcome_bonus` de 200 pts que el trigger `auto_create_tutor_and_patient_on_complete` otorgaba a **cualquier** cliente al completar su primera cita, viniera referido o no. Evidencia: 100% de `loyalty_transactions` con `type='welcome_bonus'` desde el 2026-06-09, y **0 de 704 tutores con `referred_by IS NOT NULL`** en toda la base.
+
+**Todo el módulo era fachada:** `clinic_settings.loyalty_points_percentage = 5.0` estaba configurado desde hacía meses y **ningún código lo leía** (grep: aparecía solo como texto en `Loyalty.tsx:321`). No existía ninguna funcionalidad de canje.
+
+| # | Bug | Evidencia |
+|---|---|---|
+| 1 | Bono de bienvenida a todo cliente nuevo, sin relación con referidos y sin monto sobre el cual calcular | 43 `welcome_bonus` fijos de 200 pts |
+| 2 | Sin idempotencia: doble bono al mismo tutor | Lilian Avendaño, 2× 200 pts el 2026-07-29 (18:44 y 21:24) |
+| 3 | El referidor cobraba **sin que el referido comprara nunca** | `trigger_handle_tutor_referral_bonus` era `AFTER INSERT ON tutors`: bastaba con que el webhook creara el tutor por upsert con `referred_by` al recibir el código por WhatsApp |
+| 4 | Y a la vez, en el caso más común **no pagaba jamás** | Cuando el tutor ya existía, el webhook hacía `UPDATE tutors SET referred_by` — un trigger INSERT-only no dispara con UPDATE |
+| 5 | **Enlace de referido y carnet digital rotos en ambas clínicas** | `get_referral_link_data` y `get_pet_owner_portal` devolvían `cs.ycloud_phone_number`, en `NULL` desde la migración a Meta (sesiones 57 y 65). Aunque Claudia hubiera repartido los links, no habrían llevado a ninguna parte |
+| 6 | 26% de las ventas de Linares no podría acumular | 47 de 180 ingresos en 60 días con `tutor_id IS NULL` (Santiago: 6 de 180) |
+
+**Costo medido del programa** con volumen real de 60 días: 5% de recompra = **$99.350** entre ambas sucursales (~$50.000/mes). Un referido efectivo cuesta ~$11.750 (15% + $5.000) sobre un ticket promedio de $45.000.
+
+### Reglas del programa (decisión de negocio confirmada con el usuario)
+
+| Evento | Beneficiario | Monto |
+|---|---|---|
+| 1ª compra de un tutor **con** `referred_by` | El comprador | **15%** del monto pagado |
+| 1ª compra de un tutor **con** `referred_by` | El referidor | **$5.000** fijos |
+| 1ª compra **sin** referidor | — | nada |
+| 2ª compra en adelante | El comprador | **5%** del monto pagado |
+| Canje en una venta | El comprador | −monto canjeado |
+
+**Aclaración crítica del usuario que cambió el diseño:** el bono de bienvenida es **exclusivo de clientes que llegan por un enlace de referido**. Un cliente nuevo sin referidor no recibe bienvenida; empieza a acumular desde su segunda compra. La versión previa (bienvenida a todo cliente nuevo) era justamente el bug #1.
+
+Otras decisiones: **ambas sucursales**; base de cálculo = **lo efectivamente pagado** (después de descuento y después de restar el canje, para que los puntos no se reciclen); **reset total a 0**; **tutor obligatorio** en el formulario de venta cuando la acumulación está activa. Modo del programa en ambas: `money` · `Pesos AnimalGrace` · símbolo `$` (1 punto = 1 peso).
+
+### Arquitectura — el motor vive en `incomes`, no en `appointments`
+
+Desde la sesión 44 todo el dinero de Finanzas vive en `incomes`. El motor se enganchó ahí porque es la única fuente con monto.
+
+**RPC `sync_income_loyalty(p_income_id)`** — punto único de verdad, `SECURITY DEFINER` con check `clinic_members`. **Idempotente por reversión + recálculo**, replicando el patrón ya probado de `inventoryService.syncIncomeProductMovements` (sesión 69): revierte del saldo todo lo que esa venta generó antes, lo borra, y recalcula desde el estado actual. Editar o borrar una venta corrige el saldo **automáticamente**, sin lógica de compensación.
+
+Complementos:
+- **`incomes.loyalty_redeemed NUMERIC`** — columna propia, deliberadamente **no** se reutilizó `discount`: el canje no es un descuento comercial y contaminaría el reporte de descuentos construido en la sesión 69.
+- **`loyalty_transactions.income_id`** + índice único parcial `(income_id, type, tutor_id)` — cierra el bug #2 a nivel de BD.
+- **`clinic_settings.loyalty_welcome_bonus_type`** (`fixed`|`percentage`) — el bono era un entero fijo y la regla nueva es un porcentaje; la columna nueva mantiene compatibilidad multi-clínica.
+- Trigger `BEFORE DELETE ON incomes` → revierte el saldo antes de que el FK deje las filas huérfanas.
+- **Doble guarda de "primera compra"**: por fecha *y* por existencia de un `welcome_bonus` previo. Sin la segunda, registrar una venta con fecha retroactiva volvería a pagar bienvenida y premio al referidor.
+- Los RPCs `create_clinic_income`/`update_clinic_income` **llaman al motor ellos mismos** y topean el canje al saldo real. Se hizo dentro del RPC y no desde el frontend a propósito: así ningún camino de escritura puede olvidarse de acreditar los puntos — es el error exacto que dejó `payment_method` sin guardar durante semanas (sesiones 45/46). De paso se les agregó el check de `clinic_members` que no tenían.
+
+**Caminos viejos eliminados:** `trigger_handle_tutor_referral_bonus` + su función (bugs #3 y #4), el bloque de lealtad dentro de `auto_create_tutor_and_patient_on_complete` (bug #1, el resto de la función queda intacto), y la función huérfana `handle_referral_bonus` (insertaba en `loyalty_transactions.patient_id`, columna inexistente).
+
+**Verificación del motor** — 6 escenarios probados con SQL directo en producción, con datos de prueba creados y borrados: primera compra de referido ($100.000 → 15.000 al comprador + 5.000 al referidor con `referral_count=1`), recompra (5% exacto), primera compra sin referidor (0), canje + acumulación sobre el neto, edición del monto (2.500 → 4.000 sin duplicar), triple ejecución del sync (2 transacciones, saldo idéntico), y borrado de la venta (referidor vuelve a 0/0).
+
+### Asignación manual de referidor — cierra el plan Core
+
+**Gap encontrado al responder la pregunta del usuario sobre el plan Core:** la única vía para registrar `referred_by` era el webhook de WhatsApp detectando el código con la IA. **No existía ninguna forma manual en la interfaz.** Consecuencia: en el plan Core (sin IA conversacional) el bono de bienvenida y el premio de $5.000 nunca podrían otorgarse — el sistema de referidos quedaba muerto y solo funcionaba la acumulación por recompra. Y aun con IA, un cliente que llega diciendo "me recomendó Fernanda" por teléfono no podía registrarse.
+
+**Fix:** buscador **"Primera visita — ¿alguien lo recomendó?"** en el modal de venta, que aparece solo cuando es la primera compra del tutor y no tiene referidor (el único momento en que el bono puede pagarse). En `Finance.tsx`, el `UPDATE tutors SET referred_by` corre **antes** de crear el ingreso, con `.is('referred_by', null)` para no pisar una atribución previa — el motor lee ese campo en el mismo INSERT.
+
+**Resumen por plan:** acumulación, canje, carnet digital, historial y panel de Fidelización funcionan **igual en todos los planes** (viven en Finanzas + DB). Lo exclusivo de los planes con IA es la *comunicación* automática: que el agente mencione el programa al cerrar cada cita, entregue la Ficha Digital cuando se la piden, y detecte los códigos de referido solo.
+
+### Frontend
+
+- **`NewIncomeForm.tsx`**: saldo del tutor al seleccionarlo, panel de canje con tope `min(saldo, monto de la boleta)`, botón "Canjear todo", preview de lo que acumulará la venta (15%/5%/nada), línea de canje en el resumen separada del descuento, buscador de referidor, y tutor obligatorio con casilla de escape "Venta sin cliente registrado". El saldo se resuelve en los **tres** caminos de selección de tutor (click, `onBlur`, Enter) — engancharlo solo al click perdería el 26% de los casos (bug de sesión 49).
+- **`PetOwnerPortal.tsx`** (carnet digital, `/p/:code`): **próximas atenciones separadas de las pasadas** (antes iban mezcladas en una lista de 6), reglas vigentes del programa leídas de la configuración real, y últimos 8 movimientos de saldo.
+- **`Loyalty.tsx`**: fallback de teléfono a `contact_phone`, card de "Reglas de Bienvenida" que ahora aclara que es exclusiva de referidos y soporta `%`, textos del programa corregidos.
+- `CajaReport`, `ExportModal`, `financeService`, `loyaltyService` y `get_clinic_incomes_secure`: el canje viaja como línea propia hasta el informe de caja y el export CSV/JSON.
+
+### Webhooks (código local, **sin desplegar**)
+
+Ambos (`meta-whatsapp-webhook` es el canal activo de las dos clínicas desde la sesión 65; `ycloud` por paridad): `referral_code` y `loyalty_points` agregados al SELECT de tutor que ya traía `referred_by`, e inyección de un bloque `[FIDELIZACIÓN — DATOS REALES, no inventar]` en `tutorContext` con el saldo y el enlace de Ficha Digital. **Inyección en contexto, no una tool nueva**: evita gastar una iteración del tool loop en cada consulta de saldo. El texto de `referralContext` ahora anuncia el bono de bienvenida correctamente.
+
+### Estado al cierre — nada desplegado, motor pausado
+
+A pedido explícito del usuario a mitad de sesión ("no subas los cambios a producción, deja solo en local"), el lanzamiento se difiere a un fin de semana sin operación de la clínica, para poder informar a Claudia antes.
+
+- **En producción:** las 7 migraciones (motor, reset, arreglo de enlaces) **ya estaban aplicadas** cuando llegó la instrucción. Se dejaron, pero con **`loyalty_enabled = false` en ambas clínicas** — el motor sale temprano en su primer guardia y no acredita nada. Se reactiva con un `UPDATE` de una línea. Único efecto visible mientras esté apagado: el bloque de saldo/referido del carnet digital no se muestra (esa página lee la misma columna); impacto real nulo porque el portal nunca se promovió.
+- **Sin desplegar y sin commitear:** todo el frontend, ambos webhooks, y el bloque de prompt (preparado en **`scripts/loyalty-prompt-fidelizacion.sql`**, con respaldo a `prompt_backups` incluido, **no ejecutado**).
+- **Orden de lanzamiento acordado:** desplegar frontend → verificar → aplicar el prompt → encender el interruptor. En ese orden, para que nadie acumule saldo antes de que la caja pueda canjearlo.
+- **Pendiente de verificar antes de encender:** el recorrido completo desde la pantalla (registrar una venta real con canje). El motor se validó con 6 escenarios en SQL, pero el flujo end-to-end desde el formulario no lo ejercitó nadie.
+- Respaldos: `loyalty_transactions_backup` y `tutors_loyalty_backup` (label `pre_reset_2026_08_13`).
+
+### Reglas permanentes
+
+- **`sync_income_loyalty` es la única vía automática que acredita puntos.** Cualquier lógica nueva de fidelización debe pasar por ahí, nunca por un trigger paralelo — el sistema anterior tenía tres mecanismos compitiendo y ninguno funcionaba bien.
+- **El premio al referidor se paga con la compra, no con el saludo.** Un trigger `AFTER INSERT ON tutors` no sirve para nada que dependa de una transacción económica: el webhook crea tutores por upsert apenas llega un mensaje.
+- **Un trigger `AFTER INSERT` no cubre el camino `UPDATE`.** El webhook usa `UPDATE` cuando el tutor ya existe, que es el caso más común. Antes de confiar en un trigger, verificar los dos caminos de escritura.
+- **`incomes.loyalty_redeemed` nunca debe fusionarse con `discount`.** Son conceptos distintos: uno es un descuento comercial (con motivo obligatorio y reporte propio desde la sesión 69), el otro es el uso de un pasivo ya devengado.
+- **Todo campo del tutor que la UI necesite debe verificarse contra su RPC de origen.** El saldo llega por `select` directo a `tutors`, pero varias pantallas consumen `get_unified_contacts`, que devuelve un subconjunto de columnas (bug de sesión 52).
+- **Cualquier funcionalidad que dependa de un dato que solo la IA puede capturar necesita una vía manual equivalente**, o queda inutilizable en el plan Core y frágil en el resto. La atribución de referidos era el caso: existía solo por WhatsApp con IA.

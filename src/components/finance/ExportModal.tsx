@@ -218,6 +218,7 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                         tutor: inc.tutor_name || 'Sin tutor vinculado',
                         categoria: CATEGORY_INCOME[inc.category] ?? inc.category,
                         metodo_pago: inc.payment_method || 'N/A',
+                        canje_fidelizacion: inc.loyalty_redeemed || 0,
                         monto: inc.amount,
                     })),
                 }
@@ -251,7 +252,7 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                 lines.push('')
 
                 lines.push('INGRESOS MANUALES')
-                lines.push(`Fecha${sep}Descripción${sep}Tutor${sep}Categoría${sep}Método de Pago${sep}Monto`)
+                lines.push(`Fecha${sep}Descripción${sep}Tutor${sep}Categoría${sep}Método de Pago${sep}Canje fidelización${sep}Monto`)
                 if ((incomesData || []).length > 0) {
                     (incomesData as any[]).forEach(inc => lines.push([
                         inc.date,
@@ -259,6 +260,7 @@ export function ExportModal({ clinicId, clinicName, currency, timezone, onClose 
                         `"${(inc.tutor_name || 'Sin tutor vinculado').replace(/"/g, '""')}"`,
                         CATEGORY_INCOME[inc.category] ?? inc.category,
                         inc.payment_method || 'N/A',
+                        inc.loyalty_redeemed ? `${currency}${fmt(inc.loyalty_redeemed)}` : '',
                         `${currency}${fmt(inc.amount)}`,
                     ].join(sep)))
                 } else lines.push('Sin ingresos manuales en este período')

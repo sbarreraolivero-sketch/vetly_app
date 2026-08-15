@@ -434,9 +434,24 @@ const Finance = () => {
         }
     }
 
-    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+    const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string, loyalty_redeemed?: number, referrer_id?: string }) => {
         if (!clinicId) { toast.error('No se pudo identificar la clínica'); return }
         try {
+            // El referidor debe quedar registrado ANTES de crear la venta: el motor de
+            // fidelización lee `tutors.referred_by` en el mismo INSERT para decidir si
+            // corresponde el bono de bienvenida y el premio al referidor.
+            if (incomeData.referrer_id && incomeData.tutor_id) {
+                const { error: refError } = await (supabase as any)
+                    .from('tutors')
+                    .update({ referred_by: incomeData.referrer_id })
+                    .eq('id', incomeData.tutor_id)
+                    .is('referred_by', null)   // nunca pisar una atribución previa
+                if (refError) {
+                    console.error('Error asignando referidor:', refError)
+                    toast.error('No se pudo registrar quién lo recomendó. La venta se guardará sin el bono de referido.')
+                }
+            }
+
             const created = await financeService.addIncome({
                 clinic_id:       clinicId,
                 description:     incomeData.description,
@@ -450,6 +465,7 @@ const Finance = () => {
                 services:        incomeData.services,
                 notes:           incomeData.notes,
                 payment_method:  incomeData.payment_method,
+                loyalty_redeemed: incomeData.loyalty_redeemed ?? 0,
             } as any)
             if (created?.id) await syncProductStockForIncome(created.id, incomeData.services, incomeData.tutor_id)
             toast.success('Ingreso registrado')
@@ -461,7 +477,7 @@ const Finance = () => {
         }
     }
 
-    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string }) => {
+    const handleUpdateIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string, loyalty_redeemed?: number }) => {
         if (!editingIncome?.id) return
         try {
             await financeService.updateIncome(editingIncome.id, {
@@ -476,6 +492,7 @@ const Finance = () => {
                 services:        incomeData.services,
                 notes:           incomeData.notes,
                 payment_method:  incomeData.payment_method,
+                loyalty_redeemed: incomeData.loyalty_redeemed ?? 0,
             } as any)
             await syncProductStockForIncome(editingIncome.id, incomeData.services, incomeData.tutor_id)
             toast.success('Ingreso actualizado')
