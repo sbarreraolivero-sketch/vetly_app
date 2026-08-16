@@ -324,6 +324,37 @@ const normalizePhone = (phone: string): string => {
 const isValidUUID = (uuid: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 
+// ── ¿La conversación está pausada (tomada por un humano)? ──
+// Debe re-consultarse en CADA punto de control, no una sola vez al recibir el mensaje:
+// entre que llega el mensaje y se envía la respuesta pasan ~25-70s (debounce de 20s +
+// tool loop de OpenAI). Si sólo se chequea al inicio, un clic en "Silenciar IA" hecho
+// dentro de esa ventana se ignora y la IA responde igual — el bug de "no se pausa a la primera".
+// Falla ABIERTO a propósito: si la query falla no bloqueamos al agente, sólo dejamos rastro.
+const isPausedForHuman = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+  from: string,
+): Promise<boolean> => {
+  try {
+    const normalized = normalizePhone(from);
+    const withPlus = `+${normalized}`;
+    const [tutorRes, crmRes] = await Promise.all([
+      sb.from("tutors").select("requires_human")
+        .eq("clinic_id", clinicId)
+        .or(`phone_number.eq.${from},phone_number.eq.${withPlus},phone_number.eq.${normalized}`)
+        .eq("requires_human", true).limit(1),
+      sb.from("crm_prospects").select("requires_human")
+        .eq("clinic_id", clinicId)
+        .or(`phone.eq.${from},phone.eq.${withPlus},phone.eq.${normalized}`)
+        .eq("requires_human", true).limit(1),
+    ]);
+    return ((tutorRes.data?.length ?? 0) > 0) || ((crmRes.data?.length ?? 0) > 0);
+  } catch (e) {
+    console.error("[Meta] isPausedForHuman check failed:", e);
+    return false;
+  }
+};
+
 // ── Save Message (same as ycloud webhook, column ycloud_message_id reused for Meta WAMIDs) ──
 const saveMsg = async (
   sb: ReturnType<typeof createClient>,
@@ -1695,26 +1726,13 @@ Deno.serve(async (req) => {
             return;
           }
 
-          // requires_human check
-          // Usa .or() con variantes con/sin "+" en tutors (igual que ycloud-whatsapp-webhook) —
-          // un match exacto contra "from" crudo podía dejar pasar la IA con un cliente pausado
-          // si el phone_number guardado no calzaba byte-a-byte.
           const normalizedFrom = normalizePhone(from);
           const searchPhone = from.startsWith("+") ? from : `+${from}`;
           const searchPhoneNoPlus = from.startsWith("+") ? from.substring(1) : from;
-          const { data: tutorCheck } = await sb.from("tutors").select("requires_human")
-            .eq("clinic_id", clinic.id)
-            .or(`phone_number.eq.${from},phone_number.eq.${searchPhone},phone_number.eq.${searchPhoneNoPlus}`)
-            .limit(1).maybeSingle();
-          const { data: crmCheck } = await sb.from("crm_prospects").select("requires_human")
-            .eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom}`).limit(1).maybeSingle();
-          if (tutorCheck?.requires_human || crmCheck?.requires_human) {
-            console.log(`[Meta] requires_human=true for ${from}, skipping AI`);
-            return;
-          }
 
-          // Reset IA command — mismas frases que ycloud-whatsapp-webhook para consistencia
-          // con el personal ya entrenado en el flujo viejo.
+          // Reset IA command — DEBE ir antes del chequeo de requires_human: si se evalúa
+          // después, el `return` de la pausa lo vuelve inalcanzable justo en el único
+          // escenario en que sirve (conversación pausada que se quiere reactivar).
           const lowerBody = body.toLowerCase().trim();
           if (
             lowerBody === "/reset ia" || lowerBody === "reset ia" ||
@@ -1727,6 +1745,13 @@ Deno.serve(async (req) => {
             return;
           }
 
+          // requires_human — punto de control 1 de 3 (ver isPausedForHuman).
+          // Este ahorra el debounce cuando la conversación ya venía pausada.
+          if (await isPausedForHuman(sb, clinic.id, from)) {
+            console.log(`[Meta] requires_human=true for ${from}, skipping AI (pre-debounce)`);
+            return;
+          }
+
           // Debounce 20 seconds
           await new Promise(r => setTimeout(r, 20000));
 
@@ -1736,6 +1761,13 @@ Deno.serve(async (req) => {
             .eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
           if (latestMsg && msgRowId && latestMsg.id !== msgRowId) {
             console.log(`[Meta asyncProcess] Debounced: ${msgRowId} not latest (${latestMsg.id})`);
+            return;
+          }
+
+          // requires_human — punto de control 2 de 3: capta el clic en "Silenciar IA"
+          // ocurrido durante los 20s de debounce.
+          if (await isPausedForHuman(sb, clinic.id, from)) {
+            console.log(`[Meta] requires_human=true for ${from}, skipping AI (post-debounce)`);
             return;
           }
 
@@ -1898,16 +1930,44 @@ Deno.serve(async (req) => {
               (p: any) => Array.isArray(p.allowed_sectors) && p.allowed_sectors.length > 0,
             );
             if (activePlan.length > 0) {
+              // Cada fecha se etiqueta con su distancia al día de hoy. Sin esto, el
+              // modelo tomaba el PRIMER día de la lista como si fuera "hoy" y corría
+              // todo el marco temporal un día (bug real: un domingo ofreció "hoy,
+              // lunes 17" y agendó como "mañana" una cita que caía pasado mañana).
+              // El desfase aparecía cuando hoy es día cerrado y por lo tanto no
+              // figura en el plan, dejando al modelo sin ancla visible.
+              const dayDiff = (iso: string) => Math.round(
+                (Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${localDateISO}T12:00:00Z`)) / 86400000,
+              );
+              const relLabel = (iso: string) => {
+                const n = dayDiff(iso);
+                if (n === 0) return " [HOY]";
+                if (n === 1) return " [MAÑANA]";
+                if (n === 2) return " [PASADO MAÑANA]";
+                return ` [en ${n} días]`;
+              };
               const planLines = activePlan.map((p: any) => {
                 const label = new Date(`${p.date}T12:00:00`).toLocaleDateString("es-CL", {
                   weekday: "long", day: "numeric", month: "long",
                 });
-                return `- ${label} (${p.date}): SOLO sector ${p.allowed_sectors.join(" y ")}${p.note ? ` — ${p.note}` : ""}`;
+                return `- ${label} (${p.date})${relLabel(p.date)}: SOLO sector ${p.allowed_sectors.join(" y ")}${p.note ? ` — ${p.note}` : ""}`;
               }).join("\n");
+
+              // Si hoy no aparece en el plan, decirlo explícitamente: el hueco es
+              // justo lo que llevaba al modelo a re-anclar el "hoy" en otra fecha.
+              const todayKeyEn = now.toLocaleDateString("en-US", { timeZone: clinicTz, weekday: "long" }).toLowerCase();
+              const todayHours = (clinic.working_hours || {})[todayKeyEn];
+              const todayClosed = !todayHours || todayHours.closed || todayHours.enabled === false;
+              const todayInPlan = activePlan.some((p: any) => p.date === localDateISO);
+              const todayNote = todayInPlan
+                ? ""
+                : `\n- ${todayDay} ${localDateISO} [HOY]: ${todayClosed ? "CERRADO, no se atiende" : "sin restricción de sector (logística normal)"}.`;
 
               routePlanBlock = `
 ⚠️ PLAN DE RUTA DEL MÓVIL — PRIORIDAD MÁXIMA (POR SOBRE CUALQUIER OTRA REGLA DE SECTORES) ⚠️
-El equipo definió por qué sector se recorre en estas fechas puntuales. Es inviolable:
+Referencia temporal: HOY es ${todayDay} ${localDateISO}. Esta lista NO empieza necesariamente hoy.
+Cada fecha trae entre corchetes su relación con el día de hoy: usa ESA etiqueta y nunca llames "hoy" ni "mañana" a una fecha que no la tenga.
+El equipo definió por qué sector se recorre en estas fechas puntuales. Es inviolable:${todayNote}
 ${planLines}
 
 Cómo aplicarlo:
@@ -2046,6 +2106,14 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
 
           const reply = assistant?.content || "Error. ¿Puedes repetir?";
 
+          // requires_human — punto de control 3 de 3: última barrera antes de enviar.
+          // El tool loop de OpenAI puede tardar decenas de segundos; sin este chequeo,
+          // un clic en "Silenciar IA" hecho mientras el modelo razonaba se ignoraría.
+          if (await isPausedForHuman(sb, clinic.id, from)) {
+            console.log(`[Meta] requires_human=true for ${from}, discarding reply (pre-send)`);
+            return;
+          }
+
           await saveMsg(sb, clinic.id, from, reply, "outbound", {
             ai_generated: true,
             ai_function_called: allFuncResults.length > 0 ? allFuncResults.map(r => r.name).join(", ") : null,
@@ -2058,6 +2126,8 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
         } catch (err) {
           console.error("Meta Async Process Error:", err);
           await debugLog(sb, "Meta Async Process Error", { error: (err as Error).message, phone: from });
+          // No molestar con un aviso de error si la conversación ya fue tomada por un humano.
+          if (await isPausedForHuman(sb, clinic.id, from)) return;
           const fallbackReply = "Lo siento, tuve un problema técnico procesando tu mensaje. Por favor intenta consultarme en unos minutos.";
           await saveMsg(sb, clinic.id, from, fallbackReply, "outbound", { error_fallback: true }, targetModel);
           await sendMetaMessage(clinic.meta_phone_number_id, clinic.meta_access_token, from, fallbackReply)

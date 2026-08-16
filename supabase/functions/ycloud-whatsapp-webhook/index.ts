@@ -540,6 +540,37 @@ const normalizePhone = (phone: string): string => {
   return phone.replace(/\D/g, "");
 };
 
+// ── ¿La conversación está pausada (tomada por un humano)? ──
+// Debe re-consultarse en CADA punto de control, no una sola vez al recibir el mensaje:
+// entre que llega el mensaje y se envía la respuesta pasan ~25-70s (debounce de 20s +
+// tool loop de OpenAI). Si sólo se chequea al inicio, un clic en "Silenciar IA" hecho
+// dentro de esa ventana se ignora y la IA responde igual.
+// Falla ABIERTO a propósito: si la query falla no bloqueamos al agente.
+const isPausedForHuman = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+  from: string,
+): Promise<boolean> => {
+  try {
+    const normalized = normalizePhone(from);
+    const withPlus = `+${normalized}`;
+    const [tutorRes, crmRes] = await Promise.all([
+      sb.from("tutors").select("requires_human")
+        .eq("clinic_id", clinicId)
+        .or(`phone_number.eq.${from},phone_number.eq.${withPlus},phone_number.eq.${normalized}`)
+        .eq("requires_human", true).limit(1),
+      sb.from("crm_prospects").select("requires_human")
+        .eq("clinic_id", clinicId)
+        .or(`phone.eq.${from},phone.eq.${withPlus},phone.eq.${normalized}`)
+        .eq("requires_human", true).limit(1),
+    ]);
+    return ((tutorRes.data?.length ?? 0) > 0) || ((crmRes.data?.length ?? 0) > 0);
+  } catch (e) {
+    console.error("[isPausedForHuman] check failed:", e);
+    return false;
+  }
+};
+
 const getClinic = async (
   sb: ReturnType<typeof createClient>,
   phone: string,
@@ -3849,6 +3880,13 @@ Deno.serve(async (req) => {
           return;
         }
 
+        // requires_human — re-chequeo post-debounce: capta el clic en "Silenciar IA"
+        // ocurrido durante los 20s de espera.
+        if (await isPausedForHuman(sb, clinic.id, from)) {
+          console.log(`[asyncProcess] requires_human=true for ${from}, skipping AI (post-debounce)`);
+          return;
+        }
+
         // --- GENERIC LOGISTICS ENGINE ---
         let logisticsConfig: any = clinic.logistics_config || null;
         try {
@@ -4081,16 +4119,38 @@ Deno.serve(async (req) => {
             (p: any) => Array.isArray(p.allowed_sectors) && p.allowed_sectors.length > 0,
           );
           if (activePlan.length > 0) {
+            // Ver meta-whatsapp-webhook para el detalle: sin la etiqueta relativa el
+            // modelo tomaba el primer día del plan como "hoy" y corría todo un día.
+            const dayDiff = (iso: string) => Math.round(
+              (Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${localDateISO}T12:00:00Z`)) / 86400000,
+            );
+            const relLabel = (iso: string) => {
+              const n = dayDiff(iso);
+              if (n === 0) return " [HOY]";
+              if (n === 1) return " [MAÑANA]";
+              if (n === 2) return " [PASADO MAÑANA]";
+              return ` [en ${n} días]`;
+            };
             const planLines = activePlan.map((p: any) => {
               const label = new Date(`${p.date}T12:00:00`).toLocaleDateString("es-CL", {
                 weekday: "long", day: "numeric", month: "long",
               });
-              return `- ${label} (${p.date}): SOLO sector ${p.allowed_sectors.join(" y ")}${p.note ? ` — ${p.note}` : ""}`;
+              return `- ${label} (${p.date})${relLabel(p.date)}: SOLO sector ${p.allowed_sectors.join(" y ")}${p.note ? ` — ${p.note}` : ""}`;
             }).join("\n");
+
+            const todayKeyEn = now.toLocaleDateString("en-US", { timeZone: clinicTz, weekday: "long" }).toLowerCase();
+            const todayHours = (clinic.working_hours || {})[todayKeyEn];
+            const todayClosed = !todayHours || todayHours.closed || todayHours.enabled === false;
+            const todayInPlan = activePlan.some((p: any) => p.date === localDateISO);
+            const todayNote = todayInPlan
+              ? ""
+              : `\n- ${todayDay} ${localDateISO} [HOY]: ${todayClosed ? "CERRADO, no se atiende" : "sin restricción de sector (logística normal)"}.`;
 
             routePlanBlock = `
 ⚠️ PLAN DE RUTA DEL MÓVIL — PRIORIDAD MÁXIMA (POR SOBRE CUALQUIER OTRA REGLA DE SECTORES) ⚠️
-El equipo definió por qué sector se recorre en estas fechas puntuales. Es inviolable:
+Referencia temporal: HOY es ${todayDay} ${localDateISO}. Esta lista NO empieza necesariamente hoy.
+Cada fecha trae entre corchetes su relación con el día de hoy: usa ESA etiqueta y nunca llames "hoy" ni "mañana" a una fecha que no la tenga.
+El equipo definió por qué sector se recorre en estas fechas puntuales. Es inviolable:${todayNote}
 ${planLines}
 
 Cómo aplicarlo:
@@ -4467,6 +4527,13 @@ ${surveyFeedbackContextBlock}`;
         const diagnosticLine = "";
 
         const finalReply = diagnosticLine + reply;
+
+        // requires_human — última barrera antes de enviar: el tool loop de OpenAI puede
+        // tardar decenas de segundos y el clic en "Silenciar IA" pudo ocurrir mientras tanto.
+        if (await isPausedForHuman(sb, clinic.id, from)) {
+          console.log(`[asyncProcess] requires_human=true for ${from}, discarding reply (pre-send)`);
+          return;
+        }
 
         await saveMsg(sb, clinic.id, from, finalReply, "outbound", {
           ai_generated: true,
