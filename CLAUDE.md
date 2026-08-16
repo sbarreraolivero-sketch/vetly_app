@@ -5181,3 +5181,236 @@ Estado final: 0 transacciones, 0 saldos, base limpia. Santiago quedó con `ai_au
 - **Un monitor con un solo canal de salida no es un monitor.** Registrar siempre el hallazgo de forma persistente antes de intentar entregarlo, y tener un canal alternativo. El de Vetly detectó correctamente y no avisó a nadie porque su número había dejado de existir.
 - **Al verificar un deploy, buscar el marcador en el chunk correcto.** Los cambios de una página lazy no alteran `index-*.js`; buscar ahí produce falsos negativos.
 - **`is_clinic_member(clinic_id)` es el helper estándar** para RLS por clínica: ya contempla al platform admin, así que no hay que añadir una policy aparte para el panel HQ.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 75, 2026-08-16)
+
+Implementación de la **estrategia Core-led**: el plan Core a US$17 como canal de distribución, no como línea de ingreso. La apuesta se juega en la tasa de upgrade de Core hacia los planes con IA, y el producto tenía tres bloqueos que la impedían (1 usuario, 0 recordatorios, y recordatorios automáticos inutilizables el día 1 porque requieren Embedded Signup de Meta + plantillas aprobadas).
+
+### Fuente única de verdad de planes — se acabaron las 8 definiciones divergentes
+
+El mapeo plan→límites estaba duplicado en 8 lugares con valores distintos y distinto grado de soporte de los IDs nuevos. Ahora son **dos**, con la DB como autoridad del backend:
+
+| Capa | Dónde | Rol |
+|---|---|---|
+| **DB** | tabla `plan_limits` | Autoridad. La leen `invite_member_v2` y las edge functions |
+| **Backend** | `supabase/functions/_shared/planLimits.ts` | `limitsForPlan(sb, plan)` — consulta la tabla, cae a constantes locales si falla |
+| **Frontend** | `src/lib/plans.ts` | Espejo + mapa de capacidades (`PAGE_MIN_PLAN`) |
+
+**Si cambias un límite:** `UPDATE plan_limits ...` y el espejo en `src/lib/plans.ts`. Nada más.
+
+**Límites vigentes:**
+
+| Plan | Usuarios | Agendas | Recordatorios/mes | Créditos IA | 2h |
+|---|---:|---:|---:|---:|:--:|
+| Core | **3** | 1 | **25** | 0 | ❌ |
+| Starter | **5** | 3 | 100 | 5.000 | ✅ |
+| Pro | **10** | 5 | 250 | 10.000 | ✅ |
+| Enterprise | ∞ | ∞ | ilimitado | 30.000 | ✅ |
+
+Se eliminaron `maxUsers`/`maxAgendas`/`monthlyAppointments*` de `PLANS` (mercadopago.ts) y `PADDLE_PLANS` (paddle.ts): **nadie los leía**, eran datos duplicados muertos. Esos objetos ahora solo definen precio, `priceId` y textos.
+
+Edge functions migradas a `limitsForPlan`: `paddle-webhook` (v13), `mercadopago-webhook` (v23), `mercadopago-create-subscription` (v24), `signup-handler` (v28), `cron-process-reminders` (v33).
+
+### Bugs preexistentes corregidos de paso (estaban en la ruta tocada)
+
+- **`mercadopago-webhook` escribía `trial_ends_at`, columna que NO existe en `subscriptions`.** El UPDATE completo fallaba, así que **ningún pago de MercadoPago llegaba a activarse**. Mismo bug en el upsert de `mercadopago-create-subscription`. Detectado en sesión 68 y documentado como "no corregido"; corregido aquí porque estaba dentro del bloque que había que modificar.
+- **`mercadopago-webhook` daba `max_users: 2` a un Enterprise** (su CASE solo entendía IDs legacy).
+- **`signup-handler` daba 1.000 créditos y 2 usuarios a toda cuenta nueva**, sin importar el plan, por la misma razón.
+- **`paddle-webhook` no reescribía límites en `subscription.updated`**: un upgrade dentro de Paddle dejaba `max_users`/`monthly_reminders_limit` con los valores del plan viejo. Ahora los reescribe cuando el evento trae el plan en `custom_data`.
+- **`mercadopago-webhook` solo escribía `plan_id`, no `plan`** — las dos columnas quedaban discrepando (AuthContext lee `plan`, Settings lee `plan_id`). Ahora escribe ambas.
+- **Dashboard pintaba `message.contact_phone`** pero el select trae `phone_number`: salía siempre `undefined`.
+
+### Gating por plan — infraestructura nueva (antes no existía ninguna)
+
+Todo el sistema de guards era **por rol**; el único componente de plan (`PremiumFeature`) vivía en `RetentionEngine.tsx`, que está comentado en `App.tsx` y no tiene ruta. O sea: **el plan no bloqueaba nada.**
+
+| Pieza nueva | Rol |
+|---|---|
+| `src/hooks/usePlan.ts` | `planId`, `limits`, `meetsPlan()`, `pageAllowed()` |
+| `src/components/common/PlanGate.tsx` | Bloquea contenido con candado + CTA. Exporta `UPGRADE_URL` y `PlanUpgradeScreen` |
+| `src/components/auth/PlanGuard.tsx` | Guard de ruta que **renderiza pantalla de upgrade, no redirige** |
+
+`PremiumFeature.tsx` eliminado (sus 3 usos migrados). Corregía dos bugs suyos: enlazaba a `/settings?tab=subscription` (pierde el query param en el redirect legacy de `App.tsx`) y trataba cualquier `status` fuera de active/trial como "sin plan".
+
+**⚠️ REGLA DE NO-REGRESIÓN — `resolveEffectivePlan` en `src/lib/plans.ts`.** El orden importa:
+1. `manually_active` ⇒ acceso total. Animalgrace paga por transferencia con `plan='essence'`/`plan_id='prestige'`; sin esta regla perdería Mensajes y Ajustes IA.
+2. Trial ⇒ acceso total (`AuthContext` devuelve un `{status:'trial', plan:'trial'}` sintético cuando no hay fila).
+3. En otro caso, **`plan_id` manda sobre `plan`**.
+
+**Bloqueado en Core:** Mensajes, Ajustes IA, CRM (`PAGE_MIN_PLAN`). El nav los muestra apagados con candado en vez de ocultarlos — cada bloqueo es un punto de contacto de venta. En Dashboard se bloquean las KPI `CONVERSACIONES ÚNICAS`, `MENSAJES DE IA` y `TIEMPO AHORRADO`, más las tarjetas Mensajes Recientes, Conversión y NPS.
+
+### Recordatorios manuales por `wa.me` — el mecanismo principal de Core
+
+Un cliente Core nuevo **no puede usar recordatorios automáticos el día 1**: requieren Embedded Signup de Meta y plantillas aprobadas (a Vetly le tomó ~48 h y borrar una WABA conectar Linares). El link `wa.me` no necesita nada de eso, no cuesta un centavo a ningún volumen y funciona desde el teléfono.
+
+- **`ManualReminderPanel`** (`src/components/reminders/`) — primer tab de `/app/reminders` ("Enviar hoy"), por defecto **mañana**. Una fila por cita con botón Enviar; las ya enviadas muestran check y "Reenviar".
+- Registra en `reminder_logs` con `type: 'manual_wa'` (verificado en la DB viva: **no hay CHECK constraint** en esa columna).
+- **Nueva policy de INSERT en `reminder_logs`** — solo tenía SELECT, porque hasta ahora solo escribía el cron con service_role.
+- **El envío manual NO consume el pool.** No hay llamada a la API de WhatsApp ni costo de conversación; cobrarlo penalizaría al usuario por hacer el trabajo a mano.
+- **`reminder_settings.manual_wa_template`** — texto libre con placeholders con nombre (`{tutor}`, `{paciente}`, `{servicio}`, `{fecha}`, `{hora}`, `{clinica}`). No es plantilla de Meta: sin aprobación.
+- **Aviso de upgrade desde datos propios**: a partir de 10 envíos manuales al mes, *"Enviaste N recordatorios a mano este mes. Automatizarlos toma 3 minutos."* El KPI de Dashboard muestra el desglose `🤖 automáticos · 👤 manuales`.
+- **`Appointments.tsx`**: el botón de WhatsApp por fila invocaba `send-whatsapp-reminder`, que **falla sin canal conectado** — el caso de todo Core. Ahora detecta el canal (mismo criterio que el cron) y cae al `wa.me` con registro.
+- **Guard de 2h en el cron**: el toggle está bloqueado en la UI, pero la API es alcanzable — el corte real va en `cron-process-reminders` PART 2 contra `allows_2h_reminder`.
+
+⚠️ **Abrir `window.open` ANTES de cualquier `await`.** Si se abre después de una promesa, el navegador lo trata como popup no solicitado y lo bloquea.
+
+### Anual de Core (solo Paddle sandbox)
+
+`PADDLE_PLANS` tenía `annualTotal` pero **un solo `priceId`**: el anual era texto, no comprable.
+
+| Objeto | ID |
+|---|---|
+| Precio anual Core (lista US$390) | `pri_01m04es6yggebc98sznwmnmfx1` |
+| Descuento `LANZAMIENTO17ANUAL` (US$220 off → US$170) | `dsc_01m04eswyktrvqq4vhtksfspax` |
+
+`priceIdAnnual` en `PADDLE_PLANS`, `openPaddleSubscriptionCheckout(..., period)`, toggle Mensual/Anual en Settings (solo modalidad internacional), y columna `subscriptions.billing_period`. **El anual mantiene el ancla de US$390 con cupón**, igual que el mensual mantiene US$39 — no se baja el precio de lista.
+
+### Estado y pendientes
+
+- **No hay ningún cliente real en Core**: Animalgrace ×2 es `manually_active`; "Clinica de prueba Core" está en plan `pro`. Cero riesgo de backfill.
+- Verificado: `anon` no lee ni escribe `reminder_logs`; `get_advisors` sin ERRORES (los 190 WARN son los tipos históricos del proyecto); build desde checkout limpio de git correcto y marcadores presentes en los chunks lazy correctos.
+- **Sin commitear**: todo esto convive con el backlog de Paddle de sesiones 63-68. **`src/lib/paddle.ts` está untracked y 5 páginas lo importan** — commitear lo de esta sesión por separado rompería el build en Vercel (trampa de la sesión 69). Va todo junto o nada.
+- Las tres migraciones se aplicaron vía MCP, que asigna su propio timestamp. Los archivos locales se renombraron para coincidir (`20260816045207`, `20260816045900`, `20260816050943`) y así `db push` no intente reaplicarlas. Son idempotentes de todos modos.
+
+---
+
+## Pendientes tras la sesión 75 — plan Core
+
+Lo que quedó fuera de alcance, con lo que hace falta para cerrarlo. Ordenado por lo que bloquea el lanzamiento.
+
+### 🔴 Bloqueante — sin esto, Core no se puede abrir al público
+
+| # | Pendiente | Por qué bloquea |
+|---|---|---|
+| 1 | **Core autoservicio de punta a punta** + prueba de 30 días sin tarjeta (spec de la sesión 66, nunca implementada) | «Implementación llave en mano incluida» sigue en la tabla de objeciones de `product-marketing.md`. A US$89 se sostiene; a US$17 dos horas de configuración cuestan más que los primeros cinco meses de suscripción, y a cien altas al mes es inejecutable. |
+| 2 | **Publicar el primer módulo de formación en marketing** | El ICP definido el 2026-06-04 dice que los independientes sin clientela «se pierden en 30 días». La formación ataca la causa de la fuga y es lo que convierte los US$17 en membresía en vez de software barato. Un módulo grabado vale más que seis planificados. |
+| 3 | **Peldaño de US$39 con IA inicial** (producto + precio + descuento en Paddle) | De US$17 a US$89 hay un salto de **5,2×**. La expansión en SaaS funciona con saltos de 2–3×; a partir de ahí el cliente no escala, reevalúa el mercado. Ataca directamente la única métrica de la que depende toda la apuesta. Contenido sugerido: ~1.500 créditos IA + 100 recordatorios + análisis de facturas (que Core hoy no puede usar porque cuesta 20 créditos y tiene 0). |
+
+### 🟡 Antes de gastar en publicidad
+
+- **Instrumentar la tasa de upgrade**: qué % de Core sube de plan, a los cuántos días, y qué hizo en el producto antes. Hoy no se mide, y es la métrica que decide si la estrategia funciona. También define cuánto se puede gastar en adquirir: **CAC máximo US$46 sin upgrades, US$185 si un cuarto escala**.
+- **Abrir `LANZAMIENTO17` por oleadas.** El cupón tiene tope de **100 usos**, corto para una estrategia cuyo objetivo declarado es abarcar al mayor número posible. Subirlo por tramos (100 → 250 → 500), cada uno anunciado como lanzamiento propio: cada oleada agotada es prueba social y contenido.
+- **Pedir cotización a GVET como cliente potencial.** No publican precios. La afirmación «Vetly supera a GVET» sostiene parte del posicionamiento y sigue siendo hipótesis. Sami sí está verificado: Essentials US$29 con 5 usuarios; su IA está en el plan de ~US$67, más barato que el Starter de Vetly (defensa: la IA de Sami le dicta la ficha al veterinario, la de Vetly le contesta y le agenda al cliente).
+- **Revisar el incentivo de referidos B2B.** Paga «2 meses gratis» al referidor cuando el referido toma Core: con Core a US$17 eso vale **US$34**, probablemente insuficiente para mover a alguien. Considerar expresarlo en créditos de IA, que además empujan al upgrade.
+- **Definir la política de agravio comparativo** antes de que exista: qué pasa cuando un cliente pagando US$89 vea a otro entrar por US$17.
+
+### 🟡 Verificaciones que no se pudieron hacer en esta sesión
+
+Requieren navegador o sesión autenticada real. Lo que sí se verificó: `anon` no lee ni escribe `reminder_logs` (401), `get_advisors` sin ERRORES, build desde checkout limpio con marcadores en los chunks lazy correctos, y las policies/RPC leyendo de `plan_limits`.
+
+- [ ] Bajar la clínica de prueba a `core` y comprobar en Equipo que el tope es 3; invitar a un 4.º usuario debe fallar **en el RPC**, no solo en la UI.
+- [ ] Con esa clínica en `core`, verificar visualmente el candado en el sidebar, la pantalla de upgrade por enlace directo y las 6 tarjetas bloqueadas del Dashboard. **Y con Animalgrace, que todo siga accesible.**
+- [ ] Enviar un recordatorio manual real desde el móvil (es donde importa el flujo) y confirmar la fila `manual_wa` en `reminder_logs`.
+- [ ] Intento de INSERT cross-clínica con sesión autenticada real (patrón de la sesión 74: `/auth/v1/token` + REST).
+- [ ] Dry-run del cron contra una clínica `core`: debe respetar el tope de 25 y saltar PART 2.
+- [ ] Checkout anual de sandbox completo → confirmar `billing_period='year'` y `current_period_end` a +1 año.
+
+### 🟢 Deuda técnica encontrada y NO corregida
+
+- **`create_clinic_branch` no valida el plan.** ⚠️ *Corrige la descripción del informe de exploración, que venía del archivo de migración: la versión viva en la DB ya está bastante más sana.* Sí tiene el límite de 3 sucursales, sí usa `America/Santiago` y crea la sucursal como `enterprise` con `max_users = 999999` (no `prestige` con `-1`). **Lo que falta:** cualquier owner —incluido uno en Core— puede crear hasta 2 sucursales adicionales, y cada una nace como Enterprise con usuarios ilimitados. El agujero está acotado a 3, no es ilimitado, pero un cliente de US$17 puede triplicar su cuenta gratis. El fix natural ahora es leer `plan_limits` (haría falta añadir `max_branches` a la tabla).
+- **Bypass de 3 emails hardcodeado** en `SubscriptionGuard.tsx`, `DashboardLayout.tsx` y `PendingActivation.tsx` (tres archivos, no dos).
+- **`monthly_appointments_limit` no se enforcea.** Verificado: `monthly_appointments_used` solo se escribe a 0 en los webhooks y se lee para mostrarlo en Settings — **nunca se compara contra el límite**. El «100 citas con IA/mes» del plan Starter es hoy un texto de marketing sin respaldo en código.
+- **Columnas muertas en `reminder_settings`**: `reminder_1h_before`, `template_1h`, `confirmation_days_before`, `followup_enabled`, `reminder_message`. Verificado que solo aparecen en `src/types/database.ts` — ningún código las lee. Candidatas a borrar.
+- **`knowledge_base` queda accesible en Core.** No estaba entre las secciones que el usuario eligió bloquear. Es una línea en `PAGE_MIN_PLAN` si se quiere cerrar; se dejó abierto a propósito para no exceder lo pedido.
+- **Costo real de un recordatorio bajo Meta, sin verificar.** La cifra documentada de US$0,05–0,09 por mensaje viene de la época de YCloud. Con Meta Cloud API el esquema cambió y no se revalidó — afecta al cálculo de margen de los 25 recordatorios de Core.
+- **Precios CLP sin reconciliar** en `src/lib/mercadopago.ts` (pendiente desde la sesión 66): Enterprise muestra `$282.000` mientras `product-marketing.md` documenta `$333.000`. Mismo tipo de inconsistencia que se corrigió del lado USD.
+
+### 🟢 Paddle — producción
+
+El catálogo anual y el cupón `LANZAMIENTO17ANUAL` existen **solo en sandbox**. Cuando se apruebe el KYB: recrear producto anual + descuento en la cuenta live, actualizar `priceIdAnnual` y `LAUNCH_DISCOUNT_ID_ANNUAL` en `src/lib/paddle.ts`, y cambiar `VITE_PADDLE_ENVIRONMENT`/`PADDLE_ENVIRONMENT` a `production`. El anual en MercadoPago (CLP) no se tocó — hoy avisa que solo está disponible en la modalidad internacional.
+
+### Reglas permanentes
+
+- **Los límites de plan viven en `plan_limits` + `src/lib/plans.ts`. En ningún otro lugar.** Si vas a escribir un `CASE WHEN plan = ...`, ya te equivocaste.
+- **`resolveEffectivePlan` es el único resolvedor de plan efectivo.** `manually_active` y trial ⇒ acceso total, siempre antes de evaluar el plan.
+- **El rol oculta; el plan bloquea con CTA.** `usePermissions` (rol) y `usePlan` (plan) son ortogonales y deben cumplirse ambos.
+- **`window.open` para `wa.me` va antes del `await`**, o el navegador lo bloquea.
+- **Al añadir una página al nav**: su `pageKey` va en `ROLE_DEFAULTS` (rol) y, si requiere plan, en `PAGE_MIN_PLAN` (plan).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 76, 2026-08-16)
+
+### La IA se corría un día: el plan de ruta re-anclaba el "hoy" del modelo
+
+**Reporte:** Claudia pausó la IA de Linares porque estaba alucinando con las fechas — asumía que hoy era lunes siendo domingo.
+
+**Síntoma (3 casos reales del domingo 16, todos Linares, todos `4o_pro`):**
+
+| Hora Chile | Dijo la IA | Correcto |
+|---|---|---|
+| 10:10 | "**Hoy, lunes 17** de agosto… en Talca" | Hoy era domingo 16 |
+| 12:22 | "**mañana, 18 de agosto**" | Mañana era el 17 |
+| 12:32 | "Hoy no estamos en Linares, pero **mañana sí**" | El 18 es Linares, no el 17 |
+
+Desfase de exactamente **+1 día** en los tres.
+
+#### NO era un bug de fecha ni de timezone
+
+Se simuló el bloque de fechas del código **realmente desplegado** (v34) con la hora exacta del mensaje (`2026-08-16T14:10:24Z`). El prompt entregaba:
+```
+- HOY: domingo, 2026-08-16
+- MAÑANA: lunes, 2026-08-17
+- HORA ACTUAL: domingo, 16 de agosto de 2026, 10:10 a. m.
+```
+Correcto. El modelo recibió la fecha buena y la ignoró.
+
+#### Causa raíz
+
+Linares es la **única** clínica con `routing_mode: mobile_sectors` y filas en `clinic_route_plan`. Su prompt incluye el `routePlanBlock`, rotulado *"PRIORIDAD MÁXIMA (POR SOBRE CUALQUIER OTRA REGLA)"*, que listaba:
+```
+- lunes, 17 de agosto (2026-08-17): SOLO sector Talca
+- martes, 18 de agosto (2026-08-18): SOLO sector Linares
+```
+El domingo **no aparece** en esa lista porque es día cerrado. Sin un ancla visible del presente, el modelo tomó el primer ítem —lunes 17— como el día operativo vigente, lo verbalizó como "hoy" y desplazó "mañana" al 18.
+
+Lo confirma que **el sector siempre fue correcto**: leía bien el plan; lo único que fallaba era la etiqueta relativa.
+
+**Evidencia que lo aísla:**
+- **Domingo 2-ago, Santiago** (sin plan de ruta): perfecto — *"Hoy es domingo… mañana, lunes 3 de agosto"*.
+- **Jueves 13 y viernes 14, Linares con el plan ya activo**: perfecto — *"mañana, viernes 14"*, *"Para el lunes 17"*. En días hábiles el plan no rompe nada porque hoy sí figura o el ancla es obvia.
+- `ai_behavior_rules` de Linares tenía **cero** menciones de reglas de fecha — nunca existió defensa contra esto.
+
+**Corrección a la premisa del reporte:** el deploy del sábado 15 (16:18) fue el de `isPausedForHuman` (requires_human) y **no toca fechas**; el sábado posterior al deploy las fechas salieron correctas. El detonante fue la combinación que se dio por primera vez ese domingo: Linares migró a Meta el 10-ago (sesión 65), Claudia cargó el plan de ruta el 14-ago, y el 16 fue el primer día **no operativo** con ese plan cubriendo el día siguiente.
+
+**Impacto operativo:** la cita de **Novak** (Yerbas Buenas, +56977763580) quedó agendada el **martes 18 a las 10:00** mientras el cliente escribió "mañana" entendiendo lunes 17 → riesgo de no-show. Requiere aviso manual.
+
+#### Fix aplicado
+
+**Código** (`meta-whatsapp-webhook` v35 + `ycloud-whatsapp-webhook` v265, ambos deployados, commit `0340395`):
+- Cada fecha del plan lleva su etiqueta relativa calculada contra `localDateISO`: `[HOY]` / `[MAÑANA]` / `[PASADO MAÑANA]` / `[en N días]`.
+- Si hoy **no** está en el plan, se agrega explícitamente indicando si está cerrado — el hueco era justo lo que provocaba el re-anclaje:
+  ```
+  Referencia temporal: HOY es domingo 2026-08-16. Esta lista NO empieza necesariamente hoy.
+  Cada fecha trae entre corchetes su relación con el día de hoy: usa ESA etiqueta y nunca
+  llames "hoy" ni "mañana" a una fecha que no la tenga.
+  - domingo 2026-08-16 [HOY]: CERRADO, no se atiende.
+  - lunes, 17 de agosto (2026-08-17) [MAÑANA]: SOLO sector Talca
+  ```
+- El día cerrado se deriva de `clinic.working_hours` con la clave en inglés (`now.toLocaleDateString("en-US", { weekday: "long" })`), cubriendo `closed` y `enabled === false`.
+
+**Prompt** (solo DB, efecto inmediato, sin deploy — respaldo `pre_fix_fechas_relativas_2026_08_16`): nueva regla **MANEJO DE FECHAS (ABSOLUTO)** en `ai_behavior_rules` de **ambas** clínicas:
+- La única fuente de verdad del día actual es el bloque `CONTEXTO DE FECHAS`; ninguna otra lista, plan o historial lo define.
+- Antes de escribir "hoy"/"mañana"/"pasado mañana", verificar contra ese bloque; si no coincide, nombrar día + fecha absoluta.
+- Si la clínica está cerrada hoy, **sigue siendo hoy** — nunca tratar el próximo día hábil ni el primer día del plan como "hoy".
+- Al ofrecer o confirmar cita, escribir siempre día de la semana + fecha completa, y advertir explícitamente si no coincide con lo que pidió el cliente.
+
+**El commit arrastra cambios previos de esos mismos archivos ya desplegados pero nunca commiteados** (`requires_human`/`isPausedForHuman` en meta, plan de ruta en ycloud), alineando git con lo que corre en producción.
+
+#### Bug lateral detectado, NO corregido
+
+[meta-whatsapp-webhook/index.ts:1643](supabase/functions/meta-whatsapp-webhook/index.ts#L1643) formatea el historial de citas del `tutorContext` con `d.toLocaleDateString("es-CL")` **sin `timeZone`** → usa UTC. Hoy no se manifiesta (la clínica cierra a las 19:00 y el corte UTC-4 está en las 20:00), pero cualquier cita más tardía se mostraría con un día de más. Queda como deuda acotada.
+
+#### Estado al cierre
+- Linares: `ai_auto_respond = false` — **la pausó Claudia** el domingo a las 12:33; no se reactivó (decisión de ella, afecta clientes reales).
+- Santiago: `ai_auto_respond = true`, nunca estuvo expuesta (sin `routing_mode`).
+- El fix es de prompt, no un bloqueo duro como el filtro de sectores de `checkAvail`: reduce mucho la ambigüedad pero conviene vigilar las primeras conversaciones tras reactivar.
+
+### Reglas permanentes
+
+- **Toda lista de fechas que se inyecte en el prompt debe traer su relación con el día de hoy.** Una lista de días futuros marcada como autoritativa, sin ancla del presente, hace que el modelo re-ancle su "hoy" en el primer elemento. Vale para el plan de ruta y para cualquier bloque similar que se agregue después.
+- **Un día cerrado sigue siendo "hoy".** Si el prompt omite el día actual porque no es operativo, deja un hueco que el modelo rellena solo — y lo rellena mal.
+- **Antes de atribuir una alucinación al último deploy, contrastar la hora del deploy contra el último mensaje correcto en `messages`.** Aquí el deploy sospechoso no tocaba fechas y las respuestas posteriores a él fueron correctas; el verdadero detonante era una condición de calendario (primer día no operativo con plan cargado).
+- **Antes de tocar `ai_behavior_rules`, respaldar en `prompt_backups`** con un label descriptivo (refuerzo de sesiones 61/62).
