@@ -21,7 +21,7 @@ const PADDLE_CLIENT_TOKEN = import.meta.env.VITE_PADDLE_CLIENT_TOKEN || ''
 export const PADDLE_PLANS = {
     enterprise: {
         id: 'enterprise',
-        priceId: 'pri_01kzsgkjksfatz4hmwxrvbjn1v',
+        priceId: 'pri_01m08n7n2szbs4b60bpk7s7cyz',
         priceIdAnnual: null as string | null,
         name: 'Enterprise',
         tagline: 'Redes y multi-sucursal',
@@ -42,7 +42,7 @@ export const PADDLE_PLANS = {
     },
     pro: {
         id: 'pro',
-        priceId: 'pri_01kzsgkj9mabpzn0h7b4gc7f57',
+        priceId: 'pri_01m08n7mmevsf38b3rvcnwb413',
         priceIdAnnual: null as string | null,
         name: 'Pro',
         tagline: 'Para clínicas en crecimiento',
@@ -63,7 +63,7 @@ export const PADDLE_PLANS = {
     },
     starter: {
         id: 'starter',
-        priceId: 'pri_01kzsgkhzg4jn0zwpmp9b6yp6q',
+        priceId: 'pri_01m08n7m4gka018x4v7egh05s6',
         priceIdAnnual: null as string | null,
         name: 'Starter',
         tagline: 'Para veterinarios independientes',
@@ -84,9 +84,9 @@ export const PADDLE_PLANS = {
     },
     core: {
         id: 'core',
-        priceId: 'pri_01kzsgkhmwc0a0aazfgermnyn8',
+        priceId: 'pri_01m08n7kjtxc9zcr658hhx5dem',
         // Precio anual: lista US$390, con LANZAMIENTO17_ANUAL queda en US$170.
-        priceIdAnnual: 'pri_01m04es6yggebc98sznwmnmfx1' as string | null,
+        priceIdAnnual: 'pri_01m08n7kr97dvkw2bgnq487nrv' as string | null,
         name: 'Core',
         tagline: 'Gestión completa sin IA conversacional',
         price: 39,
@@ -110,31 +110,31 @@ export const PADDLE_PLANS = {
 export type PaddlePlanId = keyof typeof PADDLE_PLANS
 
 /** Descuento de lanzamiento — solo Core mensual, $22 off, tope 100 usos → US$17/mes */
-const LAUNCH_DISCOUNT_ID = 'dsc_01kzsgkjrvhnxbtsrmfx8grx42'
+const LAUNCH_DISCOUNT_ID = 'dsc_01m08n7n90393n8475731cyz2p'
 
 /** Descuento de lanzamiento — solo Core anual, $220 off sobre $390, tope 100 usos → US$170/año */
-const LAUNCH_DISCOUNT_ID_ANNUAL = 'dsc_01m04eswyktrvqq4vhtksfspax'
+const LAUNCH_DISCOUNT_ID_ANNUAL = 'dsc_01m08n7njmh39pfsyekz543j12'
 
 /** Periodo de facturación de una suscripción. */
 export type BillingPeriod = 'month' | 'year'
 
 /**
  * USD Credit Packs — GPT-4o-mini
- * priceId creados en Paddle sandbox vía scripts/create-paddle-packs.js (sesión 68).
+ * priceId de producción, creados vía scripts/create-paddle-packs.js.
  */
 export const PADDLE_CREDIT_PACKS = {
-    pack_500:  { id: 'pack_500',  priceId: 'pri_01kzsss7s6dvnrrgz2bydetdd6', name: 'Pack Inicial',    credits: 4000,  price: 9,  description: '4.000 Créditos de IA' },
-    pack_1500: { id: 'pack_1500', priceId: 'pri_01kzsss86w0j2nvx6rtgk3hg1e', name: 'Pack Pro',        credits: 8000,  price: 15, description: '8.000 Créditos de IA' },
-    pack_4000: { id: 'pack_4000', priceId: 'pri_01kzsss8m564wyfe5ztszgrbmv', name: 'Pack Enterprise', credits: 20000, price: 29, description: '20.000 Créditos de IA' },
+    pack_500:  { id: 'pack_500',  priceId: 'pri_01m08n6jtwaghvs8n0e43cme03', name: 'Pack Inicial',    credits: 4000,  price: 9,  description: '4.000 Créditos de IA' },
+    pack_1500: { id: 'pack_1500', priceId: 'pri_01m08n6k7a2fdy0za42cgj0cvt', name: 'Pack Pro',        credits: 8000,  price: 15, description: '8.000 Créditos de IA' },
+    pack_4000: { id: 'pack_4000', priceId: 'pri_01m08n6kr39wex154w9z14m20d', name: 'Pack Enterprise', credits: 20000, price: 29, description: '20.000 Créditos de IA' },
 } as const
 
 /**
  * USD Credit Packs — GPT-4o (Premium)
  */
 export const PADDLE_CREDIT_PACKS_4O = {
-    pack_500_4o:  { id: 'pack_500_4o',  priceId: 'pri_01kzsss90t7tb7pmnz5e8e2ct3', name: 'Pack Inicial',    credits: 500,  price: 10, description: '500 Créditos de IA (GPT-4o)' },
-    pack_1500_4o: { id: 'pack_1500_4o', priceId: 'pri_01kzsss9getg46m19ze11b6ct7', name: 'Pack Pro',        credits: 1500, price: 30, description: '1500 Créditos de IA (GPT-4o)' },
-    pack_4000_4o: { id: 'pack_4000_4o', priceId: 'pri_01kzsss9x08tw8xy6x7rbp6j7n', name: 'Pack Enterprise', credits: 4000, price: 80, description: '4000 Créditos de IA (GPT-4o)' },
+    pack_500_4o:  { id: 'pack_500_4o',  priceId: 'pri_01m08n6m4t7eh3d085164bq6yw', name: 'Pack Inicial',    credits: 500,  price: 10, description: '500 Créditos de IA (GPT-4o)' },
+    pack_1500_4o: { id: 'pack_1500_4o', priceId: 'pri_01m08n6mhkyqmkp2ky6enggcnz', name: 'Pack Pro',        credits: 1500, price: 30, description: '1500 Créditos de IA (GPT-4o)' },
+    pack_4000_4o: { id: 'pack_4000_4o', priceId: 'pri_01m08n6my0zs6cf6813jhwzwfm', name: 'Pack Enterprise', credits: 4000, price: 80, description: '4000 Créditos de IA (GPT-4o)' },
 } as const
 
 export type PaddleCreditPackId = keyof typeof PADDLE_CREDIT_PACKS
@@ -143,14 +143,14 @@ export type ReminderPackId = 'reminders_50' | 'reminders_350' | 'reminders_unlim
 
 /**
  * Reminder Packs — fixed quantity bundles.
- * priceId creados en Paddle sandbox vía scripts/create-paddle-packs.js (sesión 68).
+ * priceId de producción, creados vía scripts/create-paddle-packs.js.
  * Cantidad acreditada (reminders_50→80, mismo comportamiento que hoy en LS, ver
  * CLAUDE.md sesión 16/66) vive en el webhook, no aquí.
  */
 export const PADDLE_REMINDER_PACKS: Record<ReminderPackId, { id: ReminderPackId; priceId: string; units: number; price: number }> = {
-    reminders_50:        { id: 'reminders_50',        priceId: 'pri_01kzsssapx4fc501c7hh3wfw7j', units: 80,   price: 9 },
-    reminders_350:       { id: 'reminders_350',       priceId: 'pri_01kzsssb4h7c7wz0ypz2sc2jdk', units: 350,  price: 19 },
-    reminders_unlimited: { id: 'reminders_unlimited', priceId: 'pri_01kzsssbm49yccgjbj4v84h5an', units: 9999, price: 29 },
+    reminders_50:        { id: 'reminders_50',        priceId: 'pri_01m08n6narh5jy87pebwncr791', units: 80,   price: 9 },
+    reminders_350:       { id: 'reminders_350',       priceId: 'pri_01m08n6npnhy0cg2r7ffpmkf6c', units: 350,  price: 19 },
+    reminders_unlimited: { id: 'reminders_unlimited', priceId: 'pri_01m08n6p4svwas57ckspazzrqg', units: 9999, price: 29 },
 }
 
 // ──────────────────────────────────────────────

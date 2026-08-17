@@ -37,11 +37,12 @@ export default function Terms() {
                         <li><strong>Uso Responsable:</strong> Usted es responsable de la exactitud de los datos que provee y del uso adecuado que sus agentes y recepcionistas den a las comunicaciones automatizadas con los pacientes.</li>
                     </ul>
 
-                    <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">2. Pagos, Pruebas y Suscripciones</h2>
+                    <h2 id="reembolsos" className="text-xl font-bold text-gray-900 mt-8 mb-4">2. Pagos, Pruebas, Suscripciones y Reembolsos</h2>
                     <ul className="list-disc pl-6 space-y-2 mb-6">
-                        <li><strong>Prueba Gratuita (Free Trial):</strong> Al registrarse, puede gozar de un período de prueba de 7 días con acceso parcial o total según nuestro plan promocional. La tarjeta ingresada garantiza la viabilidad de la cuenta, y no será cobrada hasta la expiración de dicho plazo.</li>
-                        <li><strong>Facturación Automática:</strong> Las suscripciones (Premium, Prestige, etc.) se renuevan automáticamente de forma mensual o anual según su selección.</li>
-                        <li><strong>Cancelaciones:</strong> Podrá cancelar en cualquier momento a través del panel de configuración, cesando cargos futuros. No se realizan reembolsos de períodos ya pagados y en curso.</li>
+                        <li><strong>Prueba Gratuita (Free Trial):</strong> Al registrarse, puede gozar de un período de prueba gratuito sin necesidad de tarjeta de crédito — 30 días para el Plan Core, 7 días para el resto de los planes. No se realiza ningún cargo durante el período de prueba.</li>
+                        <li><strong>Facturación Automática:</strong> Las suscripciones pagas se renuevan automáticamente de forma mensual o anual según su selección.</li>
+                        <li><strong>Cancelaciones:</strong> Podrá cancelar en cualquier momento a través del panel de configuración, cesando cargos futuros.</li>
+                        <li><strong>Política de Reembolsos:</strong> No se realizan reembolsos de períodos ya pagados y en curso. Si detecta un cargo indebido o un error de facturación, contáctenos dentro de los 14 días posteriores al cargo a través de hola@vetly.pro para revisar su caso.</li>
                     </ul>
 
                     <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">3. Provisión de Servicios Externos</h2>
