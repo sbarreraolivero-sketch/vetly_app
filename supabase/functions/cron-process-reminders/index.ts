@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { limitsForPlan } from "../_shared/planLimits.ts"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -374,6 +375,9 @@ Deno.serve(async (req) => {
                     meta_phone_number_id,
                     meta_waba_id,
                     subscriptions (
+                        plan,
+                        plan_id,
+                        manually_active,
                         monthly_reminders_limit,
                         monthly_reminders_used,
                         reminders_pack_balance
@@ -391,6 +395,18 @@ Deno.serve(async (req) => {
 
                 // Check Limits (pool compartido citas + médicos)
                 const sub = pickSub(clinic?.subscriptions || [])
+
+                // El recordatorio de 2h existe desde Starter: Core solo tiene el de
+                // 24h, que es el que evita el no-show. El toggle está bloqueado en la
+                // UI, pero la API es alcanzable — el corte real va aquí.
+                if (!sub?.manually_active) {
+                    const planLimits = await limitsForPlan(supabaseClient, sub?.plan_id || sub?.plan)
+                    if (!planLimits.allows_2h_reminder) {
+                        log.push(`Skipping 2h for ${clinic.clinic_name}: plan sin recordatorio de 2h`)
+                        continue
+                    }
+                }
+
                 const effLimit = effectiveLimit(sub)
                 let poolUsed = sub?.monthly_reminders_used || 0
 

@@ -130,6 +130,10 @@ export default function Appointments() {
     // "Hoy" en la zona de la clínica — nunca derivar de toISOString() (bug UTC recurrente).
     const todayLocalStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
 
+    // ¿La clínica tiene un canal de WhatsApp conectado? Sin él, el envío por API
+    // falla y el botón de recordatorio cae al link wa.me.
+    const [hasWhatsAppChannel, setHasWhatsAppChannel] = useState(true)
+
     useEffect(() => {
         if (!clinicId) { setRouteSectors(null); return }
         let cancelled = false
@@ -138,10 +142,16 @@ export default function Appointments() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any)
                 .from('clinic_settings')
-                .select('logistics_config')
+                .select('logistics_config, whatsapp_provider, ycloud_api_key, ycloud_phone_number, meta_access_token, meta_phone_number_id, meta_waba_id')
                 .eq('id', clinicId)
                 .maybeSingle()
             if (cancelled) return
+
+            // Mismo criterio que cron-process-reminders (hasMetaChannel / hasYCloudChannel).
+            const hasMeta = data?.whatsapp_provider === 'meta'
+                && !!data?.meta_access_token && !!data?.meta_phone_number_id && !!data?.meta_waba_id
+            const hasYCloud = !!data?.ycloud_api_key && !!data?.ycloud_phone_number
+            setHasWhatsAppChannel(hasMeta || hasYCloud)
 
             const cfg = (data?.logistics_config || {}) as any
             if (cfg.routing_mode !== 'mobile_sectors') { setRouteSectors(null); return }
@@ -497,7 +507,42 @@ export default function Appointments() {
 
 
     // Send WhatsApp Reminder
+    //
+    // Sin canal de WhatsApp conectado (el caso de toda clínica en Core recién
+    // dada de alta), `send-whatsapp-reminder` falla: requiere credenciales de
+    // Meta/YCloud y plantillas aprobadas. En ese caso se abre el chat con el
+    // mensaje pre-escrito, que funciona desde el día uno y no cuesta nada.
     const handleSendReminder = async (appointment: any) => {
+        const phone = (appointment.phone_number || '').replace(/\D/g, '')
+
+        if (!hasWhatsAppChannel) {
+            if (phone.length < 7) {
+                alert('Esta cita no tiene un teléfono válido.')
+                return
+            }
+            const fecha = new Date(appointment.appointment_date).toLocaleDateString('es-CL', {
+                weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone || 'America/Santiago',
+            })
+            const hora = new Date(appointment.appointment_date).toLocaleTimeString('es-CL', {
+                hour: '2-digit', minute: '2-digit', timeZone: timezone || 'America/Santiago',
+            })
+            const msg = `Hola ${appointment.tutor_name || ''}! Te recordamos la cita de ${appointment.patient_name || 'tu mascota'} para ${appointment.service || 'su visita'} el ${fecha} a las ${hora}.`.replace(/\s+/g, ' ').trim()
+
+            // Abrir antes de cualquier await para que el navegador no lo trate como popup.
+            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+
+            const { error } = await (supabase as any).from('reminder_logs').insert({
+                clinic_id: clinicId,
+                appointment_id: appointment.id,
+                type: 'manual_wa',
+                phone_number: phone,
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+            })
+            if (error) console.error('Error registrando el recordatorio manual:', error)
+            return
+        }
+
         if (!confirm(`¿Enviar recordatorio a ${appointment.patient_name}?`)) return
 
         try {
