@@ -53,3 +53,6 @@ supabase/.temp/
 # Workspaces de editor con rutas locales del usuario
 *.code-workspace
 
+# Config local de MCP — contiene API keys en texto plano (paddle, etc.)
+.mcp.json
+

@@ -31,5 +31,5 @@ verify_jwt = false
 [functions.cron-system-health]
 verify_jwt = false
 
-[functions.lemonsqueezy-webhook]
+[functions.paddle-webhook]
 verify_jwt = false

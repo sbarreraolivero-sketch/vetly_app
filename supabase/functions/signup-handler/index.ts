@@ -4,6 +4,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { limitsForPlan } from "../_shared/planLimits.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -23,7 +24,8 @@ interface SignupRequest {
     clinic_name: string;
     selected_plan?: string;
     card_token?: string;
-    payment_provider?: 'mercadopago' | 'lemonsqueezy';
+    payment_provider?: 'mercadopago' | 'paddle';
+    referral_code?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -41,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: SignupRequest = await req.json();
-        const { email, password, full_name, clinic_name, selected_plan = "radiance", card_token, payment_provider = 'mercadopago' } = body;
+        const { email, password, full_name, clinic_name, selected_plan = "radiance", card_token, payment_provider = 'mercadopago', referral_code } = body;
 
         // Validate required fields
         if (!email || !password || !full_name || !clinic_name) {
@@ -162,15 +164,21 @@ Deno.serve(async (req: Request) => {
 
         const userId = authData.user.id;
 
+        // Límites desde la tabla `plan_limits` (ver _shared/planLimits.ts).
+        // Antes esto era un CASE que solo entendía IDs legacy: con los planes
+        // actuales (core/starter/pro/enterprise) toda cuenta nueva caía al
+        // fallback de 1000 créditos y 2 usuarios, sin importar lo que pagara.
+        const planLimits = await limitsForPlan(supabaseAdmin, selected_plan);
+
         // 2. Create clinic
         const { data: clinicData, error: clinicError } = await supabaseAdmin
             .from("clinic_settings")
             .insert({
                 clinic_name: clinic_name,
                 subscription_plan: selected_plan,
-                ai_credits_monthly_limit: selected_plan === 'prestige' ? 5000 : (selected_plan === 'radiance' ? 2500 : 1000),
-                ai_credits_monthly_4o_limit: selected_plan === 'prestige' ? 300 : (selected_plan === 'radiance' ? 200 : 100),
-                max_users: selected_plan === 'prestige' ? 999999 : (selected_plan === 'radiance' ? 5 : 2),
+                ai_credits_monthly_limit: planLimits.ai_credits,
+                ai_credits_monthly_4o_limit: planLimits.ai_credits > 0 ? 999999 : 0,
+                max_users: planLimits.max_users,
                 services: [
                     { id: "svc-1", name: "Consulta General", duration: 30, price: 500 },
                 ],
@@ -178,7 +186,7 @@ Deno.serve(async (req: Request) => {
                 mercadopago_customer_id: mpCustomerId,
                 mercadopago_card_id: mpCardId,
                 activation_status: 'pending_activation',
-                billing_status: (mpCardId || payment_provider === 'lemonsqueezy') ? 'card_verified' : 'none'
+                billing_status: (mpCardId || payment_provider === 'paddle') ? 'card_verified' : 'none'
             })
             .select()
             .single();
@@ -237,6 +245,31 @@ Deno.serve(async (req: Request) => {
                 JSON.stringify({ error: "Error adding member to clinic" }),
                 { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
+        }
+
+        // 4b. Referral B2B capture (non-fatal — never blocks signup)
+        if (referral_code) {
+            try {
+                const { data: referrer } = await supabaseAdmin
+                    .from("clinic_settings")
+                    .select("id")
+                    .eq("partner_referral_code", referral_code.toUpperCase())
+                    .maybeSingle();
+
+                if (referrer && referrer.id !== clinicData.id) {
+                    const { error: referralError } = await supabaseAdmin
+                        .from("clinic_referrals")
+                        .insert({
+                            referrer_clinic_id: referrer.id,
+                            referred_clinic_id: clinicData.id,
+                            referral_code: referral_code.toUpperCase(),
+                            referred_plan: selected_plan,
+                        });
+                    if (referralError) console.warn("Referral capture insert failed (non-fatal):", referralError);
+                }
+            } catch (e) {
+                console.warn("Referral capture failed (non-fatal):", e);
+            }
         }
 
         // 5. Send Welcome Email (Async)
