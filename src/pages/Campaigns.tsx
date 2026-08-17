@@ -18,7 +18,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { retentionService } from '@/services/retentionService'
 import { GuideBox } from '@/components/ui/GuideBox'
-import { redirectToLemonCampaignCreditsCheckout } from '@/lib/lemonsqueezy'
+import { openPaddleCampaignCreditsCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
 
 const CREDIT_PRICE_USD = 0.15
 
@@ -83,15 +83,6 @@ export default function Campaigns() {
         fetchCampaignCredits()
     }, [profile?.clinic_id])
 
-    // Detect ?payment=success on return from LS checkout
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('payment') === 'success') {
-            window.history.replaceState({}, '', '/app/campaigns')
-            fetchCampaignCredits()
-        }
-    }, [])
-
     const fetchTemplates = async () => {
         try {
             if (profile?.clinic_id) {
@@ -117,8 +108,16 @@ export default function Campaigns() {
     const handleBuyCredits = async () => {
         if (!profile?.clinic_id || !profile?.email) return
         setBuyingCredits(true)
+        onPaddleCheckoutEvent((event) => {
+            if (event.name === 'checkout.completed') {
+                fetchCampaignCredits()
+                setBuyingCredits(false)
+            } else if (event.name === 'checkout.closed') {
+                setBuyingCredits(false)
+            }
+        })
         try {
-            await redirectToLemonCampaignCreditsCheckout(profile.clinic_id, profile.email, buyCreditsQty)
+            await openPaddleCampaignCreditsCheckout(profile.clinic_id, profile.email, buyCreditsQty)
         } catch (err: any) {
             alert(err.message || 'Error al iniciar el pago')
             setBuyingCredits(false)

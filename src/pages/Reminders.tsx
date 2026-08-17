@@ -4,9 +4,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import {
     AlarmClock, Save, Loader2, RefreshCw, Activity,
     CheckCircle2, AlertCircle, Phone, CheckCheck, Eye,
-    Settings2, Clock, Package, Infinity as InfinityIcon
+    Settings2, Clock, Package, Infinity as InfinityIcon, ChevronDown
 } from 'lucide-react'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
+import { ManualReminderPanel } from '@/components/reminders/ManualReminderPanel'
+import { PlanGate } from '@/components/common/PlanGate'
+import { usePlan } from '@/hooks/usePlan'
 import { cn } from '@/lib/utils'
 
 import toast from 'react-hot-toast'
@@ -15,15 +18,24 @@ import {
     BarChart, Bar, Legend
 } from 'recharts'
 import { Link, useLocation } from 'react-router-dom'
-import { redirectToLemonRemindersCheckout, redirectToLemonReminderPackCheckout, type ReminderPackId } from '@/lib/lemonsqueezy'
+import { openPaddleRemindersUnitsCheckout, openPaddleReminderPackCheckout, onPaddleCheckoutEvent, type ReminderPackId } from '@/lib/paddle'
 
-type TabType = 'appointments' | 'medical' | 'packs'
+type TabType = 'manual' | 'appointments' | 'medical' | 'packs'
 type DateRange = 'today' | 'd7' | 'd15' | 'd30' | 'all'
 
 export default function Reminders() {
     const { profile } = useAuth()
     const location = useLocation()
-    const [activeTab, setActiveTab] = useState<TabType>('appointments')
+    // Sin automatización el tab útil es el manual, así que arranca ahí.
+    const { meetsPlan } = usePlan()
+    const hasAutomation = meetsPlan('starter')
+    const [activeTab, setActiveTab] = useState<TabType>(hasAutomation ? 'appointments' : 'manual')
+    const [userPickedTab, setUserPickedTab] = useState(false)
+    const pickTab = (t: TabType) => { setUserPickedTab(true); setActiveTab(t) }
+
+    useEffect(() => {
+        if (!hasAutomation && !userPickedTab) setActiveTab('manual')
+    }, [hasAutomation, userPickedTab])
     const [planLoading, setPlanLoading] = useState<boolean>(true)
     const [dateRange, setDateRange] = useState<DateRange>('d7')
     const [isLoading, setIsLoading] = useState(true)
@@ -77,7 +89,8 @@ export default function Reminders() {
 
     // Logs fetch — re-runs on tab/filter/clinic changes
     useEffect(() => {
-        if (profile?.clinic_id) fetchLogs()
+        // El tab manual trae sus propios datos (citas del día, no logs históricos).
+        if (profile?.clinic_id && activeTab !== 'manual' && activeTab !== 'packs') fetchLogs()
     }, [profile?.clinic_id, activeTab, dateRange])
 
     const DAYS_BY_RANGE: Record<DateRange, number> = { today: 0, d7: 7, d15: 15, d30: 30, all: 0 }
@@ -168,6 +181,7 @@ export default function Reminders() {
                     request_confirmation: settings.request_confirmation ?? false,
                     template_confirmation: settings.template_confirmation,
                     preferred_hour: settings.preferred_hour || '09:00',
+                    manual_wa_template: settings.manual_wa_template,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'clinic_id' })
 
@@ -232,8 +246,17 @@ export default function Reminders() {
             return
         }
         setPackCheckoutLoading(packId)
+        onPaddleCheckoutEvent((event) => {
+            if (event.name === 'checkout.completed') {
+                toast.success('¡Pago procesado! Los recordatorios se acreditarán en instantes.')
+                fetchReminderUsage()
+                setPackCheckoutLoading(null)
+            } else if (event.name === 'checkout.closed') {
+                setPackCheckoutLoading(null)
+            }
+        })
         try {
-            await redirectToLemonReminderPackCheckout(profile.clinic_id, profile.email, packId)
+            await openPaddleReminderPackCheckout(profile.clinic_id, profile.email, packId)
         } catch (err: any) {
             toast.error(err.message || 'Error al iniciar el pago.')
             setPackCheckoutLoading(null)
@@ -250,8 +273,17 @@ export default function Reminders() {
             return
         }
         setCheckoutLoading(true)
+        onPaddleCheckoutEvent((event) => {
+            if (event.name === 'checkout.completed') {
+                toast.success('¡Pago procesado! Los recordatorios se acreditarán en instantes.')
+                fetchReminderUsage()
+                setCheckoutLoading(false)
+            } else if (event.name === 'checkout.closed') {
+                setCheckoutLoading(false)
+            }
+        })
         try {
-            await redirectToLemonRemindersCheckout(profile.clinic_id, profile.email, reminderQty)
+            await openPaddleRemindersUnitsCheckout(profile.clinic_id, profile.email, reminderQty)
         } catch (err: any) {
             toast.error(err.message || 'Error al iniciar el pago.')
             setCheckoutLoading(false)
@@ -280,7 +312,7 @@ export default function Reminders() {
                             <p className="text-xs sm:text-sm text-primary-100/80 font-light mt-1">Mensajes automáticos de citas y controles médicos.</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                            {activeTab !== 'packs' && (
+                            {activeTab !== 'packs' && activeTab !== 'manual' && (
                                 <button
                                     onClick={handleSaveSettings}
                                     disabled={savingSettings || !settings}
@@ -300,9 +332,18 @@ export default function Reminders() {
 
             {/* Controls */}
             <div className="bg-white p-2 rounded-xl border border-silk-beige shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                <div className="flex items-center p-1 bg-ivory rounded-lg w-full sm:w-auto">
+                <div className="flex items-center p-1 bg-ivory rounded-lg w-full sm:w-auto overflow-x-auto">
                     <button
-                        onClick={() => setActiveTab('appointments')}
+                        onClick={() => pickTab('manual')}
+                        className={cn(
+                            "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center whitespace-nowrap",
+                            activeTab === 'manual' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
+                        )}
+                    >
+                        Enviar hoy
+                    </button>
+                    <button
+                        onClick={() => pickTab('appointments')}
                         className={cn(
                             "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
                             activeTab === 'appointments' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
@@ -311,7 +352,7 @@ export default function Reminders() {
                         Citas
                     </button>
                     <button
-                        onClick={() => setActiveTab('medical')}
+                        onClick={() => pickTab('medical')}
                         className={cn(
                             "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
                             activeTab === 'medical' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
@@ -321,7 +362,7 @@ export default function Reminders() {
                     </button>
                     {!planLoading && (
                         <button
-                            onClick={() => setActiveTab('packs')}
+                            onClick={() => pickTab('packs')}
                             className={cn(
                                 "flex-1 sm:flex-initial px-4 sm:px-6 py-2 rounded-md text-xs sm:text-sm font-bold uppercase tracking-widest transition-all text-center",
                                 activeTab === 'packs' ? "bg-white text-amber-700 shadow-sm border border-silk-beige" : "text-charcoal/40 hover:text-charcoal"
@@ -348,6 +389,64 @@ export default function Reminders() {
                     </div>
                 )}
             </div>
+
+            {/* Envío manual por WhatsApp — funciona sin conectar WhatsApp ni plantillas aprobadas */}
+            {activeTab === 'manual' && profile?.clinic_id && (
+                <div className="space-y-5">
+                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm p-5 sm:p-6">
+                        <ManualReminderPanel
+                            clinicId={profile.clinic_id}
+                            clinicName={settings?.clinic_name || ''}
+                            template={settings?.manual_wa_template || ''}
+                        />
+                    </div>
+
+                    {/* Plantilla del mensaje — texto libre, sin aprobación de Meta */}
+                    <details className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden group">
+                        <summary className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 cursor-pointer list-none">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                                    <Settings2 className="w-4.5 h-4.5 text-primary-600" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold text-charcoal">Mensaje que se envía</p>
+                                    <p className="text-xs text-charcoal/45">Personaliza el texto que se abre en WhatsApp.</p>
+                                </div>
+                            </div>
+                            <ChevronDown className="w-4 h-4 text-charcoal/40 shrink-0 transition-transform group-open:rotate-180" />
+                        </summary>
+
+                        <div className="px-5 sm:px-6 pb-5 space-y-3 border-t border-silk-beige pt-4">
+                            <textarea
+                                rows={4}
+                                value={settings?.manual_wa_template || ''}
+                                onChange={e => setSettings({ ...settings, manual_wa_template: e.target.value })}
+                                placeholder="Hola {tutor}! Te recordamos la cita de {paciente}…"
+                                className="w-full text-sm border border-silk-beige rounded-xl px-3 py-2.5 text-charcoal bg-ivory resize-y focus:ring-primary-500 focus:border-primary-500"
+                            />
+                            <div className="flex flex-wrap gap-1.5">
+                                {['{tutor}', '{paciente}', '{servicio}', '{fecha}', '{hora}', '{clinica}'].map(v => (
+                                    <button
+                                        key={v}
+                                        type="button"
+                                        onClick={() => setSettings({
+                                            ...settings,
+                                            manual_wa_template: `${settings?.manual_wa_template || ''}${v}`,
+                                        })}
+                                        className="font-mono text-[11px] px-2 py-1 rounded-md bg-ivory border border-silk-beige text-charcoal/60 hover:border-primary-300 hover:text-primary-700 transition-colors"
+                                    >
+                                        {v}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-xs text-charcoal/40">
+                                No es una plantilla de Meta: es texto libre, así que no necesita aprobación
+                                ni tener WhatsApp conectado. Recuerda pulsar «Guardar» arriba.
+                            </p>
+                        </div>
+                    </details>
+                </div>
+            )}
 
             {/* Packs Tab Content */}
             {activeTab === 'packs' && (
@@ -581,7 +680,7 @@ export default function Reminders() {
                 </div>
             )}
 
-            {activeTab !== 'packs' && (
+            {activeTab !== 'packs' && activeTab !== 'manual' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Configuration Sidebar — right */}
@@ -637,7 +736,9 @@ export default function Reminders() {
                                             <p className="text-[10px] text-charcoal/40 mt-2">A partir de esta hora el cron envía los recordatorios del día.</p>
                                         </div>
 
-                                        {/* 2h Reminder */}
+                                        {/* 2h Reminder — desde Starter. Core solo tiene el de 24h,
+                                            que es el que realmente evita el no-show. */}
+                                        <PlanGate requiredPlan="starter" label="Desde Starter">
                                         <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <p className="font-bold text-sm">2 Horas Antes</p>
@@ -655,6 +756,7 @@ export default function Reminders() {
                                                 />
                                             )}
                                         </div>
+                                        </PlanGate>
 
                                         {/* Confirmation */}
                                         <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-4">
@@ -751,7 +853,7 @@ export default function Reminders() {
                                                 El envío automático de recordatorios está pausado. Compra un pack para seguir enviando este mes.
                                             </p>
                                             <button
-                                                onClick={() => setActiveTab('packs')}
+                                                onClick={() => pickTab('packs')}
                                                 className="mt-2 inline-flex items-center gap-1.5 bg-red-500 text-white text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg hover:bg-red-600 transition-colors"
                                             >
                                                 <Package className="w-3.5 h-3.5" /> Ver packs
@@ -941,9 +1043,13 @@ export default function Reminders() {
                                                             log.type === 'confirmation' && "bg-emerald-100 text-emerald-700",
                                                             log.type === 'vaccine' && "bg-purple-100 text-purple-700",
                                                             log.type === 'deworming' && "bg-orange-100 text-orange-700",
-                                                            !['24h', '2h', 'confirmation', 'vaccine', 'deworming'].includes(log.type) && "bg-silk-beige/50 text-charcoal/60"
+                                                            log.type === 'manual_wa' && "bg-[#25D366]/15 text-[#128C4B]",
+                                                            !['24h', '2h', 'confirmation', 'vaccine', 'deworming', 'manual_wa'].includes(log.type) && "bg-silk-beige/50 text-charcoal/60"
                                                         )}>
-                                                            {log.type === 'vaccine' ? 'Vacuna' : log.type === 'deworming' ? 'Desparasitación' : log.type}
+                                                            {log.type === 'vaccine' ? 'Vacuna'
+                                                                : log.type === 'deworming' ? 'Desparasitación'
+                                                                : log.type === 'manual_wa' ? 'Manual'
+                                                                : log.type}
                                                         </span>
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-3 sm:py-4">

@@ -4,14 +4,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { PLANS } from '@/lib/mercadopago'
+import { PADDLE_PLANS } from '@/lib/paddle'
 // Payment SDKs removed for free-trial onboarding
 
-const plans = [
-    { id: 'core', name: 'Core', price: 33, popular: false },
-    { id: 'starter', name: 'Starter', price: 89, popular: false },
-    { id: 'pro', name: 'Pro', price: 149, popular: true },
-    { id: 'enterprise', name: 'Enterprise', price: 349, popular: false },
-]
+const PLAN_ORDER = ['core', 'starter', 'pro', 'enterprise'] as const
 
 const ROLE_TRANSLATIONS: Record<string, string> = {
     'owner': 'Dueño',
@@ -28,6 +25,7 @@ export default function Register() {
     const joinClinicId = searchParams.get('clinic')
     const firstNameParam = searchParams.get('first_name')
     const inviteRole = searchParams.get('role')
+    const refParam = searchParams.get('ref')
 
     const [step, setStep] = useState(1)
     const [email, setEmail] = useState(inviteEmail || '')
@@ -40,9 +38,29 @@ export default function Register() {
 
     const [jobTitle, setJobTitle] = useState(ROLE_TRANSLATIONS[inviteRole as string] || inviteRole || '')
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
+    const [referralCode, setReferralCode] = useState(refParam || '')
 
     const { signUp } = useAuth()
     const navigate = useNavigate()
+
+    // Precios reales por región — antes había un array hardcodeado que ignoraba
+    // el toggle Chile/Internacional y mostraba precios desactualizados (bug
+    // preexistente encontrado en sesión 68, no relacionado a la migración a Paddle).
+    // Descuento de lanzamiento LANZAMIENTO17 (Paddle, solo Core, solo USD): $22 off
+    // flat, aplicado automáticamente en el checkout — se previsualiza aquí para no
+    // confundir con el precio de lista. Si el cupón se agota (tope 100 usos en
+    // Paddle), este preview quedaría desactualizado hasta que se quite a mano.
+    const plans = PLAN_ORDER.map((id) => {
+        const source = paymentRegion === 'international' ? PADDLE_PLANS[id] : PLANS[id]
+        const hasLaunchDiscount = paymentRegion === 'international' && id === 'core'
+        return {
+            id,
+            name: source.name,
+            price: source.price,
+            discountedPrice: hasLaunchDiscount ? source.price - 22 : null,
+            popular: 'popular' in source ? source.popular : false,
+        }
+    })
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -181,7 +199,7 @@ export default function Register() {
         setError('')
         setLoading(true)
 
-        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'lemonsqueezy' : 'mercadopago')
+        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined)
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
@@ -384,6 +402,30 @@ export default function Register() {
                                         />
                                     </div>
                                 </div>
+
+                                {!isJoinMode && (
+                                    refParam ? (
+                                        <div className="flex items-center gap-2 bg-primary-50 border border-primary-100 rounded-soft px-4 py-3 text-sm text-primary-700">
+                                            <Star className="w-4 h-4 shrink-0" />
+                                            <span>Referido por el código <strong>{refParam.toUpperCase()}</strong> ✓</span>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label htmlFor="referralCode" className="block text-sm font-medium text-charcoal mb-2">
+                                                Código de referido (opcional)
+                                            </label>
+                                            <input
+                                                id="referralCode"
+                                                type="text"
+                                                value={referralCode}
+                                                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                                                className="input-soft w-full"
+                                                placeholder="Ej: AB12CD"
+                                                maxLength={6}
+                                            />
+                                        </div>
+                                    )
+                                )}
                             </>
                         )}
 
@@ -447,10 +489,24 @@ export default function Register() {
                                                             Popular
                                                         </span>
                                                     )}
+                                                    {plan.discountedPrice !== null && (
+                                                        <span className="ml-2 text-xs bg-primary-500 text-white px-2 py-0.5 rounded-full">
+                                                            Lanzamiento
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                             <span className="font-semibold text-charcoal">
-                                                ${plan.price}<span className="text-sm text-charcoal/50">/mes</span>
+                                                {plan.discountedPrice !== null ? (
+                                                    <>
+                                                        <span className="text-sm text-charcoal/40 line-through mr-1">US${plan.price}</span>
+                                                        US${plan.discountedPrice}<span className="text-sm text-charcoal/50">/mes</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {paymentRegion === 'international' ? 'US$' : '$'}{plan.price.toLocaleString('es-CL')}<span className="text-sm text-charcoal/50">/mes</span>
+                                                    </>
+                                                )}
                                             </span>
                                         </div>
                                     </label>
@@ -466,13 +522,13 @@ export default function Register() {
                         <div className="mt-6 flex flex-col items-center gap-2">
                             <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro?</p>
                             <a
-                                href="https://wa.me/56958897996?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
+                                href="https://wa.me/56993089185?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-bold bg-primary-50 px-4 py-2 rounded-full border border-primary-100 transition-colors"
                             >
                                 <MessageCircle className="w-4 h-4" />
-                                Escríbenos por WhatsApp (+56 9 5889 7996)
+                                Escríbenos por WhatsApp (+56 9 9308 9185)
                             </a>
                         </div>
 

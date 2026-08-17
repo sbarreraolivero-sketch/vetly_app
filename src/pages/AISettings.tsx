@@ -9,7 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
-import { LS_CREDIT_PACKS, redirectToLemonCreditsCheckout } from '@/lib/lemonsqueezy'
+import { PADDLE_CREDIT_PACKS, openPaddleCreditsCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -99,7 +99,7 @@ export default function AISettings() {
                 if (cs) {
                     setAiActiveModel(cs.ai_active_model || 'hybrid')
                     setAiAutoRespond(cs.ai_auto_respond !== false)
-                    setPaymentRegion(cs.payment_provider === 'lemonsqueezy' ? 'international' : 'chile')
+                    setPaymentRegion(cs.payment_provider === 'paddle' ? 'international' : 'chile')
 
                     let unlimited = cs.ai_credits_unlimited || false
                     let monthlyLimit = cs.ai_credits_monthly_limit || 500
@@ -229,7 +229,12 @@ export default function AISettings() {
         if (!profile?.clinic_id || !user?.email) return
         try {
             if (paymentRegion === 'international') {
-                await redirectToLemonCreditsCheckout(profile.clinic_id, user.email, packId, 'mini')
+                // Overlay de Paddle: recargar la página al completar el pago para
+                // refrescar el saldo (mismo efecto neto que el redirect de LS).
+                onPaddleCheckoutEvent((event) => {
+                    if (event.name === 'checkout.completed') window.location.reload()
+                })
+                await openPaddleCreditsCheckout(profile.clinic_id, user.email, packId, 'mini')
             } else {
                 await redirectToCreditsCheckout(profile.clinic_id, user.email, packId, 'mini')
             }
@@ -247,7 +252,7 @@ export default function AISettings() {
     const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
     const usagePct = Math.min(100, (totalUsed / (totalAvailable || 1)) * 100)
 
-    const currentPacks = paymentRegion === 'international' ? LS_CREDIT_PACKS : CREDIT_PACKS
+    const currentPacks = paymentRegion === 'international' ? PADDLE_CREDIT_PACKS : CREDIT_PACKS
     const currencySymbol = paymentRegion === 'international' ? 'US$' : '$'
 
     // ─── Render ───────────────────────────────────────────────────────────────

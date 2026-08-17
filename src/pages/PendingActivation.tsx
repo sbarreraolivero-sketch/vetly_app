@@ -32,6 +32,7 @@ export function PendingActivation() {
     }
 
     const [activationStatus, setActivationStatus] = useState<string | null>(null);
+    const [isSkippingActivation, setIsSkippingActivation] = useState(false);
 
     useEffect(() => {
         const checkStatus = async () => {
@@ -146,21 +147,31 @@ export function PendingActivation() {
                             ¿Tienes prisa? También puedes configurar todo tú mismo ahora mismo:
                         </p>
                         <button
+                            disabled={isSkippingActivation}
                             onClick={async () => {
-                                if (profile?.clinic_id) {
-                                    const { error } = await (supabase as any)
-                                        .from('clinic_settings')
-                                        .update({ activation_status: 'active' })
-                                        .eq('id', profile.clinic_id);
-                                    
-                                    if (!error) {
-                                        window.location.href = '/app';
-                                    }
+                                if (isSkippingActivation) return
+                                if (!profile?.clinic_id) {
+                                    console.error('Skip activation: no profile.clinic_id', { profile });
+                                    alert('No se encontró tu clínica todavía. Espera unos segundos y vuelve a intentar (o recarga la página).');
+                                    return;
                                 }
+                                setIsSkippingActivation(true)
+                                const { error } = await (supabase as any)
+                                    .from('clinic_settings')
+                                    .update({ activation_status: 'active' })
+                                    .eq('id', profile.clinic_id);
+
+                                if (error) {
+                                    console.error('Skip activation: update failed', error);
+                                    alert(`No se pudo activar: ${error.message}`);
+                                    setIsSkippingActivation(false)
+                                    return;
+                                }
+                                window.location.href = '/app';
                             }}
-                            className="inline-flex items-center gap-2 bg-white border-2 border-charcoal text-charcoal px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all shadow-sm"
+                            className="inline-flex items-center gap-2 bg-white border-2 border-charcoal text-charcoal px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            Saltar y entrar al Dashboard →
+                            {isSkippingActivation ? 'Activando...' : 'Saltar y entrar al Dashboard →'}
                         </button>
                     </div>
                 </div>
