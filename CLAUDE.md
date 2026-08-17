@@ -5414,3 +5414,64 @@ Lo confirma que **el sector siempre fue correcto**: leía bien el plan; lo únic
 - **Un día cerrado sigue siendo "hoy".** Si el prompt omite el día actual porque no es operativo, deja un hueco que el modelo rellena solo — y lo rellena mal.
 - **Antes de atribuir una alucinación al último deploy, contrastar la hora del deploy contra el último mensaje correcto en `messages`.** Aquí el deploy sospechoso no tocaba fechas y las respuestas posteriores a él fueron correctas; el verdadero detonante era una condición de calendario (primer día no operativo con plan cargado).
 - **Antes de tocar `ai_behavior_rules`, respaldar en `prompt_backups`** con un label descriptivo (refuerzo de sesiones 61/62).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 77, 2026-08-17)
+
+### 🔴 Fuga crítica: RPCs `SECURITY DEFINER` sin control de acceso, alcanzables con la anon key
+
+**Pedido:** revisión de seguridad de ambas sucursales.
+
+**Hallazgo.** Cuatro RPCs `SECURITY DEFINER` hacían un `SELECT` directo **sin ningún control de acceso** y tenían `EXECUTE` para `anon`. Con la clave pública —la que va embebida en el bundle de `vetly.pro`, **sin login**— se obtenía:
+
+| RPC | Qué entregaba |
+|---|---|
+| `get_clinic_settings_secure` | 83 campos por sucursal, incluidos **`meta_access_token`** y **`meta_capi_token`**, más `ai_behavior_rules` y `ai_personality` completos |
+| `get_unified_contacts` | **1.648 contactos** (724 Linares + 924 Santiago): nombre, teléfono, email, dirección |
+| `get_clinic_members_secure` | emails y `user_id` del equipo |
+| `get_all_clinics_usage` | métricas de **todas** las clínicas de la plataforma |
+
+Y además `get_tag_counts`, `get_admin_referrals`, `transfer_inventory`, `reset_monthly_ai_usage`, `save_transaction_items`, `increment_subscription_usage`, entre otras — **61 funciones** en total con `EXECUTE` para `anon`.
+
+**Lo más grave:** con `meta_access_token` cualquiera podía enviar WhatsApps desde el número de ambas clínicas.
+
+**Por qué no se había detectado.** `get_advisors(type:'security')` devolvió **190 WARN y cero ERROR**; los tipos `anon_security_definer_function_executable` se pierden entre los 55 `function_search_path_mutable` históricos. Se encontró **explotándolo de verdad** contra la API REST con la anon key, no leyendo definiciones — el mismo método que en la sesión 74.
+
+### Fix aplicado (4 migraciones)
+
+| Migración | Qué hace |
+|---|---|
+| `20260817170215_fix_anon_executable_security_definer_rpcs` | `REVOKE EXECUTE FROM PUBLIC, anon` en las 67 funciones `SECURITY DEFINER` + `GRANT` a `authenticated, service_role`; check de membresía en `get_clinic_settings_secure` y `get_clinic_members_secure` |
+| `20260817170325_drop_permissive_policy_clinic_blocked_dates` | Elimina `manage_clinic_blocked_dates` (`ALL` / `auth.role()='authenticated'`), que anulaba por OR a las dos policies correctas |
+| `20260817170412_isolate_get_unified_contacts_by_clinic` | Check de membresía en `get_unified_contacts` (cuerpo intacto) |
+| `20260817171222_harden_remaining_security_definer_rpcs` | `get_all_clinics_usage` → `is_platform_admin`; `increment_subscription_usage` → membresía + allowlist `_used`; `transfer_inventory` → membresía + validar ubicaciones y producto de la clínica; los 3 overloads de `save_transaction_items` → membresía + `AND clinic_id = p_clinic_id` en el `UPDATE` |
+
+**Hallazgos secundarios cerrados de paso:**
+- `increment_subscription_usage` armaba el `UPDATE` con `format(%I)` sobre un nombre de columna del cliente. `%I` evita la inyección clásica, pero permitía tocar **cualquier** columna de `subscriptions`, incluidos los límites del plan. Ahora solo acepta contadores `^[a-z_]+_used$` existentes.
+- Los 3 overloads de `save_transaction_items` hacían `UPDATE appointments WHERE id = p_appointment_id` **sin filtrar `clinic_id`**: con el UUID de una cita ajena se le reescribía precio, descuento y método de pago.
+- `transfer_inventory` no validaba que las ubicaciones ni el producto fueran de la clínica.
+
+**Verificación:** 0 RPCs alcanzables por `anon`, 0 policies sin aislamiento por clínica, 0 funciones rotas para el frontend (67 siguen con `EXECUTE` para `authenticated`), las 3 públicas (`get_pet_owner_portal`, `get_referral_link_data`, `mark_diagnostic_wa_clicked`) respondiendo, y las tablas ya estaban selladas para `anon` (solo `plan_limits`, config pública sin datos sensibles).
+
+**Nota:** al probar `increment_subscription_usage` se incrementó el contador real de Linares; se revirtió en el acto (`monthly_reminders_used` volvió a 44).
+
+### ⚠️ Pendiente de acción del usuario — rotar credenciales
+
+**`meta_access_token` y `meta_capi_token` de ambas sucursales estuvieron accesibles con una clave pública.** El revoke no invalida un token ya copiado y no hay forma de descartar que alguien lo leyera. **Deben rotarse en el Business Manager de Meta y actualizarse en `clinic_settings`.**
+
+### Reglas permanentes
+
+- **`SECURITY DEFINER` sin check de acceso es una puerta abierta, no una función interna.** Toda RPC que reciba `p_clinic_id` debe validar membresía; si recibe otro ID (appointment, producto), debe resolver primero su `clinic_id`. El patrón estándar es:
+  ```sql
+  IF COALESCE(auth.role(), 'service_role') <> 'service_role'
+     AND NOT public.is_clinic_member(p_clinic_id) THEN
+    RAISE EXCEPTION 'Acceso denegado';
+  END IF;
+  ```
+  El `COALESCE` deja pasar a las edge functions con `service_role` (cuyo `auth.role()` es NULL) sin abrirle la puerta a `anon`, que sí tiene `auth.role() = 'anon'`.
+- **`REVOKE ... FROM anon` no basta**: PostgreSQL concede `EXECUTE` a `PUBLIC` por defecto y `anon` hereda. Revocar siempre `FROM PUBLIC, anon` y verificar con `has_function_privilege('anon', oid, 'EXECUTE')`.
+- **`CREATE OR REPLACE FUNCTION` reinstala los privilegios por defecto.** Después de cualquier reemplazo hay que volver a revocar, o la función queda expuesta otra vez. Por eso la migración 4 termina con el bucle de revoke.
+- **Un `UPDATE` dentro de una RPC debe filtrar por `clinic_id`**, no solo por el id de la fila: el id lo elige quien llama.
+- **`get_advisors` no sustituye la prueba real.** Devolvió cero ERROR con los tokens de WhatsApp expuestos. La verificación válida es golpear la API con la anon key y confirmar `permission denied` / `content-range: */0`.
+- **Antes de reescribir una función, traer su definición exacta** con `pg_get_functiondef`. Un `CREATE OR REPLACE` con un tipo de retorno distinto falla (42P13) y adivinar el cuerpo puede romper la app en silencio.
