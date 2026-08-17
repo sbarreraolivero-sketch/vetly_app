@@ -24,7 +24,7 @@ Suscripción mensual en 4 planes:
 - Pro — $169 USD / $149.000 CLP (10.000 créditos IA/mes) ⭐ más popular
 - Enterprise — $349 USD / $333.000 CLP (30.000 créditos IA/mes, hasta 3 sucursales)
 
-Créditos IA adicionales disponibles como pack. Cobro en USD (LemonSqueezy) o CLP (MercadoPago).
+Créditos IA adicionales disponibles como pack. Cobro en USD (Paddle) o CLP (MercadoPago).
 
 ---
 
@@ -117,10 +117,21 @@ El segmento móvil enfrenta una ironía cruel: cuando expanden (segunda flota, s
 ## Panorama Competitivo
 
 **Competidores directos** (mismo problema, solución similar):
-- **Sami** (México, 600+ clínicas) — tiene IA integrada, sin WhatsApp nativo como canal principal. Sin módulo móvil.
-- **GVET** (5 países LATAM) — gestión completa, sin IA conversacional
+
+- **Sami** (México, 600+ clínicas) — **precios verificados 2026-08-15**:
+  | Plan | MXN/mes | Usuarios | IA |
+  |---|---|---|---|
+  | Essentials | $649 | hasta 5 | ❌ |
+  | Professional | $849 | hasta 15 | ❌ |
+  | Enterprise | $1.249 | ilimitados | ✅ Sami AI |
+
+  Sitio LATAM cotiza **US$29/mes o US$290/año**. Prueba de 15 días. Anual paga 10 meses.
+  **Es el rival directo más relevante para el plan Core.** Su ventaja concreta: 5 usuarios en el plan de entrada (Vetly Core da 1). Su debilidad: inventario "básico", sin motor de fidelización documentado.
+  ⚠️ **Su IA cuesta ~US$67 y la de Vetly empieza en US$89.** Diferenciación obligatoria en todo el material: *la IA de Sami le dicta la ficha al veterinario; la de Vetly le contesta y le agenda al cliente*. Son productos distintos con el mismo nombre.
+
+- **GVET** (5 países LATAM) — gestión completa, sin IA conversacional. **Precios NO públicos** (hay que pedirlos a ventas). 3 meses gratis de versión Gold, cobro por sucursal. ⚠️ La afirmación "Vetly supera a GVET" es una hipótesis razonable pero **sin verificar** — pedir cotización como cliente potencial antes de usarla en material público.
 - **Okvet** (Colombia) — gestión básica, sin IA, sin WhatsApp
-- **AgendaPro** — genérico (salones, dentistas, vets), sin IA especializada en veterinaria
+- **AgendaPro** — genérico (salones, dentistas, vets), sin IA especializada en veterinaria. US$8,1M ARR, Serie B US$35M (ago-2025). **La amenaza de mediano plazo.**
 
 **Competidores secundarios** (misma necesidad, solución distinta):
 - WhatsApp Business manual + agenda en papel: el "sistema" actual del 70% del mercado
@@ -302,20 +313,117 @@ La historia completa de Claudia: dos ciudades, dos WhatsApp, dolores de espalda,
 
 ## Mercado y TAM
 
-**Mercado total LATAM (4 países principales):**
-- México: ~7.000–7.500 clínicas veterinarias
-- Colombia: ~3.000+ clínicas
-- Chile: ~1.500+ clínicas
-- Argentina: estimado ~2.000–3.000 clínicas
-- **Total accesible: ~13.000–15.000 clínicas** en 4 países
+*Sección revalidada con fuentes primarias el 2026-08-15. Las cifras previas (Chile ~1.500, total LATAM 13.000–15.000) estaban subestimadas.*
 
-**Subniche móvil (diferenciador, no el único target):**
+### Conteo de clínicas por mercado
+
+| Mercado | Clínicas peq. animales | Fuente / confianza |
+|---|---|---|
+| Brasil | ~27.000 (de 77.287 establecimientos vet. registrados) | CFMV mar-2025 · **estimado** el subconjunto peq. animales |
+| México | 7.000–7.500 | Sector · confianza media |
+| España | 7.032 | AMVAC Informe Sectorial 2026 · **alta** |
+| Argentina | ~6.000 | Directorios comerciales · confianza baja |
+| Colombia | ~3.500 | **Estimado** — sin registro nacional consolidado |
+| Chile | **~2.000**, casi 100% locales únicos | CEO LatamVet en DF, jun-2026 · **alta** |
+| Perú + resto hispano | ~5.000 | **Estimado** |
+
+**LATAM hispanohablante: ~24.000 clínicas · +Brasil: ~51.000 · +España: ~58.000**
+
+### TAM / SAM en ARR (ARPU base US$100/mes = US$1.200/año; España US$200/mes)
+
+| Mercado | TAM ARR | SAM ARR (≈50%) |
+|---|---|---|
+| Chile solo | US$2,4M | US$1,2M |
+| LATAM hispano (incl. Chile) | US$28,8M | US$14,4M |
+| Brasil | US$32,4M | US$16,2M |
+| España | US$16,8M | US$8,4M |
+| **Total alcanzable** | **~US$78M** | **~US$39M** |
+
+**Implicación permanente:** Chile no sostiene el negocio. Con una cuota de líder de categoría realista (15% del SAM chileno) el techo es ~US$180K ARR. Cualquier plan de crecimiento serio requiere salir de Chile en el año 1–2.
+
+### Crecimiento del mercado subyacente
+- Servicios veterinarios LATAM: US$10.764M (2025), **CAGR 7,3%** hacia 2033
+- Pet care LATAM: US$12,0B (2025), CAGR 5,34%
+- Software de gestión veterinaria global: US$0,55–1,96B (2026 según definición), CAGR 6,1%–12,7%
+- Chile: mercado de servicios veterinarios ~US$150M/año · 10M mascotas · 80% de hogares con mascota · 75% visitó al vet en 12 meses
+
+**El vector real de crecimiento de Vetly no es el crecimiento del mercado (5–7%/año) sino la penetración de digitalización** — cuántas clínicas pasan de papel/Excel/WhatsApp manual a software. Esa curva se mueve mucho más rápido que el mercado subyacente. *Supuesto sin validar: penetración actual de software de gestión en clínicas LATAM. Conseguir este dato es la prioridad de investigación #1.*
+
+### Competidores con capital real (ventana competitiva)
+- **AgendaPro** — US$8,1M ARR (2024), Serie B US$35M (ago-2025, Riverwood Capital), 20.000+ negocios, ya tiene vertical veterinaria y anunció IA. **El competidor más peligroso.**
+- **LatamVet** (Chile) — US$27,5M para consolidar 56 clínicas en 4 años, entra a Perú/Colombia. Consolidaría solo ~2,8% del mercado chileno → el 97% independiente sigue siendo el ICP de Vetly.
+- **Digitail** — US$15M (Leap Venture Partners, 2025), US/Europa, no LATAM
+- **PetDesk** — 12.000+ prácticas US, US$6M Pear VC (2025), no LATAM
+- Sami (MX, 600+ clínicas), GVET (5 países), Okvet (CO)
+
+### Subniche móvil
 ~400–750 clínicas/servicios móviles en LATAM — demasiado pequeño para ads, pero perfecto como historia de diferenciación y caso de uso flagship.
 
-**Mercado petcare LATAM:** $11.380M USD en 2024 → $18.880M en 2033 (CAGR 5.79%)
+---
 
-**Competidores directos con presencia real:**
-Sami (MX, 600+ clínicas), GVET (5 países), Okvet (CO), AgendaPro (LATAM genérico)
+## Estrategia Core-led — puerta de entrada a US$17 (definida 2026-08-15)
+
+### La tesis
+Core a US$17 **no es una línea de ingreso, es un canal de distribución.** US$204 ARR por cliente; 1.000 clientes Core valen menos que 170 en Starter. Se lanza para ocupar terreno antes de que AgendaPro (US$35M levantados) entre al nicho, y para generar el activo que ninguna ronda compra rápido: casos de éxito, referidos, boca a boca en comunidades y datos reales de producto.
+
+**Toda la apuesta se juega en una métrica: la tasa de upgrade de Core a planes con IA.** Es la que define cuánto se puede gastar en adquirir un cliente:
+
+| Escenario | CAC máximo tolerable |
+|---|---|
+| Nadie escala de plan | **US$46** |
+| 25% escala a Starter en año 1 | **US$185** |
+
+Margen bruto de Core ≈ 90% (sin créditos IA ni mensajes, solo infraestructura).
+
+### Los 3 bloqueos de producto (pendientes, bloqueantes)
+1. **Core admite 1 solo usuario** — inutiliza el plan para cualquier clínica con recepcionista, o sea la mitad del target declarado. Sami Essentials da 5. **Subir a 2–3 usuarios**: costo marginal ≈ cero.
+2. **Core tiene 0 recordatorios automáticos** — el cliente nunca prueba el valor, así que nunca siente el límite. **Dar 20–30/mes**: ~US$2 de costo, compra el disparador de upgrade más natural que existe.
+3. **De US$17 a US$89 hay un salto de 5,2×** — la expansión SaaS funciona con saltos de 2–3×. A 5,2× el cliente no escala, reevalúa el mercado desde cero.
+
+### Escalera de precios propuesta
+`$17 Core → $39 Core+IA (nuevo) → $89 Starter → $169 Pro → $349 Enterprise`
+Saltos de 2,3× / 2,3× / 1,9× / 2,1×. **El peldaño nuevo ya tiene precio: es el Core actual de US$39.** Contenido: ~1.500 créditos IA + 100 recordatorios + análisis de facturas IA (que Core hoy no puede usar porque cuesta 20 créditos y tiene 0). Diseño deliberado: *lo suficiente para enamorarse del agente, no lo suficiente para vivir con él.*
+
+### Reencuadre permanente: membresía, no software barato
+**US$17 no se vende como software barato — se vende como membresía: sistema + formación en marketing veterinario + comunidad.** Como software es una guerra de precios que se pierde en cuanto Sami baje. Como membresía es una categoría que ni Sami ni GVET ni AgendaPro pueden copiar rápido, porque exige operación de contenido y la credibilidad de Movilvets.
+
+### ⚠️ El riesgo documentado que esta estrategia asume
+El ICP definido el 2026-06-04 dice explícitamente: *"Los veterinarios independientes sin clientela NO son el ICP. Fallan por falta de clientes, no por caos operativo. Si se les vende Vetly antes de tener volumen, se pierden en 30 días."*
+
+Core apunta exactamente a ese segmento. **No es contradicción — es una apuesta que solo se sostiene si la formación en marketing llega junto con el software**, porque ataca la causa real de la fuga. Consecuencia operativa: **la formación no puede ser "próximamente"**. Un módulo grabado y publicado vale más que seis planificados.
+
+### Estructura de precio: cupón por oleadas, NO rebaja de lista
+US$17 vive hoy como el descuento `LANZAMIENTO17` en Paddle (US$22 off, recurrente sin límite de ciclos, tope 100 usos). **Conservar esa estructura**: preserva el ancla de US$39, da urgencia verificable, y permite jubilar el descuento cuando haya poder de fijación de precios (un precio de lista no se sube sin costo reputacional).
+**Corregir el tope**: 100 cupos no alcanzan. Abrir por oleadas (100 → 250 → 500), cada una anunciada como lanzamiento propio en LinkedIn y comunidades. Cada oleada agotada es prueba social y contenido.
+
+### Implicaciones que rompen supuestos previos
+- **"Implementación llave en mano incluida" y US$17 son incompatibles.** Esa promesa está en la tabla de objeciones de este documento y se sostiene a US$89, no a US$17 (2h de setup > 5 meses de suscripción). **Core debe ser autoservicio de punta a punta**; el onboarding humano se conserva como diferenciador de gama alta.
+- **Con CAC máximo de US$46 no se compra tráfico pagado sostenido.** Core solo funciona con adquisición orgánica: contenido, comunidades, referidos. Que es el mismo motor que después empuja el upgrade — la estrategia es internamente coherente.
+- **Revisar el incentivo de referidos B2B**: "2 meses gratis" cuando el referido toma Core vale US$34 — probablemente insuficiente para mover a alguien. Considerar expresarlo en créditos de IA, que además empujan al upgrade.
+- **Definir política antes de que exista conflicto**: qué pasa cuando un cliente pagando US$89 vea a otro entrar por US$17.
+
+### Orden de ejecución
+| # | Acción | Estado |
+|---|---|---|
+| 1 | Subir Core a 3 usuarios + 25 recordatorios | ✅ **Hecho** (2026-08-16) |
+| 2 | Recordatorios manuales `wa.me` — valor desde el día 1 sin conectar WhatsApp | ✅ **Hecho** (2026-08-16) |
+| 3 | Gating visible por plan (Mensajes, Ajustes IA, CRM y tarjetas del Dashboard) | ✅ **Hecho** (2026-08-16) |
+| 4 | Anual de Core US$170 — Paddle **sandbox** | ✅ Hecho · falta replicar en producción (KYB) |
+| 5 | Core autoservicio end-to-end + prueba 30 días sin tarjeta | 🔴 Bloqueante (spec sesión 66, sin implementar) |
+| 6 | Publicar el **primer** módulo de formación | 🔴 Bloqueante |
+| 7 | Crear peldaño US$39 con IA inicial en Paddle | Antes de ads |
+| 8 | Instrumentar tasa de upgrade (%, días, qué hicieron antes) | Desde el cliente #1 |
+| 9 | Pedir cotización a GVET como cliente potencial | Antes de comparar en público |
+
+### Lo que cambia en el mensaje de venta de Core (2026-08-16)
+
+Core deja de ser "gestión sin IA" y pasa a tener un gancho propio:
+
+- **3 usuarios** (antes 1) — ahora sirve a una clínica con recepcionista, no solo al veterinario solo. Sami Essentials da 5 por US$29; Core da 3 por US$17.
+- **Recordatorios por WhatsApp sin límite en modalidad manual**, más 25 automáticos al mes. Es el único competidor que entrega valor de recordatorios **el día 1**, sin conectar WhatsApp ni esperar aprobación de plantillas de Meta.
+- El esfuerzo manual queda medido y se devuelve como argumento: *"Enviaste N recordatorios a mano este mes. Automatizarlos toma 3 minutos."*
+
+**Copy sugerido para Core:** *"Tu clínica ordenada por menos de lo que gastas en almuerzo. Y los recordatorios salen desde el primer día — sin instalar nada."*
 
 ---
 
