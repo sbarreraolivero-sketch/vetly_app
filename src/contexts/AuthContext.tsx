@@ -34,7 +34,7 @@ interface AuthContextType {
     session: Session | null
     loading: boolean
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-    signUp: (email: string, password: string, fullName: string, clinicName: string, selectedPlan: string, cardToken?: string | null, paymentProvider?: string, referralCode?: string) => Promise<{ error: Error | null }>
+    signUp: (email: string, password: string, fullName: string, clinicName: string, selectedPlan: string, cardToken?: string | null, paymentProvider?: string, referralCode?: string, turnstileToken?: string) => Promise<{ error: Error | null }>
     signOut: () => Promise<void>
     connectGoogleCalendar: () => Promise<{ error: Error | null }>
     switchClinic: (clinicId: string) => Promise<void>
@@ -419,10 +419,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: null }
     }
 
-    const signUp = async (email: string, password: string, fullName: string, clinicName: string, selectedPlan: string, cardToken?: string | null, paymentProvider?: string, referralCode?: string) => {
+    const signUp = async (email: string, password: string, fullName: string, clinicName: string, selectedPlan: string, cardToken?: string | null, paymentProvider?: string, referralCode?: string, turnstileToken?: string) => {
         try {
             const { data, error: functionError } = await supabase.functions.invoke('signup-handler', {
-                body: { email, password, full_name: fullName, clinic_name: clinicName, selected_plan: selectedPlan, card_token: cardToken, payment_provider: paymentProvider, referral_code: referralCode }
+                body: { email, password, full_name: fullName, clinic_name: clinicName, selected_plan: selectedPlan, card_token: cardToken, payment_provider: paymentProvider, referral_code: referralCode, turnstile_token: turnstileToken }
             })
             if (functionError) return { error: new Error(functionError.message || 'Error al crear la cuenta') }
             if (data?.error) return { error: new Error(data.error) }

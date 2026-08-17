@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star } from 'lucide-react'
@@ -9,6 +9,20 @@ import { PADDLE_PLANS } from '@/lib/paddle'
 // Payment SDKs removed for free-trial onboarding
 
 const PLAN_ORDER = ['core', 'starter', 'pro', 'enterprise'] as const
+
+// Site key pública — segura de exponer en el bundle. Sin configurar, el
+// widget simplemente no se monta (signup-handler tampoco bloquea sin la
+// secret key del lado del servidor — ver fail-open ahí).
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined
+
+declare global {
+    interface Window {
+        turnstile?: {
+            render: (container: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback'?: () => void }) => string
+            remove: (widgetId: string) => void
+        }
+    }
+}
 
 const ROLE_TRANSLATIONS: Record<string, string> = {
     'owner': 'Dueño',
@@ -41,9 +55,46 @@ export default function Register() {
     const [jobTitle, setJobTitle] = useState(ROLE_TRANSLATIONS[inviteRole as string] || inviteRole || '')
     const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
     const [referralCode, setReferralCode] = useState(refParam || '')
+    const [turnstileToken, setTurnstileToken] = useState<string>('')
+    const turnstileRef = useRef<HTMLDivElement>(null)
+    const turnstileWidgetId = useRef<string | null>(null)
 
     const { signUp } = useAuth()
     const navigate = useNavigate()
+
+    // Carga el script de Turnstile una sola vez y monta el widget en el
+    // paso 3 (justo antes del submit real). Si no hay site key configurada,
+    // no hace nada — el registro sigue funcionando igual que antes.
+    useEffect(() => {
+        if (!TURNSTILE_SITE_KEY || isJoinMode || step !== 3) return
+
+        const mount = () => {
+            if (!turnstileRef.current || !window.turnstile || turnstileWidgetId.current) return
+            turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+                sitekey: TURNSTILE_SITE_KEY,
+                callback: (token: string) => setTurnstileToken(token),
+                'expired-callback': () => setTurnstileToken(''),
+            })
+        }
+
+        if (window.turnstile) {
+            mount()
+        } else {
+            const script = document.createElement('script')
+            script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+            script.async = true
+            script.defer = true
+            script.onload = mount
+            document.head.appendChild(script)
+        }
+
+        return () => {
+            if (turnstileWidgetId.current && window.turnstile) {
+                window.turnstile.remove(turnstileWidgetId.current)
+                turnstileWidgetId.current = null
+            }
+        }
+    }, [step, isJoinMode])
 
     // Core no tiene agente IA conversacional — el copy de "tu asistente" que
     // funciona para Starter/Pro/Enterprise le prometería algo que no tiene.
@@ -151,6 +202,10 @@ export default function Register() {
         }
 
         if (step === 3) {
+            if (TURNSTILE_SITE_KEY && !turnstileToken) {
+                setError('Completa la verificación de seguridad antes de continuar.')
+                return
+            }
             // Create account directly without card
             handleCreate()
             return
@@ -209,7 +264,7 @@ export default function Register() {
         setError('')
         setLoading(true)
 
-        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined)
+        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined)
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
@@ -525,6 +580,9 @@ export default function Register() {
                                         </div>
                                     </label>
                                 ))}
+                                {TURNSTILE_SITE_KEY && (
+                                    <div ref={turnstileRef} className="flex justify-center mt-4" />
+                                )}
                                 <p className="text-sm text-charcoal/50 text-center mt-4">
                                     Prueba gratis por {trialDays} días. Cancela cuando quieras.
                                 </p>

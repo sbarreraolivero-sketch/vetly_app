@@ -9,6 +9,7 @@ import { limitsForPlan } from "../_shared/planLimits.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const MERCADOPAGO_ACCESS_TOKEN = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN") || "";
+const TURNSTILE_SECRET_KEY = Deno.env.get("TURNSTILE_SECRET_KEY") || "";
 
 // CORS headers for Supabase client
 const corsHeaders = {
@@ -26,6 +27,32 @@ interface SignupRequest {
     card_token?: string;
     payment_provider?: 'mercadopago' | 'paddle';
     referral_code?: string;
+    turnstile_token?: string;
+}
+
+// Verifica el token de Cloudflare Turnstile contra la API de Cloudflare.
+// Falla cerrado: sin TURNSTILE_SECRET_KEY configurada, o sin token, o con un
+// token inválido/reusado, se rechaza el signup. El widget del frontend por sí
+// solo no bloquea nada — un bot puede llamar a esta función directo sin pasar
+// por el navegador, así que la verificación real tiene que vivir aquí.
+async function verifyTurnstile(token: string | undefined, remoteIp: string | null): Promise<boolean> {
+    if (!TURNSTILE_SECRET_KEY || !token) return false;
+    try {
+        const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                secret: TURNSTILE_SECRET_KEY,
+                response: token,
+                ...(remoteIp ? { remoteip: remoteIp } : {}),
+            }),
+        });
+        const data = await res.json();
+        return data?.success === true;
+    } catch (e) {
+        console.error("Turnstile verification error:", e);
+        return false;
+    }
 }
 
 Deno.serve(async (req: Request) => {
@@ -43,7 +70,7 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: SignupRequest = await req.json();
-        const { email, password, full_name, clinic_name, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code } = body;
+        const { email, password, full_name, clinic_name, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token } = body;
 
         // Validate required fields
         if (!email || !password || !full_name || !clinic_name) {
@@ -51,6 +78,20 @@ Deno.serve(async (req: Request) => {
                 JSON.stringify({ error: "Missing required fields" }),
                 { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
+        }
+
+        // Anti-bot: verificación server-side de Cloudflare Turnstile. Si no hay
+        // secret configurada (todavía no se creó el sitio en Cloudflare), no
+        // bloquea — para no dejar el registro roto mientras se configura.
+        if (TURNSTILE_SECRET_KEY) {
+            const clientIp = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for");
+            const turnstileOk = await verifyTurnstile(turnstile_token, clientIp);
+            if (!turnstileOk) {
+                return new Response(
+                    JSON.stringify({ error: "No pudimos verificar que eres una persona. Intenta de nuevo." }),
+                    { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+            }
         }
 
         // Validate password length
