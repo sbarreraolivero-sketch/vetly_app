@@ -26,13 +26,15 @@ export default function Register() {
     const firstNameParam = searchParams.get('first_name')
     const inviteRole = searchParams.get('role')
     const refParam = searchParams.get('ref')
+    const planParam = searchParams.get('plan')
+    const initialPlan = planParam && (PLAN_ORDER as readonly string[]).includes(planParam) ? planParam : 'pro'
 
     const [step, setStep] = useState(1)
     const [email, setEmail] = useState(inviteEmail || '')
     const [password, setPassword] = useState('')
     const [fullName, setFullName] = useState(firstNameParam || '')
     const [clinicName, setClinicName] = useState('')
-    const [selectedPlan, setSelectedPlan] = useState('pro')
+    const [selectedPlan, setSelectedPlan] = useState(initialPlan)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
@@ -42,6 +44,14 @@ export default function Register() {
 
     const { signUp } = useAuth()
     const navigate = useNavigate()
+
+    // Core no tiene agente IA conversacional — el copy de "tu asistente" que
+    // funciona para Starter/Pro/Enterprise le prometería algo que no tiene.
+    // Solo se sabe con certeza en step 1 cuando el plan llega preseleccionado
+    // por ?plan=core (ej. desde la landing de Core); si el usuario lo elige
+    // recién en el paso 3, el banner del paso 1 ya no vuelve a mostrarse.
+    const isCoreSelected = selectedPlan === 'core'
+    const trialDays = isCoreSelected ? 30 : 7
 
     // Precios reales por región — antes había un array hardcodeado que ignoraba
     // el toggle Chile/Internacional y mostraba precios desactualizados (bug
@@ -219,8 +229,10 @@ export default function Register() {
 
         // Note: Payment redirects disabled for card-free onboarding
 
-        // Success - redirect to pending activation for scheduling
-        navigate('/pending-activation')
+        // Core entra directo al dashboard (signup-handler ya lo activa con
+        // activation_status='active') — el resto pasa por /pending-activation
+        // para agendar la sesión de implementación.
+        navigate(isCoreSelected ? '/app' : '/pending-activation')
     }
 
     return (
@@ -284,10 +296,12 @@ export default function Register() {
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-charcoal leading-snug">
-                                        La Regla de Éxito Vetly
+                                        {isCoreSelected ? 'Empieza en 2 minutos' : 'La Regla de Éxito Vetly'}
                                     </p>
                                     <p className="text-xs text-charcoal/65 mt-1 leading-relaxed">
-                                        Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
+                                        {isCoreSelected
+                                            ? 'Sin tarjeta de crédito. 30 días para probar todo el sistema: citas, fichas, finanzas, inventario y fidelización.'
+                                            : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
                                     </p>
                                 </div>
                             </div>
@@ -512,7 +526,7 @@ export default function Register() {
                                     </label>
                                 ))}
                                 <p className="text-sm text-charcoal/50 text-center mt-4">
-                                    Prueba gratis por 7 días. Cancela cuando quieras.
+                                    Prueba gratis por {trialDays} días. Cancela cuando quieras.
                                 </p>
                             </div>
                         )}
@@ -596,13 +610,17 @@ export default function Register() {
                         <div className="mb-10">
                             <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
                                 <Star className="w-3.5 h-3.5 text-yellow-300" />
-                                Tu clínica con Infraestructura Operativa de Éxito
+                                {isCoreSelected ? 'Gestión completa para tu clínica' : 'Tu clínica con Infraestructura Operativa de Éxito'}
                             </div>
                             <h2 className="text-4xl font-bold mb-5 leading-tight" style={{ background: 'linear-gradient(135deg, #FFD700, #F5C842, #E8B830, #FFE066)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                                Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.
+                                {isCoreSelected
+                                    ? 'Citas, fichas médicas, finanzas e inventario en un solo lugar — sin planillas ni cuadernos.'
+                                    : 'Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.'}
                             </h2>
                             <p className="text-white/75 text-lg leading-relaxed">
-                                No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.
+                                {isCoreSelected
+                                    ? 'Deja de perseguir información en distintas planillas. Todo tu negocio ordenado, con recordatorios de WhatsApp listos para enviar en un clic.'
+                                    : 'No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.'}
                             </p>
                         </div>
 
@@ -613,9 +631,13 @@ export default function Register() {
                                     <ShieldCheck className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <p className="font-bold text-white text-base mb-1">La Regla de Éxito Vetly</p>
+                                    <p className="font-bold text-white text-base mb-1">
+                                        {isCoreSelected ? 'Sin tarjeta, sin compromiso' : 'La Regla de Éxito Vetly'}
+                                    </p>
                                     <p className="text-white/80 text-sm leading-relaxed">
-                                        Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.
+                                        {isCoreSelected
+                                            ? '30 días para probar el sistema completo. Si no es para ti, cancelas en un clic desde Configuración.'
+                                            : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
                                     </p>
                                 </div>
                             </div>
@@ -624,9 +646,9 @@ export default function Register() {
                         {/* Testimonial */}
                         <div className="bg-white/10 backdrop-blur-sm rounded-softer p-5">
                             <p className="text-white/90 italic text-sm mb-4">
-                                "Antes pasaba 3 horas diarias respondiendo mensajes.
-                                Ahora mi asistente de Vetly lo hace todo mientras
-                                yo me enfoco en mis pacientes."
+                                {isCoreSelected
+                                    ? '"Dejé de anotar todo en cuadernos y planillas sueltas. Ahora tengo el historial de cada paciente y las cuentas de la clínica en un solo lugar."'
+                                    : '"Antes pasaba 3 horas diarias respondiendo mensajes. Ahora mi asistente de Vetly lo hace todo mientras yo me enfoco en mis pacientes."'}
                             </p>
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 bg-white/20 rounded-full flex-shrink-0" />
