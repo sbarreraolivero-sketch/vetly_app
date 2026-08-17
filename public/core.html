@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- SEO primario -->
+    <title>Vetly Core — Gestión completa para tu clínica veterinaria desde $17/mes</title>
+    <meta name="description" content="Citas, fichas médicas, finanzas, inventario y fidelización en un solo lugar. Sin tarjeta de crédito, 30 días de prueba. Plan de lanzamiento: $17 USD/mes.">
+    <link rel="canonical" href="https://vetly.pro/core">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://vetly.pro/core">
+    <meta property="og:title" content="Vetly Core — Gestión completa para tu clínica, desde $17/mes">
+    <meta property="og:description" content="Deja las planillas. Citas, fichas médicas, finanzas, inventario y fidelización en un solo sistema. Sin tarjeta, 30 días gratis.">
+    <meta property="og:image" content="https://vetly.pro/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="es_CL">
+    <meta property="og:site_name" content="Vetly">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vetly Core — Gestión completa para tu clínica, desde $17/mes">
+    <meta name="twitter:description" content="Deja las planillas. Citas, fichas médicas, finanzas, inventario y fidelización en un solo sistema. Sin tarjeta, 30 días gratis.">
+    <meta name="twitter:image" content="https://vetly.pro/og-image.png">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         GOOGLE ADS / GA4 — placeholders, reemplazar antes de lanzar
+         ══════════════════════════════════════════════════════════════ -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-XXXXXXXXXX');       // GA4 — reemplazar con el ID real
+        gtag('config', 'AW-XXXXXXXXX');       // Google Ads — reemplazar con el ID real
+
+        // Se llama al hacer click en cualquier CTA de registro. El conversion
+        // label (AW-XXXXXXXXX/XXXXXXXXXXXXXXXXXXX) se completa en Google Ads
+        // al crear la acción de conversión "Registro Core".
+        function trackCoreRegisterClick() {
+            gtag('event', 'conversion', {
+                'send_to': 'AW-XXXXXXXXX/XXXXXXXXXXXXXXXXXXX',
+                'event_category': 'registro',
+                'event_label': 'plan_core',
+            });
+        }
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Outfit', 'sans-serif'] },
+                    colors: {
+                        brand:    '#0d9488',
+                        brandDk:  '#0f766e',
+                        brandLt:  '#ccfbf1',
+                        neutral:  '#18181b',
+                        muted:    '#71717a',
+                        surface:  '#f4f4f5',
+                        offwhite: '#fafafa',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #fafafa; }
+        .gradient-text {
+            background: linear-gradient(135deg, #0d9488 0%, #0ea5e9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 20px 40px -12px rgba(0,0,0,0.10); }
+    </style>
+</head>
+<body class="text-neutral font-sans antialiased">
+
+<nav class="sticky top-0 z-50 bg-offwhite/95 backdrop-blur border-b border-zinc-200">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <a href="/landing" class="flex items-center">
+            <img src="./logo.png" alt="Vetly" class="h-12 w-auto">
+        </a>
+        <a href="https://vetly.pro/login" class="text-sm font-medium text-muted hover:text-neutral transition-colors hidden sm:block">Iniciar sesión</a>
+        <a href="/register?plan=core" onclick="trackCoreRegisterClick()" class="bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
+            Empezar gratis →
+        </a>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="max-w-5xl mx-auto px-6 pt-14 pb-16 text-center">
+    <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1.5 rounded-full border border-teal-200 mb-6">
+        🚀 Lanzamiento — $17 USD/mes por tiempo limitado
+    </div>
+    <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-5">
+        Deja las planillas.<br class="hidden md:block">
+        Gestiona tu clínica <span class="gradient-text">en un solo lugar.</span>
+    </h1>
+    <p class="text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
+        Citas, fichas médicas, finanzas, inventario y fidelización — todo ordenado, con recordatorios de WhatsApp listos para enviar en un clic. Sin tarjeta de crédito. 30 días para probarlo todo.
+    </p>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <a href="/register?plan=core" onclick="trackCoreRegisterClick()" class="bg-brand text-white font-semibold px-7 py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98] text-base">
+            Crear cuenta gratis →
+        </a>
+        <p class="text-xs text-muted">Sin tarjeta · 30 días gratis · Cancela cuando quieras</p>
+    </div>
+</section>
+
+<!-- PROBLEMA -->
+<section class="bg-white border-y border-zinc-200 py-16">
+    <div class="max-w-5xl mx-auto px-6">
+        <h2 class="text-2xl md:text-3xl font-bold text-center mb-3">¿Te suena familiar?</h2>
+        <p class="text-muted text-center max-w-xl mx-auto mb-10">La mayoría de las clínicas independientes y móviles operan igual: información repartida en varios lugares, difícil de encontrar cuando más se necesita.</p>
+        <div class="grid md:grid-cols-3 gap-6">
+            <div class="bg-surface rounded-2xl p-6">
+                <p class="text-2xl mb-3">📋</p>
+                <p class="font-semibold mb-1">Fichas en papel o Excel</p>
+                <p class="text-sm text-muted">El historial de cada paciente vive en cuadernos o planillas sueltas, imposible de buscar rápido en la consulta.</p>
+            </div>
+            <div class="bg-surface rounded-2xl p-6">
+                <p class="text-2xl mb-3">💸</p>
+                <p class="font-semibold mb-1">Sin visibilidad financiera</p>
+                <p class="text-sm text-muted">No hay forma clara de saber cuánto entra, cuánto sale, ni qué inventario queda sin revisar manualmente.</p>
+            </div>
+            <div class="bg-surface rounded-2xl p-6">
+                <p class="text-2xl mb-3">😓</p>
+                <p class="font-semibold mb-1">Clientes que no vuelven</p>
+                <p class="text-sm text-muted">Sin recordatorios ni forma de fidelizar, muchos pacientes simplemente se pierden con el tiempo.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="max-w-5xl mx-auto px-6 py-16">
+    <h2 class="text-2xl md:text-3xl font-bold text-center mb-3">Todo lo que necesitas para ordenar tu clínica</h2>
+    <p class="text-muted text-center max-w-xl mx-auto mb-12">Sin curva de aprendizaje. Empiezas a usarlo el mismo día.</p>
+    <div class="grid md:grid-cols-2 gap-5">
+        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
+            <p class="text-2xl mb-3">📅</p>
+            <p class="font-semibold mb-1">Calendario de citas</p>
+            <p class="text-sm text-muted">Agenda visual, sin choques de horario, con todos los datos de cada visita a mano.</p>
+        </div>
+        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
+            <p class="text-2xl mb-3">🐾</p>
+            <p class="font-semibold mb-1">Fichas médicas e historial</p>
+            <p class="text-sm text-muted">Vacunas, desparasitaciones, consultas y cirugías — todo el historial de cada paciente en segundos.</p>
+        </div>
+        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
+            <p class="text-2xl mb-3">💰</p>
+            <p class="font-semibold mb-1">Finanzas y caja diaria</p>
+            <p class="text-sm text-muted">Ingresos, gastos, cierre de caja y comprobantes — sabes exactamente cómo va tu negocio.</p>
+        </div>
+        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
+            <p class="text-2xl mb-3">📦</p>
+            <p class="font-semibold mb-1">Inventario</p>
+            <p class="text-sm text-muted">Controla stock de medicamentos e insumos, con alertas antes de que se agoten.</p>
+        </div>
+        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
+            <p class="text-2xl mb-3">💬</p>
+            <p class="font-semibold mb-1">Recordatorios por WhatsApp</p>
+            <p class="text-sm text-muted">Envío manual ilimitado con un clic, más 25 recordatorios automáticos al mes incluidos.</p>
+        </div>
+        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
+            <p class="text-2xl mb-3">🎁</p>
+            <p class="font-semibold mb-1">Fidelización y referidos</p>
+            <p class="text-sm text-muted">Programa de puntos y sistema de referidos para que tus clientes vuelvan y traigan más clientes.</p>
+        </div>
+    </div>
+    <p class="text-center text-sm text-muted mt-8">
+        ¿Necesitas que un agente de IA responda WhatsApp automáticamente? Eso vive en el plan <a href="/landing#precios" class="text-brand font-semibold hover:underline">Starter</a> — puedes subir de plan en cualquier momento sin perder tus datos.
+    </p>
+</section>
+
+<!-- OBJECIONES -->
+<section class="bg-white border-y border-zinc-200 py-16">
+    <div class="max-w-4xl mx-auto px-6">
+        <h2 class="text-2xl md:text-3xl font-bold text-center mb-10">Sin riesgo, sin letra chica</h2>
+        <div class="grid md:grid-cols-3 gap-6 text-center">
+            <div>
+                <p class="text-3xl mb-2">💳</p>
+                <p class="font-semibold mb-1">Sin tarjeta de crédito</p>
+                <p class="text-sm text-muted">Creas tu cuenta y usas el sistema completo desde el primer minuto, sin ingresar ningún dato de pago.</p>
+            </div>
+            <div>
+                <p class="text-3xl mb-2">📆</p>
+                <p class="font-semibold mb-1">30 días de prueba real</p>
+                <p class="text-sm text-muted">Tiempo de sobra para cargar tus pacientes reales y evaluar si te sirve, sin apuro.</p>
+            </div>
+            <div>
+                <p class="text-3xl mb-2">✋</p>
+                <p class="font-semibold mb-1">Cancela cuando quieras</p>
+                <p class="text-sm text-muted">Sin contratos ni permanencia mínima. Un clic desde Configuración y listo.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- PRICING -->
+<section class="max-w-2xl mx-auto px-6 py-16 text-center">
+    <div class="bg-white border-2 border-brand rounded-2xl p-8 shadow-lg">
+        <p class="text-xs font-bold text-brand uppercase tracking-widest mb-4">Plan Core — Lanzamiento</p>
+        <div class="flex items-baseline justify-center gap-2 mb-1">
+            <span class="text-2xl text-muted line-through">$39</span>
+            <span class="text-5xl font-extrabold tracking-tighter">$17</span>
+            <span class="text-muted">/mes USD</span>
+        </div>
+        <p class="text-xs text-emerald-600 font-semibold mb-6">Precio de lanzamiento — cupos limitados</p>
+        <a href="/register?plan=core" onclick="trackCoreRegisterClick()" class="block bg-brand text-white font-semibold py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
+            Crear cuenta gratis →
+        </a>
+        <p class="text-xs text-muted mt-4">Sin tarjeta · 30 días gratis</p>
+    </div>
+    <p class="text-sm text-muted mt-8">
+        Próximamente: módulo de contabilidad y tesorería (alertas de IVA y más) — incluido en el mismo plan, sin costo extra.
+    </p>
+</section>
+
+<footer class="bg-neutral text-white py-14">
+    <div class="max-w-6xl mx-auto px-6">
+        <div class="grid md:grid-cols-4 gap-10 mb-12">
+            <div class="md:col-span-2">
+                <div class="mb-4">
+                    <img src="./logo vetly blanco.png" alt="Vetly" class="h-10 w-auto">
+                </div>
+                <p class="text-zinc-400 text-sm font-light leading-relaxed max-w-xs">
+                    El sistema operativo para clínicas veterinarias modernas. Gestión, IA conversacional y marketing en un solo lugar.
+                </p>
+            </div>
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4">Producto</p>
+                <ul class="space-y-2.5 text-sm text-zinc-400">
+                    <li><a href="/landing" class="hover:text-white transition-colors">Ver todos los planes</a></li>
+                    <li><a href="/register?plan=core" class="hover:text-white transition-colors">Crear cuenta gratis</a></li>
+                </ul>
+            </div>
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4">Empresa</p>
+                <ul class="space-y-2.5 text-sm text-zinc-400">
+                    <li><a href="mailto:hola@vetly.pro" class="hover:text-white transition-colors">Contacto</a></li>
+                    <li><a href="https://vetly.pro/privacy" class="hover:text-white transition-colors">Privacidad</a></li>
+                    <li><a href="https://vetly.pro/terms" class="hover:text-white transition-colors">Términos</a></li>
+                    <li><a href="https://vetly.pro/login" class="hover:text-white transition-colors">Iniciar sesión</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p class="text-zinc-500 text-xs">© 2026 Vetly. Todos los derechos reservados.</p>
+            <p class="text-zinc-500 text-xs">Hecho con ❤️ para veterinarios que quieren más tiempo con sus pacientes.</p>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>

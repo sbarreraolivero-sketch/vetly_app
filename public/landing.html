@@ -10,6 +10,33 @@
     <meta name="description" content="Vetly atiende tu WhatsApp 24/7 con IA, agenda citas y envía recordatorios. Para veterinarios y clínicas móviles en LATAM. Desde $39 USD/mes. 7 días gratis.">
     <link rel="canonical" href="https://vetly.pro/">
 
+    <!-- ══════════════════════════════════════════════════════════════
+         GOOGLE ADS / GA4 — placeholders, reemplazar antes de lanzar.
+         Mismo snippet que /core.html, para medición consistente entre
+         páginas. El evento de conversión se dispara al hacer click en
+         cualquier CTA "/demo" (el funnel principal de esta landing).
+         ══════════════════════════════════════════════════════════════ -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-XXXXXXXXXX');       // GA4 — reemplazar con el ID real
+        gtag('config', 'AW-XXXXXXXXX');       // Google Ads — reemplazar con el ID real
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('a[href="/demo"]').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    gtag('event', 'conversion', {
+                        'send_to': 'AW-XXXXXXXXX/XXXXXXXXXXXXXXXXXXX',
+                        'event_category': 'demo',
+                        'event_label': 'landing_principal',
+                    });
+                });
+            });
+        });
+    </script>
+
     <!-- Open Graph (WhatsApp, LinkedIn, Facebook) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://vetly.pro/">
@@ -313,7 +340,7 @@
             <div class="bg-zinc-50 border border-zinc-200 rounded-xl px-5 py-4 mb-8 max-w-sm">
                 <div class="flex items-center gap-4 mb-3">
                     <div class="text-center">
-                        <p class="text-2xl font-extrabold text-brand">desde $97 USD</p>
+                        <p class="text-2xl font-extrabold text-brand">desde $89 USD</p>
                         <p class="text-xs text-muted mt-0.5">con IA recepcionista / mes</p>
                     </div>
                     <div class="text-zinc-300 text-2xl font-light">vs</div>
@@ -1039,7 +1066,7 @@
                 <li class="flex items-start gap-3">
                     <span class="text-teal-400 mt-0.5 shrink-0">✓</span>
                     <div>
-                        <p class="font-semibold text-sm">Desde $97 USD / mes</p>
+                        <p class="font-semibold text-sm">Desde $89 USD / mes</p>
                         <p class="text-xs text-zinc-400">Plan Starter — sin contrato, sin finiquito, sin cotizaciones previsionales</p>
                     </div>
                 </li>
@@ -1423,10 +1450,10 @@
             <div class="bg-white border border-zinc-200 rounded-2xl p-7 card-hover">
                 <p class="text-xs font-bold text-muted uppercase tracking-widest mb-4">Enterprise</p>
                 <div class="flex items-baseline gap-1 mb-1">
-                    <span class="text-4xl font-extrabold tracking-tighter">$297</span>
+                    <span class="text-4xl font-extrabold tracking-tighter">$349</span>
                     <span class="text-muted text-sm">/mes</span>
                 </div>
-                <p class="text-xs text-brand font-semibold mb-1">$2.851/año · <span class="text-emerald-600">2 meses gratis</span></p>
+                <p class="text-xs text-brand font-semibold mb-1">$3.350/año · <span class="text-emerald-600">2 meses gratis</span></p>
                 <p class="text-xs text-muted mb-6">Redes y multi-sucursal</p>
                 <hr class="border-zinc-100 mb-6"/>
                 <ul class="space-y-2.5 text-sm mb-8">
@@ -1460,10 +1487,10 @@
                 </div>
                 <p class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">Pro</p>
                 <div class="flex items-baseline gap-1 mb-1">
-                    <span class="text-4xl font-extrabold tracking-tighter">$167</span>
+                    <span class="text-4xl font-extrabold tracking-tighter">$169</span>
                     <span class="text-zinc-400 text-sm">/mes</span>
                 </div>
-                <p class="text-xs text-teal-400 font-semibold mb-1">$1.603/año · <span class="text-emerald-400">2 meses gratis</span></p>
+                <p class="text-xs text-teal-400 font-semibold mb-1">$1.622/año · <span class="text-emerald-400">2 meses gratis</span></p>
                 <p class="text-xs text-zinc-400 mb-6">Para clínicas con equipo establecido</p>
                 <hr class="border-white/10 mb-6"/>
                 <ul class="space-y-2.5 text-sm mb-8">
@@ -1493,10 +1520,10 @@
             <div class="bg-white border border-zinc-200 rounded-2xl p-7 card-hover">
                 <p class="text-xs font-bold text-muted uppercase tracking-widest mb-4">Starter</p>
                 <div class="flex items-baseline gap-1 mb-1">
-                    <span class="text-4xl font-extrabold tracking-tighter">$97</span>
+                    <span class="text-4xl font-extrabold tracking-tighter">$89</span>
                     <span class="text-muted text-sm">/mes</span>
                 </div>
-                <p class="text-xs text-brand font-semibold mb-1">$931/año · <span class="text-emerald-600">2 meses gratis</span></p>
+                <p class="text-xs text-brand font-semibold mb-1">$854/año · <span class="text-emerald-600">2 meses gratis</span></p>
                 <p class="text-xs text-muted mb-6">Para veterinarios independientes</p>
                 <hr class="border-zinc-100 mb-6"/>
                 <ul class="space-y-2.5 text-sm mb-8">
@@ -1533,14 +1560,15 @@
                 <p class="text-xs text-muted mb-6">Gestión completa sin IA conversacional</p>
                 <hr class="border-zinc-100 mb-6"/>
                 <ul class="space-y-2.5 text-sm mb-8">
-                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>1 usuario · 1 agenda</span></li>
+                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>3 usuarios · 1 agenda</span></li>
                     <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Dashboard + métricas</span></li>
                     <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Calendario de citas (manual)</span></li>
                     <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Fichas médicas e historial</span></li>
                     <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Módulo de finanzas</span></li>
-                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Sistema de referidos</span></li>
-                    <li class="flex items-start gap-2 text-muted"><span class="mt-0.5 shrink-0">–</span><span>Sin recordatorios automáticos</span></li>
-                    <li class="flex items-start gap-2 text-zinc-400"><span class="mt-0.5 shrink-0">→</span><span class="text-xs">Recordatorios automáticos disponibles desde Plan Starter</span></li>
+                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Módulo de inventario</span></li>
+                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Fidelización y referidos</span></li>
+                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>Recordatorios WhatsApp sin límite (envío manual)</span></li>
+                    <li class="flex items-start gap-2"><span class="text-brand mt-0.5 shrink-0">✓</span><span>25 recordatorios automáticos/mes</span></li>
                 </ul>
                 <div class="rounded-xl border border-teal-100 mb-5 overflow-hidden">
                     <div class="bg-teal-50 px-3 py-1.5 flex items-center gap-1.5">
@@ -1664,7 +1692,7 @@
                 <p class="text-zinc-400 text-sm font-light leading-relaxed max-w-xs">
                     El sistema operativo para clínicas veterinarias modernas. Gestión, IA conversacional y marketing en un solo lugar.
                 </p>
-                <p class="text-zinc-500 text-xs mt-4">Cobros internacionales en USD via LemonSqueezy.<br>Pagos locales Chile en CLP via MercadoPago.</p>
+                <p class="text-zinc-500 text-xs mt-4">Cobros internacionales en USD via Paddle.<br>Pagos locales Chile en CLP via MercadoPago.</p>
             </div>
             <div>
                 <p class="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4">Producto</p>
