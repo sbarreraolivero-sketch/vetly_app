@@ -4,6 +4,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { createHmac } from "node:crypto";
+import { limitsForPlan } from "../_shared/planLimits.ts";
 
 const MERCADOPAGO_ACCESS_TOKEN = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN") || "";
 const MERCADOPAGO_WEBHOOK_SECRET = Deno.env.get("MERCADOPAGO_WEBHOOK_SECRET") || "";
@@ -176,17 +177,25 @@ Deno.serve(async (req: Request) => {
                 subscriptionStatus = "trial";
         }
 
-        const plan = payment.metadata?.plan || 'essence';
+        const plan = payment.metadata?.plan || 'starter';
+        // Límites desde la tabla `plan_limits` (ver _shared/planLimits.ts).
+        const planLimits = await limitsForPlan(supabase, plan);
         const updateData: Record<string, unknown> = {
             status: subscriptionStatus,
             plan_id: plan,
+            // Escribir también `plan`: AuthContext y BranchSwitcher leen esa columna,
+            // y hasta ahora MP solo escribía plan_id, dejando las dos discrepando.
+            plan: plan,
             mercadopago_subscription_id: payload.data.id,
         };
 
         if (periodEnd) {
             updateData.current_period_start = new Date().toISOString();
             updateData.current_period_end = periodEnd.toISOString();
-            updateData.trial_ends_at = null; // Clear trial
+            // OJO: no escribir `trial_ends_at` — esa columna NO existe en
+            // `subscriptions` (el trial real vive en clinic_settings.trial_end_date).
+            // Incluirla hacía fallar el UPDATE completo y ningún pago de MercadoPago
+            // llegaba a activarse. Bug detectado en sesión 68, corregido aquí.
         }
 
         // 1. Update subscription in database
@@ -206,13 +215,51 @@ Deno.serve(async (req: Request) => {
                 .from("clinic_settings")
                 .update({
                     subscription_plan: plan,
-                    ai_credits_monthly_limit: ['enterprise', 'prestige'].includes(plan) ? 30000 : ['pro', 'radiance'].includes(plan) ? 10000 : ['starter', 'essence'].includes(plan) ? 5000 : 0,
-                    ai_credits_monthly_4o_limit: ['enterprise', 'prestige'].includes(plan) ? 999999 : ['pro', 'radiance'].includes(plan) ? 999999 : ['starter', 'essence'].includes(plan) ? 999999 : 0,
-                    max_users: plan === 'prestige' ? 999999 : (plan === 'radiance' ? 5 : 2),
+                    ai_credits_monthly_limit: planLimits.ai_credits,
+                    ai_credits_monthly_4o_limit: planLimits.ai_credits > 0 ? 999999 : 0,
+                    // Antes: `plan === 'prestige' ? 999999 : (plan === 'radiance' ? 5 : 2)`,
+                    // que solo entendía IDs legacy y le daba 2 usuarios a un Enterprise.
+                    max_users: planLimits.max_users,
                 })
                 .eq("id", clinicId);
             
             if (syncError) console.error("Error syncing limits from MP:", syncError);
+
+            // 2b. Referral B2B reward (idempotent via clinic_referrals.status='pending')
+            try {
+                const { data: referral } = await supabase
+                    .from('clinic_referrals')
+                    .select('id, referrer_clinic_id')
+                    .eq('referred_clinic_id', clinicId)
+                    .eq('status', 'pending')
+                    .maybeSingle();
+
+                if (referral) {
+                    if (plan === 'core') {
+                        const { data: referrerSub } = await supabase
+                            .from('subscriptions')
+                            .select('current_period_end')
+                            .eq('clinic_id', referral.referrer_clinic_id)
+                            .maybeSingle();
+                        const base = referrerSub?.current_period_end ? new Date(referrerSub.current_period_end) : new Date();
+                        base.setMonth(base.getMonth() + 2);
+                        await supabase.from('subscriptions').update({ current_period_end: base.toISOString() }).eq('clinic_id', referral.referrer_clinic_id);
+                        await supabase.from('clinic_referrals').update({
+                            status: 'qualified', reward_type: 'free_months', reward_amount: 2, rewarded_at: new Date().toISOString(),
+                        }).eq('id', referral.id);
+                    } else {
+                        const MP_REFERRAL_PRICES: Record<string, number> = { starter: 92000, essence: 92000, pro: 159000, radiance: 159000, enterprise: 333000, prestige: 333000 };
+                        const price = MP_REFERRAL_PRICES[plan] ?? 0;
+                        await supabase.from('clinic_referrals').update({
+                            status: 'qualified', reward_type: 'cash_commission',
+                            reward_amount: Math.round(price * 0.5), reward_currency: 'CLP',
+                            rewarded_at: new Date().toISOString(),
+                        }).eq('id', referral.id);
+                    }
+                }
+            } catch (e) {
+                console.error('[MP] Referral reward error (non-fatal):', e);
+            }
 
             // 3. Send Activation Email (Async)
             try {

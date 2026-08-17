@@ -97,17 +97,18 @@ export async function cancelSubscription(subscriptionId: string) {
 
 /**
  * CLP Plan Prices for Mercado Pago (Chile)
+ *
+ * ⚠️ Los límites (usuarios, agendas, recordatorios, créditos) NO viven aquí.
+ * La fuente única es `src/lib/plans.ts` (espejo de la tabla `plan_limits`).
+ * Este objeto solo define precio y textos de marketing.
  */
 export const PLANS = {
     enterprise: {
         id: 'enterprise',
         name: 'Enterprise',
         tagline: 'Redes y multi-sucursal',
-        price: 282000,
+        price: 333000,
         currency: 'CLP',
-        monthlyAppointmentsMonthly: -1,
-        maxUsers: 999999,
-        maxAgendas: 999999,
         features: [
             'Usuarios y agendas ilimitados',
             'Todo lo de Pro',
@@ -128,12 +129,9 @@ export const PLANS = {
         tagline: 'Para clínicas en crecimiento',
         price: 159000,
         currency: 'CLP',
-        monthlyAppointmentsMonthly: -1,
-        maxUsers: 5,
-        maxAgendas: 5,
         popular: true,
         features: [
-            '5 usuarios · 5 agendas',
+            '10 usuarios · 5 agendas',
             'Todo lo de Starter',
             'Conversaciones IA ilimitadas',
             'Citas con IA ilimitadas',
@@ -151,16 +149,13 @@ export const PLANS = {
         tagline: 'Para veterinarios independientes',
         price: 92000,
         currency: 'CLP',
-        monthlyAppointmentsMonthly: 100,
-        maxUsers: 2,
-        maxAgendas: 1,
         features: [
-            '2 usuarios · 1 agenda',
+            '5 usuarios · 3 agendas',
             'Todo lo de Core',
             'Agente IA WhatsApp (Lía)',
             '5.000 créditos IA incluidos/mes',
             '100 citas con IA/mes',
-            '100 recordatorios/mes',
+            '100 recordatorios automáticos/mes',
             'Logística móvil (Goldi)',
             '¿Más de 100 citas/mes? → Plan Pro',
         ],
@@ -174,18 +169,16 @@ export const PLANS = {
         tagline: 'Gestión completa sin IA conversacional',
         price: 33000,
         currency: 'CLP',
-        monthlyAppointmentsMonthly: 0,
-        maxUsers: 1,
-        maxAgendas: 1,
         features: [
-            '1 usuario · 1 agenda',
+            '3 usuarios · 1 agenda',
             'Dashboard + métricas',
             'Calendario de citas (manual)',
             'Fichas médicas e historial',
             'Módulo de finanzas',
-            'Sistema de referidos',
-            'Sin recordatorios automáticos',
-            'Recordatorios automáticos: disponibles desde Plan Starter',
+            'Módulo de inventario',
+            'Fidelización y referidos',
+            'Recordatorios por WhatsApp sin límite (envío manual)',
+            '25 recordatorios automáticos/mes',
         ],
         upsells: [
             'Mensajería masiva de marketing segmentada',
@@ -193,20 +186,12 @@ export const PLANS = {
     },
 } as const;
 
-export type PlanId = keyof typeof PLANS
-
-/** Maps legacy DB plan IDs to current plan IDs */
-export const PLAN_LEGACY_MAP: Record<string, PlanId> = {
-    essence: 'starter',
-    radiance: 'pro',
-    prestige: 'enterprise',
-}
-
-/** Resolves a plan ID that may be legacy to the current equivalent */
-export function normalizePlanId(planId: string): PlanId {
-    if (planId in PLANS) return planId as PlanId
-    return PLAN_LEGACY_MAP[planId] ?? 'starter'
-}
+/**
+ * Re-exportados desde `src/lib/plans.ts` para no romper los imports existentes.
+ * En código nuevo, importa directamente de `@/lib/plans`.
+ */
+export type { PlanId } from './plans'
+export { PLAN_LEGACY_MAP, normalizePlanId } from './plans'
 
 /**
  * CLP Credit Packs — GPT-4o-mini (económico)

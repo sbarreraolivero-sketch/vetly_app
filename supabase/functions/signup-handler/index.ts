@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: SignupRequest = await req.json();
-        const { email, password, full_name, clinic_name, selected_plan = "radiance", card_token, payment_provider = 'mercadopago', referral_code } = body;
+        const { email, password, full_name, clinic_name, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code } = body;
 
         // Validate required fields
         if (!email || !password || !full_name || !clinic_name) {
@@ -170,6 +170,15 @@ Deno.serve(async (req: Request) => {
         // fallback de 1000 créditos y 2 usuarios, sin importar lo que pagara.
         const planLimits = await limitsForPlan(supabaseAdmin, selected_plan);
 
+        // Core es la puerta de entrada sin agente IA — entra directo al dashboard
+        // (sin la pantalla de "agenda tu activación") y tiene 30 días de prueba
+        // en vez de los 7 estándar, para dar tiempo real a evaluar el resto del
+        // sistema (finanzas, inventario, fidelización) sin la ayuda del agente.
+        const isCorePlan = selected_plan === "core";
+        const trialDays = isCorePlan ? 30 : 7;
+        const now = new Date();
+        const trialEndDate = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
         // 2. Create clinic
         const { data: clinicData, error: clinicError } = await supabaseAdmin
             .from("clinic_settings")
@@ -185,8 +194,11 @@ Deno.serve(async (req: Request) => {
                 payment_provider: payment_provider,
                 mercadopago_customer_id: mpCustomerId,
                 mercadopago_card_id: mpCardId,
-                activation_status: 'pending_activation',
-                billing_status: (mpCardId || payment_provider === 'paddle') ? 'card_verified' : 'none'
+                activation_status: isCorePlan ? 'active' : 'pending_activation',
+                billing_status: (mpCardId || payment_provider === 'paddle') ? 'card_verified' : 'none',
+                trial_start_date: now.toISOString(),
+                trial_end_date: trialEndDate.toISOString(),
+                trial_status: 'running',
             })
             .select()
             .single();
