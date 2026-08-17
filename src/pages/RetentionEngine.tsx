@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
-import { PremiumFeature } from '@/components/common/PremiumFeature'
+import { PlanGate } from '@/components/common/PlanGate'
 import { retentionService, type RetentionDashboardStats, type PatientAtRisk, type AIAction } from '@/services/retentionService'
 import { toast } from 'react-hot-toast'
 
@@ -314,12 +314,12 @@ const RetentionEngine = () => {
                             <Sparkles className="w-4 h-4 text-emerald-500" />
                         </div>
                     </div>
-                    <PremiumFeature requiredPlan="prestige" showLock>
+                    <PlanGate requiredPlan="enterprise">
                         <p className="text-2xl font-bold text-emerald-600">
                             {formatCurrency(stats?.revenue_recovered_month || 0)}
                         </p>
                         <p className="text-xs text-charcoal/40 mt-1">Este mes</p>
-                    </PremiumFeature>
+                    </PlanGate>
                 </div>
             </div>
 
@@ -726,7 +726,7 @@ const RetentionEngine = () => {
             {/* Tab: AI Actions */}
             {
                 activeTab === 'actions' && (
-                    <PremiumFeature requiredPlan="prestige" showLock>
+                    <PlanGate requiredPlan="enterprise">
                         <div className="space-y-6">
                             {/* Header & Configuration */}
                             <div className="flex items-center justify-between">
@@ -898,7 +898,7 @@ const RetentionEngine = () => {
                                 </div>
                             </div>
                         </div>
-                    </PremiumFeature>
+                    </PlanGate>
                 )
             }
 
@@ -911,11 +911,11 @@ const RetentionEngine = () => {
                         </div>
                         <div>
                             <p className="text-xs text-charcoal/50 uppercase tracking-wider font-medium">Ingresos Recuperados por Vetly AI</p>
-                            <PremiumFeature requiredPlan="radiance" fallback={
+                            <PlanGate requiredPlan="pro" mode="replace" fallback={
                                 <p className="text-xl font-bold text-charcoal/30">Disponible en Radiance+</p>
                             }>
                                 <p className="text-2xl font-bold text-charcoal">{formatCurrency(stats?.revenue_recovered_month || 0)}</p>
-                            </PremiumFeature>
+                            </PlanGate>
                         </div>
                     </div>
                     <div className="text-right">

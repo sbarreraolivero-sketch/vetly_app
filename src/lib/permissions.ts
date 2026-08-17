@@ -16,6 +16,7 @@ export type PageKey =
   | 'loyalty'
   | 'templates'
   | 'integrations'
+  | 'partner_referral'
 
 export type ActionKey =
   | 'dashboard_metrics'
@@ -55,6 +56,7 @@ const ALL_PAGES: Record<PageKey, boolean> = {
   loyalty: true,
   templates: true,
   integrations: true,
+  partner_referral: true,
 }
 
 const ALL_ACTIONS: Record<ActionKey, boolean> = {
@@ -98,6 +100,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       loyalty: false,
       templates: true,
       integrations: false,
+      partner_referral: false,
     },
     actions: {
       dashboard_metrics: false,
@@ -132,6 +135,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       loyalty: false,
       templates: true,
       integrations: false,
+      partner_referral: false,
     },
     actions: {
       dashboard_metrics: false,
@@ -166,6 +170,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       loyalty: false,
       templates: false,
       integrations: false,
+      partner_referral: false,
     },
     actions: {
       dashboard_metrics: false,

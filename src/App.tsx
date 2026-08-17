@@ -45,6 +45,7 @@ const Inventory = lazy(() => import('./pages/Inventory'))
 // const RetentionEngine = lazy(() => import('./pages/RetentionEngine'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Loyalty = lazy(() => import('./pages/Loyalty'))
+const PartnerReferral = lazy(() => import('./pages/PartnerReferral'))
 const ReferralRedirect = lazy(() => import('./pages/ReferralRedirect'))
 const PetOwnerPortal = lazy(() => import('./pages/PetOwnerPortal'))
 const Pricing = lazy(() => import('./pages/Pricing'))
@@ -67,6 +68,7 @@ const AdminLogin = lazy(() => import('./pages/hq/AdminLogin'))
 const AdminCalendar = lazy(() => import('./pages/hq/AdminCalendar'))
 const AdminMessages = lazy(() => import('./pages/hq/AdminMessages'))
 const AdminCRM = lazy(() => import('./pages/hq/AdminCRM'))
+const AdminReferrals = lazy(() => import('./pages/hq/AdminReferrals'))
 
 // Contexts & Guards
 import { AuthProvider } from './contexts/AuthContext'
@@ -76,6 +78,7 @@ import { SubscriptionGuard } from './components/auth/SubscriptionGuard'
 import { AdminProtectedRoute } from './components/auth/AdminProtectedRoute'
 import { RoleGuard } from './components/auth/RoleGuard'
 import { PermissionGuard } from './components/auth/PermissionGuard'
+import { PlanGuard } from './components/auth/PlanGuard'
 
 // Loading component
 const PageLoader = () => (
@@ -100,6 +103,7 @@ function HQRoutes() {
                                 <Route path="clinics" element={<AdminClinics />} />
                                 <Route path="messages" element={<AdminMessages />} />
                                 <Route path="crm" element={<AdminCRM />} />
+                                <Route path="referrals" element={<AdminReferrals />} />
                                 <Route path="settings" element={<AdminSettings />} />
                             </Route>
                         </Route>
@@ -172,7 +176,10 @@ function MainRoutes() {
                         } />
                         <Route path="messages" element={
                             <SubscriptionGuard>
-                                <Messages />
+                                <PlanGuard minPlan="starter" sectionName="Mensajes"
+                                    description="La bandeja de conversaciones se llena con los mensajes que atiende el agente IA en WhatsApp. El plan Starter lo activa con 5.000 créditos de IA al mes.">
+                                    <Messages />
+                                </PlanGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="appointments" element={
@@ -210,7 +217,10 @@ function MainRoutes() {
                         <Route path="crm" element={
                             <SubscriptionGuard>
                                 <RoleGuard allowedRoles={['owner', 'admin']}>
-                                    <CRM />
+                                    <PlanGuard minPlan="starter" sectionName="El CRM"
+                                        description="El kanban de prospectos se alimenta de las conversaciones del agente IA: cada persona nueva que escribe entra como prospecto. El plan Starter lo activa.">
+                                        <CRM />
+                                    </PlanGuard>
                                 </RoleGuard>
                             </SubscriptionGuard>
                         } />
@@ -249,6 +259,13 @@ function MainRoutes() {
                                 </RoleGuard>
                             </SubscriptionGuard>
                         } />
+                        <Route path="partner-referral" element={
+                            <SubscriptionGuard>
+                                <PermissionGuard pageKey="partner_referral">
+                                    <PartnerReferral />
+                                </PermissionGuard>
+                            </SubscriptionGuard>
+                        } />
                         <Route path="ai-credits" element={
                             <SubscriptionGuard>
                                 <AICredits />
@@ -256,7 +273,10 @@ function MainRoutes() {
                         } />
                         <Route path="ai-settings" element={
                             <SubscriptionGuard>
-                                <AISettings />
+                                <PlanGuard minPlan="starter" sectionName="Ajustes de IA"
+                                    description="Aquí se configura la personalidad del agente, el motor de IA y los créditos. El plan Starter activa el agente con 5.000 créditos al mes.">
+                                    <AISettings />
+                                </PlanGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="integrations" element={

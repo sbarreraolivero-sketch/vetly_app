@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom'
-import { ShieldAlert, LogOut, Users, Activity, Settings as SettingsIcon, Calendar, LayoutDashboard, MessageSquare, Menu, X } from 'lucide-react'
+import { ShieldAlert, LogOut, Users, Activity, Settings as SettingsIcon, Calendar, LayoutDashboard, MessageSquare, Menu, X, Gift } from 'lucide-react'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,7 @@ export default function AdminLayout() {
         { name: 'Mensajes', href: '/hq/messages', icon: MessageSquare },
         { name: 'Calendario', href: '/hq/calendar', icon: Calendar },
         { name: 'Clínicas', href: '/hq/clinics', icon: Users },
+        { name: 'Referidos', href: '/hq/referrals', icon: Gift },
         { name: 'Configuración', href: '/hq/settings', icon: SettingsIcon },
     ]
 

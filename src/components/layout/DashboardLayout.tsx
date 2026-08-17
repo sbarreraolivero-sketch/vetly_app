@@ -21,6 +21,7 @@ import {
     DollarSign,
     Menu,
     X,
+    Lock,
     FileText,
     BellOff,
     Heart,
@@ -28,12 +29,15 @@ import {
     Plug,
     SlidersHorizontal,
     Package,
+    Gift,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import BranchSwitcher from './BranchSwitcher'
 import { usePermissions } from '@/hooks/usePermissions'
+import { usePlan } from '@/hooks/usePlan'
+import { UPGRADE_URL } from '@/components/common/PlanGate'
 import type { PageKey } from '@/lib/permissions'
 
 interface Notification {
@@ -74,6 +78,7 @@ const navigationSections = [
         items: [
             { name: 'Campañas', href: '/app/campaigns', icon: Megaphone, pageKey: 'campaigns' as PageKey },
             { name: 'Fidelización', href: '/app/loyalty', icon: Star, pageKey: 'loyalty' as PageKey },
+            { name: 'Recomienda Vetly', href: '/app/partner-referral', icon: Gift, pageKey: 'partner_referral' as PageKey },
         ]
     },
     {
@@ -124,6 +129,7 @@ export default function DashboardLayout() {
     const { user, profile, member, signOut } = useAuth()
 
     const { canAccess } = usePermissions()
+    const { pageAllowed } = usePlan()
 
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
@@ -396,19 +402,28 @@ export default function DashboardLayout() {
                                 )}
                                 {visibleItems.map((item) => {
                                     const [itemPath, itemQuery] = item.href.split('?')
-                                    const isActive = itemQuery
+                                    // Fuera de plan: se muestra igual, pero apagado y con candado.
+                                    // Ocultarlo perdería la oportunidad de venta; el clic lleva a planes.
+                                    const locked = !pageAllowed(item.pageKey)
+                                    const isActive = !locked && (itemQuery
                                         ? location.pathname === itemPath && location.search === `?${itemQuery}`
-                                        : location.pathname === item.href
+                                        : location.pathname === item.href)
                                     return (
                                         <NavLink
                                             key={item.name}
-                                            to={item.href}
-                                            title={isSidebarCollapsed ? item.name : undefined}
+                                            to={locked ? UPGRADE_URL : item.href}
+                                            title={
+                                                locked
+                                                    ? `${item.name} — disponible desde el plan Starter`
+                                                    : (isSidebarCollapsed ? item.name : undefined)
+                                            }
                                             className={cn(
                                                 'relative flex items-center gap-3 mx-2 px-3 py-[9px] rounded-lg text-[13px] font-medium transition-all duration-150',
                                                 isActive
                                                     ? cn(section.accent.active, 'text-white')
-                                                    : 'text-white/50 hover:bg-white/[0.05] hover:text-white/85',
+                                                    : locked
+                                                        ? 'text-white/30 hover:bg-white/[0.04] hover:text-white/50'
+                                                        : 'text-white/50 hover:bg-white/[0.05] hover:text-white/85',
                                                 isSidebarCollapsed && 'justify-center px-0 mx-1'
                                             )}
                                         >
@@ -417,11 +432,14 @@ export default function DashboardLayout() {
                                             )}
                                             <item.icon className={cn(
                                                 "shrink-0 w-[18px] h-[18px]",
-                                                isActive ? section.accent.icon : "text-white/40"
+                                                isActive ? section.accent.icon : locked ? "text-white/25" : "text-white/40"
                                             )} />
                                             <span className={cn("transition-all duration-200 overflow-hidden whitespace-nowrap", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
                                                 {item.name}
                                             </span>
+                                            {locked && !isSidebarCollapsed && (
+                                                <Lock className="ml-auto shrink-0 w-3 h-3 text-white/30" />
+                                            )}
                                         </NavLink>
                                     )
                                 })}
@@ -477,18 +495,25 @@ export default function DashboardLayout() {
                                 <p className={cn("px-4 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.1em]", section.accent.label)}>{section.label}</p>
                                 {visibleItems.map((item) => {
                                     const [itemPath, itemQuery] = item.href.split('?')
-                                    const isActive = itemQuery
+                                    const locked = !pageAllowed(item.pageKey)
+                                    const isActive = !locked && (itemQuery
                                         ? location.pathname === itemPath && location.search === `?${itemQuery}`
-                                        : location.pathname === item.href
+                                        : location.pathname === item.href)
                                     return (
-                                        <NavLink key={item.name} to={item.href} onClick={() => setShowMobileMenu(false)}
+                                        <NavLink key={item.name} to={locked ? UPGRADE_URL : item.href} onClick={() => setShowMobileMenu(false)}
+                                            title={locked ? `${item.name} — disponible desde el plan Starter` : undefined}
                                             className={cn(
                                                 'relative flex items-center gap-3 mx-2 px-3 py-[9px] rounded-lg text-[13px] font-medium transition-all duration-150',
-                                                isActive ? cn(section.accent.active, 'text-white') : 'text-white/50 hover:bg-white/[0.05] hover:text-white/85'
+                                                isActive
+                                                    ? cn(section.accent.active, 'text-white')
+                                                    : locked
+                                                        ? 'text-white/30 hover:bg-white/[0.04] hover:text-white/50'
+                                                        : 'text-white/50 hover:bg-white/[0.05] hover:text-white/85'
                                             )}>
                                             {isActive && <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full", section.accent.dot)} />}
-                                            <item.icon className={cn("shrink-0 w-[18px] h-[18px]", isActive ? section.accent.icon : "text-white/40")} />
+                                            <item.icon className={cn("shrink-0 w-[18px] h-[18px]", isActive ? section.accent.icon : locked ? "text-white/25" : "text-white/40")} />
                                             <span>{item.name}</span>
+                                            {locked && <Lock className="ml-auto shrink-0 w-3 h-3 text-white/30" />}
                                         </NavLink>
                                     )
                                 })}

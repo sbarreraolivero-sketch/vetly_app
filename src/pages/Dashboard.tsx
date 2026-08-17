@@ -17,6 +17,7 @@ import {
     X,
     DollarSign,
     AlertTriangle,
+    Lock,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
@@ -31,6 +32,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { usePermissions } from '@/hooks/usePermissions'
+import { usePlan } from '@/hooks/usePlan'
+import { PlanGate, UPGRADE_URL } from '@/components/common/PlanGate'
 import { financeService } from '@/services/financeService'
 import { inventoryService } from '@/services/inventoryService'
 import { cn } from '@/lib/utils'
@@ -65,7 +68,7 @@ interface Appointment {
 
 interface Message {
     id: string
-    contact_phone: string
+    phone_number: string
     content: string
     created_at: string
     direction: 'inbound' | 'outbound'
@@ -82,6 +85,10 @@ interface ServiceRanking {
 export default function Dashboard() {
     const { user, profile } = useAuth()
     const { can, canAccess } = usePermissions()
+    // hasAI: el plan incluye agente conversacional. Rige el bloqueo de las
+    // tarjetas que solo tienen sentido con el agente activo.
+    const { meetsPlan } = usePlan()
+    const hasAI = meetsPlan('starter')
     const [loading, setLoading] = useState(true)
     const [stats, setStats] = useState<DashboardStats>({
         appointmentsToday: 0,
@@ -101,6 +108,7 @@ export default function Dashboard() {
     // New metrics
     const [extraStats, setExtraStats] = useState({
         remindersSent: 0,
+        manualReminders: 0,
         newProspects: 0,
         cancelledAppointments: 0,
         aiMessages: 0,
@@ -206,6 +214,7 @@ export default function Dashboard() {
                     inboundMessagesRes,
                     surveysRes,
                     remindersCountRes,
+                    manualRemindersCountRes,
                     prospectsRes, // Changed from count to data for unique counting
                     cancelledCountRes,
                     aiMessagesCountRes,
@@ -289,6 +298,16 @@ export default function Dashboard() {
                         .gte('created_at', startOfStats)
                         .lte('created_at', endOfStats)
                         .eq('clinic_id', profile.clinic_id),
+                    // 8b. De esos, cuántos se enviaron a mano por wa.me. El desglose
+                    // automático/manual es lo que después justifica el upgrade.
+                    supabase
+                        .from('reminder_logs')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('type', 'manual_wa')
+                        .in('status', ['sent', 'delivered', 'read'])
+                        .gte('created_at', startOfStats)
+                        .lte('created_at', endOfStats)
+                        .eq('clinic_id', profile.clinic_id),
                     // 9. New Prospects (Unique inbound contacts in period)
                     supabase
                         .from('messages')
@@ -353,6 +372,7 @@ export default function Dashboard() {
 
                 setExtraStats({
                     remindersSent: remindersCountRes.count || 0,
+                    manualReminders: manualRemindersCountRes.count || 0,
                     newProspects: currentProspectsCount,
                     cancelledAppointments: cancelledCountRes.count || 0,
                     aiMessages: aiMessagesCountRes.count || 0,
@@ -491,11 +511,13 @@ export default function Dashboard() {
         color: string
         bg: string
         change: number | null
+        /** Depende del agente IA — se bloquea con CTA en planes sin IA. */
+        requiresAI?: boolean
     }[] = [
         {
             name: 'CITAS TOTALES',
             value: stats.appointmentsToday.toString(),
-            subtext: `🤖 ${extraStats.aiAppointments} por IA · 👤 ${manualAppointments} manual`,
+            subtext: hasAI ? `🤖 ${extraStats.aiAppointments} por IA · 👤 ${manualAppointments} manual` : undefined,
             icon: Calendar,
             color: 'text-primary-500',
             bg: 'bg-primary-500/10',
@@ -515,7 +537,8 @@ export default function Dashboard() {
             icon: Target,
             color: 'text-fuchsia-500',
             bg: 'bg-fuchsia-500/10',
-            change: calculatePercentage(extraStats.newProspects, prevStats.prospects)
+            change: calculatePercentage(extraStats.newProspects, prevStats.prospects),
+            requiresAI: true
         },
         {
             name: 'MENSAJES DE IA',
@@ -523,11 +546,15 @@ export default function Dashboard() {
             icon: MessageSquare,
             color: 'text-sky-500',
             bg: 'bg-sky-500/10',
-            change: calculatePercentage(extraStats.aiMessages, prevStats.aiMessages)
+            change: calculatePercentage(extraStats.aiMessages, prevStats.aiMessages),
+            requiresAI: true
         },
         {
             name: 'RECORDATORIOS',
             value: extraStats.remindersSent.toString(),
+            subtext: extraStats.manualReminders > 0
+                ? `🤖 ${extraStats.remindersSent - extraStats.manualReminders} automáticos · 👤 ${extraStats.manualReminders} manuales`
+                : undefined,
             icon: Clock,
             color: 'text-amber-500',
             bg: 'bg-amber-500/10',
@@ -547,7 +574,9 @@ export default function Dashboard() {
             icon: TrendingUp,
             color: 'text-emerald-500',
             bg: 'bg-emerald-500/10',
-            change: null
+            change: null,
+            // Dos de sus tres términos (mensajes IA y recordatorios) vienen del agente.
+            requiresAI: true
         }
     ]
 
@@ -686,24 +715,38 @@ export default function Dashboard() {
                         ¡Hola, {profile?.full_name?.split(' ')[0]}! 👋
                     </h1>
                     <p className="text-sm text-charcoal/50 mt-1">
-                        {aiActive === false
-                            ? 'Tu asistente IA está apagado y no responde mensajes.'
-                            : 'Tu asistente IA está activo y respondiendo 24/7.'}
+                        {!hasAI
+                            ? 'Envía tus recordatorios por WhatsApp desde Recordatorios → Enviar hoy.'
+                            : aiActive === false
+                                ? 'Tu asistente IA está apagado y no responde mensajes.'
+                                : 'Tu asistente IA está activo y respondiendo 24/7.'}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className={cn(
-                        "inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border",
-                        aiActive === false
-                            ? "bg-charcoal/5 border-silk-beige text-charcoal/50"
-                            : "bg-primary-50 border-primary-200 text-primary-700"
-                    )}>
-                        <span className={cn(
-                            "w-2 h-2 rounded-full",
-                            aiActive === false ? "bg-charcoal/30" : "bg-primary-500 animate-pulse"
-                        )} />
-                        {aiActive === false ? 'Agente apagado' : 'Agente activo'}
-                    </div>
+                    {/* Sin IA en el plan el estado del agente no aplica: en su lugar,
+                        el pill invita a activarlo en vez de decir "apagado". */}
+                    {!hasAI ? (
+                        <Link
+                            to={UPGRADE_URL}
+                            className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border bg-charcoal/5 border-silk-beige text-charcoal/60 hover:bg-charcoal/10 hover:text-charcoal transition-colors"
+                        >
+                            <Lock className="w-3 h-3" />
+                            Agente IA no incluido
+                        </Link>
+                    ) : (
+                        <div className={cn(
+                            "inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border",
+                            aiActive === false
+                                ? "bg-charcoal/5 border-silk-beige text-charcoal/50"
+                                : "bg-primary-50 border-primary-200 text-primary-700"
+                        )}>
+                            <span className={cn(
+                                "w-2 h-2 rounded-full",
+                                aiActive === false ? "bg-charcoal/30" : "bg-primary-500 animate-pulse"
+                            )} />
+                            {aiActive === false ? 'Agente apagado' : 'Agente activo'}
+                        </div>
+                    )}
                     {/* Filtro de período */}
                     <div className="flex items-center gap-2">
                         <div className="bg-white border border-silk-beige p-1 rounded-xl flex gap-1">
@@ -765,7 +808,8 @@ export default function Dashboard() {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {statCards.map((stat) => (
-                    <div key={stat.name} className="bg-white p-5 rounded-xl border border-silk-beige shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+                    <PlanGate key={stat.name} requiredPlan={stat.requiresAI ? 'starter' : 'core'}>
+                    <div className="bg-white p-5 rounded-xl border border-silk-beige shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group h-full">
                         <div className="flex items-center justify-between mb-4">
                             <div className={`w-9 h-9 ${stat.bg} rounded-lg flex items-center justify-center`}>
                                 <stat.icon className={`w-4.5 h-4.5 ${stat.color}`} />
@@ -784,6 +828,7 @@ export default function Dashboard() {
                         )}
                         <p className="text-xs text-charcoal/40 mt-1 font-medium">{stat.name}</p>
                     </div>
+                    </PlanGate>
                 ))}
             </div>
 
@@ -869,6 +914,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Recent Messages */}
+                <PlanGate requiredPlan="starter">
                 <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                     <div className="bg-gradient-to-br from-sky-500 to-sky-700 p-5 text-white">
                         <div className="flex items-center justify-between">
@@ -898,7 +944,7 @@ export default function Dashboard() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between gap-1">
-                                                <p className="font-semibold text-charcoal text-xs truncate">{message.contact_phone}</p>
+                                                <p className="font-semibold text-charcoal text-xs truncate">{message.phone_number}</p>
                                                 <span className="text-[10px] text-charcoal/40 shrink-0">
                                                     {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
@@ -911,6 +957,7 @@ export default function Dashboard() {
                         )}
                     </div>
                 </div>
+                </PlanGate>
             </div>
 
             {/* Bottom Row: Ranking + Analytics */}
@@ -958,6 +1005,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Conversion Rate */}
+                <PlanGate requiredPlan="starter">
                 <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                     <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white">
                         <div className="flex items-center justify-between">
@@ -991,7 +1039,10 @@ export default function Dashboard() {
                     </div>
                 </div>
 
+                </PlanGate>
+
                 {/* Satisfaction NPS */}
+                <PlanGate requiredPlan="starter">
                 <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                     <div className="bg-gradient-to-br from-violet-500 to-violet-700 p-5 text-white">
                         <div className="flex items-center justify-between">
@@ -1032,6 +1083,7 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+                </PlanGate>
             </div>
         </div>
     )

@@ -13,19 +13,12 @@ import {
     type ActionKey,
     type UserRole,
 } from '@/lib/permissions'
+// Los límites por plan viven en @/lib/plans (espejo de la tabla `plan_limits`).
+// No volver a declararlos aquí.
+import { getPlanLimits } from '@/lib/plans'
 
 // Plans where max_users can be trusted from clinic_settings.max_users directly.
 const MANUALLY_TRUSTED_PLANS = new Set(['prestige', 'enterprise'])
-
-const PLAN_LIMITS: Record<string, { maxUsers: number; maxAgendas: number }> = {
-    core:       { maxUsers: 1,      maxAgendas: 1 },
-    starter:    { maxUsers: 2,      maxAgendas: 1 },
-    pro:        { maxUsers: 5,      maxAgendas: 5 },
-    enterprise: { maxUsers: 999999, maxAgendas: 999999 },
-    essence:    { maxUsers: 2,      maxAgendas: 1 },
-    radiance:   { maxUsers: 5,      maxAgendas: 5 },
-    prestige:   { maxUsers: 999999, maxAgendas: 999999 },
-}
 
 // ─── Secciones para el modal de permisos ────────────────────────────────────
 
@@ -189,7 +182,7 @@ export default function Team() {
                     .eq('id', clinicId)
                     .single(),
                 (supabase as any).from('subscriptions')
-                    .select('plan,status,max_agendas,manually_active')
+                    .select('plan,plan_id,status,max_agendas,manually_active')
                     .eq('clinic_id', clinicId)
                     .single(),
             ])
@@ -216,7 +209,7 @@ export default function Team() {
             if (parentId && !subData) {
                 const { data: parentSub } = await supabase
                     .from('subscriptions')
-                    .select('plan,status,max_agendas,manually_active')
+                    .select('plan,plan_id,status,max_agendas,manually_active')
                     .eq('clinic_id', parentId)
                     .single()
                 subData = parentSub
@@ -225,7 +218,9 @@ export default function Team() {
             const resolvedMaxUsers = settingsData?.max_users ?? 2
             const subscriptionPlan = settingsData?.subscription_plan ?? 'freemium'
             const manuallyActive = subData?.manually_active ?? false
-            const subPlan = subData?.plan
+            // plan_id manda sobre plan: en producción discrepan y plan_id es la
+            // columna que escribe mercadopago-webhook y la que lee Settings.tsx.
+            const subPlan = subData?.plan_id?.trim() || subData?.plan
 
             if (manuallyActive || MANUALLY_TRUSTED_PLANS.has(subscriptionPlan)) {
                 setPlanName(subscriptionPlan)
@@ -233,7 +228,7 @@ export default function Team() {
                 setMaxAgendas(resolvedMaxUsers >= 999999 ? 999999 : (subData?.max_agendas ?? 1))
             } else if (subData && subPlan) {
                 setPlanName(subPlan)
-                const limits = PLAN_LIMITS[subPlan]
+                const limits = getPlanLimits(subPlan)
                 if (limits) {
                     setMaxUsers(limits.maxUsers)
                     setMaxAgendas(limits.maxAgendas)
@@ -243,7 +238,7 @@ export default function Team() {
                 }
             } else if (settingsData) {
                 setPlanName(subscriptionPlan)
-                const limits = PLAN_LIMITS[subscriptionPlan]
+                const limits = getPlanLimits(subscriptionPlan)
                 if (limits) {
                     setMaxUsers(limits.maxUsers)
                     setMaxAgendas(limits.maxAgendas)
