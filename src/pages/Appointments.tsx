@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -93,8 +94,7 @@ const INITIAL_FORM_STATE = {
 export default function Appointments() {
     const { user, profile, session, member, loading: authLoading } = useAuth()
     const isProfessional = member?.role === 'professional'
-    const [appointments, setAppointments] = useState<Appointment[]>([])
-    const [loading, setLoading] = useState(true)
+    const queryClient = useQueryClient()
     const [initializing, setInitializing] = useState(true)
     const [activeTab, setActiveTab] = useState('all')
     const [searchQuery, setSearchQuery] = useState('')
@@ -106,17 +106,116 @@ export default function Appointments() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [googleEvents] = useState<CalendarEvent[]>([])
     const [newAppointment, setNewAppointment] = useState(INITIAL_FORM_STATE)
-    const [services, setServices] = useState<any[]>([])
     const [selectedServices, setSelectedServices] = useState<string[]>([])
     const [serviceDropdownVal, setServiceDropdownVal] = useState('')
-    const [professionals, setProfessionals] = useState<ClinicProfessional[]>([])
-    const [tutors, setTutors] = useState<any[]>([])
     const [filteredTutors, setFilteredTutors] = useState<any[]>([])
     const [showTutorAutocomplete, setShowTutorAutocomplete] = useState(false)
-    const [patients, setPatients] = useState<any[]>([])
     const [filteredPatients, setFilteredPatients] = useState<any[]>([])
     const [showPatientAutocomplete, setShowPatientAutocomplete] = useState(false)
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
+
+    // Datos de la página vía React Query — cacheados entre navegaciones (5 min de
+    // staleTime global, definido en main.tsx). Volver a esta página ya no repite
+    // las 5 consultas desde cero: solo refetchea si el caché venció.
+    const clinicIdForQueries = profile?.clinic_id
+
+    const { data: appointments = [], isLoading: apptsLoading } = useQuery<Appointment[]>({
+        queryKey: ['appointments', clinicIdForQueries],
+        queryFn: async () => {
+            const threeMonthsAgo = new Date()
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+            const { data, error } = await supabase
+                .from('appointments')
+                .select('*')
+                .eq('clinic_id', clinicIdForQueries as string)
+                .gte('appointment_date', threeMonthsAgo.toISOString())
+                .order('appointment_date', { ascending: true })
+            if (error) throw error
+            return (data || []) as Appointment[]
+        },
+        enabled: !!clinicIdForQueries,
+        staleTime: 1000 * 60 * 2,
+    })
+
+    const { data: services = [], isLoading: servicesLoading } = useQuery<any[]>({
+        queryKey: ['clinic-services', clinicIdForQueries],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from('clinic_services')
+                .select('*')
+                .eq('clinic_id', clinicIdForQueries as string)
+                .order('name')
+            if (error) throw error
+            return data || []
+        },
+        enabled: !!clinicIdForQueries,
+    })
+
+    const { data: professionals = [], isLoading: professionalsLoading } = useQuery<ClinicProfessional[]>({
+        queryKey: ['clinic-professionals', clinicIdForQueries],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).rpc('get_clinic_professionals', {
+                p_clinic_id: clinicIdForQueries,
+            })
+            if (error) throw error
+            return data || []
+        },
+        enabled: !!clinicIdForQueries,
+    })
+
+    const { data: tutors = [], isLoading: tutorsLoading } = useQuery<any[]>({
+        queryKey: ['appointments-tutors', clinicIdForQueries],
+        queryFn: async () => {
+            const [contactsRes, histRes] = await Promise.all([
+                (supabase as any).rpc('get_unified_contacts', { p_clinic_id: clinicIdForQueries }),
+                supabase.from('appointments').select('tutor_name, phone_number, address, tutor_id').eq('clinic_id', clinicIdForQueries as string)
+            ])
+
+            const tutorMap = new Map()
+
+            // 1. Add official contacts
+            if (contactsRes.data) {
+                contactsRes.data.filter((c: any) => c.type === 'tutor').forEach((t: any) => {
+                    if (t.name) tutorMap.set(t.name.toLowerCase().trim(), t)
+                })
+            }
+
+            // 2. Enrich with historical data from appointments (in case they are not in tutors table)
+            if (histRes.data) {
+                histRes.data.forEach((app: any) => {
+                    const nameLower = app.tutor_name?.toLowerCase().trim()
+                    if (nameLower && !tutorMap.has(nameLower)) {
+                        tutorMap.set(nameLower, {
+                            id: app.tutor_id || null,
+                            name: app.tutor_name,
+                            phone_number: app.phone_number,
+                            address: app.address,
+                            is_historical: true
+                        })
+                    }
+                })
+            }
+
+            return Array.from(tutorMap.values())
+        },
+        enabled: !!clinicIdForQueries,
+    })
+
+    const { data: patients = [], isLoading: patientsLoading } = useQuery<any[]>({
+        queryKey: ['patients', clinicIdForQueries],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('patients')
+                .select('*')
+                .eq('clinic_id', clinicIdForQueries as string)
+                .order('name')
+            if (error) throw error
+            return data || []
+        },
+        enabled: !!clinicIdForQueries,
+    })
+
+    const dataLoading = apptsLoading || servicesLoading || professionalsLoading || tutorsLoading || patientsLoading
 
     // Date filter state
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week' | 'month'>('all')
@@ -183,129 +282,22 @@ export default function Appointments() {
         }
     }, [showModal, editingId])
 
-    // Fetch services and professionals
-    // Consolidated Fetch Function
-    const fetchAllData = async () => {
-        if (!profile?.clinic_id) {
-            setLoading(false)
-            return
-        }
-
-        try {
-            const threeMonthsAgo = new Date()
-            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-
-            // Execute each request individually for robustness
-            const fetchAppointments = async () => {
-                const { data } = await supabase
-                    .from('appointments')
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .gte('appointment_date', threeMonthsAgo.toISOString())
-                    .order('appointment_date', { ascending: true })
-                if (data) setAppointments(data)
-            }
-
-            const fetchServices = async () => {
-                const { data } = await (supabase as any)
-                    .from("clinic_services")
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .order('name')
-                if (data) setServices(data)
-            }
-
-            const fetchProfessionals = async () => {
-                const { data } = await (supabase as any).rpc('get_clinic_professionals', {
-                    p_clinic_id: profile.clinic_id
-                })
-                if (data) setProfessionals(data)
-            }
-
-            const fetchTutors = async () => {
-                try {
-                    const [contactsRes, histRes] = await Promise.all([
-                        (supabase as any).rpc('get_unified_contacts', { p_clinic_id: profile.clinic_id }),
-                        supabase.from('appointments').select('tutor_name, phone_number, address, tutor_id').eq('clinic_id', profile.clinic_id)
-                    ])
-
-                    const tutorMap = new Map()
-
-                    // 1. Add official contacts
-                    if (contactsRes.data) {
-                        contactsRes.data.filter((c: any) => c.type === 'tutor').forEach((t: any) => {
-                            if (t.name) tutorMap.set(t.name.toLowerCase().trim(), t)
-                        })
-                    }
-
-                    // 2. Enrich with historical data from appointments (in case they are not in tutors table)
-                    if (histRes.data) {
-                        histRes.data.forEach((app: any) => {
-                            const nameLower = app.tutor_name?.toLowerCase().trim()
-                            if (nameLower && !tutorMap.has(nameLower)) {
-                                tutorMap.set(nameLower, {
-                                    id: app.tutor_id || null,
-                                    name: app.tutor_name,
-                                    phone_number: app.phone_number,
-                                    address: app.address,
-                                    is_historical: true
-                                })
-                            }
-                        })
-                    }
-
-                    setTutors(Array.from(tutorMap.values()))
-                } catch (err) {
-                    console.error('Error in fetchTutors:', err)
-                }
-            }
-
-            const fetchPatients = async () => {
-                const { data } = await supabase
-                    .from('patients')
-                    .select('*')
-                    .eq('clinic_id', profile.clinic_id)
-                    .order('name')
-                if (data) setPatients(data)
-            }
-
-            // Still firing them all but with internal error handling
-            await Promise.allSettled([
-                fetchAppointments(),
-                fetchServices(),
-                fetchProfessionals(),
-                fetchTutors(),
-                fetchPatients()
-            ])
-
-        } catch (error) {
-            console.error('Error in fetchAllData:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
-
     // Fetch Google Calendar Events via Edge Function
     const fetchGoogleEvents = async () => {
         // Disabled by user request
         return
     }
 
+    // La carga real ahora la manejan los 5 useQuery de arriba (con caché entre
+    // navegaciones). Este efecto solo controla la pantalla de splash inicial:
+    // se apaga apenas termina la primera carga (o si no hay clínica que cargar).
     useEffect(() => {
-        // Only proceed once Auth is done checking
         if (!authLoading) {
-            if (profile?.clinic_id) {
-                fetchAllData().finally(() => {
-                    setInitializing(false)
-                    setLoading(false)
-                })
-            } else {
-                // If auth is done but no clinic_id, stop waiting
+            if (!profile?.clinic_id || !dataLoading) {
                 setInitializing(false)
-                setLoading(false)
             }
         }
-    }, [profile?.clinic_id, authLoading])
+    }, [authLoading, profile?.clinic_id, dataLoading])
 
     // Safety timeout to prevent infinite white screen
     useEffect(() => {
@@ -313,7 +305,6 @@ export default function Appointments() {
             if (initializing) {
                 console.warn('Initialization timeout - forcing UI')
                 setInitializing(false)
-                setLoading(false)
             }
         }, 5000)
         return () => clearTimeout(timer)
@@ -444,7 +435,7 @@ export default function Appointments() {
         )
     }
 
-    if (loading) {
+    if (dataLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
@@ -466,9 +457,9 @@ export default function Appointments() {
         }
 
         try {
-            setAppointments(appointments.map(a =>
-                a.id === id ? { ...a, status: newStatus } : a
-            ))
+            queryClient.setQueryData<Appointment[]>(['appointments', clinicIdForQueries], (old) =>
+                (old || []).map(a => a.id === id ? { ...a, status: newStatus } : a)
+            )
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error, data } = await (supabase as any)
@@ -501,7 +492,7 @@ export default function Appointments() {
             } else {
                 alert(`Error al actualizar el estado: ${errorMsg}`)
             }
-            fetchAllData()
+            queryClient.invalidateQueries({ queryKey: ['appointments', clinicIdForQueries] })
         }
     }
 
@@ -822,8 +813,9 @@ export default function Appointments() {
             setNewAppointment(INITIAL_FORM_STATE)
             setEditingId(null)
 
-            // Refresh list
-            fetchAllData()
+            // Refresh list — solo la query de citas, no las 5 de antes (servicios,
+            // profesionales y tutores/pacientes casi nunca cambian al guardar una cita).
+            queryClient.invalidateQueries({ queryKey: ['appointments', clinicIdForQueries] })
 
         } catch (error: any) {
             console.error('Error creating appointment:', error)
@@ -846,7 +838,9 @@ export default function Appointments() {
             if (error) throw error
 
             // 2. Remove from local state immediately (functional update)
-            setAppointments(prev => prev.filter(a => a.id !== appointment.id))
+            queryClient.setQueryData<Appointment[]>(['appointments', clinicIdForQueries], (old) =>
+                (old || []).filter(a => a.id !== appointment.id)
+            )
 
             // 3. Delete from Google Calendar if linked
             if (appointment.google_event_id) {
@@ -857,9 +851,6 @@ export default function Appointments() {
                     else console.log('Google event deleted')
                 }).catch(err => console.error('Error deleting Google event:', err))
             }
-
-            // 4. Optional: Force refresh from DB just to be 100% sure
-            // fetchAllData() 
 
         } catch (error) {
             console.error('Error deleting appointment:', error)
@@ -892,7 +883,7 @@ export default function Appointments() {
             if (error) throw error
 
             if (data) {
-                setAppointments(prev => [data, ...prev])
+                queryClient.setQueryData<Appointment[]>(['appointments', clinicIdForQueries], (old) => [data, ...(old || [])])
                 setShowActionChoiceModal(false)
                 setSelectedSlot(null)
             }
