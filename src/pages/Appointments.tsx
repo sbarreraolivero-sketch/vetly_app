@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
@@ -114,6 +114,41 @@ export default function Appointments() {
     const [showPatientAutocomplete, setShowPatientAutocomplete] = useState(false)
     const [professionalFilter, setProfessionalFilter] = useState<string>('all')
 
+    // Menú de acciones (Editar/Eliminar) por fila — antes era un dropdown que se
+    // abría solo con el mouse encima (CSS group-hover), sin ningún control por
+    // clic. Reemplazado por uno controlado por estado + clic-afuera-para-cerrar.
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+    useEffect(() => {
+        if (!openMenuId) return
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement
+            if (!target.closest('[data-appointment-menu]')) setOpenMenuId(null)
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [openMenuId])
+
+    // Barra de scroll horizontal "espejo" arriba de la tabla — la tabla es angosta
+    // en pantallas chicas pero muy alta (muchas filas), así que el scrollbar nativo
+    // del contenedor overflow-x-auto queda al fondo, invisible sin bajar mucho.
+    const tableScrollRef = useRef<HTMLDivElement>(null)
+    const topScrollRef = useRef<HTMLDivElement>(null)
+    const topScrollSpacerRef = useRef<HTMLDivElement>(null)
+    const isSyncingScrollRef = useRef(false)
+
+    const handleTopScroll = () => {
+        if (isSyncingScrollRef.current) { isSyncingScrollRef.current = false; return }
+        if (!topScrollRef.current || !tableScrollRef.current) return
+        isSyncingScrollRef.current = true
+        tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft
+    }
+    const handleTableScroll = () => {
+        if (isSyncingScrollRef.current) { isSyncingScrollRef.current = false; return }
+        if (!topScrollRef.current || !tableScrollRef.current) return
+        isSyncingScrollRef.current = true
+        topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft
+    }
+
     // Datos de la página vía React Query — cacheados entre navegaciones (5 min de
     // staleTime global, definido en main.tsx). Volver a esta página ya no repite
     // las 5 consultas desde cero: solo refetchea si el caché venció.
@@ -221,6 +256,30 @@ export default function Appointments() {
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'week' | 'month'>('all')
     const [showDatePicker, setShowDatePicker] = useState(false)
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+
+    // La tabla (y por lo tanto tableScrollRef/topScrollSpacerRef) solo existe en el
+    // DOM una vez que dataLoading pasa a false y viewMode es 'list' — mientras carga,
+    // la página muestra un spinner y los refs son null. Este efecto debe re-ejecutarse
+    // en ese momento, no solo al montar, o el ancho de la barra espejo queda en 0.
+    useEffect(() => {
+        const tableEl = tableScrollRef.current
+        const spacerEl = topScrollSpacerRef.current
+        if (!tableEl || !spacerEl) return
+        const innerTable = tableEl.querySelector('table')
+        if (!innerTable) return
+
+        const syncWidth = () => { spacerEl.style.width = `${innerTable.scrollWidth}px` }
+        syncWidth()
+
+        const resizeObserver = new ResizeObserver(syncWidth)
+        resizeObserver.observe(innerTable)
+        return () => resizeObserver.disconnect()
+        // Causa raíz real del bug encontrado en verificación: cuando dataLoading pasa
+        // a false, hay un render intermedio donde `initializing` todavía es true (se
+        // apaga en un efecto aparte, un ciclo después) — ese render sigue mostrando el
+        // splash, sin la tabla montada. Sin `initializing` en las deps, este efecto se
+        // disparaba con tableEl/spacerEl aún null y nunca se re-ejecutaba después.
+    }, [dataLoading, viewMode, initializing])
 
     // Plan de ruta (solo clínicas móviles con sectorización configurada)
     const { timezone } = useClinicTimezone()
@@ -444,7 +503,7 @@ export default function Appointments() {
     }
 
     // Update appointment status
-    const updateAppointmentStatus = async (id: string, newStatus: 'confirmed' | 'cancelled' | 'completed') => {
+    const updateAppointmentStatus = async (id: string, newStatus: 'pending' | 'confirmed' | 'cancelled' | 'completed') => {
         const appointment = appointments.find(a => a.id === id)
         if (!appointment) return
 
@@ -1390,7 +1449,16 @@ export default function Appointments() {
             ) : (
                 <>
                     {/* Appointments Table (Desktop) */}
-                    <div className="card-soft overflow-x-auto hidden md:block">
+                    {/* Barra de scroll horizontal "espejo", siempre visible arriba de la tabla */}
+                    <div
+                        ref={topScrollRef}
+                        onScroll={handleTopScroll}
+                        className="hidden md:block overflow-x-auto overflow-y-hidden mb-1"
+                        style={{ height: 14 }}
+                    >
+                        <div ref={topScrollSpacerRef} style={{ height: 1 }} />
+                    </div>
+                    <div ref={tableScrollRef} onScroll={handleTableScroll} className="card-soft overflow-x-auto hidden md:block">
                         <table className="w-full min-w-[800px]">
                             <thead>
                                 <tr className="border-b border-silk-beige bg-ivory/50">
@@ -1458,37 +1526,27 @@ export default function Appointments() {
                                             </div>
                                         </td>
                                         <td className="py-4 px-6">
-                                            <span className={cn('inline-flex items-center gap-1.5', getStatusColor(appointment.status))}>
-                                                {getStatusIcon(appointment.status)}
-                                                {getStatusLabel(appointment.status)}
-                                            </span>
+                                            <select
+                                                value={appointment.status}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onChange={(e) => {
+                                                    const newStatus = e.target.value as 'pending' | 'confirmed' | 'cancelled' | 'completed'
+                                                    if (newStatus !== appointment.status) updateAppointmentStatus(appointment.id, newStatus)
+                                                }}
+                                                title="Cambiar estado de la cita"
+                                                className={cn(
+                                                    'text-xs font-semibold rounded-full pl-2.5 pr-6 py-1 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500/30',
+                                                    getStatusColor(appointment.status)
+                                                )}
+                                            >
+                                                <option value="pending">Pendiente</option>
+                                                <option value="confirmed">Confirmada</option>
+                                                <option value="completed">Completada</option>
+                                                <option value="cancelled">Cancelada</option>
+                                            </select>
                                         </td>
                                         <td className="py-4 px-6 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {appointment.status === 'pending' && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
-                                                            className="px-3 py-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-soft transition-colors"
-                                                        >
-                                                            Confirmar
-                                                        </button>
-                                                        <button
-                                                            onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
-                                                            className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-soft transition-colors"
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {appointment.status === 'confirmed' && (
-                                                    <button
-                                                        onClick={() => updateAppointmentStatus(appointment.id, 'completed')}
-                                                        className="px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-soft transition-colors"
-                                                    >
-                                                        Completar
-                                                    </button>
-                                                )}
                                                 {appointment.status === 'completed' && (
                                                     <button
                                                         onClick={() => handleSendSurvey(appointment)}
@@ -1508,51 +1566,61 @@ export default function Appointments() {
                                                         <MessageCircle className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                <div className="relative group">
-                                                    <button className="p-2 text-charcoal/50 hover:text-charcoal hover:bg-ivory rounded-soft transition-colors">
+                                                <div className="relative" data-appointment-menu>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenMenuId(openMenuId === appointment.id ? null : appointment.id)}
+                                                        className="p-2 text-charcoal/50 hover:text-charcoal hover:bg-ivory rounded-soft transition-colors"
+                                                    >
                                                         <MoreVertical className="w-4 h-4" />
                                                     </button>
 
-                                                    {/* Dropdown Menu */}
-                                                    <div className={cn(
-                                                        "absolute right-0 w-48 hidden group-hover:block z-50",
-                                                        (index >= filteredAppointments.length - 2) ? "bottom-full mb-1" : "top-full pt-1"
-                                                    )}>
-                                                        <div className="bg-white rounded-soft shadow-premium border border-silk-beige overflow-hidden">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingId(appointment.id) // Set editing mode
-                                                                    setNewAppointment({
-                                                                        patient_name: appointment.patient_name,
-                                                                        tutor_name: appointment.tutor_name || '',
-                                                                        phone_number: appointment.phone_number,
-                                                                        email: appointment.email || '',
-                                                                        service: appointment.service,
-                                                                        appointment_date: appointment.appointment_date.split('T')[0],
-                                                                        appointment_time: (appointment.appointment_date.split('T')[1] ?? '00:00').slice(0, 5),
-                                                                        notes: appointment.notes || '',
-                                                                        professional_id: appointment.professional_id || '',
-                                                                        address: appointment.address || '',
-                                                                        address_references: appointment.address_references || '',
-                                                                        tutor_id: appointment.tutor_id || null,
-                                                                        pet_id: appointment.pet_id || null
-                                                                    })
-                                                                    setShowModal(true) // Open modal
-                                                                }}
-                                                                className="w-full text-left px-4 py-2 text-sm text-charcoal hover:bg-ivory flex items-center gap-2"
-                                                            >
-                                                                <Settings className="w-4 h-4" />
-                                                                Editar Cita
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteAppointment(appointment)}
-                                                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                                Eliminar Cita
-                                                            </button>
+                                                    {/* Dropdown Menu — controlado por clic, no por hover */}
+                                                    {openMenuId === appointment.id && (
+                                                        <div className={cn(
+                                                            "absolute right-0 w-48 z-50",
+                                                            (index >= filteredAppointments.length - 2) ? "bottom-full mb-1" : "top-full pt-1"
+                                                        )}>
+                                                            <div className="bg-white rounded-soft shadow-premium border border-silk-beige overflow-hidden">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setOpenMenuId(null)
+                                                                        setEditingId(appointment.id) // Set editing mode
+                                                                        setNewAppointment({
+                                                                            patient_name: appointment.patient_name,
+                                                                            tutor_name: appointment.tutor_name || '',
+                                                                            phone_number: appointment.phone_number,
+                                                                            email: appointment.email || '',
+                                                                            service: appointment.service,
+                                                                            appointment_date: appointment.appointment_date.split('T')[0],
+                                                                            appointment_time: (appointment.appointment_date.split('T')[1] ?? '00:00').slice(0, 5),
+                                                                            notes: appointment.notes || '',
+                                                                            professional_id: appointment.professional_id || '',
+                                                                            address: appointment.address || '',
+                                                                            address_references: appointment.address_references || '',
+                                                                            tutor_id: appointment.tutor_id || null,
+                                                                            pet_id: appointment.pet_id || null
+                                                                        })
+                                                                        setShowModal(true) // Open modal
+                                                                    }}
+                                                                    className="w-full text-left px-4 py-2 text-sm text-charcoal hover:bg-ivory flex items-center gap-2"
+                                                                >
+                                                                    <Settings className="w-4 h-4" />
+                                                                    Editar Cita
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setOpenMenuId(null)
+                                                                        handleDeleteAppointment(appointment)
+                                                                    }}
+                                                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                    Eliminar Cita
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
