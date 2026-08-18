@@ -5475,3 +5475,104 @@ Y además `get_tag_counts`, `get_admin_referrals`, `transfer_inventory`, `reset_
 - **Un `UPDATE` dentro de una RPC debe filtrar por `clinic_id`**, no solo por el id de la fila: el id lo elige quien llama.
 - **`get_advisors` no sustituye la prueba real.** Devolvió cero ERROR con los tokens de WhatsApp expuestos. La verificación válida es golpear la API con la anon key y confirmar `permission denied` / `content-range: */0`.
 - **Antes de reescribir una función, traer su definición exacta** con `pg_get_functiondef`. Un `CREATE OR REPLACE` con un tipo de retorno distinto falla (42P13) y adivinar el cuerpo puede romper la app en silencio.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 78, 2026-08-17)
+
+Sesión larga: checkout listo para el lanzamiento de Ads (MercadoPago + Paddle a producción, landing y registro plan-aware para Core), un bug de producción que rompía la creación de tutores, y toda la configuración externa de Google Ads/Turnstile/Pipeboard guiada paso a paso con el usuario.
+
+### 1. Backlog de sesiones 63-77 commiteado y pusheado
+
+Todo lo acumulado sin commitear (migración completa a Paddle, sistema `plan_limits`/gating, recordatorios manuales `wa.me`, referidos B2B, banner de onboarding) se dividió en 7 commits temáticos y se pusheó a `main`, verificando build desde un `git worktree` aislado antes de cada push (regla de sesión 69 — nunca confiar en un build local con archivos sueltos sin commitear).
+
+### 2. Fix MercadoPago — planes nuevos + bug de columna inexistente
+
+**`mercadopago-create-subscription`** solo conocía `essence/radiance/prestige` — cualquier intento de pagar `core/starter/pro/enterprise` explotaba con `PLAN_PRICES[plan][currency]` undefined. Agregados los 4 IDs nuevos (alias legacy conservados), y corregido el precio de Enterprise a **$333.000 CLP** en los 3 lugares que lo tenían distinto (`mercadopago.ts`=282.000, `mercadopago-create-subscription`=335.000, ninguno coincidía con el $333.000 documentado como correcto en sesión 23).
+
+**Bug más grave encontrado al probar el fix:** `mercadopago-webhook` y `mercadopago-create-subscription` escriben `mercadopago_subscription_id` en `subscriptions` — columna que **nunca existió**. Supabase JS no lanza por defecto en `.update()`/`.upsert()`, así que el UPDATE fallaba en silencio en cada pago real. Mismo patrón que el bug de `trial_ends_at` ya documentado como corregido en sesión 68, reintroducido sin darse cuenta con otra columna al escribir `plan`/`plan_id` juntos. Confirmado con una prueba real contra la Access Token de producción: la preferencia se creaba en MercadoPago pero nunca se persistía en `subscriptions`. Migración `20260817000001_add_mercadopago_subscription_id.sql` agrega la columna faltante.
+
+### 3. Normalización de planes legacy en producción
+
+Confirmado con el usuario que no hay riesgo: ninguna de las 3 clínicas legacy (Vetly HQ, Animalgrace Linares, Animalgrace Santiago) paga por MercadoPago/Paddle — las dos Animalgrace tienen `manually_active=true` y `resolveEffectivePlan()` les da acceso completo antes de mirar el nombre del plan. Normalizado en producción: `essence`/`prestige` → `starter`/`enterprise` en `clinic_settings.subscription_plan` y `subscriptions.plan`/`plan_id` para las 3 clínicas. Verificado: cero filas con nombres legacy en toda la base.
+
+Eliminado `supabase/functions/charge-trials/` — pricing 100% legacy en USD de la era LemonSqueezy, confirmado no programado en `pg_cron`, sin ninguna otra referencia en el código.
+
+### 4. Migración de cuenta MercadoPago — cuenta empresa Nextflow
+
+Guiado paso a paso: creación de app "Vetly App" en el panel developers de la cuenta empresa, integración **Checkout Pro** (coincide con el `checkout/preferences` que ya usa el código), Access Token de producción y webhook con signature secret configurados como `MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_WEBHOOK_SECRET`. Verificado con una preferencia real (`3609792069-...`, ID de colector coincide con la cuenta Nextflow, no la personal).
+
+### 5. Registro plan-aware + landing dedicada para Core
+
+**`Register.tsx`**: lee `?plan=` de la URL para preseleccionar el plan (usado desde la landing de Core). Cuando el plan es Core, el copy deja de prometer "tu asistente IA" (Core no tiene agente conversacional) y pasa a mensaje neutro de gestión completa; trial de 30 días vs 7. `handleCreate` navega directo a `/app` para Core (sin pasar por `/pending-activation`).
+
+**`signup-handler`**: `activation_status: isCorePlan ? 'active' : 'pending_activation'`, y ahora sí escribe `trial_start_date`/`trial_end_date`/`trial_status` (nunca se escribían — el countdown de Settings.tsx leía un campo siempre vacío). Default de `selected_plan` corregido de `"radiance"`/`"essence"` (legacy) a `"starter"`.
+
+**`public/core.html`** (nuevo, ruta `/core` en `vercel.json`): landing dedicada al plan de lanzamiento ($17/mes), sin prometer IA conversacional — dolor de planillas/cuadernos, features reales de Core, objeciones (sin tarjeta, 30 días, cancela cuando quieras). CTA a `/register?plan=core`.
+
+**`Pricing.tsx`**: 5ta fuente de verdad de precios encontrada (array propio, independiente de `PLANS`/`PADDLE_PLANS`). Los precios ya coincidían, pero las features estaban desactualizadas (Starter decía "2 usuarios" en vez de 5, Core decía "1 usuario" y "CRM de prospectos" que ni siquiera tiene) — corregidas.
+
+**`landing.html`**: la tarjeta de Core tenía el mismo problema ("1 usuario", "sin recordatorios automáticos") — corregida a 3 usuarios + 25 recordatorios automáticos/mes + manuales sin límite.
+
+### 6. Bug de producción: `generate_portal_token()` rompía cualquier tutor nuevo
+
+Reportado por Claudia: error "function gen_random_bytes(integer) does not exist" al agregar un tutor y al marcar una cita como completada. Causa: `public.generate_portal_token()` (creada en sesión 74) llamaba `gen_random_bytes()` sin calificar esquema — la función vive en `extensions`, no en `public`, y el search_path efectivo de la plataforma Supabase dejó de incluirlo. Rompía **cualquier INSERT en `tutors`** (trigger `trigger_set_portal_token`), incluyendo el auto-alta de tutor/paciente al completar una cita (`tr_auto_create_contacts_on_complete`).
+
+**Fix** (migración `20260817010000_fix_generate_portal_token_search_path.sql`): `gen_random_bytes(16)` → `extensions.gen_random_bytes(16)`. Verificado con inserts de prueba (rollback) contra Linares real: creación directa de tutor y completar una cita real sin tutor vinculado, ambos casos limpios post-fix. Efecto inmediato, sin deploy de frontend.
+
+### 7. Cloudflare Turnstile — anti-bot en `/register`
+
+Verificación **server-side real** en `signup-handler` (siteverify de Cloudflare) — el widget del frontend solo no bloquea nada, un bot puede llamar a la edge function directo. Falla abierto mientras no exista `TURNSTILE_SECRET_KEY` (para no romper el registro antes de configurar Cloudflare). Widget se monta solo en el paso 3 de `Register.tsx`, solo si `VITE_TURNSTILE_SITE_KEY` está definida.
+
+Site key (`0x4AAAAAAETBZrMYJSrQhyG8`) y secret key configuradas: `VITE_TURNSTILE_SITE_KEY` en Vercel, `TURNSTILE_SECRET_KEY` en Supabase secrets. Verificado en producción: el bundle de `/register` incluye la site key real.
+
+### 8. Paddle a producción — catálogo completo + verificación de negocio en curso
+
+Catálogo recreado íntegro en Paddle **live** vía API directa (no hay MCP live conectado, solo sandbox):
+- `scripts/create-paddle-packs.js` (ya existía) corrido contra producción → 9 packs + producto contenedor
+- `scripts/create-paddle-plans.js` (nuevo, complementa al anterior) → 4 planes + Core anual + 2 descuentos `LANZAMIENTO17`/`LANZAMIENTO17_ANUAL`
+- `src/lib/paddle.ts` actualizado con todos los priceId/discountId reales de producción (sandbox y live no comparten IDs)
+- Secrets Supabase: `PADDLE_API_KEY`, `PADDLE_CONTAINER_PRODUCT_ID`, `PADDLE_ENVIRONMENT=production`, `PADDLE_WEBHOOK_SECRET` (webhook creado apuntando a `paddle-webhook`, eventos `transaction.completed`/`subscription.created`/`subscription.updated`/`subscription.canceled`)
+- Vercel: `VITE_PADDLE_CLIENT_TOKEN` (token live) y `VITE_PADDLE_ENVIRONMENT=production` — verificado en el bundle real de `/register`
+- `paddle-create-transaction` y `paddle-webhook` redeployados
+
+**`Terms.tsx`**: la cláusula de trial decía "7 días" fijo — desactualizada desde que Core pasó a 30 días. Se agregó también un ancla `#reembolsos` y política de reembolsos explícita (14 días para reclamos, `hola@vetly.pro`) — requeridas por la verificación de negocio de Paddle (pidió URLs de Terms/Privacy/Refund policy).
+
+**Verificación end-to-end intentada:** `paddle-create-transaction` devolvió `transaction_checkout_not_enabled` — "Checkouts aren't enabled for this account... onboarding process" — confirma que el checkout real sigue bloqueado hasta terminar la verificación KYB (no es un bug de código).
+
+**Tipo de negocio en el formulario de Paddle:** no existe opción "S.p.A." — se recomendó "Sociedad Anónima (S.A.)" por ser la más cercana estructuralmente (accionistas/acciones, no socios/cuotas como la SRL), confirmado por el propio FAQ de Paddle ("elige la opción que más se parezca a tu estructura").
+
+**Documento de verificación subido:** Certificado de Vigencia de la Sociedad (obtenido en registrodeempresasysociedades.cl).
+
+**Estado al cierre:** "01 Set up your live account" y "02 Verify your account" en **"En curso"/"Action required"** — Paddle revisando. Payout Settings pendiente de que el usuario abra una cuenta USD.
+
+### 9. Payouts — cuenta USD vía Global66
+
+Evaluado y confirmado (vía WebSearch, no solo intuición): Global66 sí sirve para recibir el wire transfer de Paddle — disponible para empresas en Chile, da número de cuenta USD con SWIFT/IBAN, $10 USD fijo por transferencia recibida. Cuenta enviada a verificación (~24h esperados). Global66 también tiene API/webhooks de notificación de pagos recibidos (`documents-b2b.global66.com`) — evaluado como mejora futura de conciliación, no urgente (el webhook de Paddle ya es la señal que activa la cuenta en Vetly; el de Global66 solo confirmaría que el dinero llegó físicamente).
+
+### 10. Google Ads — cuenta creada, primera campaña (Performance Max) y Pipeboard MCP conectado
+
+Guiado paso a paso la creación de la cuenta Google Ads (crédito de bienvenida $350 USD aceptado), con recomendación explícita de **no confiar solo en Performance Max para una cuenta sin historial de conversiones** — se recomendó complementar con una campaña de Search acotada en paralelo (pendiente de crear) y arrancar con presupuesto bajo ($10-15 USD/día) hasta acumular ~15-30 conversiones.
+
+**Objetivo de conversión:** "Registros" (coincide exactamente con el signup de Vetly). **Landing de destino:** `/core`. **Segmentación:** Chile, español únicamente (no expandir a "todos los países" en la primera campaña — mejor señal para el algoritmo).
+
+**Corrección de contenido:** los primeros títulos de anuncio propuestos mencionaban IA/WhatsApp — **error real**, ya que apuntan a `/core`, que explícitamente no promete IA conversacional. Corregidos a mensajes de gestión completa (citas, fichas, finanzas, inventario).
+
+**Pipeboard (`pipeboard.co`)** conectado como MCP de Google Ads para gestión de campañas vía Claude — mismo proveedor que el Meta Ads MCP ya conectado. Registrado con `claude mcp add google-ads-mcp --transport http https://google-ads.mcp.pipeboard.co/`. Requirió cuenta propia en Pipeboard (plan gratis) + reconectar la cuenta de Google Ads asegurándose de marcar el permiso "Google Ads" en la pantalla de consentimiento de Google (el primer intento falló por no marcarlo). **Las herramientas del MCP no aparecen hasta abrir una sesión nueva de Claude Code** — quedó conectado y autorizado, pendiente de sesión nueva para usarlas.
+
+### 11. Fix de tracking de conversión — medir registro real, no clic de intención
+
+**Bug de arquitectura encontrado y corregido en la misma sesión:** el snippet de conversión "Registros" (`AW-18395838136/CU91CNiuu-McELjt6MNE`) se había cableado para dispararse al hacer click en el CTA de `core.html`/`landing.html` — eso solo mide *intención* (clic hacia `/register`), no que la cuenta se haya creado. Un usuario que abandona el formulario habría contado como conversión igual. Google recomienda medir este tipo de acción por "carga de página"/evento post-completado, no por clic previo.
+
+**Fix:** el evento se movió a `Register.tsx`, disparado justo después de que `signUp()` confirma éxito. Requirió agregar el gtag base a `index.html` (antes solo vivía en las páginas estáticas `landing.html`/`core.html`, inaccesible desde la SPA). Eliminada `trackCoreRegisterClick()` de `core.html`. Verificado en producción: el label real está en el bundle de `Register.tsx`.
+
+**Landing.html** conserva su propio tracking de clicks en `/demo` (evento distinto, "Demo") — pendiente crear esa acción de conversión en Google Ads y completar su label (sigue en placeholder).
+
+### Pendientes para la próxima sesión
+
+- [ ] **Paddle:** confirmar aprobación de "Verify your account" (KYB) y completar Payout Settings con la cuenta Global66 una vez verificada (~24h). Sin esto, `paddle-create-transaction`/checkout de Paddle seguirán devolviendo `transaction_checkout_not_enabled`.
+- [ ] **Google Ads:** abrir sesión nueva de Claude Code para que las herramientas de `google-ads-mcp` (Pipeboard) queden disponibles. Crear la campaña de Search complementaria a la PMax. Activar ambas con presupuesto bajo una vez confirmado que la conversión "Registros" registra bien un caso real.
+- [ ] **Google Ads — acción "Demo":** crear la acción de conversión para los clicks en `/demo` de `landing.html` y reemplazar el label placeholder ahí.
+- [ ] **GA4:** no se creó ninguna propiedad — quedó fuera de alcance esta sesión (el foco fue Google Ads, no Analytics general). Placeholder `G-XXXXXXXXXX` sigue comentado/sin usar en el código.
+- [ ] **Meta:** rotar `meta_access_token`/`meta_capi_token` de ambas clínicas (pendiente de sesión 77, sin acción tomada aún).
+- [ ] Verificar con un registro real de prueba (plan Core, vía `/core`) que la conversión de Google Ads llega correctamente al panel una vez Paddle/GA no bloqueen nada — no se hizo un caso end-to-end real en esta sesión, solo se confirmó que el código/label están bien desplegados.
