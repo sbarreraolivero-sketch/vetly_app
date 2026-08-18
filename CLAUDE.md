@@ -5576,3 +5576,65 @@ Guiado paso a paso la creación de la cuenta Google Ads (crédito de bienvenida 
 - [ ] **GA4:** no se creó ninguna propiedad — quedó fuera de alcance esta sesión (el foco fue Google Ads, no Analytics general). Placeholder `G-XXXXXXXXXX` sigue comentado/sin usar en el código.
 - [ ] **Meta:** rotar `meta_access_token`/`meta_capi_token` de ambas clínicas (pendiente de sesión 77, sin acción tomada aún).
 - [ ] Verificar con un registro real de prueba (plan Core, vía `/core`) que la conversión de Google Ads llega correctamente al panel una vez Paddle/GA no bloqueen nada — no se hizo un caso end-to-end real en esta sesión, solo se confirmó que el código/label están bien desplegados.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 79, 2026-08-17)
+
+### Alucinación del furgón — Linares/Talca (auditoría de conversación real)
+
+**Reporte:** el agente le dijo a una clienta *"no contamos con un furgón móvil adaptado como en Santiago"*, negando la existencia del móvil de Linares/Talca.
+
+**Diagnóstico (evidencia, no suposición):** revisado todo el KB de Linares — ningún documento menciona la palabra "furgón" en absoluto. La respuesta la generó `4o_pro` (el modelo caro, no `mini`) inventando de la nada una comparación negativa con Santiago para "rellenar" la pregunta de la clienta ("¿vienen en su furgón o al domicilio?"), sin ninguna fuente real. Confirmado con mensajes históricos reales (abril-junio 2026) que Linares/Talca **sí** tiene un furgón físico: clientes preguntan por estacionamiento, dicen que su mascota se asusta con él, etc. — y una respuesta correcta de la propia IA en junio ("si prefieres que sea en el furgón, también es posible"). `ai_personality` de Linares ya tenía una pregunta de checklist que lo daba por sentado ("¿Contamos con lugar para estacionar el móvil veterinario?") sin nunca declararlo como hecho explícito en ningún otro lado.
+
+**Fix (DB, ambas sucursales, respaldo en `prompt_backups` antes de tocar):** nueva regla `MODALIDAD DE ATENCIÓN — FURGÓN O DOMICILIO (CRÍTICO)` en `ai_behavior_rules` de Linares y Santiago: confirma explícitamente que ambas sucursales tienen furgón, que la atención puede ser dentro de casa o en el furgón según prefiera el tutor, y prohíbe cualquier comparación negativa de equipamiento entre sucursales.
+
+### Bug: página de Mensajes vacía ("Sin conversaciones" con miles de mensajes reales en la DB)
+
+**Causa raíz:** `switchClinic()` en `AuthContext.tsx` persiste el cambio de sucursal activa en `user_profiles.clinic_id` — **a nivel de cuenta, no de dispositivo**. En algún momento reciente ese valor quedó en Santiago. Un dispositivo nuevo (sin `vetly_active_clinic_id` en su `localStorage`) cae al default de la DB = Santiago, mostrando su contexto en vez del de Linares. No fue un bug de código nuevo — Messages.tsx consulta bien, solo mostraba la sucursal equivocada.
+
+**Fix:** corregido el default de la cuenta de Claudia de vuelta a Linares en la DB. Además, en `Messages.tsx`: un error real de carga ya no se disfraza de "sin conversaciones" (estado distinto con botón reintentar), el texto desactualizado que mencionaba YCloud corregido (ambas sucursales usan Meta desde sesión 65), y el botón de enviar mensaje manual — que fallaba con un error de YCloud incorrecto en clínicas Meta — ahora avisa correctamente que hay que responder desde la app de WhatsApp Business y que eso no pausa la IA sola.
+
+### Regla de negocio — corte de uñas con 2+ mascotas (ambas sucursales)
+
+A pedido de Claudia: con 1 mascota se mantiene el mínimo de $15.000 por visita (sin cambios). Con 2 o más mascotas, ya no aplica ese mínimo — se cobra $6.000 de visita (una sola vez) + el valor del corte de uñas de cada mascota según su peso. Aplicado en `ai_behavior_rules` de ambas clínicas y en la sección 3B del KB `PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES` de Linares (Santiago no tiene ese documento — la regla vive solo en `ai_behavior_rules` ahí).
+
+### Auditoría de performance — hallazgo: React Query configurado pero 0% usado
+
+`main.tsx` inicializa `QueryClientProvider` con `staleTime: 5min`, pero grep en todo `src/` confirmó que **ninguna página lo usa** — todas hacen `useEffect` + `supabase.from(...)` crudo. Consecuencia real: cada vez que se revisita una página ya cargada, se re-descarga todo desde cero, sin caché entre navegaciones. Se identificó como la causa más probable de la sensación de lentitud, priorizado sobre tamaño de bundle (ya tiene code-splitting por ruta con `React.lazy` desde antes, y manual chunking de vendors en `vite.config.ts`).
+
+### Migración de `Appointments.tsx` a React Query (primera página migrada)
+
+`fetchAllData()` disparaba 5 queries (citas, servicios, profesionales, tutores, pacientes) en cada montaje **y en cada guardado/edición de cita** — hasta 6 round-trips a la DB solo para refrescar la lista tras guardar una cita. Reemplazado por 5 `useQuery` independientes, cada uno con su propia caché (`queryKey` incluye `clinic_id`). Las mutaciones (crear/editar/eliminar cita, cambiar estado, bloquear horario) ahora usan `queryClient.setQueryData` (optimista) o `queryClient.invalidateQueries` (solo la query de citas), en vez de `fetchAllData()` completo.
+
+**Efecto medido:** guardar una cita pasa de 6 round-trips a 1. Revisitar la página dentro de la ventana de caché carga al instante, sin spinner.
+
+### Batería de bugs encontrados al probar la migración en producción
+
+Reportados por el usuario tras el deploy, todos investigados con evidencia (código y/o navegador real) antes de tocar nada:
+
+- **Botón "Crear Cita" bloqueado con todos los campos llenos:** no era un bug — el campo "Servicios" es de dos pasos (elegir del desplegable + apretar "Agregar"), sin ningún aviso visual si se omite el segundo paso. Confirmado con el usuario.
+- **Demora de ~5 segundos al crear/editar una cita:** la sincronización con Google Calendar (`create-google-event`/`update-google-event`) se esperaba (`await`) **antes** de cerrar el modal — un cold start de la edge function + round trip a la API de Google explicaba el retraso completo. Pasada a fire-and-forget (corre en segundo plano); el modal cierra apenas se confirma el guardado en la DB.
+- **Orden del listado:** cambiado de ascendente a descendente por `appointment_date` — la cita más futura arriba, la más antigua abajo (antes mostraba primero las del límite de 3 meses hacia atrás).
+- **Bug real: eliminar una cita no funcionaba a la primera.** Causa más probable encontrada por revisión de código: el menú "..." (Editar/Eliminar) de cada fila era un dropdown **CSS `group-hover:block`** — solo abría con el mouse encima, sin ningún control por clic. Reemplazado por un menú controlado por estado (`openMenuId`) con clic para abrir y un listener de clic-afuera-para-cerrar (`data-appointment-menu` + `mousedown` en `document`).
+- **Pedido: revertir el estado de una cita a "Pendiente" y un selector más accesible.** La columna "Estado" (antes texto de solo lectura) pasó a un `<select>` con los 4 estados y sus colores (`badge-*` de `utils.ts`), permitiendo cualquier transición. `updateAppointmentStatus` amplió su tipo para aceptar `'pending'`. Los botones "Confirmar"/"Completar" de la columna Acciones se eliminaron (cubiertos por el selector), angostando esa columna.
+- **Pedido: scroll horizontal solo visible al fondo de la tabla** (la tabla es alta, hay que bajar mucho para verlo). Agregada una barra de scroll horizontal "espejo" fija arriba de la tabla, sincronizada bidireccionalmente con la real vía refs + `onScroll` con guard anti-loop (`isSyncingScrollRef`).
+- **Pedido posterior: quitar el botón de recordatorio de WhatsApp de cada fila** (redundante — ya se envían desde el módulo Recordatorios) y **acercar el "..." al selector de Estado**. Botón eliminado; el contenedor de Acciones pasó de `justify-end` (pegado al borde derecho de la tabla) a `justify-start` (pegado a la columna Estado), y el `<th>`/`<td>` de padding se redujo (`px-6` → `pl-2 pr-6`). Verificado que a 1366px de viewport prácticamente ya no hace falta el scroll horizontal.
+
+#### Bug real encontrado en la propia implementación de la barra de scroll espejo
+
+Al verificar en navegador real, la barra no se movía en absoluto — su `scrollWidth` quedaba siempre igual a su `clientWidth` (sin overflow, sin poder scrollear). **Causa raíz:** el `useEffect` que mide el ancho de la tabla real y lo aplica al div "espejo" (para forzar su overflow) dependía de `[dataLoading, viewMode]`. Cuando `dataLoading` pasa a `false`, hay un **render intermedio** donde `initializing` (un segundo estado, apagado en un efecto aparte que también depende de `dataLoading`) todavía es `true` — ese render sigue mostrando el spinner de splash, sin la tabla montada, así que el efecto se disparaba con `tableScrollRef.current`/`topScrollSpacerRef.current` en `null`. Cuando `initializing` finalmente se apagaba (un ciclo de render después) y la tabla sí se montaba, el efecto **no volvía a ejecutarse** porque sus dependencias no habían cambiado en ese segundo render. Fix: agregado `initializing` al array de dependencias.
+
+**Confirmado con logs de depuración en el navegador real** (`console.log` temporal + Playwright), no solo por inspección de código — el patrón "el efecto corrió, pero con refs todavía null, y nunca se reintentó" es difícil de detectar sin verificación en vivo.
+
+### Metodología nueva — verificación visual real antes de subir cambios de UI
+
+A pedido explícito del usuario ("tienes live server para verificar en vivo"), se estableció el flujo: `npm run dev` local + Playwright (`playwright-core`) apuntando al **Chrome del sistema** vía `executablePath` — el Chromium propio de Playwright **no soporta macOS Monterey (mac12)** de esta máquina (`npx playwright install chromium` falla con `ERROR: Playwright does not support chromium on mac12`), así que apuntar a `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` es la única vía funcional en este entorno. Login con la cuenta de prueba **"Clínica de prueba Core"** (`sparkcabin.shop@gmail.com`, contraseña no documentada aquí — pedirla al usuario si hace falta reutilizarla), que no tiene datos reales de clínicas. Cuando la cuenta de prueba no tenía citas para poder ver la tabla, se insertaron filas `TEST *` directo por SQL (más rápido y confiable que simular el selector de hora custom del formulario vía Playwright) y se borraron al terminar.
+
+**Regla permanente — verificación de UI antes de deploy:** para cambios visuales/interactivos en páginas de alto tráfico (Citas, Finanzas, etc.), preferir este flujo de verificación real sobre solo revisión de código + `tsc`/`build`. Ya encontró un bug real (condición de carrera en el efecto de sincronización de scroll) que ni `tsc --noEmit` ni `npm run build` habrían detectado nunca, por ser un bug de comportamiento en tiempo de ejecución, no de tipos.
+
+**Regla permanente — `switchClinic` y la sucursal activa por defecto:** cualquier cambio de sucursal desde cualquier dispositivo sobreescribe el default global de la cuenta en `user_profiles.clinic_id` (no es por-dispositivo). Un dispositivo nuevo, o cualquier sesión sin `localStorage` propio, cae a ese default. Si un usuario multi-sucursal reporta "veo datos de la sucursal equivocada" o "no veo mis datos", verificar primero `user_profiles.clinic_id` en la DB antes de asumir un bug de código — coincide con el patrón ya documentado en sesión 52.
+
+### Estado al cierre
+
+Todos los cambios de esta sesión están en producción, cada uno verificado con `tsc --noEmit` + `npm run build` limpio y build adicional desde un checkout aislado de `origin/main` (nunca desde el working tree local, que tiene backlog de otras sesiones sin commitear) antes de dar el deploy por confirmado. Commits: migración a React Query, fix de Google Calendar bloqueante + orden descendente, menú por clic + selector de estado + scroll espejo (verificado en navegador real), y el ajuste final de la columna Acciones.
