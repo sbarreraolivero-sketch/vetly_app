@@ -1468,7 +1468,7 @@ export default function Appointments() {
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Dirección</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Fecha y Hora</th>
                                     <th className="text-left py-4 px-6 text-sm font-medium text-charcoal/60">Estado</th>
-                                    <th className="text-right py-4 px-6 text-sm font-medium text-charcoal/60">Acciones</th>
+                                    <th className="text-left py-4 pl-2 pr-6 text-sm font-medium text-charcoal/60">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1545,8 +1545,8 @@ export default function Appointments() {
                                                 <option value="cancelled">Cancelada</option>
                                             </select>
                                         </td>
-                                        <td className="py-4 px-6 text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                        <td className="py-4 pl-2 pr-6 text-left">
+                                            <div className="flex items-center justify-start gap-2">
                                                 {appointment.status === 'completed' && (
                                                     <button
                                                         onClick={() => handleSendSurvey(appointment)}
@@ -1555,15 +1555,6 @@ export default function Appointments() {
                                                     >
                                                         <MessageCircle className="w-3 h-3" />
                                                         Encuesta
-                                                    </button>
-                                                )}
-                                                {(appointment.status === 'confirmed' || appointment.status === 'pending') && (
-                                                    <button
-                                                        onClick={() => handleSendReminder(appointment)}
-                                                        className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-soft transition-colors"
-                                                        title="Enviar Recordatorio WhatsApp"
-                                                    >
-                                                        <MessageCircle className="w-4 h-4" />
                                                     </button>
                                                 )}
                                                 <div className="relative" data-appointment-menu>
