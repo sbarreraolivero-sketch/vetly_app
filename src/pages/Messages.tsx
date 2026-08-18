@@ -38,6 +38,7 @@ export default function Messages() {
     const [sending, setSending] = useState(false)
     const [togglingAI, setTogglingAI] = useState(false)
     const [showSidebar, setShowSidebar] = useState(false)
+    const [loadError, setLoadError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const chatRef = useRef<HTMLDivElement>(null)
 
@@ -61,6 +62,7 @@ export default function Messages() {
     // Fetch conversations (grouped by phone_number)
     const fetchConversations = useCallback(async () => {
         if (!profile?.clinic_id) return
+        setLoadError(null)
         try {
             // Get all messages grouped by phone number, get latest message per conversation
             // We use a try-catch pattern or a safer select to handle the missing is_read column
@@ -84,8 +86,7 @@ export default function Messages() {
                 if (fallbackError) throw fallbackError
                 msgs = fallbackMsgs
             } else if (error) {
-                console.error('Error fetching conversations:', error)
-                return
+                throw error
             }
             if (!msgs || msgs.length === 0) { setConversations([]); setLoading(false); return }
 
@@ -184,6 +185,7 @@ export default function Messages() {
             }
         } catch (e) {
             console.error('Error:', e)
+            setLoadError('No se pudieron cargar las conversaciones. Revisa tu conexión e intenta de nuevo.')
         } finally {
             setLoading(false)
         }
@@ -349,9 +351,14 @@ export default function Messages() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: clinic } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ycloud_api_key, ycloud_phone_number')
+                .select('ycloud_api_key, ycloud_phone_number, whatsapp_provider')
                 .eq('id', profile.clinic_id)
                 .single()
+
+            if (clinic?.whatsapp_provider === 'meta') {
+                alert('El envío manual de mensajes todavía no está disponible desde aquí para números conectados vía Meta. Responde directamente desde la app de WhatsApp Business del teléfono. Importante: eso NO pausa la IA automáticamente — usa el botón "IA Activa" de esta conversación para pausarla tú mismo y evitar que responda dos veces.')
+                return
+            }
 
             if (!clinic?.ycloud_api_key || !clinic?.ycloud_phone_number) {
                 alert('Configura tu API Key de YCloud en Ajustes primero.')
@@ -461,19 +468,33 @@ export default function Messages() {
         return acc
     }, {} as Record<string, Message[]>)
 
-    // Empty state
+    // Empty state (real absence of conversations vs. a failed fetch are shown differently)
     if (!loading && conversations.length === 0) {
         return (
             <div className="h-[calc(100vh-7rem)] flex items-center justify-center animate-fade-in">
                 <div className="text-center max-w-md">
-                    <div className="w-20 h-20 bg-sky-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <MessageSquare className="w-10 h-10 text-sky-500" />
+                    <div className={cn(
+                        "w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6",
+                        loadError ? "bg-red-500/10" : "bg-sky-500/10"
+                    )}>
+                        <MessageSquare className={cn("w-10 h-10", loadError ? "text-red-500" : "text-sky-500")} />
                     </div>
-                    <h2 className="text-xl font-semibold text-charcoal mb-2">Sin conversaciones</h2>
-                    <p className="text-charcoal/50 text-sm">
-                        Las conversaciones aparecerán aquí cuando los tutores envíen mensajes por WhatsApp.
-                        Asegúrate de configurar tu número de YCloud en Ajustes.
+                    <h2 className="text-xl font-semibold text-charcoal mb-2">
+                        {loadError ? 'No se pudieron cargar los mensajes' : 'Sin conversaciones'}
+                    </h2>
+                    <p className="text-charcoal/50 text-sm mb-4">
+                        {loadError
+                            ? loadError
+                            : 'Las conversaciones aparecerán aquí cuando los tutores envíen mensajes por WhatsApp. Verifica que tu número esté conectado en Ajustes → Integraciones.'}
                     </p>
+                    {loadError && (
+                        <button
+                            onClick={() => { setLoading(true); fetchConversations() }}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-soft hover:bg-primary-600 transition-colors"
+                        >
+                            <RefreshCw className="w-4 h-4" /> Reintentar
+                        </button>
+                    )}
                 </div>
             </div>
         )
