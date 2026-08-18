@@ -129,7 +129,7 @@ export default function Appointments() {
                 .select('*')
                 .eq('clinic_id', clinicIdForQueries as string)
                 .gte('appointment_date', threeMonthsAgo.toISOString())
-                .order('appointment_date', { ascending: true })
+                .order('appointment_date', { ascending: false })
             if (error) throw error
             return (data || []) as Appointment[]
         },
@@ -751,7 +751,10 @@ export default function Appointments() {
                     })
             }
 
-            // Sync with Google Calendar (Create or Update)
+            // Sync with Google Calendar (Create or Update) — en segundo plano, sin bloquear
+            // el cierre del modal. Antes esto se esperaba (await) antes de continuar: un cold
+            // start de la edge function + el round trip a la API de Google fácilmente sumaba
+            // 3-5 segundos de "Guardando..." sin ninguna razón visible para quien agenda.
             let durationMinutes = 60
             const totalDuration = selectedServices.reduce((sum, svcName) => {
                 const svcObj = services.find(s => s.name === svcName)
@@ -761,53 +764,62 @@ export default function Appointments() {
 
             const endDate = new Date(new Date(appointmentDate).getTime() + durationMinutes * 60 * 1000).toISOString()
 
-            if (editingId && googleEventId) {
-                // Update Google Event
-                const { error: googleError } = await supabase.functions.invoke('update-google-event', {
-                    body: {
-                        google_event_id: googleEventId,
-                        title: `${newAppointment.patient_name} - ${newAppointment.service}`,
-                        description: newAppointment.notes,
-                        start: appointmentDate,
-                        end: endDate
+            void (async () => {
+                try {
+                    if (editingId && googleEventId) {
+                        // Update Google Event
+                        const { error: googleError } = await supabase.functions.invoke('update-google-event', {
+                            body: {
+                                google_event_id: googleEventId,
+                                title: `${newAppointment.patient_name} - ${newAppointment.service}`,
+                                description: newAppointment.notes,
+                                start: appointmentDate,
+                                end: endDate
+                            }
+                        })
+
+                        if (googleError) {
+                            console.error('Error syncing update to Google Calendar:', googleError)
+                        } else {
+                            console.log('Google Calendar event updated')
+                        }
+                    } else if (!editingId || (editingId && !googleEventId)) {
+                        const { data: googleData, error: googleError } = await supabase.functions.invoke('create-google-event', {
+                            body: {
+                                title: `${newAppointment.patient_name} - ${newAppointment.service}`,
+                                description: newAppointment.notes,
+                                start: appointmentDate,
+                                end: endDate,
+                            },
+                        })
+
+                        if (googleError) {
+                            // This handles network/transport errors (like offline or CORS)
+                            console.error('Network/Transport error creating Google Calendar event:', googleError)
+                        } else if (!googleData?.success) {
+                            // This handles API/Logical errors returned as 200 OK { success: false }
+                            console.error('Logic error creating Google Calendar event:', googleData)
+                        } else if (googleData?.event_id && appointmentId) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            await (supabase as any)
+                                .from('appointments')
+                                .update({ google_event_id: googleData.event_id })
+                                .eq('id', appointmentId)
+
+                            console.log('Synced with Google Calendar:', googleData.event_id)
+
+                            // Refleja el event_id en el caché ya cargado, sin forzar otro
+                            // refetch — evita que una edición rápida de la misma cita dispare
+                            // un create-google-event duplicado por no encontrar el event_id.
+                            queryClient.setQueryData<Appointment[]>(['appointments', clinicIdForQueries], (old) =>
+                                (old || []).map(a => a.id === appointmentId ? { ...a, google_event_id: googleData.event_id } : a)
+                            )
+                        }
                     }
-                })
-
-                if (googleError) {
-                    console.error('Error syncing update to Google Calendar:', googleError)
-                    // alert(`Error debug: ${JSON.stringify(googleError)}`)
-                } else {
-                    console.log('Google Calendar event updated')
+                } catch (err) {
+                    console.error('Error syncing with Google Calendar:', err)
                 }
-            } else if (!editingId || (editingId && !googleEventId)) {
-                // ...
-                const { data: googleData, error: googleError } = await supabase.functions.invoke('create-google-event', {
-                    body: {
-                        title: `${newAppointment.patient_name} - ${newAppointment.service}`,
-                        description: newAppointment.notes,
-                        start: appointmentDate,
-                        end: endDate,
-                    },
-                })
-
-                if (googleError) {
-                    // This handles network/transport errors (like offline or CORS)
-                    console.error('Network/Transport error creating Google Calendar event:', googleError)
-                    // alert(`Error de conexión: ${JSON.stringify(googleError)}`)
-                } else if (!googleData?.success) {
-                    // This handles API/Logical errors returned as 200 OK { success: false }
-                    console.error('Logic error creating Google Calendar event:', googleData)
-                    // alert(`Error de sincronización: ${googleData?.error || 'Desconocido'}\nDetalles: ${JSON.stringify(googleData?.details)}`)
-                } else if (googleData?.event_id && appointmentId) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    await (supabase as any)
-                        .from('appointments')
-                        .update({ google_event_id: googleData.event_id })
-                        .eq('id', appointmentId)
-
-                    console.log('Synced with Google Calendar:', googleData.event_id)
-                }
-            }
+            })()
 
             setShowModal(false)
             setNewAppointment(INITIAL_FORM_STATE)
