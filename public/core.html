@@ -28,9 +28,12 @@
     <meta name="twitter:image" content="https://vetly.pro/og-image.png">
 
     <!-- ══════════════════════════════════════════════════════════════
-         GOOGLE ADS — AW-18395838136 es el ID real de la cuenta.
-         Pendiente: label de conversión de la acción "Registros" (falta
-         reemplazar XXXXXXXXXXXXXXXXXXX abajo) y GA4 (G-...) si se crea.
+         GOOGLE ADS — AW-18395838136. Solo la etiqueta base — la
+         conversión "Registros" (label CU91CNiuu-McELjt6MNE) se dispara
+         desde Register.tsx cuando el registro se completa de verdad, no
+         al hacer click en el link hacia /register (eso solo mide
+         intención, no conversión real — Google recomienda medir "Carga
+         de página"/evento post-completado para este tipo de acción).
          ══════════════════════════════════════════════════════════════ -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18395838136"></script>
     <script>
@@ -38,18 +41,6 @@
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
         gtag('config', 'AW-18395838136');
-        // gtag('config', 'G-XXXXXXXXXX');    // GA4 — agregar si se crea la propiedad
-
-        // Se llama al hacer click en cualquier CTA de registro. El conversion
-        // label (AW-18395838136/XXXXXXXXXXXXXXXXXXX) se completa en Google Ads
-        // al crear la acción de conversión "Registros".
-        function trackCoreRegisterClick() {
-            gtag('event', 'conversion', {
-                'send_to': 'AW-18395838136/XXXXXXXXXXXXXXXXXXX',
-                'event_category': 'registro',
-                'event_label': 'plan_core',
-            });
-        }
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -94,7 +85,7 @@
             <img src="./logo.png" alt="Vetly" class="h-12 w-auto">
         </a>
         <a href="https://vetly.pro/login" class="text-sm font-medium text-muted hover:text-neutral transition-colors hidden sm:block">Iniciar sesión</a>
-        <a href="/register?plan=core" onclick="trackCoreRegisterClick()" class="bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
+        <a href="/register?plan=core" class="bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
             Empezar gratis →
         </a>
     </div>
@@ -113,7 +104,7 @@
         Citas, fichas médicas, finanzas, inventario y fidelización — todo ordenado, con recordatorios de WhatsApp listos para enviar en un clic. Sin tarjeta de crédito. 30 días para probarlo todo.
     </p>
     <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
-        <a href="/register?plan=core" onclick="trackCoreRegisterClick()" class="bg-brand text-white font-semibold px-7 py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98] text-base">
+        <a href="/register?plan=core" class="bg-brand text-white font-semibold px-7 py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98] text-base">
             Crear cuenta gratis →
         </a>
         <p class="text-xs text-muted">Sin tarjeta · 30 días gratis · Cancela cuando quieras</p>
@@ -220,7 +211,7 @@
             <span class="text-muted">/mes USD</span>
         </div>
         <p class="text-xs text-emerald-600 font-semibold mb-6">Precio de lanzamiento — cupos limitados</p>
-        <a href="/register?plan=core" onclick="trackCoreRegisterClick()" class="block bg-brand text-white font-semibold py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
+        <a href="/register?plan=core" class="block bg-brand text-white font-semibold py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
             Crear cuenta gratis →
         </a>
         <p class="text-xs text-muted mt-4">Sin tarjeta · 30 días gratis</p>

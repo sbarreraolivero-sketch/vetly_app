@@ -21,7 +21,23 @@ declare global {
             render: (container: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback'?: () => void }) => string
             remove: (widgetId: string) => void
         }
+        gtag?: (...args: unknown[]) => void
     }
+}
+
+// Conversión "Registros" de Google Ads (AW-18395838136/CU91CNiuu-McELjt6MNE).
+// Se dispara SOLO cuando el registro se completó de verdad — nunca al hacer
+// click en un link hacia esta página, que solo mide intención, no conversión
+// real (mismo criterio que recomienda Google: "carga de página"/evento
+// post-completado, no clic previo).
+function trackRegistrationConversion(plan: string, currency: 'CLP' | 'USD') {
+    window.gtag?.('event', 'conversion', {
+        send_to: 'AW-18395838136/CU91CNiuu-McELjt6MNE',
+        value: 1.0,
+        currency,
+        event_category: 'registro',
+        event_label: plan,
+    })
 }
 
 const ROLE_TRANSLATIONS: Record<string, string> = {
@@ -272,6 +288,9 @@ export default function Register() {
             console.error('Registration Error:', error)
             return
         }
+
+        // Cuenta creada de verdad — recién acá cuenta como conversión real.
+        trackRegistrationConversion(selectedPlan, paymentRegion === 'international' ? 'USD' : 'CLP')
 
         // Enviar correo de bienvenida
         try {
