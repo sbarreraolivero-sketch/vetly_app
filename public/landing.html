@@ -11,24 +11,27 @@
     <link rel="canonical" href="https://vetly.pro/">
 
     <!-- ══════════════════════════════════════════════════════════════
-         GOOGLE ADS / GA4 — placeholders, reemplazar antes de lanzar.
-         Mismo snippet que /core.html, para medición consistente entre
-         páginas. El evento de conversión se dispara al hacer click en
-         cualquier CTA "/demo" (el funnel principal de esta landing).
+         GOOGLE ADS — AW-18395838136 es el ID real de la cuenta.
+         El evento de conversión se dispara al hacer click en cualquier
+         CTA "/demo" (el funnel principal de esta landing) — OJO: esto es
+         una acción de conversión DISTINTA a "Registros" (creada para la
+         campaña de /core). Falta crear una acción "Demo" en Google Ads y
+         reemplazar el label XXXXXXXXXXXXXXXXXXX de abajo antes de que
+         este evento reporte de verdad.
          ══════════════════════════════════════════════════════════════ -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18395838136"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', 'G-XXXXXXXXXX');       // GA4 — reemplazar con el ID real
-        gtag('config', 'AW-XXXXXXXXX');       // Google Ads — reemplazar con el ID real
+        gtag('config', 'AW-18395838136');
+        // gtag('config', 'G-XXXXXXXXXX');    // GA4 — agregar si se crea la propiedad
 
         document.addEventListener('DOMContentLoaded', function () {
             document.querySelectorAll('a[href="/demo"]').forEach(function (el) {
                 el.addEventListener('click', function () {
                     gtag('event', 'conversion', {
-                        'send_to': 'AW-XXXXXXXXX/XXXXXXXXXXXXXXXXXXX',
+                        'send_to': 'AW-18395838136/XXXXXXXXXXXXXXXXXXX',
                         'event_category': 'demo',
                         'event_label': 'landing_principal',
                     });

@@ -28,22 +28,24 @@
     <meta name="twitter:image" content="https://vetly.pro/og-image.png">
 
     <!-- ══════════════════════════════════════════════════════════════
-         GOOGLE ADS / GA4 — placeholders, reemplazar antes de lanzar
+         GOOGLE ADS — AW-18395838136 es el ID real de la cuenta.
+         Pendiente: label de conversión de la acción "Registros" (falta
+         reemplazar XXXXXXXXXXXXXXXXXXX abajo) y GA4 (G-...) si se crea.
          ══════════════════════════════════════════════════════════════ -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18395838136"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', 'G-XXXXXXXXXX');       // GA4 — reemplazar con el ID real
-        gtag('config', 'AW-XXXXXXXXX');       // Google Ads — reemplazar con el ID real
+        gtag('config', 'AW-18395838136');
+        // gtag('config', 'G-XXXXXXXXXX');    // GA4 — agregar si se crea la propiedad
 
         // Se llama al hacer click en cualquier CTA de registro. El conversion
-        // label (AW-XXXXXXXXX/XXXXXXXXXXXXXXXXXXX) se completa en Google Ads
-        // al crear la acción de conversión "Registro Core".
+        // label (AW-18395838136/XXXXXXXXXXXXXXXXXXX) se completa en Google Ads
+        // al crear la acción de conversión "Registros".
         function trackCoreRegisterClick() {
             gtag('event', 'conversion', {
-                'send_to': 'AW-XXXXXXXXX/XXXXXXXXXXXXXXXXXXX',
+                'send_to': 'AW-18395838136/XXXXXXXXXXXXXXXXXXX',
                 'event_category': 'registro',
                 'event_label': 'plan_core',
             });
