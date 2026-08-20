@@ -5250,52 +5250,65 @@ Un cliente Core nuevo **no puede usar recordatorios automáticos el día 1**: re
 
 ---
 
-## 🔴 URGENTE — hallazgo de sesión 76: el trial regala Enterprise y el límite de IA no corta nada
+## Sesión 77 (2026-08-20) — resueltos los dos bugs urgentes de sesión 76
 
-Dos bugs encontrados al responder una pregunta del usuario ("¿una cuenta Core tiene IA gratis?"). Ninguno se tocó — quedan documentados para la próxima sesión, marcados como prioridad sobre el resto de la lista de pendientes de Core.
+Ambos estaban documentados como pendientes y quedaron corregidos, desplegados y verificados contra producción.
 
-### 1. El trial nunca respeta el plan elegido — siempre resuelve a Enterprise
+### 1. El trial ya no regala Enterprise
 
-`resolveEffectivePlan` (`src/lib/plans.ts`) trata **cualquier** `status ∈ {trial, trialing}` como acceso total de Enterprise, sin mirar qué plan se contrató:
+`resolveEffectivePlan` (`src/lib/plans.ts`) forzaba `planId: 'enterprise'` para cualquier `status ∈ {trial, trialing}`, así que **un trial de Core veía Mensajes, CRM, Ajustes IA y el agente conversacional completo** — y los perdía de golpe al convertir.
 
-```ts
-const isTrial = !!sub?.status && FULL_ACCESS_STATUSES.has(sub.status)
-if (isManual || isTrial) {
-    return { planId: 'enterprise', limits: PLAN_LIMITS.enterprise, ..., hasFullAccess: true }
-}
-```
+Ahora **solo `manually_active` da acceso total**. El trial resuelve el plan realmente contratado, por el mismo camino que el caso normal (`plan_id` con prioridad sobre `plan`). `isTrial` se conserva en el retorno, pero solo para copy de UI y para `SubscriptionGuard` — que decide si la suscripción está viva, un eje distinto de qué plan ve el usuario.
 
-**El dato correcto ya existe y no hay que ir a buscarlo a ningún lado**: `signup-handler` sí guarda el plan real elegido en `subscriptions.plan_id` al momento del alta —
-```ts
-// signup-handler/index.ts:346-351
-// Note: Subscription is auto-created by trigger on clinic_settings insert.
-// The trigger may use a default plan, so we must explicitly update it to the selected plan.
-await supabaseAdmin.from('subscriptions').update({ plan_id: selected_plan }).eq('clinic_id', clinicData.id)
-```
-`resolveEffectivePlan` simplemente lo ignora cuando `status` es trial. El fix es local a esa función: cuando `isTrial`, resolver **el plan real** (`sub.plan_id`/`sub.plan`) en vez de hardcodear `'enterprise'` — y separar el concepto de "no bloqueado por `SubscriptionGuard`" (que si debe seguir siendo true durante el trial) del concepto de "qué plan ve".
+El dato ya existía: `signup-handler` guarda el plan elegido en `subscriptions.plan_id` desde el alta. El bug era puramente de gating de UI; los límites duros del backend (créditos asignados, tope de usuarios en el RPC) siempre habían usado el plan real.
 
-**Regla de producto que debe quedar así**: un trial de Core prueba **Core** — sin Mensajes, sin CRM, sin Ajustes IA, sin agente conversacional. Un trial de Pro prueba Pro. Nunca Enterprise porque sí.
+**Verificado en navegador con sesión real, tres escenarios:**
 
-### 2. El límite de créditos de IA no corta la respuesta — solo lo registra en un log
+| Escenario | Resultado |
+|---|---|
+| Trial de **Core** | 🔒 Mensajes · CRM · Ajustes IA · 13 bloques en Dashboard · pill «Agente IA no incluido» |
+| Trial de **Pro** | Sin candados, acceso completo a IA |
+| **Animalgrace** (`manually_active`) | Sin candados — no-regresión confirmada |
 
-Mismo bloque, duplicado en los dos webhooks del agente, dentro de `saveMsg` (se ejecuta **después** de que la IA ya generó y va a guardar la respuesta saliente):
+*De paso:* el fallback `'Prueba gratuita — 7 días de acceso total'` en `Settings.tsx` (inalcanzable hoy, pero falso tras este fix) pasó a «Periodo de prueba de tu plan».
 
-```ts
-if (totalUsed >= monthlyLimit + extraBalance) {
-  console.warn(`[saveMsg] Clinic ${creditPoolId} has insufficient credits ... — message saved but not counted`);
-}
-// sin return. El mensaje se envía igual.
-```
-- `supabase/functions/meta-whatsapp-webhook/index.ts:439`
-- `supabase/functions/ycloud-whatsapp-webhook/index.ts:758`
+### 2. El límite de créditos IA ahora corta de verdad
 
-No es un gate, es un `console.warn`. Con el límite agotado, el agente **sigue respondiendo indefinidamente** — en cualquier plan, no solo Core. `ai_auto_respond` además tiene `DEFAULT true` en la tabla y `signup-handler` no lo toca, así que una clínica nace con el agente encendido.
+El chequeo era un `console.warn` **sin `return`**, y corría dentro de `saveMsg` — es decir, *después* de que OpenAI ya había generado la respuesta. El agente seguía respondiendo gratis indefinidamente, en cualquier plan.
 
-**Por qué hoy no sangra dinero real:** una clínica Core no tiene canal de WhatsApp conectado (Embedded Signup de Meta no es autoservicio todavía — ver pendiente #5 de la lista de abajo). Sin canal, no llega webhook, y el agente nunca se dispara. El bug queda inerte mientras ese pendiente siga sin resolver — pero se activa solo el día que se resuelva, sin que nadie tenga que tocar este código de nuevo.
+**Nuevo `supabase/functions/_shared/aiCredits.ts`** — una sola fuente para medir el crédito, usada por ambos webhooks:
+- `getCreditStatus(sb, clinicId)`: resuelve el pool root (`parent_clinic_id`), calcula el consumo, aplica el vencimiento de packs y respeta `ai_credits_unlimited`. **Nunca lanza**: ante un fallo de lectura devuelve `exhausted: false`, para que un problema de DB no deje mudo a quien sí tiene saldo.
+- `creditCostForModel(model)` y `CREDIT_COST_4O = 15`.
 
-**Regla de producto que debe quedar así**: al llegar al límite mensual de conversaciones/créditos del plan, la IA **debe dejar de responder** — no seguir generando mensajes gratis. El fix real es convertir ese chequeo en un `return` temprano (antes de llamar a OpenAI, no después de generar la respuesta), replicando el patrón `return 200 silencioso` que CLAUDE.md documentó como implementado en sesión 23 pero que en el código vivo hoy no existe — quedó reducido a logging en algún momento posterior sin que quedara registrado el porqué.
+**🔴 Bug de coherencia corregido en el camino.** Se **cobraba** ×15 (corregido en sesión 36) pero se **medía** ×8 — el fix de aquella sesión se aplicó al cobro y no al chequeo. El gate habría cortado al **~187% del consumo real**. Había un tercer `×8` en el cálculo de `balance_after`, también corregido. Ahora medir y cobrar comparten constante y no pueden volver a separarse.
 
-**Orden recomendado para la próxima sesión**: arreglar el punto 1 primero (es el que hace que el punto 2 importe para Core específicamente), después el punto 2 (que es un problema más amplio, de todos los planes). Verificar en ambos webhooks — son archivos separados que duplican la misma lógica, patrón ya documentado en el proyecto (un fix en uno no se propaga al otro).
+**El gate va antes de llamar a OpenAI**, justo después del `if (!clinic.ai_auto_respond)` de cada webhook. Una sola verificación por turno, no por iteración del tool loop: cortar a mitad dejaría tool calls ya ejecutados (una cita creada, por ejemplo) sin respuesta final al tutor.
+
+Al agotarse, por decisión del usuario: **silencio hacia el tutor + aviso a la clínica**. El inbound se guarda igual (ocurre estructuralmente antes del gate), así que el mensaje queda en Mensajes para responder a mano. La notificación (`type: 'ai_credits_exhausted'`) es **una por clínica y por mes** — sin esa idempotencia se acumularía una por cada mensaje entrante, justo cuando más llegan sin responder.
+
+**Verificado invocando el webhook real en producción:**
+
+| Prueba | Resultado |
+|---|---|
+| Mensaje con cuota agotada | `{"status":"credits_exhausted"}` · 0 respuestas de IA |
+| Segundo mensaje | Corta igual · **sigue habiendo 1 sola notificación** |
+| Auditoría | Los 2 inbound guardados · 0 cobros indebidos |
+| `ai_credits_unlimited = true` | `{"status":"processing_async"}` · la IA sí respondió |
+
+### ⚠️ Consecuencia para Animalgrace, asumida a propósito
+
+Linares y Santiago **comparten pool** (Santiago cuelga de Linares). Con el multiplicador ya corregido el consumo real del mes es **23.269 de 30.000 (77,6%)**, no el ~42% que reportaba el cálculo con ×8. A ritmo del mes proyecta ~36.000.
+
+Hoy no consume nada porque `ai_auto_respond` está apagado en ambas. **Pero si Claudia reactiva el agente, el corte se activaría en pocos días.** El usuario eligió explícitamente no hacer excepción: si se pasan, compran un pack. Queda registrado para que sea una decisión informada.
+
+Deploy: `meta-whatsapp-webhook` v43, `ycloud-whatsapp-webhook` v273.
+
+### Reglas permanentes
+
+- **El trial da el plan contratado, nunca Enterprise.** `manually_active` es el único caso de acceso total, y se evalúa antes que todo lo demás.
+- **Medir y cobrar créditos usan la misma constante** (`CREDIT_COST_4O` en `_shared/aiCredits.ts`). Si vuelves a escribir un multiplicador inline, ya te equivocaste.
+- **El gate de cuota va antes de llamar a OpenAI**, no después de generar la respuesta. Un chequeo que solo loguea no es un chequeo.
+- **Toda notificación disparada por mensaje entrante necesita idempotencia por período**, o se multiplica sola.
 
 ---
 
@@ -5728,3 +5741,64 @@ Ambas Animalgrace tienen `America/Santiago` explícito → el valor calculado es
 
 - **`COALESCE` no valida un timezone, solo cubre `NULL`.** Antes de pasar un valor de usuario a `AT TIME ZONE`, resolverlo contra `pg_timezone_names` — un string inválido lanza `22023` y, dentro de un `INSERT ... SELECT`, tumba la operación entera para todas las filas.
 - **Un cron único en UTC no sirve para operar en varios husos.** Si la tarea debe ocurrir a una hora *local*, correr el cron cada hora y filtrar por la hora local de cada fila — no basta con corregir el cálculo de la fecha.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 81, 2026-08-20)
+
+### Pausa del programa de fidelización — el switch no bastaba
+
+Claudia pidió frenar la acumulación de Pesos AnimalGrace: el equipo todavía no anunció el programa por redes sociales, así que no debía estar corriendo en silencio.
+
+**`loyalty_enabled = false`** en ambas sedes detuvo el motor, el canje y el carnet — pero **la IA seguía anunciando el programa igual**, porque el texto que lo describe ("desde tu segunda visita acumulas...") vivía escrito a mano dentro de `ai_behavior_rules`, que no depende de esa columna. Apagar el switch sin tocar el prompt dejaba a la IA prometiendo un beneficio que ya no se acumulaba.
+
+**Error propio durante la corrección:** al restaurar un respaldo del prompt del 15-ago para quitar ese texto, se sobrescribieron sin querer reglas de sesiones posteriores (manejo de fechas de sesión 76, regla del furgón de sesión 79). Se detectó al revisar la lista de `prompt_backups` y se recuperó desde un respaldo tomado el mismo día, antes de tocar nada — verificado campo por campo que las reglas de fechas, furgón, rango horario y corte de uñas volvieron a estar presentes.
+
+**Fix de raíz:** el bloque de fidelización se movió del prompt (editable solo a mano en la DB) al **código** de ambos webhooks, dentro de la misma condición `if (clinic.loyalty_enabled)` que ya existía para inyectar el saldo en el contexto. Los montos (`5%`, `$5.000`, `15%`) se generan desde `clinic_settings` en vez de estar fijos en el texto, así que si el porcentaje cambia desde Fidelización, el mensaje se actualiza solo. Un solo interruptor controla ahora motor, canje, carnet **y** lo que dice el agente — no vuelve a hacer falta editar un prompt a mano para pausar o reanudar.
+
+Deploy: `meta-whatsapp-webhook` y `ycloud-whatsapp-webhook`. Verificado sin errores en `debug_logs` tras el deploy, con tráfico real de ambas clínicas.
+
+### El switch no tenía ningún control en la interfaz
+
+Al pedir confirmar "cuando Claudia anuncie, avísame para reactivarlo", el usuario preguntó, con razón, por qué hacía falta avisar si supuestamente había un switch — **no lo había**. `loyalty_enabled` solo se leía en el código; ninguna pantalla lo escribía. Se agregó el control real en **Fidelización → Ajustes**, arriba de todo: tarjeta verde/gris con punto de estado, texto que explica qué implica cada estado (sin tecnicismos), y guardado inmediato al tocar el interruptor — no depende del botón "Aplicar Cambios Globales" más abajo, porque es el control que se usa para frenar algo en caliente y esperar a un guardado posterior dejaría el programa corriendo si alguien cierra la pestaña. Actualización optimista con reversión si la escritura falla; confirmación al pausar, porque afecta lo que ven los clientes.
+
+Estado al cierre: **pausado en ambas sedes**, esperando que Claudia lo encienda ella misma desde Ajustes cuando el equipo anuncie.
+
+### Cantidad por línea en el formulario de Ingreso (Finanzas)
+
+Pedido de Claudia: al agregar un servicio o producto a una venta (ej. "Vacuna Séxtuple"), poder subir la cantidad de esa misma línea con un botón +/- en vez de rebuscarlo en el desplegable por cada unidad — caso típico: 3 mascotas del mismo tutor, misma vacuna.
+
+**Antes no existía cantidad.** `selectedServices`/`selectedProducts` eran `{id, name, price}[]`; agregar el mismo servicio dos veces ya funcionaba (creaba dos filas duplicadas que el subtotal sumaba bien), pero cada unidad exigía rebuscar. `addService`/`addProduct` siempre hacían `push`, nunca dedupaban.
+
+**Por qué tocó más que la UI.** El array `services` (JSONB en `incomes.services`) lo consumen otros dos lugares que asumían implícitamente "1 fila = 1 unidad" — si solo se arreglaba el formulario, agregaba dos regresiones reales el mismo día que se usara el botón nuevo:
+
+1. **`inventoryService.syncIncomeProductMovements`** descontaba stock con `addConsumption(it.id, 1, ...)` hardcodeado. Con 3 unidades colapsadas en una fila de `quantity: 3`, el stock solo habría bajado 1.
+2. **RPC `get_finance_item_metrics`** tenía `1::numeric AS quantity` fijo por elemento del JSONB — el tab "Análisis" contaba filas, no unidades reales.
+
+**Decisión de diseño — `price` sigue siendo el total de la línea.** Dentro del componente cada línea guarda el precio unitario y la cantidad por separado, pero al guardar se persiste `price: unitario × cantidad` (igual que hoy) más un campo `quantity` nuevo. Esto preserva el contrato para todo lo que ya lee `price` sin saber que existe cantidad: `get_finance_discount_metrics` (prorratea sumando `price`), `TutorDetails.tsx` (que **ya** renderizaba `svc.quantity > 1 && <span>×{svc.quantity}</span>` desde antes, sin necesitar cambios), `CajaReport`/`ExportModal` (no leen `services` en absoluto).
+
+**Cambios aplicados:**
+- `NewIncomeForm.tsx`: tipos con `quantity`; `addService`/`addProduct` dedupan por `id` en vez de duplicar filas; nuevo componente `QtyStepper` (`[−] N [+]`, el `−` deshabilitado en `quantity === 1` — bajar de 1 a 0 no es el trabajo del stepper, para eso sigue el basurero); subtotales multiplican por cantidad; `updateDescription` sufija `(×N)` cuando corresponde; precarga en modo edición divide el precio guardado por la cantidad para recuperar el unitario (los ingresos históricos sin `quantity` caen a 1, se comportan igual que antes — sin backfill).
+- `inventoryService.ts`: productos vendidos directo dividen `it.price` por `it.quantity` para obtener el unitario que espera `addConsumption`; servicios con producto vinculado multiplican `linked_product_qty` por la cantidad del servicio vendido (3 vacunas que consumen 2 dosis cada una descuentan 6, no 2).
+- Migración `20260820151237_finance_item_metrics_respect_quantity`: `1::numeric AS quantity` → `GREATEST(1, COALESCE((elem->>'quantity')::numeric, 1))`. Verificado antes/después sobre datos reales de agosto en ambas sedes: `by_type` idéntico al peso — el histórico no se movió porque no tiene `quantity` y cae a 1.
+
+**Verificación end-to-end en navegador real**, no solo `tsc`/build: con la clínica de prueba Core (aislada de Animalgrace gracias a la RLS de la sesión 74), una venta con un servicio vinculado ×3 y un producto ×2 —
+
+| Verificado | Resultado |
+|---|---|
+| Guardado | `quantity: 3` a $24.000, `quantity: 2` a $2.000 |
+| Descripción automática | "...Vinculado (×3), ...Producto (×2)" |
+| **Stock** | bajó exactamente **8** (6 del servicio vinculado + 2 del producto directo) — antes habría bajado 2 |
+| Dedupe | reelegir el mismo producto sumó a la fila existente, no creó otra |
+| Métricas | 3 y 2 unidades sobre 1 línea cada una, en vez de contar 1 y 1 |
+| Reversión al borrar | stock volvió exactamente a 100 |
+
+Todos los datos de prueba se crearon y eliminaron en la clínica Core; los 475 ingresos reales de Animalgrace quedaron intactos.
+
+### Reglas permanentes
+
+- **Todo control de negocio que un usuario deba poder prender/apagar necesita una UI real, no solo una columna en la base.** "Es una línea de SQL" no es una respuesta aceptable cuando el usuario pregunta cómo lo hace él mismo — si no hay switch en la pantalla, no existe para efectos prácticos.
+- **Un flag que apaga un motor debe apagar también lo que ese motor promete comunicar.** `loyalty_enabled` controlaba datos pero no el discurso de la IA sobre esos datos; ambos deben colgar de la misma condición, y mejor en código que en un prompt editado a mano.
+- **Antes de restaurar un respaldo de prompt, revisar si hay respaldos más recientes que el que se va a usar.** Restaurar a un punto en el tiempo pisa todo lo que se agregó después, no solo lo que se quiere revertir.
+- **Cuando un array JSONB con forma flexible gana un campo nuevo, buscar todo lugar que itere sobre él asumiendo la forma vieja** — no basta con no romper la escritura; hay que auditar cada lectura que asuma "1 elemento = 1 unidad" antes de dar el cambio por seguro.
+- **Verificar cambios de inventario/dinero con una venta real de punta a punta**, no solo con la lógica en abstracto — la prueba en navegador con clínica de prueba aislada detectó que el diseño era correcto antes de tocar datos reales de Animalgrace.
