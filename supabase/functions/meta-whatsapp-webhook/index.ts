@@ -14,6 +14,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getCreditStatus, notifyCreditsExhausted, creditCostForModel } from "../_shared/aiCredits.ts";
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 const VERIFY_TOKEN = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? "";
@@ -410,35 +411,12 @@ const saveMsg = async (
     if (direction === "outbound" && insertPayload.ai_generated) {
       try {
         const model = insertPayload.ai_model;
-        const creditCost = model === "mini" ? 1 : 15;
-
-        const { data: poolRow } = await sb.from("clinic_settings")
-          .select("parent_clinic_id").eq("id", clinicId).single();
-        const creditPoolId: string = poolRow?.parent_clinic_id || clinicId;
-
-        const { data: pool } = await sb.from("clinic_settings")
-          .select("ai_credits_unlimited,ai_credits_monthly_mini_used,ai_credits_monthly_4o_used,ai_credits_monthly_limit,ai_credits_extra_balance,ai_credits_extra_4o,ai_credits_extra_expires_at")
-          .eq("id", creditPoolId).single();
-
-        if (pool && !pool.ai_credits_unlimited) {
-          const miniUsed = pool.ai_credits_monthly_mini_used || 0;
-          const oUsed = pool.ai_credits_monthly_4o_used || 0;
-          const totalUsed = miniUsed + (oUsed * 8);
-          const monthlyLimit = pool.ai_credits_monthly_limit || 500;
-          const extrasExpired = pool.ai_credits_extra_expires_at
-            ? new Date(pool.ai_credits_extra_expires_at) < new Date() : false;
-          const extraBalance = extrasExpired ? 0 : ((pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0));
-
-          if (extrasExpired && ((pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0)) > 0) {
-            sb.from("clinic_settings")
-              .update({ ai_credits_extra_balance: 0, ai_credits_extra_4o: 0, ai_credits_extra_expires_at: null })
-              .eq("id", creditPoolId);
-          }
-
-          if (totalUsed >= monthlyLimit + extraBalance) {
-            console.warn(`[saveMsg] Clinic ${creditPoolId} has insufficient credits — message saved but not counted`);
-          }
-        }
+        // Medir y cobrar usan la MISMA constante (ver _shared/aiCredits.ts):
+        // antes se cobraba ×15 pero se medía ×8, así que el chequeo de cuota
+        // creía que se había gastado la mitad de lo real.
+        const creditCost = creditCostForModel(model);
+        const credits = await getCreditStatus(sb, clinicId);
+        const creditPoolId = credits.poolId;
 
         if (model === "mini") {
           await sb.rpc("increment_clinic_mini_usage", { p_clinic_id: clinicId });
@@ -446,16 +424,10 @@ const saveMsg = async (
           await sb.rpc("increment_clinic_4o_usage", { p_clinic_id: clinicId });
         }
 
-        let balanceAfter = 0;
-        if (pool) {
-          const miniUsed = (pool.ai_credits_monthly_mini_used || 0) + (model === "mini" ? 1 : 0);
-          const oUsed = (pool.ai_credits_monthly_4o_used || 0) + (model !== "mini" ? 1 : 0);
-          const totalUsedNow = miniUsed + (oUsed * 8);
-          const extrasExpired = pool.ai_credits_extra_expires_at
-            ? new Date(pool.ai_credits_extra_expires_at) < new Date() : false;
-          const extraBalance = extrasExpired ? 0 : ((pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0));
-          balanceAfter = Math.max(0, (pool.ai_credits_monthly_limit || 0) + extraBalance - totalUsedNow);
-        }
+        // Saldo tras registrar este mensaje, para el historial de transacciones.
+        const balanceAfter = credits.unlimited
+          ? 0
+          : Math.max(0, credits.limit + credits.extraBalance - (credits.totalUsed + creditCost));
 
         await sb.from("ai_credit_transactions").insert({
           clinic_id: creditPoolId,
@@ -1726,6 +1698,26 @@ Deno.serve(async (req) => {
             return;
           }
 
+          // ── Cuota de créditos IA ────────────────────────────────────────────
+          // Se comprueba ANTES de llamar a OpenAI: hasta la sesión 76 el chequeo
+          // vivía dentro de saveMsg (después de generar la respuesta) y era un
+          // console.warn sin return, así que el agente seguía respondiendo gratis
+          // indefinidamente. Una sola verificación por turno, no por iteración
+          // del tool loop: cortar a mitad dejaría tool calls ya ejecutados (una
+          // cita creada, por ejemplo) sin respuesta final al tutor.
+          //
+          // Al agotarse: silencio hacia el tutor y aviso a la clínica. El mensaje
+          // entrante ya se guardó más arriba, así que queda en Mensajes para que
+          // lo respondan a mano.
+          const credits = await getCreditStatus(sb, clinic.id);
+          if (credits.exhausted) {
+            await notifyCreditsExhausted(sb, clinic.id, credits.poolId);
+            console.warn(
+              `[Meta] Créditos agotados (pool ${credits.poolId}: ${credits.totalUsed}/${credits.limit + credits.extraBalance}) — no se responde a ${from}`,
+            );
+            return;
+          }
+
           const normalizedFrom = normalizePhone(from);
           const searchPhone = from.startsWith("+") ? from : `+${from}`;
           const searchPhoneNoPlus = from.startsWith("+") ? from.substring(1) : from;
@@ -1914,6 +1906,32 @@ Deno.serve(async (req) => {
           // Solo aplica a clínicas móviles con sectorización (routing_mode = mobile_sectors).
           // El bloqueo real vive en checkAvail; esto es para que la IA sea proactiva y
           // ofrezca la fecha correcta en vez de chocar contra un "no hay disponibilidad".
+
+          // --- REGLAS DEL PROGRAMA DE FIDELIZACIÓN ---
+          // Va en el prompt SOLO si el programa está encendido. Antes vivía escrito a
+          // mano dentro de ai_behavior_rules, así que apagar `loyalty_enabled` detenía
+          // la acumulación pero la IA seguía anunciándola igual (15-ago-2026): había que
+          // editar el prompt a mano en cada encendido/apagado. Con esto, un solo switch
+          // controla motor, canje, carnet y lo que dice el agente.
+          // Los montos se leen de la configuración real: si se cambia el % desde
+          // Fidelización, el texto se actualiza solo en vez de quedar mintiendo.
+          let loyaltyRulesBlock = "";
+          if (clinic.loyalty_enabled) {
+            const unitName = clinic.loyalty_points_name || "puntos";
+            const earnPct = Number(clinic.loyalty_points_percentage ?? 0);
+            const refBonus = Number(clinic.loyalty_referral_bonus ?? 0);
+            const welcome = Number(clinic.loyalty_welcome_bonus ?? 0);
+            const welcomeLabel = clinic.loyalty_welcome_bonus_type === "percentage"
+              ? `${welcome}% de esa primera atención`
+              : `$${welcome.toLocaleString("es-CL")}`;
+            loyaltyRulesBlock = `
+
+## PROGRAMA ${unitName.toUpperCase()}
+${earnPct > 0 ? `* **CIERRE DE AGENDAMIENTO:** Justo después del aviso de rango horario, cierra con UNA sola frase breve, nunca un párrafo: "Además, desde tu segunda visita acumulas automáticamente el ${earnPct}% del total de cada atención en ${unitName}, que puedes usar cuando quieras para descontar de futuras visitas 🐾". Si ya lo mencionaste antes en esta conversación, no lo repitas.\n` : ""}* **FICHA DIGITAL:** Si preguntan por su saldo, cómo recomendar o sus próximas atenciones, entrega el enlace de Ficha Digital que aparece en el bloque [FIDELIZACIÓN] del contexto.
+* **⚠️ PROHIBIDO INVENTAR SALDOS (ABSOLUTO):** Menciona un monto SOLO si aparece explícitamente en el bloque [FIDELIZACIÓN] del contexto. Si no aparece, di que puede revisarlo en su Ficha Digital. NUNCA estimes ni inventes un saldo.
+${refBonus > 0 ? `* **RECOMENDAR A UN AMIGO:** Quien comparte su código gana $${refBonus.toLocaleString("es-CL")} en ${unitName} cuando su recomendado se atiende por primera vez, y ese nuevo cliente recibe ${welcomeLabel}. El código aparece en el bloque [FIDELIZACIÓN]; entrégalo solo si lo piden. El premio se paga con la atención, no por mandar el código.` : ""}`;
+          }
+
           let routePlanBlock = "";
           if ((clinic.logistics_config as any)?.routing_mode === "mobile_sectors") {
             const planHorizonISO = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000)
@@ -2003,7 +2021,7 @@ BASE DE CONOCIMIENTO (PROTOCOLOS Y DETALLES ACTUALIZADOS):
 ${knowledgeSummary}
 
 ⚠️ NOTA PARA IA: Si existe una discrepancia entre la 'Lista Oficial' y la 'Base de Conocimiento', prioriza SIEMPRE la Base de Conocimiento.
-${forcedKnowledgeBlock}${routePlanBlock}`;
+${forcedKnowledgeBlock}${routePlanBlock}${loyaltyRulesBlock}`;
 
           // --- BLOQUE DINÁMICO (cambia por mensaje/tutor) — SIEMPRE al final ---
           const dynamicSysPrompt = `
