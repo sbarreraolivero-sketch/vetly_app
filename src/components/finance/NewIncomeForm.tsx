@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react'
-import { X, Search, Plus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine, Gift, Sparkles } from 'lucide-react'
+import { X, Search, Plus, Minus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine, Gift, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
+// `price` es SIEMPRE el precio unitario (el del catálogo) dentro del componente.
+// El total de la línea se deriva multiplicando por `quantity`, y recién al guardar
+// se persiste ya multiplicado — ver handleSubmit.
 interface ServiceOption {
     id: string
     name: string
     price: number
+    quantity: number
 }
 
 interface ProductOption {
     id: string
     name: string
-    price: number  // sale_price
+    price: number  // sale_price unitario
+    quantity: number
 }
 
 interface TutorOption {
@@ -50,6 +55,46 @@ const PAYMENT_OPTIONS = [
     { value: 'tarjeta',       label: 'Tarjeta crédito' },
     { value: 'debito',        label: 'Tarjeta débito' },
 ]
+
+// Stepper de cantidad por línea. No baja de 1: quitar la línea es el botón de
+// basurero, para que un clic de más no borre sin querer una venta ya cargada.
+function QtyStepper({ value, onChange, accent }: {
+    value: number
+    onChange: (qty: number) => void
+    accent: 'primary' | 'violet'
+}) {
+    const atMin = value <= 1
+    const btn = "w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+    const tone = accent === 'primary'
+        ? "text-primary-700 hover:bg-primary-100"
+        : "text-violet-700 hover:bg-violet-100"
+    return (
+        <div className="flex items-center gap-0.5">
+            <button
+                type="button"
+                onClick={() => onChange(value - 1)}
+                disabled={atMin}
+                className={cn(btn, tone)}
+                title={atMin ? 'Usa el basurero para quitar la línea' : 'Quitar una unidad'}
+                aria-label="Quitar una unidad"
+            >
+                <Minus className="w-3.5 h-3.5" />
+            </button>
+            <span className="w-6 text-center font-bold text-charcoal tabular-nums" aria-live="polite">
+                {value}
+            </span>
+            <button
+                type="button"
+                onClick={() => onChange(value + 1)}
+                className={cn(btn, tone)}
+                title="Agregar una unidad"
+                aria-label="Agregar una unidad"
+            >
+                <Plus className="w-3.5 h-3.5" />
+            </button>
+        </div>
+    )
+}
 
 interface EditingIncome {
     id: string
@@ -217,12 +262,20 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 })
             }
 
-            // Pre-rellenar servicios/productos en modo edición
+            // Pre-rellenar servicios/productos en modo edición.
+            // Lo guardado trae `price` como total de línea, pero el componente trabaja
+            // con precio unitario: se divide por la cantidad. Los ingresos anteriores a
+            // este cambio no tienen `quantity`, así que caen a 1 y quedan idénticos —
+            // no hace falta backfill de datos.
             if (editingIncome?.services && editingIncome.services.length > 0) {
                 const svc = editingIncome.services.filter((s: any) => s.type === 'service')
                 const prd = editingIncome.services.filter((s: any) => s.type === 'product')
-                if (svc.length > 0) setSelectedServices(svc.map((s: any) => ({ id: s.id, name: s.name, price: s.price })))
-                if (prd.length > 0) setSelectedProducts(prd.map((p: any) => ({ id: p.id, name: p.name, price: p.price })))
+                const toOption = (it: any) => {
+                    const qty = Math.max(1, Number(it.quantity) || 1)
+                    return { id: it.id, name: it.name, price: (Number(it.price) || 0) / qty, quantity: qty }
+                }
+                if (svc.length > 0) setSelectedServices(svc.map(toOption))
+                if (prd.length > 0) setSelectedProducts(prd.map(toOption))
             } else if (editingIncome) {
                 // Sin servicios guardados — reconstruir monto bruto (amount en DB ya es neto)
                 const gross = (editingIncome.amount ?? 0) + (editingIncome.discount ?? 0)
@@ -272,8 +325,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         setReferrerSearch('')
     }, [selectedTutor?.id])
 
-    const serviceSubtotal = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
-    const productSubtotal = selectedProducts.reduce((sum, p) => sum + Number(p.price || 0), 0)
+    const serviceSubtotal = selectedServices.reduce((sum, s) => sum + Number(s.price || 0) * (s.quantity || 1), 0)
+    const productSubtotal = selectedProducts.reduce((sum, p) => sum + Number(p.price || 0) * (p.quantity || 1), 0)
     const customSubtotal = customItems.reduce((sum, i) => sum + Number(i.price || 0), 0)
     const hasItems = selectedServices.length > 0 || selectedProducts.length > 0 || customItems.length > 0
     const subtotal = hasItems ? serviceSubtotal + productSubtotal + customSubtotal : Number(manualAmount || 0)
@@ -378,8 +431,14 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
 
     const tutorNeedsResolution = !selectedTutor && tutorSearch.trim().length > 0
 
-    const addService = (service: ServiceOption) => {
-        const newList = [...selectedServices, service]
+    // Si el servicio ya está en la venta, sube su cantidad en vez de crear una fila
+    // repetida: el caso real es "3 mascotas del mismo tutor, misma vacuna", y antes
+    // obligaba a rebuscar el servicio en el desplegable una vez por unidad.
+    const addService = (service: Omit<ServiceOption, 'quantity'>) => {
+        const existing = selectedServices.findIndex(s => s.id === service.id)
+        const newList = existing >= 0
+            ? selectedServices.map((s, i) => i === existing ? { ...s, quantity: s.quantity + 1 } : s)
+            : [...selectedServices, { ...service, quantity: 1 }]
         setSelectedServices(newList)
         setShowServiceDropdown(false)
         updateDescription(newList, selectedProducts)
@@ -392,8 +451,20 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         updateDescription(newList, selectedProducts)
     }
 
-    const addProduct = (product: ProductOption) => {
-        const newList = [...selectedProducts, product]
+    // El stepper nunca baja de 1: quitar la línea es el botón de basurero, para que
+    // un clic de más no borre sin querer una línea de varios miles.
+    const setServiceQty = (index: number, qty: number) => {
+        const newList = selectedServices.map((s, i) =>
+            i === index ? { ...s, quantity: Math.max(1, qty) } : s)
+        setSelectedServices(newList)
+        updateDescription(newList, selectedProducts)
+    }
+
+    const addProduct = (product: Omit<ProductOption, 'quantity'>) => {
+        const existing = selectedProducts.findIndex(p => p.id === product.id)
+        const newList = existing >= 0
+            ? selectedProducts.map((p, i) => i === existing ? { ...p, quantity: p.quantity + 1 } : p)
+            : [...selectedProducts, { ...product, quantity: 1 }]
         setSelectedProducts(newList)
         setProductSearch('')
         setShowProductDropdown(false)
@@ -407,9 +478,23 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         updateDescription(selectedServices, newList)
     }
 
+    const setProductQty = (index: number, qty: number) => {
+        const newList = selectedProducts.map((p, i) =>
+            i === index ? { ...p, quantity: Math.max(1, qty) } : p)
+        setSelectedProducts(newList)
+        updateDescription(selectedServices, newList)
+    }
+
     const updateDescription = (services: ServiceOption[], products: ProductOption[], custom?: { name: string; price: number }[]) => {
         const used = custom ?? customItems
-        const allItems = [...services.map(s => s.name), ...products.map(p => p.name), ...used.map(i => i.name)]
+        // Con cantidad > 1 se sufija "(×N)" — mismo formato que ya usa el historial
+        // del tutor. Como las líneas se dedupean, el nombre nunca se repite.
+        const withQty = (name: string, qty: number) => qty > 1 ? `${name} (×${qty})` : name
+        const allItems = [
+            ...services.map(s => withQty(s.name, s.quantity || 1)),
+            ...products.map(p => withQty(p.name, p.quantity || 1)),
+            ...used.map(i => i.name),
+        ]
         if (allItems.length > 0) {
             setDescription(allItems.join(', '))
         } else if (selectedTutor) {
@@ -442,10 +527,21 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         if (finalAmount <= 0 && subtotal <= 0) return
         if (discountReasonMissing) return
         if (tutorRequired) return
+        // `price` se guarda como TOTAL de la línea (unitario × cantidad), que es lo
+        // que ya significaba antes de que existiera `quantity`. Así los consumidores
+        // del array (prorrateo de descuentos, métricas por ítem, historial del tutor)
+        // siguen sumando `price` sin enterarse del cambio. `quantity` viaja aparte
+        // para quien necesite las unidades reales — hoy, el descuento de stock.
         const allServices = [
-            ...selectedServices.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'service' })),
-            ...selectedProducts.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'product' })),
-            ...customItems.map(i => ({ id: `custom-${Date.now()}-${Math.random()}`, name: i.name, price: i.price, type: 'custom' })),
+            ...selectedServices.map(s => ({
+                id: s.id, name: s.name,
+                price: s.price * (s.quantity || 1), quantity: s.quantity || 1, type: 'service',
+            })),
+            ...selectedProducts.map(p => ({
+                id: p.id, name: p.name,
+                price: p.price * (p.quantity || 1), quantity: p.quantity || 1, type: 'product',
+            })),
+            ...customItems.map(i => ({ id: `custom-${Date.now()}-${Math.random()}`, name: i.name, price: i.price, quantity: 1, type: 'custom' })),
         ]
         onSuccess({
             description,
@@ -703,11 +799,18 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                         {selectedServices.length > 0 && (
                             <div className="mt-2 space-y-1.5">
                                 {selectedServices.map((service, idx) => (
-                                    <div key={idx} className="flex items-center justify-between bg-primary-50 px-3 py-2 rounded-md text-sm">
-                                        <span className="text-charcoal">{service.name}</span>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-medium text-primary-700">{formatMoney(service.price)}</span>
-                                            <button type="button" onClick={() => removeService(idx)} className="text-red-400 hover:text-red-500">
+                                    <div key={service.id} className="flex items-center justify-between bg-primary-50 px-3 py-2 rounded-md text-sm gap-2">
+                                        <span className="text-charcoal min-w-0 truncate">{service.name}</span>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <QtyStepper
+                                                value={service.quantity}
+                                                onChange={q => setServiceQty(idx, q)}
+                                                accent="primary"
+                                            />
+                                            <span className="font-medium text-primary-700 w-20 text-right">
+                                                {formatMoney(service.price * service.quantity)}
+                                            </span>
+                                            <button type="button" onClick={() => removeService(idx)} className="text-red-400 hover:text-red-500" title="Quitar servicio">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -753,11 +856,18 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                         {selectedProducts.length > 0 && (
                             <div className="mt-2 space-y-1.5">
                                 {selectedProducts.map((product, idx) => (
-                                    <div key={idx} className="flex items-center justify-between bg-violet-50 px-3 py-2 rounded-md text-sm">
-                                        <span className="text-charcoal">{product.name}</span>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-medium text-violet-700">{formatMoney(product.price)}</span>
-                                            <button type="button" onClick={() => removeProduct(idx)} className="text-red-400 hover:text-red-500">
+                                    <div key={product.id} className="flex items-center justify-between bg-violet-50 px-3 py-2 rounded-md text-sm gap-2">
+                                        <span className="text-charcoal min-w-0 truncate">{product.name}</span>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <QtyStepper
+                                                value={product.quantity}
+                                                onChange={q => setProductQty(idx, q)}
+                                                accent="violet"
+                                            />
+                                            <span className="font-medium text-violet-700 w-20 text-right">
+                                                {formatMoney(product.price * product.quantity)}
+                                            </span>
+                                            <button type="button" onClick={() => removeProduct(idx)} className="text-red-400 hover:text-red-500" title="Quitar producto">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>

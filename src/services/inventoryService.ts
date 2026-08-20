@@ -322,7 +322,7 @@ export const inventoryService = {
     async syncIncomeProductMovements(params: {
         clinicId: string
         incomeId: string
-        items: Array<{ id?: string; name?: string; price?: number; type?: string }>
+        items: Array<{ id?: string; name?: string; price?: number; type?: string; quantity?: number }>
         tutorId?: string | null
         locationId?: string | null
     }): Promise<void> {
@@ -343,9 +343,13 @@ export const inventoryService = {
         const items = params.items ?? []
 
         // 1. Productos elegidos explícitamente en la venta.
+        // `it.price` es el TOTAL de la línea (unitario × cantidad), así que se divide
+        // para obtener el unitario que espera addConsumption. Antes cada unidad era
+        // una fila repetida del array; ahora una sola fila puede traer cantidad > 1.
         for (const it of items) {
             if (it?.type === 'product' && isUuid(it.id)) {
-                addConsumption(it.id, 1, Number(it.price) || 0)
+                const qty = Math.max(1, Number(it.quantity) || 1)
+                addConsumption(it.id, qty, (Number(it.price) || 0) / qty)
             }
         }
 
@@ -367,7 +371,9 @@ export const inventoryService = {
                 if (it?.type !== 'service' || !isUuid(it.id)) continue
                 const svc = byId.get(it.id)
                 if (!svc?.linked_product_id) continue
-                const qty = Number(svc.linked_product_qty) || 1
+                // El consumo escala con la cantidad del servicio vendido: 3 vacunas
+                // aplicadas consumen 3 dosis del producto vinculado, no una.
+                const qty = (Number(svc.linked_product_qty) || 1) * Math.max(1, Number(it.quantity) || 1)
                 // El precio se reparte entre las unidades consumidas para que el
                 // análisis ABC de inventario no infle los ingresos del producto.
                 addConsumption(svc.linked_product_id, qty, (Number(it.price) || 0) / qty)
