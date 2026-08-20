@@ -21,6 +21,12 @@ import { Link, useLocation } from 'react-router-dom'
 import { openPaddleRemindersUnitsCheckout, openPaddleReminderPackCheckout, onPaddleCheckoutEvent, type ReminderPackId } from '@/lib/paddle'
 
 type TabType = 'manual' | 'appointments' | 'medical' | 'packs'
+
+// Espejo del DEFAULT de `reminder_settings.manual_wa_template`. Una clínica nueva
+// no tiene fila en esa tabla hasta el primer guardado, así que el textarea debe
+// mostrar el texto real que se enviará, no un campo vacío.
+const DEFAULT_MANUAL_TEMPLATE =
+    'Hola {tutor}! Te recordamos la cita de {paciente} para {servicio} el {fecha} a las {hora}. Cualquier cosa nos escribes por aqui. {clinica}'
 type DateRange = 'today' | 'd7' | 'd15' | 'd30' | 'all'
 
 export default function Reminders() {
@@ -75,7 +81,7 @@ export default function Reminders() {
         const fetchSettings = async () => {
             const [{ data: clinicSettings }, { data: reminderData }, { data: subData }] = await Promise.all([
                 supabase.from('clinic_settings').select('*').eq('id', profile.clinic_id).single(),
-                supabase.from('reminder_settings').select('*').eq('clinic_id', profile.clinic_id).single(),
+                supabase.from('reminder_settings').select('*').eq('clinic_id', profile.clinic_id).maybeSingle(),
                 (supabase as any).from('subscriptions')
                     .select('monthly_reminders_limit, monthly_reminders_used, reminders_pack_balance')
                     .eq('clinic_id', profile.clinic_id).maybeSingle(),
@@ -419,7 +425,7 @@ export default function Reminders() {
                         <div className="px-5 sm:px-6 pb-5 space-y-3 border-t border-silk-beige pt-4">
                             <textarea
                                 rows={4}
-                                value={settings?.manual_wa_template || ''}
+                                value={settings?.manual_wa_template ?? DEFAULT_MANUAL_TEMPLATE}
                                 onChange={e => setSettings({ ...settings, manual_wa_template: e.target.value })}
                                 placeholder="Hola {tutor}! Te recordamos la cita de {paciente}…"
                                 className="w-full text-sm border border-silk-beige rounded-xl px-3 py-2.5 text-charcoal bg-ivory resize-y focus:ring-primary-500 focus:border-primary-500"

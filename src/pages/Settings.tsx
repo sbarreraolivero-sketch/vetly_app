@@ -2114,7 +2114,8 @@ export default function Settings() {
                                             <div className="flex items-center gap-2 mt-2">
                                                 <Sparkles className="w-4 h-4 text-primary-500" />
                                                 <p className="text-sm font-medium text-charcoal/70">
-                                                    {PLANS[normalizePlanId(subscription?.plan || 'starter')]?.tagline || 'Prueba gratuita — 7 días de acceso total'}
+                                                    {/* El trial da acceso al plan contratado, no a todo (ver resolveEffectivePlan). */}
+                                                    {PLANS[normalizePlanId(subscription?.plan || 'starter')]?.tagline || 'Periodo de prueba de tu plan'}
                                                 </p>
                                             </div>
                                         </div>
@@ -2185,7 +2186,7 @@ export default function Settings() {
                                             className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-soft border border-red-200 transition-all flex items-center gap-2"
                                         >
                                             {cancellingSubscription ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                                            Cancelar suscripci\u00f3n
+                                            Cancelar suscripción
                                         </button>
                                     )}
                                 </div>

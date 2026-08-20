@@ -20,6 +20,15 @@ const MIN_PHONE_DIGITS = 7
 /** A partir de cuántos envíos manuales al mes se muestra el aviso de upgrade. */
 const NUDGE_THRESHOLD = 10
 
+/**
+ * Plantilla por defecto — espejo del DEFAULT de `reminder_settings.manual_wa_template`.
+ * Hace falta porque una clínica recién creada NO tiene fila en `reminder_settings`
+ * (se crea al guardar la config por primera vez). Sin esto el mensaje saldría vacío
+ * justo en el caso que este panel existe para resolver: el día 1 de un cliente Core.
+ */
+const DEFAULT_TEMPLATE =
+    'Hola {tutor}! Te recordamos la cita de {paciente} para {servicio} el {fecha} a las {hora}. Cualquier cosa nos escribes por aqui. {clinica}'
+
 interface ApptRow {
     id: string
     patient_name: string | null
@@ -139,7 +148,7 @@ export function ManualReminderPanel({ clinicId, clinicName, template }: Props) {
     const buildMessage = (a: ApptRow) => {
         const fecha = formatInTz(a.appointment_date, "EEEE d 'de' MMMM")
         const hora = formatInTz(a.appointment_date, 'HH:mm')
-        return (template || '')
+        return (template?.trim() || DEFAULT_TEMPLATE)
             .split('{tutor}').join(a.tutor_name?.trim() || 'hola')
             .split('{paciente}').join(a.patient_name?.trim() || 'tu mascota')
             .split('{servicio}').join(a.service?.trim() || 'su visita')

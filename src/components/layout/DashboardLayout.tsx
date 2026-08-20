@@ -129,7 +129,9 @@ export default function DashboardLayout() {
     const { user, profile, member, signOut } = useAuth()
 
     const { canAccess } = usePermissions()
-    const { pageAllowed } = usePlan()
+    const { pageAllowed, meetsPlan } = usePlan()
+    // Sin IA en el plan, el estado del agente no aplica: el pill invita a activarlo.
+    const hasAI = meetsPlan('starter')
 
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
@@ -452,16 +454,16 @@ export default function DashboardLayout() {
                 <div className="p-3 border-t border-white/[0.06] shrink-0">
                     <div className={cn(
                         "flex items-center gap-3 rounded-xl border transition-all duration-200",
-                        aiActive === false ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25",
+                        (!hasAI || aiActive === false) ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25",
                         isSidebarCollapsed ? "p-2 justify-center" : "px-3 py-3"
                     )}>
                         <div className={cn(
                             "shrink-0 w-2 h-2 rounded-full",
-                            aiActive === false ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
+                            (!hasAI || aiActive === false) ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
                         )} />
                         <div className={cn("min-w-0 overflow-hidden transition-all duration-200", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
-                            <p className="text-[13px] font-semibold text-white leading-tight">{aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
-                            <p className="text-[11px] text-white/40">{aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
+                            <p className="text-[13px] font-semibold text-white leading-tight">{!hasAI ? 'IA no incluida' : aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
+                            <p className="text-[11px] text-white/40">{!hasAI ? 'Disponible desde Starter' : aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
                         </div>
                     </div>
                 </div>
@@ -524,15 +526,15 @@ export default function DashboardLayout() {
                 <div className="p-3 border-t border-white/[0.06] shrink-0">
                     <div className={cn(
                         "flex items-center gap-3 rounded-xl border px-3 py-3",
-                        aiActive === false ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25"
+                        (!hasAI || aiActive === false) ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25"
                     )}>
                         <div className={cn(
                             "w-2 h-2 rounded-full shrink-0",
-                            aiActive === false ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
+                            (!hasAI || aiActive === false) ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
                         )} />
                         <div>
-                            <p className="text-[13px] font-semibold text-white">{aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
-                            <p className="text-[11px] text-white/40">{aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
+                            <p className="text-[13px] font-semibold text-white">{!hasAI ? 'IA no incluida' : aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
+                            <p className="text-[11px] text-white/40">{!hasAI ? 'Disponible desde Starter' : aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
                         </div>
                     </div>
                 </div>

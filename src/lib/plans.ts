@@ -125,16 +125,17 @@ export interface PlanSubscriptionLike {
     manually_active?: boolean | null
 }
 
-const FULL_ACCESS_STATUSES = new Set(['trial', 'trialing'])
+/** Estados que indican periodo de prueba. NO implican acceso total. */
+const TRIAL_STATUSES = new Set(['trial', 'trialing'])
 
 export interface EffectivePlan {
     planId: PlanId
     limits: PlanLimits
-    /** Cuenta activada a mano (paga por transferencia). Acceso total. */
+    /** Cuenta activada a mano (paga por transferencia). Único caso de acceso total. */
     isManual: boolean
-    /** En periodo de prueba. Acceso total mientras dure. */
+    /** En periodo de prueba — del plan que contrató, no de Enterprise. */
     isTrial: boolean
-    /** true cuando el acceso no está limitado por plan (manual o trial). */
+    /** true solo cuando NADA está limitado por plan. Hoy: únicamente `isManual`. */
     hasFullAccess: boolean
 }
 
@@ -145,21 +146,34 @@ export interface EffectivePlan {
  *   1. `manually_active` ⇒ acceso total. Animalgrace paga por transferencia y
  *      tiene `plan='essence'` / `plan_id='prestige'`; sin esta regla podría
  *      perder Mensajes y Ajustes IA.
- *   2. Trial ⇒ acceso total. Es el sentido de la prueba de 30 días, y
- *      `AuthContext` devuelve un `{status:'trial', plan:'trial'}` sintético
- *      cuando no hay fila de suscripción.
- *   3. En otro caso, `plan_id` manda sobre `plan` — en producción discrepan y
+ *   2. En cualquier otro caso — trial incluido — manda el plan contratado, y
+ *      `plan_id` tiene prioridad sobre `plan`: en producción discrepan, y
  *      `plan_id` es la columna que escribe mercadopago-webhook y lee Settings.
+ *
+ * ⚠️ EL TRIAL NO DA ACCESO TOTAL. Hasta la sesión 76 esta función forzaba
+ * `planId: 'enterprise'` para cualquier `status ∈ {trial, trialing}`, así que
+ * un trial de Core veía Mensajes, CRM, Ajustes IA y el agente conversacional
+ * completo — y los perdía de golpe al convertir. Un trial de Core prueba Core;
+ * uno de Pro prueba Pro. `isTrial` se conserva solo para copy de UI y para
+ * `SubscriptionGuard`, que decide si la suscripción está viva (eje distinto de
+ * qué plan ve el usuario).
+ *
+ * Caso del objeto sintético: `AuthContext` devuelve `{status:'trial', plan:'trial'}`
+ * cuando aún no existe fila en `subscriptions` (justo tras el signup, o ante un
+ * error de red). `'trial'` no es un plan válido, así que `normalizePlanId` cae a
+ * su fallback permisivo (`'starter'`). Es deliberado: ese estado es transitorio,
+ * y un parpadeo de más permisos es preferible a bloquear a un cliente legítimo
+ * por un error de red.
  */
 export function resolveEffectivePlan(sub: PlanSubscriptionLike | null | undefined): EffectivePlan {
     const isManual = sub?.manually_active === true
-    const isTrial = !!sub?.status && FULL_ACCESS_STATUSES.has(sub.status)
+    const isTrial = !!sub?.status && TRIAL_STATUSES.has(sub.status)
 
-    if (isManual || isTrial) {
+    if (isManual) {
         return {
             planId: 'enterprise',
             limits: PLAN_LIMITS.enterprise,
-            isManual,
+            isManual: true,
             isTrial,
             hasFullAccess: true,
         }
@@ -172,7 +186,7 @@ export function resolveEffectivePlan(sub: PlanSubscriptionLike | null | undefine
         planId,
         limits: PLAN_LIMITS[planId],
         isManual: false,
-        isTrial: false,
+        isTrial,
         hasFullAccess: false,
     }
 }
