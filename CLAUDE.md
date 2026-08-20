@@ -1702,37 +1702,11 @@ Las constantes `CLINIC_ANIMALGRACE_ID` y `CLINIC_SANTIAGO_ID` permanecen en el c
 
 ### Deuda técnica conocida — no urgente
 
-#### `auto_open_daily_cajas()` — timezone hardcodeado a Chile (jobid 18, pg_cron)
+#### ~~`auto_open_daily_cajas()` — timezone hardcodeado a Chile~~ ✅ RESUELTO (sesión 80, 2026-08-18)
 
-**Ubicación:** `supabase/migrations/20260604000001_caja_v2_improvements.sql` + función en DB.
+Ver la entrada de sesión 80 al final de este documento. El cron ya calcula la fecha con la zona de cada clínica y corre cada hora para abrir a las 07:00 locales de cada país.
 
-**Situación actual:** la función que abre cajas automáticamente a las 07:00 usa `'America/Santiago'` hardcodeado:
-```sql
-v_today DATE := (NOW() AT TIME ZONE 'America/Santiago')::DATE;
-```
-
-**Impacto hoy:** ninguno — todos los clientes actuales son chilenos.
-
-**Impacto cuando haya clientes de otro país:** la caja abriría con la fecha chilena, no la fecha local del cliente.
-
-**Fix a aplicar cuando llegue el primer cliente de otro país:**
-```sql
-CREATE OR REPLACE FUNCTION public.auto_open_daily_cajas()
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-BEGIN
-    INSERT INTO public.cash_registers (clinic_id, date, status)
-    SELECT
-        id,
-        (NOW() AT TIME ZONE COALESCE(timezone, 'America/Santiago'))::DATE,
-        'open'
-    FROM public.clinic_settings
-    WHERE id != '00000000-0000-0000-0000-000000000000'
-    ON CONFLICT (clinic_id, date) DO NOTHING;
-END;
-$$;
-```
-
-**Contexto:** el frontend ya está correctamente multi-timezone — `useClinicTimezone` lee `clinic_settings.timezone` y lo usa para calcular "hoy" en cada clínica. El único punto pendiente es este cron del lado del servidor.
+⚠️ **El fix que estaba propuesto aquí era peligroso** y quedó descartado. Proponía `COALESCE(timezone, 'America/Santiago')` sin validar el valor contra `pg_timezone_names`. Como la función hace un único `INSERT ... SELECT`, un `timezone` mal escrito en **una** clínica habría lanzado `22023: time zone not recognized` y abortado el INSERT completo, dejando a **todas** las clínicas sin caja ese día. El `COALESCE` solo cubre `NULL`, no un string inválido. La versión aplicada valida contra el catálogo de Postgres.
 
 ---
 
@@ -3075,7 +3049,7 @@ Hubo 3 bugs UTC del mismo tipo corregidos en sesiones distintas. Para evitar con
 2. **`todayLocalStr`** en `Finance.tsx` se calcula con `toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })`. El `'America/Santiago'` es solo **fallback** si la clínica no tiene timezone, no un valor fijo.
 3. **Creación de ingresos/gastos:** ambos modales reciben `todayLocalStr` como fecha por defecto → la fecha guardada respeta la timezone de la clínica.
 4. **Cierre de caja:** el RPC `close_cash_register` recibe `p_date` desde el frontend (calculado con la timezone de la clínica) → hereda la zona correcta. El RPC no calcula fechas por sí mismo.
-5. **Única excepción (deuda técnica documentada):** el cron `auto_open_daily_cajas()` del servidor tiene `'America/Santiago'` hardcodeado. Solo afectará cuando haya clínicas de otro país — el fix está en "Tareas pendientes".
+5. **Apertura automática de caja:** el cron `auto_open_daily_cajas()` resuelve la zona de cada clínica desde `clinic_settings.timezone`, validada contra `pg_timezone_names` (sesión 80). Corre cada hora y abre la caja cuando en esa zona ya son las 07:00. Ya no queda ningún `'America/Santiago'` hardcodeado en la cadena de fechas del servidor.
 
 **Historial de los 3 bugs UTC (todos `toISOString()` devolviendo el día siguiente después de las 20:00 CLT):**
 | Sesión | Dónde estaba | Qué rompía |
@@ -5276,6 +5250,55 @@ Un cliente Core nuevo **no puede usar recordatorios automáticos el día 1**: re
 
 ---
 
+## 🔴 URGENTE — hallazgo de sesión 76: el trial regala Enterprise y el límite de IA no corta nada
+
+Dos bugs encontrados al responder una pregunta del usuario ("¿una cuenta Core tiene IA gratis?"). Ninguno se tocó — quedan documentados para la próxima sesión, marcados como prioridad sobre el resto de la lista de pendientes de Core.
+
+### 1. El trial nunca respeta el plan elegido — siempre resuelve a Enterprise
+
+`resolveEffectivePlan` (`src/lib/plans.ts`) trata **cualquier** `status ∈ {trial, trialing}` como acceso total de Enterprise, sin mirar qué plan se contrató:
+
+```ts
+const isTrial = !!sub?.status && FULL_ACCESS_STATUSES.has(sub.status)
+if (isManual || isTrial) {
+    return { planId: 'enterprise', limits: PLAN_LIMITS.enterprise, ..., hasFullAccess: true }
+}
+```
+
+**El dato correcto ya existe y no hay que ir a buscarlo a ningún lado**: `signup-handler` sí guarda el plan real elegido en `subscriptions.plan_id` al momento del alta —
+```ts
+// signup-handler/index.ts:346-351
+// Note: Subscription is auto-created by trigger on clinic_settings insert.
+// The trigger may use a default plan, so we must explicitly update it to the selected plan.
+await supabaseAdmin.from('subscriptions').update({ plan_id: selected_plan }).eq('clinic_id', clinicData.id)
+```
+`resolveEffectivePlan` simplemente lo ignora cuando `status` es trial. El fix es local a esa función: cuando `isTrial`, resolver **el plan real** (`sub.plan_id`/`sub.plan`) en vez de hardcodear `'enterprise'` — y separar el concepto de "no bloqueado por `SubscriptionGuard`" (que si debe seguir siendo true durante el trial) del concepto de "qué plan ve".
+
+**Regla de producto que debe quedar así**: un trial de Core prueba **Core** — sin Mensajes, sin CRM, sin Ajustes IA, sin agente conversacional. Un trial de Pro prueba Pro. Nunca Enterprise porque sí.
+
+### 2. El límite de créditos de IA no corta la respuesta — solo lo registra en un log
+
+Mismo bloque, duplicado en los dos webhooks del agente, dentro de `saveMsg` (se ejecuta **después** de que la IA ya generó y va a guardar la respuesta saliente):
+
+```ts
+if (totalUsed >= monthlyLimit + extraBalance) {
+  console.warn(`[saveMsg] Clinic ${creditPoolId} has insufficient credits ... — message saved but not counted`);
+}
+// sin return. El mensaje se envía igual.
+```
+- `supabase/functions/meta-whatsapp-webhook/index.ts:439`
+- `supabase/functions/ycloud-whatsapp-webhook/index.ts:758`
+
+No es un gate, es un `console.warn`. Con el límite agotado, el agente **sigue respondiendo indefinidamente** — en cualquier plan, no solo Core. `ai_auto_respond` además tiene `DEFAULT true` en la tabla y `signup-handler` no lo toca, así que una clínica nace con el agente encendido.
+
+**Por qué hoy no sangra dinero real:** una clínica Core no tiene canal de WhatsApp conectado (Embedded Signup de Meta no es autoservicio todavía — ver pendiente #5 de la lista de abajo). Sin canal, no llega webhook, y el agente nunca se dispara. El bug queda inerte mientras ese pendiente siga sin resolver — pero se activa solo el día que se resuelva, sin que nadie tenga que tocar este código de nuevo.
+
+**Regla de producto que debe quedar así**: al llegar al límite mensual de conversaciones/créditos del plan, la IA **debe dejar de responder** — no seguir generando mensajes gratis. El fix real es convertir ese chequeo en un `return` temprano (antes de llamar a OpenAI, no después de generar la respuesta), replicando el patrón `return 200 silencioso` que CLAUDE.md documentó como implementado en sesión 23 pero que en el código vivo hoy no existe — quedó reducido a logging en algún momento posterior sin que quedara registrado el porqué.
+
+**Orden recomendado para la próxima sesión**: arreglar el punto 1 primero (es el que hace que el punto 2 importe para Core específicamente), después el punto 2 (que es un problema más amplio, de todos los planes). Verificar en ambos webhooks — son archivos separados que duplican la misma lógica, patrón ya documentado en el proyecto (un fix en uno no se propaga al otro).
+
+---
+
 ## Pendientes tras la sesión 75 — plan Core
 
 Lo que quedó fuera de alcance, con lo que hace falta para cerrarlo. Ordenado por lo que bloquea el lanzamiento.
@@ -5296,16 +5319,40 @@ Lo que quedó fuera de alcance, con lo que hace falta para cerrarlo. Ordenado po
 - **Revisar el incentivo de referidos B2B.** Paga «2 meses gratis» al referidor cuando el referido toma Core: con Core a US$17 eso vale **US$34**, probablemente insuficiente para mover a alguien. Considerar expresarlo en créditos de IA, que además empujan al upgrade.
 - **Definir la política de agravio comparativo** antes de que exista: qué pasa cuando un cliente pagando US$89 vea a otro entrar por US$17.
 
-### 🟡 Verificaciones que no se pudieron hacer en esta sesión
+### ✅ Verificaciones ejecutadas (2026-08-18, con dev server + Playwright)
 
-Requieren navegador o sesión autenticada real. Lo que sí se verificó: `anon` no lee ni escribe `reminder_logs` (401), `get_advisors` sin ERRORES, build desde checkout limpio con marcadores en los chunks lazy correctos, y las policies/RPC leyendo de `plan_limits`.
+Método: sesión autenticada real obtenida con `admin/generate_link` + `auth/v1/verify` (sin necesidad de contraseña), inyectada en la app por hash de tokens (`#access_token=…`), que el cliente detecta por `flowType: 'implicit'` + `detectSessionInUrl`. La clínica «Clinica de prueba Core» se bajó a `core` durante las pruebas y se restauró a `pro/active` al terminar; todos los datos de prueba se borraron.
 
-- [ ] Bajar la clínica de prueba a `core` y comprobar en Equipo que el tope es 3; invitar a un 4.º usuario debe fallar **en el RPC**, no solo en la UI.
-- [ ] Con esa clínica en `core`, verificar visualmente el candado en el sidebar, la pantalla de upgrade por enlace directo y las 6 tarjetas bloqueadas del Dashboard. **Y con Animalgrace, que todo siga accesible.**
-- [ ] Enviar un recordatorio manual real desde el móvil (es donde importa el flujo) y confirmar la fila `manual_wa` en `reminder_logs`.
-- [ ] Intento de INSERT cross-clínica con sesión autenticada real (patrón de la sesión 74: `/auth/v1/token` + REST).
-- [ ] Dry-run del cron contra una clínica `core`: debe respetar el tope de 25 y saltar PART 2.
-- [ ] Checkout anual de sandbox completo → confirmar `billing_period='year'` y `current_period_end` a +1 año.
+| Verificación | Resultado |
+|---|---|
+| Tope de 3 usuarios de Core **en el RPC** | ✅ usuarios #2 y #3 creados; el #4 rechazado con `Plan limit reached. Maximum 3 users allowed for plan core.` |
+| INSERT cross-clínica en `reminder_logs` | ✅ `403` — `new row violates row-level security policy` |
+| SELECT cross-clínica | ✅ 0 filas |
+| INSERT en la propia clínica | ✅ `201` |
+| Nav con candado (Mensajes · CRM · Ajustes IA → `/app/settings?tab=subscription`) | ✅ |
+| Dashboard con la clínica en Core | ✅ 13 bloques con candado + CTA; pill «Agente IA no incluido» |
+| Enlace directo a rutas fuera de plan | ✅ pantalla de upgrade con CTA «Ver planes», sin redirect |
+| Envío manual `wa.me` desde viewport móvil | ✅ URL `https://wa.me/56912345678` con el mensaje completo y todos los placeholders resueltos; queda marcado «Enviado HH:MM» y aparece «Reenviar»; fila `manual_wa` escrita en DB |
+| Toggle Mensual/Anual + precios | ✅ Core muestra US$390 y «Equivale a US$32/mes»; los otros 3 planes muestran «Este plan solo se factura mensualmente» |
+
+**Pendiente de ejecutar (no se pudo con seguridad):**
+- [ ] **Dry-run del cron con guard de 2h.** El guard vive después de `if (!hasAnyChannel(clinic)) continue`, y la clínica de prueba no tiene canal de WhatsApp, así que nunca se alcanza. Ejercitarlo requeriría una clínica con canal real en plan Core — hoy solo Animalgrace tiene canal, y invocar el cron manualmente puede enviar WhatsApps reales a sus clientes. Verificado por inspección: la query de PART 2 ahora trae `plan`/`plan_id`/`manually_active`, y `plan_limits.allows_2h_reminder` es `false` para Core.
+- [ ] **Checkout anual completado de punta a punta** (pagar en el overlay de Paddle sandbox y confirmar `billing_period='year'` + `current_period_end` a +1 año). Se verificó toda la UI previa al overlay.
+
+### 🐛 Bugs encontrados por la verificación visual (corregidos)
+
+Ninguno lo habría detectado `tsc` ni el build — son de comportamiento en runtime:
+
+1. **La plantilla del recordatorio manual salía vacía en toda clínica nueva.** `reminder_settings` no tiene fila hasta el primer guardado, así que `manual_wa_template` era `undefined` y el mensaje de WhatsApp se habría abierto en blanco — justo en el escenario del día 1 de un cliente Core, que es para lo que existe la función. Fix: constante `DEFAULT_TEMPLATE` en `ManualReminderPanel` (espejo del DEFAULT de la columna) y el textarea precargado con ese texto.
+2. **`.single()` sobre `reminder_settings` devolvía 406** para esas mismas clínicas nuevas. Cambiado a `.maybeSingle()`: la fila ausente es un estado válido, no un error.
+3. **El pill del sidebar seguía diciendo «IA Activa»** en un plan sin IA, contradiciendo al del Dashboard. Ahora dice «IA no incluida · Disponible desde Starter» y el punto deja de pulsar.
+4. **`Cancelar suscripci\u00f3n`** se veía literal en el botón de Settings (bug preexistente): en texto JSX `\u00f3` no es una secuencia de escape. Las líneas vecinas funcionaban por estar dentro de string literals de JS.
+
+*Nota:* los dos `406` que quedan en Settings son de `notification_preferences` (fila opcional inexistente) — patrón preexistente, ya absorbido por el helper `safe()` de la sesión 35.
+
+### Nota de tooling
+
+Se agregó **`playwright-core`** como `devDependency` para esta verificación. Apunta al Chrome del sistema vía `executablePath` porque el Chromium propio de Playwright no soporta macOS Monterey (`ERROR: Playwright does not support chromium on mac12`). Es el método establecido en la sesión 79 y ahora queda instalado y repetible.
 
 ### 🟢 Deuda técnica encontrada y NO corregida
 
@@ -5638,3 +5685,46 @@ A pedido explícito del usuario ("tienes live server para verificar en vivo"), s
 ### Estado al cierre
 
 Todos los cambios de esta sesión están en producción, cada uno verificado con `tsc --noEmit` + `npm run build` limpio y build adicional desde un checkout aislado de `origin/main` (nunca desde el working tree local, que tiene backlog de otras sesiones sin commitear) antes de dar el deploy por confirmado. Commits: migración a React Query, fix de Google Calendar bloqueante + orden descendente, menú por clic + selector de estado + scroll espejo (verificado en navegador real), y el ajuste final de la columna Acciones.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 80, 2026-08-18)
+
+### Zona horaria por clínica en el servidor — cierre de la deuda técnica del cron de cajas
+
+**Motivación:** se está evaluando abrir campañas de Google Ads a México como segundo mercado. Antes de traer el primer cliente de otro país había que cerrar el `'America/Santiago'` hardcodeado del servidor.
+
+**La premisa documentada ya era falsa.** CLAUDE.md decía *"Impacto hoy: ninguno — todos los clientes actuales son chilenos"*. Verificado en producción: existe **`Clinica de prueba Core`** (`a50fc026-…`, creada 2026-08-12) con `timezone = 'America/Mexico_City'`, y el cron ya le venía abriendo la caja con la fecha chilena. El bug estaba activo, no era teórico.
+
+#### El fix que estaba propuesto en CLAUDE.md era peligroso — descartado
+
+Proponía `COALESCE(timezone, 'America/Santiago')` sin validar el valor. **`COALESCE` solo cubre `NULL`, no un string inválido.** Verificado empíricamente: `NOW() AT TIME ZONE 'Zona/Inventada'` lanza `22023: time zone not recognized`. Como la función hace un único `INSERT ... SELECT`, un `timezone` mal escrito en **una** clínica habría abortado el INSERT completo y dejado a **todas** sin caja — una regresión frente al literal hardcodeado, que nunca falla.
+
+**Versión aplicada:** valida el timezone contra `pg_timezone_names` vía `LEFT JOIN LATERAL` antes de pasarlo a `AT TIME ZONE`. Solo llegan valores que Postgres reconoce; cualquier basura cae al fallback.
+
+#### Cambios (migración `20260819020849_timezone_per_clinic_cajas_and_branches`)
+
+1. **`auto_open_daily_cajas()`** — la fecha se calcula con la zona de cada clínica, validada. Filtro nuevo: abre solo cuando en esa zona ya son las 07:00 (`>= 7`, no `= 7`, para que una corrida perdida o un salto de DST se recupere en la pasada siguiente en vez de perder el día).
+2. **Cron (jobid 18): `0 11 * * *` → `0 * * * *`.** Sin esto el fix quedaba a medias: 11:00 UTC son 07:00 en Chile pero 05:00 en México y 13:00 en España. Corriendo cada hora, el filtro de las 07:00 hace que cada clínica abra a las 07:00 de **su** hora local. Costo despreciable (4 filas). Se usó `cron.alter_job`, no `UPDATE` directo a `cron.job`.
+3. **`create_clinic_branch`** — segundo hardcodeo del mismo tipo, **no documentado antes**: insertaba `timezone = 'America/Santiago'` literal, así que una sucursal Enterprise creada por un cliente mexicano nacía en zona chilena de forma silenciosa y permanente. Ahora hereda la zona de la clínica raíz del owner (la más antigua que posee), con `COALESCE` en línea aparte porque `SELECT INTO` con 0 filas deja la variable en `NULL` aunque tenga default (bug ya visto en `close_cash_register`, sesión 43).
+
+#### Efecto en Chile: ninguno
+
+Ambas Animalgrace tienen `America/Santiago` explícito → el valor calculado es idéntico al literal anterior (verificado: `sin_cambio = true` en las 3 clínicas). En invierno abre a las 11:00 UTC, igual que hoy; en verano 1 h antes (10:00 UTC = 07:00 local), **misma fecha**. Nada del negocio depende de la hora de creación de la fila — la lógica usa la columna `date`.
+
+#### Verificación
+
+- **Dry-run previo:** las 3 clínicas con `fecha_actual_hardcode = fecha_con_fix`.
+- **Idempotencia:** función ejecutada 2 veces seguidas; estado idéntico byte a byte, incluida la caja ya cerrada de Animal Grace Santiago (`closed`, saldo 165.626, cobrado 310.000) — el `ON CONFLICT DO NOTHING` no la tocó.
+- **7 casos de timezone** (válidos, mal escrito, basura, vacío, `NULL`) resueltos sin excepción. La fila de prueba de Madrid confirmó el valor del fix: allá ya era el día siguiente, y con el hardcode habría recibido la caja con la fecha de ayer.
+- **Prueba destructiva auto-revertida:** se corrompió el `timezone` de una clínica, se borraron las cajas del día y se corrió la función real → creó las 3 cajas igual. Antes del fix esa sola fila habría abortado todo. Reversión verificada después.
+
+### Pendientes de timezone que quedaron identificados
+
+- **El `DEFAULT` de `clinic_settings.timezone` es `'America/Mexico_City'`** (no Santiago). Una clínica nueva creada sin timezone explícito nace en zona mexicana. Lo correcto sería capturar la zona en el signup; es un cambio de producto, no de este fix.
+- **`CajaDelDia.tsx:132`** tiene un fallback `'America/Santiago'` sin `timezone ||`. Hoy inofensivo: su único caller (`Finance.tsx:1206`) siempre pasa `todayStr` ya calculado.
+
+### Reglas permanentes
+
+- **`COALESCE` no valida un timezone, solo cubre `NULL`.** Antes de pasar un valor de usuario a `AT TIME ZONE`, resolverlo contra `pg_timezone_names` — un string inválido lanza `22023` y, dentro de un `INSERT ... SELECT`, tumba la operación entera para todas las filas.
+- **Un cron único en UTC no sirve para operar en varios husos.** Si la tarea debe ocurrir a una hora *local*, correr el cron cada hora y filtrar por la hora local de cada fila — no basta con corregir el cálculo de la fecha.
