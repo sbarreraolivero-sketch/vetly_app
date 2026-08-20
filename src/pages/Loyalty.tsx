@@ -60,6 +60,29 @@ export default function Loyalty() {
     const [tutorAmounts, setTutorAmounts] = useState<Record<string, string>>({});
     const [pendingAdjustments, setPendingAdjustments] = useState<Record<string, number>>({});
     const [_clinicPhone, setClinicPhone] = useState<string>('')
+    const [togglingProgram, setTogglingProgram] = useState(false)
+
+    // Encender/apagar el programa completo. Guarda de inmediato y no espera al botón
+    // "Aplicar Cambios Globales": es el control que se usa para frenar la acumulación
+    // en caliente, y depender de un guardado posterior deja el programa corriendo si
+    // alguien cierra la página. Un solo flag controla motor, canje, carnet y lo que
+    // el agente de WhatsApp le anuncia al cliente.
+    const toggleProgram = async (next: boolean) => {
+        if (!profile?.clinic_id || !settings) return
+        if (!next && !confirm('¿Pausar el programa?\n\nLos clientes dejarán de acumular, no se podrá canjear y el agente de WhatsApp dejará de mencionarlo. Los saldos ya acumulados se conservan.')) return
+        setTogglingProgram(true)
+        const previous = settings.loyalty_enabled
+        setSettings(s => s ? { ...s, loyalty_enabled: next } : null)   // optimista
+        try {
+            await loyaltyService.updateSettings(profile.clinic_id, { loyalty_enabled: next })
+            toast.success(next ? 'Programa activado' : 'Programa pausado')
+        } catch (error) {
+            setSettings(s => s ? { ...s, loyalty_enabled: previous } : null)
+            toast.error('No se pudo cambiar el estado del programa')
+        } finally {
+            setTogglingProgram(false)
+        }
+    }
 
     const fetchData = async () => {
         if (!profile?.clinic_id) return
@@ -593,6 +616,49 @@ export default function Loyalty() {
             {activeTab === 'settings' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-2">
                     <div className="lg:col-span-2 space-y-6">
+                        {/* Interruptor maestro del programa */}
+                        <section className={cn(
+                            "rounded-softer border p-6 shadow-soft-sm transition-colors",
+                            settings?.loyalty_enabled
+                                ? "bg-emerald-50 border-emerald-200"
+                                : "bg-ivory border-silk-beige"
+                        )}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={cn(
+                                            "w-2.5 h-2.5 rounded-full shrink-0",
+                                            settings?.loyalty_enabled ? "bg-emerald-500 animate-pulse" : "bg-charcoal/25"
+                                        )} />
+                                        <h3 className="text-lg font-black text-charcoal">
+                                            {settings?.loyalty_enabled ? 'Programa activo' : 'Programa pausado'}
+                                        </h3>
+                                    </div>
+                                    <p className="text-sm text-charcoal/50 leading-snug">
+                                        {settings?.loyalty_enabled
+                                            ? `Los clientes acumulan ${settings?.loyalty_points_name}, pueden canjearlos en caja y el agente de WhatsApp lo menciona al agendar.`
+                                            : 'Nadie acumula ni puede canjear, y el agente de WhatsApp no lo menciona. Los saldos ya acumulados se conservan.'}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={!!settings?.loyalty_enabled}
+                                    disabled={togglingProgram || !settings}
+                                    onClick={() => toggleProgram(!settings?.loyalty_enabled)}
+                                    className={cn(
+                                        "relative w-14 h-8 rounded-full transition-colors shrink-0 disabled:opacity-40",
+                                        settings?.loyalty_enabled ? "bg-emerald-500" : "bg-charcoal/20"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-all",
+                                        settings?.loyalty_enabled ? "left-7" : "left-1"
+                                    )} />
+                                </button>
+                            </div>
+                        </section>
+
                         <section className="bg-white rounded-softer border border-silk-beige p-8 shadow-soft-sm">
                             <h3 className="text-xl font-black text-charcoal mb-6 flex items-center gap-2">
                                 <Calculator className="w-6 h-6 text-accent-500" />
