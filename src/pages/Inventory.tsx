@@ -14,6 +14,7 @@ import {
 } from '@/services/inventoryService'
 import type { AbcProduct, NoRotationProduct } from '@/services/inventoryService'
 import { InvoiceAnalysisModal } from '@/components/inventory/InvoiceAnalysisModal'
+import { PlanGate } from '@/components/common/PlanGate'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -517,14 +518,21 @@ const Inventory = () => {
                             </h1>
                             <p className="text-xs sm:text-sm text-primary-200 mt-1">Gestión de productos, stock y movimientos</p>
                         </div>
-                        <button
-                            onClick={() => setShowInvoiceModal(true)}
-                            className="shrink-0 inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                        >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Analizar Factura con IA</span>
-                            <span className="sm:hidden">Factura IA</span>
-                        </button>
+                        {/* Análisis de factura consume créditos IA (20/archivo). Core tiene 0 y
+                            no puede comprar más — la única vía de compra es AISettings, que ya
+                            está bloqueada desde Starter. Sin este candado, un usuario Core abría
+                            el modal, subía el archivo, y recién ahí veía el error de créditos
+                            insuficientes desde la edge function. */}
+                        <PlanGate requiredPlan="starter" label="Desde Starter" mode="lock">
+                            <button
+                                onClick={() => setShowInvoiceModal(true)}
+                                className="shrink-0 inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Analizar Factura con IA</span>
+                                <span className="sm:hidden">Factura IA</span>
+                            </button>
+                        </PlanGate>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 text-center">
                         <div className="bg-white/10 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0">
