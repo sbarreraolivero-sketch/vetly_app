@@ -561,7 +561,7 @@ const Inventory = () => {
                             onClick={() => {
                                 if (creditosIA < 20) {
                                     toast('Necesitas créditos para analizar facturas. Te llevamos a comprarlos.', { icon: '💳' })
-                                    navigate('/app/ai-credits#comprar')
+                                    navigate('/app/ai-credits#comprar', { state: { from: '/app/inventory', fromLabel: 'Inventario' } })
                                     return
                                 }
                                 setShowInvoiceModal(true)

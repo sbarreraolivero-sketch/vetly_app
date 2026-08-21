@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { 
     History, 
     Filter,
@@ -46,6 +46,7 @@ export default function AICredits() {
         }
     }
     const navigate = useNavigate()
+    const location = useLocation()
     const [transactions, setTransactions] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [stats, setStats] = useState({
@@ -110,8 +111,15 @@ export default function AICredits() {
         fetchData()
     }, [profile?.clinic_id])
 
+    // El botón volvía siempre a Ajustes → IA, una pantalla que el plan Core ni
+    // siquiera usa. Ahora regresa a donde estaba el usuario: Inventario manda
+    // el origen al mandarlo a comprar créditos para el análisis de facturas.
+    const origen = (location.state as { from?: string; fromLabel?: string } | null) || null
+    const destinoVolver = origen?.from || (esCore ? '/app/inventory' : '/app/settings?tab=ai')
+    const etiquetaVolver = origen?.fromLabel || (esCore ? 'Inventario' : 'Configuración')
+
     const handleBack = () => {
-        navigate('/app/settings?tab=ai')
+        navigate(destinoVolver)
     }
 
     return (
@@ -123,7 +131,7 @@ export default function AICredits() {
                     className="flex items-center gap-2 text-[11px] font-black text-charcoal/40 hover:text-primary-500 transition-colors uppercase tracking-[0.2em] mb-8 group"
                 >
                     <ChevronRight className="w-3 h-3 rotate-180 group-hover:-translate-x-1 transition-transform" />
-                    Volver a Configuración
+                    Volver a {etiquetaVolver}
                 </button>
 
                 {/* Page Header - Citenly Style but Vetly Blue */}

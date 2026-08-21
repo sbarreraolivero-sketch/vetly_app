@@ -353,11 +353,18 @@ export default function Settings() {
             // Clean URL params after reading
             const newUrl = window.location.pathname
             window.history.replaceState({}, '', newUrl)
-        } else if (tabParam && ['profile', 'clinic', 'team', 'schedule', 'integrations', 'subscription', 'notifications', 'reminders', 'ai', 'tags'].includes(tabParam)) {
+        } else if (tabParam === 'ai') {
+            // `?tab=ai` renderiza una versión antigua de los ajustes de IA que
+            // quedó huérfana: no aparece en el menú y duplica /app/ai-settings,
+            // que además sí tiene candado de plan. Se redirige a la buena, así
+            // un usuario Core ve la pantalla de upgrade y no un motor de IA que
+            // no puede usar.
+            navigate('/app/ai-settings', { replace: true })
+        } else if (tabParam && ['profile', 'clinic', 'team', 'schedule', 'integrations', 'subscription', 'notifications', 'reminders', 'tags'].includes(tabParam)) {
             setActiveTab(tabParam)
             if (window.innerWidth < 768) setShowMobileList(false)
         }
-    }, [searchParams])
+    }, [searchParams, navigate])
 
     // Load existing settings
     useEffect(() => {
