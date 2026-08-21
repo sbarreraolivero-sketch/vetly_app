@@ -128,6 +128,17 @@
            debajo del texto — y en 14px se lee como un tachado. */
         .hl-strong { color: #0f766e; font-weight: 700; }
 
+        /* Subrayado de marcador para títulos de sección: banda desde la mitad
+           del texto hacia abajo. Solo en tamaños medianos (h3): en display muy
+           grande la banda se despega porque el fondo de un inline se pinta
+           sobre la caja em de la fuente, no sobre los glifos. */
+        .hl-mid {
+            background: linear-gradient(180deg, transparent 50%, rgba(45,212,191,.45) 50%);
+            padding: 0 .06em;
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
+        }
+
         details > summary { list-style: none; cursor: pointer; }
         details > summary::-webkit-details-marker { display: none; }
         details[open] .faq-arrow { transform: rotate(180deg); }
@@ -198,17 +209,6 @@
         </div>
     </div>
 
-    <!-- Captura principal -->
-    <div class="mt-14 max-w-5xl mx-auto shot">
-        <div class="shot-bar">
-            <span class="shot-dot" style="background:#f87171"></span>
-            <span class="shot-dot" style="background:#fbbf24"></span>
-            <span class="shot-dot" style="background:#34d399"></span>
-            <span class="ml-2 text-[11px] text-zinc-400">vetly.pro · Agenda de la clínica</span>
-        </div>
-        <img src="./core-shots/core-agenda.webp" width="1600" height="1013"
-             alt="Agenda de la clínica en Vetly: citas del día con tutor, paciente, servicio, dirección y estado">
-    </div>
   </div>
 </section>
 
@@ -264,11 +264,37 @@
         </p>
     </div>
 
-    <!-- 1 · Ficha clínica -->
+    <!-- 1 · Agenda -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+        <div class="shot lift md:order-1">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./core-shots/core-agenda.webp" width="1600" height="1013" loading="lazy"
+                 alt="Agenda de la clínica en Vetly: citas del día con tutor, paciente, servicio, dirección y estado">
+        </div>
+        <div class="md:order-2">
+            <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📅 Agenda de citas</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Toda la semana <span class="hl-mid">en una sola pantalla.</span></h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Quién viene hoy, con qué mascota, para qué y dónde. Confirmas, reagendas o cancelas
+                desde la misma fila, y el estado de cada cita queda a la vista.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Vista de lista o calendario, con filtro por profesional</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Dirección del paciente a mano si atiendes a domicilio</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Bloqueo de horarios para cirugías o días libres</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 2 · Ficha clínica -->
     <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
         <div>
             <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🐾 Fichas médicas</div>
-            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Todo el historial de un paciente, en una pantalla.</h3>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Todo el historial de un paciente, <span class="hl-mid">en una pantalla.</span></h3>
             <p class="text-muted leading-relaxed mb-5">
                 Vacunas, desparasitaciones, consultas y cirugías con sus notas de evolución.
                 Al abrir la ficha ves el resumen clínico completo: última atención, próxima vacuna,
@@ -291,9 +317,9 @@
         </div>
     </div>
 
-    <!-- 2 · Finanzas -->
+    <!-- 3 · Finanzas -->
     <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
-        <div class="shot md:order-1">
+        <div class="shot lift md:order-1">
             <div class="shot-bar">
                 <span class="shot-dot" style="background:#f87171"></span>
                 <span class="shot-dot" style="background:#fbbf24"></span>
@@ -304,7 +330,7 @@
         </div>
         <div class="md:order-2">
             <div class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full mb-4">💰 Finanzas y caja</div>
-            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Saber cuánto ganaste este mes, sin sacar la calculadora.</h3>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Saber cuánto ganaste este mes, <span class="hl-mid">sin sacar la calculadora.</span></h3>
             <p class="text-muted leading-relaxed mb-5">
                 Ingresos, gastos y ganancia neta actualizados solos. Cierre de caja diario,
                 comprobantes para tu cliente y exportación cuando la necesites.
@@ -317,11 +343,11 @@
         </div>
     </div>
 
-    <!-- 3 · Recordatorios -->
+    <!-- 4 · Recordatorios -->
     <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
         <div>
             <div class="inline-flex items-center gap-2 bg-sky-50 text-sky-700 text-xs font-bold px-3 py-1 rounded-full mb-4">💬 Recordatorios WhatsApp</div>
-            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que no se te pierda ningún paciente por olvido.</h3>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que no se te pierda <span class="hl-mid">ningún paciente por olvido.</span></h3>
             <p class="text-muted leading-relaxed mb-5">
                 Vetly te arma la lista de a quién avisar hoy y abre el mensaje listo en WhatsApp:
                 solo pulsas enviar. Además incluye 25 recordatorios automáticos al mes.
@@ -343,9 +369,9 @@
         </div>
     </div>
 
-    <!-- 4 · Inventario -->
+    <!-- 5 · Inventario -->
     <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
-        <div class="shot md:order-1">
+        <div class="shot lift md:order-1">
             <div class="shot-bar">
                 <span class="shot-dot" style="background:#f87171"></span>
                 <span class="shot-dot" style="background:#fbbf24"></span>
@@ -356,7 +382,7 @@
         </div>
         <div class="md:order-2">
             <div class="inline-flex items-center gap-2 bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📦 Inventario</div>
-            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Nunca más quedarte sin una vacuna a mitad de ruta.</h3>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Nunca más quedarte <span class="hl-mid">sin una vacuna a mitad de ruta.</span></h3>
             <p class="text-muted leading-relaxed mb-5">
                 Stock de medicamentos e insumos con alertas antes de que se agoten, y el descuento
                 automático cuando cierras una venta. Si atiendes a domicilio, puedes llevar un
@@ -375,11 +401,11 @@
         </div>
     </div>
 
-    <!-- 5 · Fidelización -->
+    <!-- 6 · Fidelización -->
     <div class="grid md:grid-cols-2 gap-12 items-center">
         <div>
             <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🎁 Fidelización y referidos</div>
-            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que tus clientes vuelvan — y traigan a otros.</h3>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que tus clientes vuelvan — <span class="hl-mid">y traigan a otros.</span></h3>
             <p class="text-muted leading-relaxed mb-5">
                 Programa de puntos que se acumulan solos con cada visita, y un sistema de referidos
                 con código propio para cada tutor. Todo incluido, sin módulos extra.
@@ -437,7 +463,7 @@
             </div>
         </div>
 
-        <div class="shot max-w-4xl mx-auto">
+        <div class="shot lift max-w-4xl mx-auto">
             <div class="shot-bar">
                 <span class="shot-dot" style="background:#f87171"></span>
                 <span class="shot-dot" style="background:#fbbf24"></span>
@@ -500,6 +526,13 @@
                     Puedes subir de plan cuando quieras, sin perder ni un dato.
                 </p>
             </div>
+        </div>
+
+        <div class="mt-12 text-center">
+            <a href="/register?plan=core" class="inline-block bg-brand text-white font-semibold px-9 py-4 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-xl transition-all active:scale-[0.98]">
+                Probar Core gratis 30 días →
+            </a>
+            <p class="text-xs text-muted mt-3">Sin tarjeta de crédito · Listo en 2 minutos</p>
         </div>
     </div>
 </section>
@@ -685,6 +718,26 @@
         </div>
     </div>
 </footer>
+
+<!-- Burbuja flotante de WhatsApp — mismo componente que la home -->
+<a id="wa-sales-bubble"
+   href="https://wa.me/56993089185?text=Hola%2C%20tengo%20una%20consulta%20sobre%20el%20plan%20Core%20de%20Vetly%20%F0%9F%90%BE"
+   target="_blank" rel="noopener noreferrer"
+   aria-label="Consultar por WhatsApp"
+   style="position:fixed;bottom:24px;right:24px;z-index:60;display:flex;align-items:center;gap:10px;background:#25D366;color:#fff;padding:14px 18px;border-radius:9999px;box-shadow:0 10px 30px rgba(37,211,102,.45);text-decoration:none;font-weight:700;font-size:15px;transition:transform .2s ease, box-shadow .2s ease;">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;">
+        <path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.477-1.207zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+    </svg>
+    <span class="hidden sm:inline">Hablar por WhatsApp</span>
+</a>
+<script>
+    (function () {
+        var b = document.getElementById('wa-sales-bubble');
+        if (!b) return;
+        b.addEventListener('mouseenter', function () { b.style.transform = 'scale(1.05)'; });
+        b.addEventListener('mouseleave', function () { b.style.transform = 'scale(1)'; });
+    })();
+</script>
 
 </body>
 </html>
