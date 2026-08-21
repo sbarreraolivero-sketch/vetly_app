@@ -91,6 +91,13 @@ export const PADDLE_PLANS = {
         tagline: 'Gestión completa sin IA conversacional',
         price: 39,
         annualTotal: 390,
+        // Precio de lanzamiento — resultado de aplicar LAUNCH_DISCOUNT_ID
+        // ($22 off) sobre el precio de lista. Se declara aquí sólo para poder
+        // previsualizarlo en la UI; el descuento real lo aplica Paddle en el
+        // checkout. Si el cupón se agota (tope 100 usos), hay que quitar este
+        // campo o la UI seguiría mostrando un precio que ya no existe.
+        launchPrice: 17,
+        launchAnnualTotal: 170,
         currency: 'USD',
         features: [
             '3 usuarios · 1 agenda',

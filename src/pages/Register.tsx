@@ -99,14 +99,36 @@ export default function Register() {
     const turnstileRef = useRef<HTMLDivElement>(null)
     const turnstileWidgetId = useRef<string | null>(null)
 
+    // El ICP principal de Core es el veterinario independiente o a domicilio,
+    // que no tiene "clínica" y hoy se ve obligado a inventarse un nombre.
+    // `signup-handler` exige clinic_name no vacío, así que se envía el nombre
+    // del profesional — editable después en Configuración.
+    const [isIndependent, setIsIndependent] = useState(false)
+
     const { signUp } = useAuth()
     const navigate = useNavigate()
+
+    const isCoreSelected = selectedPlan === 'core'
+    const trialDays = isCoreSelected ? 30 : 7
+
+    // Core es autoservicio: quien llega desde /core ya eligió plan y precio, así
+    // que pasarlo por 3 pantallas sólo agrega puntos donde abandonar. Se colapsa
+    // a un formulario único. El resto de los planes conserva el flujo por pasos
+    // porque ahí sí hay una decisión de plan que tomar.
+    //
+    // Se declara ANTES del useEffect de Turnstile: ese efecto lo usa en su array
+    // de dependencias, que se evalúa durante el render.
+    const singleStep = isCoreSelected && !isJoinMode
 
     // Carga el script de Turnstile una sola vez y monta el widget en el
     // paso 3 (justo antes del submit real). Si no hay site key configurada,
     // no hace nada — el registro sigue funcionando igual que antes.
     useEffect(() => {
-        if (!TURNSTILE_SITE_KEY || isJoinMode || step !== 3) return
+        // En el flujo de una pantalla el widget vive en el paso 1, que es donde
+        // ocurre el submit real. Si esto no acompaña a `singleStep`, el guard de
+        // handleSubmit pide un token que nunca se llega a generar.
+        if (!TURNSTILE_SITE_KEY || isJoinMode) return
+        if (step !== (singleStep ? 1 : 3)) return
 
         const mount = () => {
             if (!turnstileRef.current || !window.turnstile || turnstileWidgetId.current) return
@@ -134,37 +156,67 @@ export default function Register() {
                 turnstileWidgetId.current = null
             }
         }
-    }, [step, isJoinMode])
+    }, [step, isJoinMode, singleStep])
 
     // Core no tiene agente IA conversacional — el copy de "tu asistente" que
     // funciona para Starter/Pro/Enterprise le prometería algo que no tiene.
     // Solo se sabe con certeza en step 1 cuando el plan llega preseleccionado
     // por ?plan=core (ej. desde la landing de Core); si el usuario lo elige
     // recién en el paso 3, el banner del paso 1 ya no vuelve a mostrarse.
-    const isCoreSelected = selectedPlan === 'core'
-    const trialDays = isCoreSelected ? 30 : 7
+    const effectiveClinicName = isIndependent ? fullName.trim() : clinicName.trim()
 
     // Precios reales por región — antes había un array hardcodeado que ignoraba
     // el toggle Chile/Internacional y mostraba precios desactualizados (bug
     // preexistente encontrado en sesión 68, no relacionado a la migración a Paddle).
-    // Descuento de lanzamiento LANZAMIENTO17 (Paddle, solo Core, solo USD): $22 off
-    // flat, aplicado automáticamente en el checkout — se previsualiza aquí para no
-    // confundir con el precio de lista. Si el cupón se agota (tope 100 usos en
-    // Paddle), este preview quedaría desactualizado hasta que se quite a mano.
+    //
+    // El precio de lanzamiento sale de `launchPrice` en la definición de cada
+    // plan, no de una resta acá. Antes era `source.price - 22` (dólares) y
+    // estaba condicionado a la región internacional, así que Chile nunca podía
+    // verlo por diseño: el chileno veía Core a $33.000 sin rebaja.
+    const currencyPrefix = paymentRegion === 'international' ? 'US$' : '$'
+
     const plans = PLAN_ORDER.map((id) => {
         const source = paymentRegion === 'international' ? PADDLE_PLANS[id] : PLANS[id]
-        const hasLaunchDiscount = paymentRegion === 'international' && id === 'core'
+        const launchPrice = 'launchPrice' in source ? source.launchPrice : null
         return {
             id,
             name: source.name,
             price: source.price,
-            discountedPrice: hasLaunchDiscount ? source.price - 22 : null,
+            discountedPrice: launchPrice ?? null,
             popular: 'popular' in source ? source.popular : false,
         }
     })
 
+    const corePlan = plans.find((p) => p.id === 'core')
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        // Flujo de una sola pantalla (Core): se valida todo junto y se crea la
+        // cuenta sin pasos intermedios.
+        if (singleStep) {
+            if (!fullName || !email || !password) {
+                setError('Completa todos los campos')
+                return
+            }
+            if (password.length < 6) {
+                setError('La contraseña debe tener al menos 6 caracteres')
+                return
+            }
+            if (!effectiveClinicName) {
+                setError(isIndependent
+                    ? 'Necesitamos tu nombre para identificar tu consulta'
+                    : 'Ingresa el nombre de tu clínica')
+                return
+            }
+            if (TURNSTILE_SITE_KEY && !turnstileToken) {
+                setError('Completa la verificación de seguridad antes de continuar.')
+                return
+            }
+            setError('')
+            handleCreate()
+            return
+        }
 
         if (step === 1) {
             // Validate step 1
@@ -310,7 +362,7 @@ export default function Register() {
         // offline). Si no hay nada guardado va undefined y el backend lo ignora.
         const attribution = getAttribution()
 
-        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined)
+        const { error }: any = await (signUp as any)(email, password, fullName, effectiveClinicName || clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined)
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
@@ -349,11 +401,11 @@ export default function Register() {
                         <div className="w-12 h-12 bg-hero-gradient rounded-soft flex items-center justify-center">
                             <Sparkles className="w-6 h-6 text-white" />
                         </div>
-                        <span className="text-2xl font-semibold text-charcoal">Vetly AI</span>
+                        <span className="text-2xl font-semibold text-charcoal">Vetly</span>
                     </div>
 
-                    {/* Progress Indicator (Hidden in Join Mode) */}
-                    {!isJoinMode && (
+                    {/* Progress Indicator — oculto en join y en el flujo de una pantalla */}
+                    {!isJoinMode && !singleStep && (
                         <div className="flex items-center gap-2 mb-8">
                             {[1, 2, 3].map((s) => (
                                 <div key={s} className="flex items-center">
@@ -375,24 +427,58 @@ export default function Register() {
                         </div>
                     )}
 
-                    {/* Header */}
+                    {/* Header — el título de venta ("Reserva tu Implementación
+                        Estratégica") promete una reunión, que es lo contrario a
+                        lo que compra alguien que llega desde /core buscando
+                        autoservicio. Se vuelve plan-aware. */}
                     <h1 className="text-h2 text-charcoal mb-2">
                         {isJoinMode ? 'Únete a tu equipo' : (
-                            step === 1 ? 'Reserva tu Implementación Estratégica' :
-                                step === 2 ? 'Sobre tu clínica' :
-                                    'Elige tu plan'
+                            singleStep ? 'Crea tu cuenta gratis' : (
+                                step === 1 ? 'Reserva tu Implementación Estratégica' :
+                                    step === 2 ? 'Sobre tu clínica' :
+                                        'Elige tu plan'
+                            )
                         )}
                     </h1>
                     <p className="text-charcoal/60 mb-6">
                         {isJoinMode ? 'Ingresa tus datos para aceptar la invitación' : (
-                            step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
-                                step === 2 ? 'Configura los datos básicos de tu negocio' :
-                                    'Selecciona el plan que mejor se adapte a ti'
+                            singleStep ? 'Sin tarjeta de crédito. Empiezas a usar Vetly en 2 minutos.' : (
+                                step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
+                                    step === 2 ? 'Configura los datos básicos de tu negocio' :
+                                        'Selecciona el plan que mejor se adapte a ti'
+                            )
                         )}
                     </p>
 
-                    {/* Value Prop Banner - Step 1 only */}
-                    {!isJoinMode && step === 1 && (
+                    {/* Los 30 días son la única ventaja que ningún competidor
+                        iguala rápido (Veti 15, Sami 14, Wirevet 7, VetLink 0).
+                        Antes vivían en gris de 12px dentro de un recuadro
+                        secundario; acá son el segundo elemento más grande. */}
+                    {singleStep && (
+                        <div className="rounded-soft border-2 border-primary-500 bg-primary-50 p-5 mb-6">
+                            <div className="flex items-center gap-4">
+                                <div className="text-center leading-none shrink-0">
+                                    <div className="text-5xl font-black text-primary-600 tracking-tight">30</div>
+                                    <div className="text-[11px] font-bold uppercase tracking-widest text-primary-700 mt-1">días</div>
+                                </div>
+                                <div className="w-px self-stretch bg-primary-200" />
+                                <div>
+                                    <p className="font-bold text-charcoal leading-snug">
+                                        Gratis, con todo el sistema desbloqueado
+                                    </p>
+                                    <p className="text-sm text-charcoal/70 mt-1 leading-relaxed">
+                                        Citas, fichas médicas, finanzas, inventario y fidelización.
+                                        Sin tarjeta de crédito y sin cobro automático al terminar.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Value Prop Banner — en el flujo único lo reemplaza el
+                        bloque grande de 30 días de arriba; mostrar ambos repite
+                        el mismo mensaje dos veces seguidas. */}
+                    {!isJoinMode && step === 1 && !singleStep && (
                         <div className="bg-primary-50 border border-primary-100 rounded-soft p-4 mb-6">
                             <div className="flex items-start gap-3">
                                 <div className="mt-0.5 bg-primary-500 p-1 rounded flex-shrink-0">
@@ -442,7 +528,7 @@ export default function Register() {
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {/* Step 1: Personal Info */}
-                        {step === 1 && (
+                        {(step === 1 || singleStep) && (
                             <>
                                 <div>
                                     <label htmlFor="fullName" className="block text-sm font-medium text-charcoal mb-2">
@@ -521,6 +607,45 @@ export default function Register() {
                                     </div>
                                 </div>
 
+                                {singleStep && (
+                                    <div>
+                                        <label htmlFor="clinicName" className="block text-sm font-medium text-charcoal mb-2">
+                                            Nombre de tu clínica
+                                        </label>
+                                        {!isIndependent && (
+                                            <div className="relative">
+                                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-charcoal/40" />
+                                                <input
+                                                    id="clinicName"
+                                                    type="text"
+                                                    value={clinicName}
+                                                    onChange={(e) => setClinicName(e.target.value)}
+                                                    className="input-soft pl-12 w-full"
+                                                    placeholder="Clínica Veterinaria Los Robles"
+                                                    required={!isIndependent}
+                                                />
+                                            </div>
+                                        )}
+
+                                        <label className="mt-3 flex items-start gap-3 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={isIndependent}
+                                                onChange={(e) => setIsIndependent(e.target.checked)}
+                                                className="mt-0.5 w-4 h-4 accent-primary-500 shrink-0"
+                                            />
+                                            <span className="text-sm text-charcoal/80 leading-snug">
+                                                Trabajo como profesional independiente
+                                                <span className="block text-xs text-charcoal/50 mt-0.5">
+                                                    {isIndependent
+                                                        ? `Usaremos tu nombre${fullName.trim() ? ` (${fullName.trim()})` : ''} para identificar tu consulta. Puedes cambiarlo después en Configuración.`
+                                                        : 'Márcala si atiendes a domicilio o por tu cuenta, sin un local con nombre propio.'}
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                )}
+
                                 {!isJoinMode && (
                                     refParam ? (
                                         <div className="flex items-center gap-2 bg-primary-50 border border-primary-100 rounded-soft px-4 py-3 text-sm text-primary-700">
@@ -548,7 +673,7 @@ export default function Register() {
                         )}
 
                         {/* Step 2: Clinic Info */}
-                        {step === 2 && (
+                        {step === 2 && !singleStep && (
                             <div>
                                 <label htmlFor="clinicName" className="block text-sm font-medium text-charcoal mb-2">
                                     Nombre de tu clínica
@@ -572,7 +697,7 @@ export default function Register() {
                         )}
 
                         {/* Step 3: Plan Selection */}
-                        {step === 3 && (
+                        {step === 3 && !singleStep && (
                             <div className="space-y-3">
                                 {plans.map((plan) => (
                                     <label
@@ -617,12 +742,12 @@ export default function Register() {
                                             <span className="font-semibold text-charcoal">
                                                 {plan.discountedPrice !== null ? (
                                                     <>
-                                                        <span className="text-sm text-charcoal/40 line-through mr-1">US${plan.price}</span>
-                                                        US${plan.discountedPrice}<span className="text-sm text-charcoal/50">/mes</span>
+                                                        <span className="text-sm text-charcoal/40 line-through mr-1">{currencyPrefix}{plan.price.toLocaleString('es-CL')}</span>
+                                                        {currencyPrefix}{plan.discountedPrice.toLocaleString('es-CL')}<span className="text-sm text-charcoal/50">/mes</span>
                                                     </>
                                                 ) : (
                                                     <>
-                                                        {paymentRegion === 'international' ? 'US$' : '$'}{plan.price.toLocaleString('es-CL')}<span className="text-sm text-charcoal/50">/mes</span>
+                                                        {currencyPrefix}{plan.price.toLocaleString('es-CL')}<span className="text-sm text-charcoal/50">/mes</span>
                                                     </>
                                                 )}
                                             </span>
@@ -638,12 +763,67 @@ export default function Register() {
                             </div>
                         )}
 
+                        {/* Confirmación de plan + verificación, sólo en el flujo único.
+                            No es un selector: quien llega desde /core ya eligió.
+                            El toggle de región se mantiene porque define la
+                            pasarela (MercadoPago vs Paddle) que recibe signUp. */}
+                        {singleStep && (
+                            <div className="space-y-4">
+                                <div className="rounded-soft border border-silk-beige bg-white p-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-primary-600">Plan Core</p>
+                                            <p className="text-sm text-charcoal/60 mt-0.5">Después de los 30 días. Cancela cuando quieras.</p>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            {corePlan?.discountedPrice != null ? (
+                                                <>
+                                                    <span className="text-sm text-charcoal/40 line-through mr-1">
+                                                        {currencyPrefix}{corePlan.price.toLocaleString('es-CL')}
+                                                    </span>
+                                                    <span className="font-bold text-charcoal">
+                                                        {currencyPrefix}{corePlan.discountedPrice.toLocaleString('es-CL')}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <span className="font-bold text-charcoal">
+                                                    {currencyPrefix}{corePlan?.price.toLocaleString('es-CL')}
+                                                </span>
+                                            )}
+                                            <span className="text-sm text-charcoal/50">/mes</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 flex p-1 bg-silk-beige rounded-soft">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentRegion('chile')}
+                                            className={`flex-1 py-1.5 text-xs font-medium rounded-soft transition-all ${paymentRegion === 'chile' ? 'bg-white shadow-sm text-charcoal' : 'text-charcoal/40'}`}
+                                        >
+                                            Chile (CLP)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentRegion('international')}
+                                            className={`flex-1 py-1.5 text-xs font-medium rounded-soft transition-all ${paymentRegion === 'international' ? 'bg-white shadow-sm text-charcoal' : 'text-charcoal/40'}`}
+                                        >
+                                            Internacional (USD)
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {TURNSTILE_SITE_KEY && (
+                                    <div ref={turnstileRef} className="flex justify-center" />
+                                )}
+                            </div>
+                        )}
+
                         {/* Step 4: Removed - Payment Info is no longer required at registration */}
 
                         <div className="mt-6 flex flex-col items-center gap-2">
                             <p className="text-sm text-charcoal/60">¿Tienes dudas con el registro?</p>
                             <a
-                                href="https://wa.me/56993089185?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly AI"
+                                href="https://wa.me/56993089185?text=Hola,%20tengo%20una%20duda%20con%20el%20registro%20en%20Vetly"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-bold bg-primary-50 px-4 py-2 rounded-full border border-primary-100 transition-colors"
@@ -655,7 +835,7 @@ export default function Register() {
 
                         {/* Navigation Buttons */}
                         <div className="flex gap-3 mt-8">
-                            {step > 1 && (
+                            {step > 1 && !singleStep && (
                                 <button
                                     type="button"
                                     onClick={() => setStep(step - 1)}
@@ -676,6 +856,11 @@ export default function Register() {
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                             Cargando...
                                         </>
+                                    ) : singleStep ? (
+                                        <>
+                                            Empezar mis 30 días gratis
+                                            <ArrowRight className="w-5 h-5" />
+                                        </>
                                     ) : step < 3 || (isJoinMode && step < 1) ? (
                                         <>
                                             Continuar
@@ -693,7 +878,7 @@ export default function Register() {
                     </form>
 
                     <p className="mt-6 text-xs text-center text-charcoal/50">
-                        Al registrarte en Vetly AI, aceptas nuestros{' '}
+                        Al registrarte en Vetly, aceptas nuestros{' '}
                         <Link to="/terms" target="_blank" className="underline hover:text-primary-600">Términos y Condiciones</Link>
                         {' '}y nuestra{' '}
                         <Link to="/privacy" target="_blank" className="underline hover:text-primary-600">Política de Privacidad</Link>.
@@ -750,20 +935,26 @@ export default function Register() {
                             </div>
                         </div>
 
-                        {/* Testimonial */}
+                        {/* Por qué existe Vetly — historia real del fundador.
+                            Reemplaza a un testimonio que atribuía una persona
+                            inventada a una clínica real. */}
                         <div className="bg-white/10 backdrop-blur-sm rounded-softer p-5">
-                            <p className="text-white/90 italic text-sm mb-4">
-                                {isCoreSelected
-                                    ? '"Dejé de anotar todo en cuadernos y planillas sueltas. Ahora tengo el historial de cada paciente y las cuentas de la clínica en un solo lugar."'
-                                    : '"Antes pasaba 3 horas diarias respondiendo mensajes. Ahora mi asistente de Vetly lo hace todo mientras yo me enfoco en mis pacientes."'}
-                            </p>
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-white/20 rounded-full flex-shrink-0" />
+                            <div className="flex items-center gap-3 mb-3">
+                                <img
+                                    src="/fundador.webp"
+                                    alt="Sebastián Barrera, fundador de Vetly"
+                                    loading="lazy"
+                                    className="w-11 h-11 rounded-full object-cover border-2 border-white/30 flex-shrink-0"
+                                />
                                 <div>
-                                    <p className="font-medium text-sm">Dra. Carolina Méndez</p>
-                                    <p className="text-xs text-white/60">Clínica Veterinaria AnimalGrace</p>
+                                    <p className="font-medium text-sm">Sebastián Barrera</p>
+                                    <p className="text-xs text-white/60">Fundador · ex-dueño de clínica móvil</p>
                                 </div>
                             </div>
+                            <p className="text-white/85 text-sm leading-relaxed">
+                                "Antes de Vetly tuve Movilvets, una clínica veterinaria a domicilio.
+                                Construí esto porque necesitaba la herramienta y no existía."
+                            </p>
                         </div>
                     </div>
                 </div>

@@ -90,6 +90,11 @@ const plans = [
         name: 'Core',
         tagline: 'Gestión completa, sin IA conversacional.',
         price: 39,
+        // Precio de lanzamiento. Debe coincidir con `launchPrice` de
+        // PADDLE_PLANS.core / PLANS.core y con lo que muestran /core y la home:
+        // un precio distinto al del destino es motivo de desaprobación del
+        // anuncio en Google Ads.
+        launchPrice: 17,
         annualTotal: null,
         period: '/mes',
         description: 'Todo lo que necesitas para administrar tu clínica. Sin el agente de WhatsApp.',
@@ -273,12 +278,28 @@ export default function Pricing() {
 
                                 {/* Price */}
                                 <div className="text-center mb-6">
-                                    <div className="flex items-baseline justify-center gap-1">
-                                        <span className="text-4xl font-bold text-charcoal">
-                                            ${getPrice(plan.price)}
-                                        </span>
+                                    <div className="flex items-baseline justify-center gap-1.5">
+                                        {'launchPrice' in plan && plan.launchPrice ? (
+                                            <>
+                                                <span className="text-xl text-charcoal/40 line-through">
+                                                    ${getPrice(plan.price)}
+                                                </span>
+                                                <span className="text-4xl font-bold text-charcoal">
+                                                    ${getPrice(plan.launchPrice)}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <span className="text-4xl font-bold text-charcoal">
+                                                ${getPrice(plan.price)}
+                                            </span>
+                                        )}
                                         <span className="text-charcoal/50">{plan.period}</span>
                                     </div>
+                                    {'launchPrice' in plan && plan.launchPrice && (
+                                        <p className="text-xs text-primary-600 font-semibold mt-1">
+                                            Precio de lanzamiento · 30 días gratis
+                                        </p>
+                                    )}
                                     {billingPeriod === 'annual' && plan.annualTotal && (
                                         <p className="text-sm text-primary-600 mt-1 font-medium">
                                             ${plan.annualTotal}/año · 2 meses gratis

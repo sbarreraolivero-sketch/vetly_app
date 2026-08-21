@@ -14,9 +14,20 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 // essence/radiance/prestige quedan como alias — no se puede garantizar que
 // ningún llamador externo/histórico siga mandando el nombre legacy.
 const PLAN_PRICES: Record<string, Record<string, number>> = {
+    // ⚠️ Core está a PRECIO DE LANZAMIENTO. El precio de lista es CLP 33.000 /
+    // USD 39; lo que se cobra hoy es 17.000 / 17.
+    //
+    // Paddle lo resuelve con un cupón sobre el precio de lista y un tope de 100
+    // usos. MercadoPago no soporta cupones en suscripciones, así que acá el
+    // precio de lanzamiento ES el monto recurrente — sin tope automático y sin
+    // ancla visible del precio de lista (esa vive sólo en la UI).
+    //
+    // Para terminar la promo hay que subir estos números Y quitar `launchPrice`
+    // de PLANS.core en src/lib/mercadopago.ts. Si se cambia sólo uno, la web
+    // promete un precio distinto al que cobra el checkout.
     core: {
-        CLP: 33000,
-        USD: 39,
+        CLP: 17000,
+        USD: 17,
     },
     starter: {
         CLP: 92000,

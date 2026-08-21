@@ -6,15 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- SEO primario -->
-    <title>Vetly Core — Gestión completa para tu clínica veterinaria desde $17/mes</title>
-    <meta name="description" content="Citas, fichas médicas, finanzas, inventario y fidelización en un solo lugar. Sin tarjeta de crédito, 30 días de prueba. Plan de lanzamiento: $17 USD/mes.">
+    <title>Vetly Core — Gestión completa para tu clínica veterinaria desde $17.000/mes</title>
+    <meta name="description" content="Citas, fichas médicas, finanzas, inventario y fidelización en un solo lugar. Sin tarjeta de crédito, 30 días de prueba. Plan de lanzamiento: $17.000 CLP/mes (≈ US$17).">
     <link rel="canonical" href="https://vetly.pro/core">
     <meta name="robots" content="index, follow">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://vetly.pro/core">
-    <meta property="og:title" content="Vetly Core — Gestión completa para tu clínica, desde $17/mes">
+    <meta property="og:title" content="Vetly Core — Gestión completa para tu clínica, desde $17.000/mes">
     <meta property="og:description" content="Deja las planillas. Citas, fichas médicas, finanzas, inventario y fidelización en un solo sistema. Sin tarjeta, 30 días gratis.">
     <meta property="og:image" content="https://vetly.pro/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -23,7 +23,7 @@
     <meta property="og:site_name" content="Vetly">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Vetly Core — Gestión completa para tu clínica, desde $17/mes">
+    <meta name="twitter:title" content="Vetly Core — Gestión completa para tu clínica, desde $17.000/mes">
     <meta name="twitter:description" content="Deja las planillas. Citas, fichas médicas, finanzas, inventario y fidelización en un solo sistema. Sin tarjeta, 30 días gratis.">
     <meta name="twitter:image" content="https://vetly.pro/og-image.png">
 
@@ -74,8 +74,28 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 20px 40px -12px rgba(0,0,0,0.10); }
+        .card-hover { transition: transform .2s ease, box-shadow .2s ease; }
+        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 20px 40px -12px rgba(0,0,0,.10); }
+        /* Marco de navegador para las capturas del producto */
+        .shot {
+            border-radius: 12px;
+            border: 1px solid #e4e4e7;
+            box-shadow: 0 24px 48px -20px rgba(0,0,0,.22);
+            overflow: hidden;
+            background: #fff;
+        }
+        .shot img { display: block; width: 100%; height: auto; }
+        .shot-bar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 9px 12px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7;
+        }
+        .shot-dot { width: 9px; height: 9px; border-radius: 50%; }
+        details > summary { list-style: none; cursor: pointer; }
+        details > summary::-webkit-details-marker { display: none; }
+        details[open] .faq-arrow { transform: rotate(180deg); }
+        @media (max-width: 640px) {
+            .card-hover:hover { transform: none; box-shadow: none; }
+        }
     </style>
 </head>
 <body class="text-neutral font-sans antialiased">
@@ -83,40 +103,82 @@
 <nav class="sticky top-0 z-50 bg-offwhite/95 backdrop-blur border-b border-zinc-200">
     <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <a href="/landing" class="flex items-center">
-            <img src="./logo.png" alt="Vetly" class="h-12 w-auto">
+            <img src="./logo.png" alt="Vetly" class="h-11 w-auto">
         </a>
-        <a href="https://vetly.pro/login" class="text-sm font-medium text-muted hover:text-neutral transition-colors hidden sm:block">Iniciar sesión</a>
-        <a href="/register?plan=core" class="bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
-            Empezar gratis →
-        </a>
+        <div class="hidden md:flex items-center gap-7 text-sm font-medium text-muted">
+            <a href="#recorrido" class="hover:text-neutral transition-colors">Qué incluye</a>
+            <a href="#precio" class="hover:text-neutral transition-colors">Precio</a>
+            <a href="#preguntas" class="hover:text-neutral transition-colors">Preguntas</a>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="https://vetly.pro/login" class="text-sm font-medium text-muted hover:text-neutral transition-colors hidden sm:block">Iniciar sesión</a>
+            <a href="/register?plan=core" class="bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
+                Empezar gratis →
+            </a>
+        </div>
     </div>
 </nav>
 
-<!-- HERO -->
-<section class="max-w-5xl mx-auto px-6 pt-14 pb-16 text-center">
-    <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1.5 rounded-full border border-teal-200 mb-6">
-        🚀 Lanzamiento — $17 USD/mes por tiempo limitado
+<!-- ═══════════════ HERO ═══════════════ -->
+<section class="max-w-6xl mx-auto px-6 pt-14 pb-14">
+    <div class="max-w-4xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1.5 rounded-full border border-teal-200 mb-6">
+            🚀 Precio de lanzamiento — cupos limitados
+        </div>
+        <h1 class="text-4xl md:text-6xl font-extrabold tracking-tighter leading-[1.05] mb-6">
+            Deja las planillas.<br>
+            Gestiona tu clínica<br class="hidden sm:block">
+            <span class="gradient-text">en un solo lugar.</span>
+        </h1>
+        <p class="text-lg md:text-xl text-muted max-w-2xl mx-auto mb-9 leading-relaxed">
+            Citas, fichas médicas, finanzas, inventario y fidelización — ordenados y a mano,
+            con recordatorios de WhatsApp listos para enviar en un clic.
+        </p>
+
+        <!-- Los 30 días como protagonista -->
+        <div class="inline-flex items-stretch gap-5 bg-white border-2 border-brand rounded-2xl px-7 py-5 mb-7 text-left shadow-lg shadow-teal-900/5">
+            <div class="text-center leading-none self-center">
+                <div class="text-5xl md:text-6xl font-black text-brand tracking-tighter">30</div>
+                <div class="text-[10px] font-bold uppercase tracking-widest text-brandDk mt-1.5">días gratis</div>
+            </div>
+            <div class="w-px bg-teal-100"></div>
+            <div class="self-center">
+                <p class="font-bold text-base mb-1">Todo el sistema desbloqueado</p>
+                <p class="text-sm text-muted leading-relaxed">
+                    Sin tarjeta de crédito.<br>Sin cobro automático al terminar.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-center gap-3">
+            <a href="/register?plan=core" class="bg-brand text-white font-semibold px-9 py-4 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-xl transition-all active:scale-[0.98] text-base w-full sm:w-auto">
+                Crear mi cuenta gratis →
+            </a>
+            <p class="text-xs text-muted">Listo en 2 minutos · Cancela cuando quieras</p>
+        </div>
     </div>
-    <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-5">
-        Deja las planillas.<br class="hidden md:block">
-        Gestiona tu clínica <span class="gradient-text">en un solo lugar.</span>
-    </h1>
-    <p class="text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
-        Citas, fichas médicas, finanzas, inventario y fidelización — todo ordenado, con recordatorios de WhatsApp listos para enviar en un clic. Sin tarjeta de crédito. 30 días para probarlo todo.
-    </p>
-    <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
-        <a href="/register?plan=core" class="bg-brand text-white font-semibold px-7 py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98] text-base">
-            Crear cuenta gratis →
-        </a>
-        <p class="text-xs text-muted">Sin tarjeta · 30 días gratis · Cancela cuando quieras</p>
+
+    <!-- Captura principal -->
+    <div class="mt-14 max-w-5xl mx-auto shot">
+        <div class="shot-bar">
+            <span class="shot-dot" style="background:#f87171"></span>
+            <span class="shot-dot" style="background:#fbbf24"></span>
+            <span class="shot-dot" style="background:#34d399"></span>
+            <span class="ml-2 text-[11px] text-zinc-400">vetly.pro · Agenda de la clínica</span>
+        </div>
+        <img src="./core-shots/core-agenda.webp" width="1600" height="1013"
+             alt="Agenda de la clínica en Vetly: citas del día con tutor, paciente, servicio, dirección y estado">
     </div>
 </section>
 
-<!-- PROBLEMA -->
+<!-- ═══════════════ PROBLEMA ═══════════════ -->
 <section class="bg-white border-y border-zinc-200 py-16">
     <div class="max-w-5xl mx-auto px-6">
         <h2 class="text-2xl md:text-3xl font-bold text-center mb-3">¿Te suena familiar?</h2>
-        <p class="text-muted text-center max-w-xl mx-auto mb-10">La mayoría de las clínicas independientes y móviles operan igual: información repartida en varios lugares, difícil de encontrar cuando más se necesita.</p>
+        <p class="text-muted text-center max-w-xl mx-auto mb-10">
+            La mayoría de las clínicas independientes y móviles operan igual: información repartida
+            en varios lugares, difícil de encontrar cuando más se necesita.
+        </p>
         <div class="grid md:grid-cols-3 gap-6">
             <div class="bg-surface rounded-2xl p-6">
                 <p class="text-2xl mb-3">📋</p>
@@ -137,100 +199,356 @@
     </div>
 </section>
 
-<!-- FEATURES -->
-<section class="max-w-5xl mx-auto px-6 py-16">
-    <h2 class="text-2xl md:text-3xl font-bold text-center mb-3">Todo lo que necesitas para ordenar tu clínica</h2>
-    <p class="text-muted text-center max-w-xl mx-auto mb-12">Sin curva de aprendizaje. Empiezas a usarlo el mismo día.</p>
-    <div class="grid md:grid-cols-2 gap-5">
-        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
-            <p class="text-2xl mb-3">📅</p>
-            <p class="font-semibold mb-1">Calendario de citas</p>
-            <p class="text-sm text-muted">Agenda visual, sin choques de horario, con todos los datos de cada visita a mano.</p>
+<!-- ═══════════════ RECORRIDO DEL PRODUCTO ═══════════════ -->
+<section id="recorrido" class="max-w-6xl mx-auto px-6 py-20">
+    <div class="text-center mb-16">
+        <p class="text-brand text-sm font-semibold uppercase tracking-widest mb-3">El producto, de verdad</p>
+        <h2 class="text-3xl md:text-5xl font-extrabold tracking-tighter mb-4">
+            Esto es exactamente<br>lo que recibes.
+        </h2>
+        <p class="text-muted max-w-2xl mx-auto">
+            Capturas reales del plan Core — no ilustraciones. Sin curva de aprendizaje: empiezas a usarlo el mismo día.
+        </p>
+    </div>
+
+    <!-- 1 · Ficha clínica -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+        <div>
+            <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🐾 Fichas médicas</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Todo el historial de un paciente, en una pantalla.</h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Vacunas, desparasitaciones, consultas y cirugías con sus notas de evolución.
+                Al abrir la ficha ves el resumen clínico completo: última atención, próxima vacuna,
+                peso y desparasitación al día.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Historial completo por paciente, buscable en segundos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Vacunas y parasitología con fecha de próxima dosis</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Notas de evolución y archivos adjuntos</li>
+            </ul>
         </div>
-        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
-            <p class="text-2xl mb-3">🐾</p>
-            <p class="font-semibold mb-1">Fichas médicas e historial</p>
-            <p class="text-sm text-muted">Vacunas, desparasitaciones, consultas y cirugías — todo el historial de cada paciente en segundos.</p>
-        </div>
-        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
-            <p class="text-2xl mb-3">💰</p>
-            <p class="font-semibold mb-1">Finanzas y caja diaria</p>
-            <p class="text-sm text-muted">Ingresos, gastos, cierre de caja y comprobantes — sabes exactamente cómo va tu negocio.</p>
-        </div>
-        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
-            <p class="text-2xl mb-3">📦</p>
-            <p class="font-semibold mb-1">Inventario</p>
-            <p class="text-sm text-muted">Controla stock de medicamentos e insumos, con alertas antes de que se agoten.</p>
-        </div>
-        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
-            <p class="text-2xl mb-3">💬</p>
-            <p class="font-semibold mb-1">Recordatorios por WhatsApp</p>
-            <p class="text-sm text-muted">Envío manual ilimitado con un clic, más 25 recordatorios automáticos al mes incluidos.</p>
-        </div>
-        <div class="bg-white border border-zinc-200 rounded-2xl p-6 card-hover">
-            <p class="text-2xl mb-3">🎁</p>
-            <p class="font-semibold mb-1">Fidelización y referidos</p>
-            <p class="text-sm text-muted">Programa de puntos y sistema de referidos para que tus clientes vuelvan y traigan más clientes.</p>
+        <div class="shot">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./core-shots/core-ficha.webp" width="1600" height="1013" loading="lazy"
+                 alt="Ficha clínica de un paciente en Vetly con resumen clínico, atenciones y notas de evolución">
         </div>
     </div>
-    <p class="text-center text-sm text-muted mt-8">
-        ¿Necesitas que un agente de IA responda WhatsApp automáticamente? Eso vive en el plan <a href="/landing#precios" class="text-brand font-semibold hover:underline">Starter</a> — puedes subir de plan en cualquier momento sin perder tus datos.
-    </p>
+
+    <!-- 2 · Finanzas -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+        <div class="shot md:order-1">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./core-shots/core-finanzas.webp" width="1600" height="1013" loading="lazy"
+                 alt="Módulo de finanzas de Vetly con ingresos, gastos, ganancia neta y gráfico mensual">
+        </div>
+        <div class="md:order-2">
+            <div class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full mb-4">💰 Finanzas y caja</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Saber cuánto ganaste este mes, sin sacar la calculadora.</h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Ingresos, gastos y ganancia neta actualizados solos. Cierre de caja diario,
+                comprobantes para tu cliente y exportación cuando la necesites.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Ingresos vs gastos con gráfico por período</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Caja diaria con saldo inicial, cierre e informe imprimible</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Comprobante por WhatsApp al terminar la visita</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 3 · Recordatorios -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+        <div>
+            <div class="inline-flex items-center gap-2 bg-sky-50 text-sky-700 text-xs font-bold px-3 py-1 rounded-full mb-4">💬 Recordatorios WhatsApp</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que no se te pierda ningún paciente por olvido.</h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Vetly te arma la lista de a quién avisar hoy y abre el mensaje listo en WhatsApp:
+                solo pulsas enviar. Además incluye 25 recordatorios automáticos al mes.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Envío manual <strong>ilimitado</strong> — no consume cuota</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> 25 recordatorios automáticos al mes incluidos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Vacunas y desparasitaciones que vencen, avisadas a tiempo</li>
+            </ul>
+        </div>
+        <div class="shot">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./core-shots/core-recordatorios.webp" width="1600" height="1013" loading="lazy"
+                 alt="Centro de recordatorios de Vetly con la lista de pacientes a avisar hoy y botón de envío por WhatsApp">
+        </div>
+    </div>
+
+    <!-- 4 · Inventario -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+        <div class="shot md:order-1">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./core-shots/core-inventario.webp" width="1600" height="1013" loading="lazy"
+                 alt="Inventario de Vetly con productos, stock, alertas de bajo stock e inversión total">
+        </div>
+        <div class="md:order-2">
+            <div class="inline-flex items-center gap-2 bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📦 Inventario</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Nunca más quedarte sin una vacuna a mitad de ruta.</h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Stock de medicamentos e insumos con alertas antes de que se agoten, y el descuento
+                automático cuando cierras una venta. Si atiendes a domicilio, puedes llevar un
+                segundo inventario para el móvil.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Alertas de bajo stock y vencimientos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Segundo inventario para el vehículo, con traspasos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Análisis ABC: qué productos sostienen tus ingresos</li>
+            </ul>
+            <p class="text-xs text-muted mt-5 bg-surface rounded-lg p-3 leading-relaxed">
+                <strong class="text-neutral">Extra opcional:</strong> puedes cargar una factura de proveedor
+                con IA y que los productos se ingresen solos. Funciona con créditos de IA, que se
+                compran aparte cuando los necesitas.
+            </p>
+        </div>
+    </div>
+
+    <!-- 5 · Fidelización -->
+    <div class="grid md:grid-cols-2 gap-12 items-center">
+        <div>
+            <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🎁 Fidelización y referidos</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que tus clientes vuelvan — y traigan a otros.</h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Programa de puntos que se acumulan solos con cada visita, y un sistema de referidos
+                con código propio para cada tutor. Todo incluido, sin módulos extra.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Saldo por cliente, canjeable en la próxima visita</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Código de referido por tutor, con premio al que recomienda</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Ficha digital para el tutor con el historial de su mascota</li>
+            </ul>
+        </div>
+        <div class="shot">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./core-shots/core-fidelizacion.webp" width="1600" height="1013" loading="lazy"
+                 alt="Módulo de fidelización y referidos de Vetly con saldo de puntos por cliente y códigos de referido">
+        </div>
+    </div>
 </section>
 
-<!-- OBJECIONES -->
+<!-- ═══════════════ QUÉ INCLUYE / QUÉ NO ═══════════════ -->
 <section class="bg-white border-y border-zinc-200 py-16">
-    <div class="max-w-4xl mx-auto px-6">
-        <h2 class="text-2xl md:text-3xl font-bold text-center mb-10">Sin riesgo, sin letra chica</h2>
-        <div class="grid md:grid-cols-3 gap-6 text-center">
-            <div>
-                <p class="text-3xl mb-2">💳</p>
-                <p class="font-semibold mb-1">Sin tarjeta de crédito</p>
-                <p class="text-sm text-muted">Creas tu cuenta y usas el sistema completo desde el primer minuto, sin ingresar ningún dato de pago.</p>
+    <div class="max-w-5xl mx-auto px-6">
+        <h2 class="text-2xl md:text-3xl font-bold text-center mb-3">Sin letra chica</h2>
+        <p class="text-muted text-center max-w-xl mx-auto mb-12">
+            Preferimos que lo sepas antes de entrar, no después de pagar.
+        </p>
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="border-2 border-teal-200 bg-teal-50/40 rounded-2xl p-7">
+                <p class="text-xs font-black uppercase tracking-widest text-brand mb-4">Incluido en Core</p>
+                <ul class="space-y-2.5 text-sm">
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> 3 usuarios · 1 agenda</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Calendario de citas</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Fichas médicas e historial clínico</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Finanzas, caja diaria y comprobantes</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Inventario con alertas y doble bodega</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Fidelización y referidos</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Recordatorios WhatsApp manuales ilimitados</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> 25 recordatorios automáticos al mes</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Dashboard con métricas de tu clínica</li>
+                </ul>
             </div>
-            <div>
-                <p class="text-3xl mb-2">📆</p>
-                <p class="font-semibold mb-1">30 días de prueba real</p>
-                <p class="text-sm text-muted">Tiempo de sobra para cargar tus pacientes reales y evaluar si te sirve, sin apuro.</p>
-            </div>
-            <div>
-                <p class="text-3xl mb-2">✋</p>
-                <p class="font-semibold mb-1">Cancela cuando quieras</p>
-                <p class="text-sm text-muted">Sin contratos ni permanencia mínima. Un clic desde Configuración y listo.</p>
+            <div class="border border-zinc-200 rounded-2xl p-7">
+                <p class="text-xs font-black uppercase tracking-widest text-muted mb-4">No incluido en Core</p>
+                <ul class="space-y-4 text-sm">
+                    <li>
+                        <p class="font-semibold flex gap-2.5"><span class="text-zinc-300 shrink-0">—</span> Agente de IA que contesta WhatsApp</p>
+                        <p class="text-muted text-xs mt-1 ml-6">Responder y agendar solo, 24/7. Disponible desde el plan Starter.</p>
+                    </li>
+                    <li>
+                        <p class="font-semibold flex gap-2.5"><span class="text-zinc-300 shrink-0">—</span> Optimización de ruta para clínica móvil</p>
+                        <p class="text-muted text-xs mt-1 ml-6">Ordena las visitas del día por cercanía. Desde el plan Starter.</p>
+                    </li>
+                    <li>
+                        <p class="font-semibold flex gap-2.5"><span class="text-zinc-300 shrink-0">—</span> Campañas masivas segmentadas</p>
+                        <p class="text-muted text-xs mt-1 ml-6">Extra opcional, se paga por uso en cualquier plan.</p>
+                    </li>
+                    <li>
+                        <p class="font-semibold flex gap-2.5"><span class="text-zinc-300 shrink-0">—</span> Boleta o factura electrónica (SII)</p>
+                        <p class="text-muted text-xs mt-1 ml-6">Core registra el cobro y envía comprobante por WhatsApp; la emisión tributaria sigue en tu sistema actual.</p>
+                    </li>
+                </ul>
+                <p class="text-xs text-muted mt-6 pt-5 border-t border-zinc-100 leading-relaxed">
+                    Puedes subir de plan cuando quieras, sin perder ni un dato.
+                </p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- PRICING -->
-<section class="max-w-2xl mx-auto px-6 py-16 text-center">
-    <div class="bg-white border-2 border-brand rounded-2xl p-8 shadow-lg">
-        <p class="text-xs font-bold text-brand uppercase tracking-widest mb-4">Plan Core — Lanzamiento</p>
-        <div class="flex items-baseline justify-center gap-2 mb-1">
-            <span class="text-2xl text-muted line-through">$39</span>
-            <span class="text-5xl font-extrabold tracking-tighter">$17</span>
-            <span class="text-muted">/mes USD</span>
+<!-- ═══════════════ FUNDADOR ═══════════════ -->
+<section class="max-w-4xl mx-auto px-6 py-20">
+    <div class="bg-white border border-zinc-200 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
+        <img src="./fundador.webp" alt="Sebastián Barrera, fundador de Vetly" loading="lazy"
+             class="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-cover shrink-0 border border-zinc-200">
+        <div>
+            <p class="text-xs font-black text-brand uppercase tracking-widest mb-2">Por qué existe Vetly</p>
+            <p class="text-base md:text-lg leading-relaxed">
+                <strong>Sebastián Barrera fundó Movilvets</strong>, una clínica veterinaria móvil a
+                domicilio en Chile. Vivió el cuaderno en la guantera, las cuentas del mes en una
+                planilla que nunca cuadraba y los pacientes que no volvían porque nadie les avisó.
+                Construyó Vetly porque necesitaba esa herramienta y no existía.
+            </p>
+            <p class="text-sm text-muted mt-3 font-medium">
+                Fundador · ex-dueño de clínica veterinaria móvil
+            </p>
         </div>
-        <p class="text-xs text-emerald-600 font-semibold mb-6">Precio de lanzamiento — cupos limitados</p>
-        <a href="/register?plan=core" class="block bg-brand text-white font-semibold py-3.5 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
-            Crear cuenta gratis →
+    </div>
+</section>
+
+<!-- ═══════════════ PRECIO ═══════════════ -->
+<section id="precio" class="bg-white border-y border-zinc-200 py-20">
+    <div class="max-w-2xl mx-auto px-6 text-center">
+        <h2 class="text-3xl md:text-4xl font-extrabold tracking-tighter mb-3">Un precio. Todo incluido.</h2>
+        <p class="text-muted mb-10">Sin costo de implementación, sin cobro por usuario extra, sin permanencia.</p>
+
+        <div class="bg-offwhite border-2 border-brand rounded-2xl p-8 shadow-xl shadow-teal-900/5">
+            <p class="text-xs font-bold text-brand uppercase tracking-widest mb-5">Plan Core — Lanzamiento</p>
+            <div class="flex items-baseline justify-center gap-2 mb-1">
+                <span class="text-2xl text-muted line-through">$33.000</span>
+                <span class="text-5xl md:text-6xl font-extrabold tracking-tighter">$17.000</span>
+                <span class="text-muted text-lg">/mes</span>
+            </div>
+            <p class="text-sm text-muted mb-1">pesos chilenos · cobro mensual</p>
+            <p class="text-xs text-muted mb-6">≈ US$17/mes si pagas desde fuera de Chile</p>
+
+            <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-7">
+                <p class="text-sm font-bold text-teal-800">Primero, 30 días gratis</p>
+                <p class="text-xs text-teal-700 mt-1">Sin tarjeta de crédito. Al terminar eliges si sigues — no hay cobro automático.</p>
+            </div>
+
+            <a href="/register?plan=core" class="block bg-brand text-white font-semibold py-4 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-lg transition-all active:scale-[0.98]">
+                Crear mi cuenta gratis →
+            </a>
+            <p class="text-xs text-muted mt-4">Listo en 2 minutos · Cancela con un clic desde Configuración</p>
+        </div>
+
+        <p class="text-sm text-muted mt-8 leading-relaxed">
+            ¿Necesitas que un agente de IA conteste tu WhatsApp y agende solo?
+            Eso vive en el <a href="/landing#precios" class="text-brand font-semibold hover:underline">plan Starter</a> —
+            puedes subir en cualquier momento sin perder tus datos.
+        </p>
+    </div>
+</section>
+
+<!-- ═══════════════ PREGUNTAS ═══════════════ -->
+<section id="preguntas" class="max-w-3xl mx-auto px-6 py-20">
+    <h2 class="text-3xl md:text-4xl font-extrabold tracking-tighter text-center mb-12">Preguntas frecuentes</h2>
+    <div class="space-y-3">
+        <details class="bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                ¿Necesito tarjeta de crédito para empezar?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                No. Creas tu cuenta y usas el sistema completo durante 30 días sin ingresar ningún
+                dato de pago. Al terminar, tú decides si sigues: no hay cobro automático.
+            </p>
+        </details>
+        <details class="bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                ¿Emite boleta o factura electrónica?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Todavía no. Core registra cada cobro, lleva tu caja diaria y envía un comprobante
+                por WhatsApp al tutor, pero la emisión tributaria (SII) se mantiene en el sistema
+                que uses hoy. Preferimos decírtelo antes de que pagues.
+            </p>
+        </details>
+        <details class="bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                Atiendo a domicilio y trabajo solo. ¿Me sirve?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Es justo para quien pensamos esto. Funciona desde el celular, puedes llevar un
+                inventario aparte para el móvil, y al registrarte hay una opción para veterinarios
+                independientes: no necesitas tener una clínica con nombre para usarlo.
+            </p>
+        </details>
+        <details class="bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                ¿Puedo pasar mis pacientes actuales?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Sí. Si tienes tus datos en Excel o en otro sistema, el equipo de Vetly te ayuda a
+                migrarlos sin costo. La implementación está incluida en el plan.
+            </p>
+        </details>
+        <details class="bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                ¿Qué pasa cuando terminan los 30 días?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Eliges un plan o tu cuenta queda en pausa. Como nunca ingresaste una tarjeta, no
+                hay ningún cobro sorpresa. Tus datos quedan guardados por si vuelves.
+            </p>
+        </details>
+        <details class="bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                ¿Cuántas personas pueden usarlo?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Hasta 3 usuarios, sin costo adicional por cada uno. Cada persona entra con su
+                cuenta y puedes definir qué secciones ve.
+            </p>
+        </details>
+    </div>
+</section>
+
+<!-- ═══════════════ CIERRE ═══════════════ -->
+<section class="bg-neutral text-white py-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+        <h2 class="text-3xl md:text-5xl font-extrabold tracking-tighter mb-5 leading-tight">
+            Tu clínica ordenada,<br>empezando hoy.
+        </h2>
+        <p class="text-zinc-400 text-lg mb-9 max-w-xl mx-auto leading-relaxed">
+            30 días para probarlo todo con tus pacientes reales. Sin tarjeta y sin compromiso.
+        </p>
+        <a href="/register?plan=core" class="inline-block bg-brand text-white font-semibold px-9 py-4 rounded-xl hover:bg-brandDk hover:-translate-y-0.5 hover:shadow-xl transition-all active:scale-[0.98]">
+            Crear mi cuenta gratis →
         </a>
-        <p class="text-xs text-muted mt-4">Sin tarjeta · 30 días gratis</p>
+        <p class="text-xs text-zinc-500 mt-5">Después, $17.000 CLP/mes · Cancela cuando quieras</p>
     </div>
-    <p class="text-sm text-muted mt-8">
-        Próximamente: módulo de contabilidad y tesorería (alertas de IVA y más) — incluido en el mismo plan, sin costo extra.
-    </p>
 </section>
 
-<footer class="bg-neutral text-white py-14">
+<footer class="bg-neutral text-white border-t border-white/10 py-12">
     <div class="max-w-6xl mx-auto px-6">
-        <div class="grid md:grid-cols-4 gap-10 mb-12">
+        <div class="grid md:grid-cols-4 gap-10 mb-10">
             <div class="md:col-span-2">
                 <div class="mb-4">
                     <img src="./logo vetly blanco.png" alt="Vetly" class="h-10 w-auto">
                 </div>
                 <p class="text-zinc-400 text-sm font-light leading-relaxed max-w-xs">
-                    El sistema operativo para clínicas veterinarias modernas. Gestión, IA conversacional y marketing en un solo lugar.
+                    El sistema operativo para clínicas veterinarias modernas. Gestión, IA conversacional
+                    y marketing en un solo lugar.
                 </p>
             </div>
             <div>

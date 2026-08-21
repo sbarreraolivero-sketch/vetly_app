@@ -168,6 +168,12 @@ export const PLANS = {
         name: 'Core',
         tagline: 'Gestión completa sin IA conversacional',
         price: 33000,
+        // Precio de lanzamiento. A diferencia de Paddle —que aplica un cupón
+        // sobre el precio de lista y lleva un tope de 100 usos—, MercadoPago no
+        // soporta cupones en suscripciones: se cobra este monto como valor
+        // recurrente directo (ver PLAN_PRICES en mercadopago-create-subscription).
+        // Para terminar la promo en Chile hay que quitarlo en LOS DOS lugares.
+        launchPrice: 17000,
         currency: 'CLP',
         features: [
             '3 usuarios · 1 agenda',
