@@ -327,6 +327,21 @@ export default function Appointments() {
     // Hour Blocking state
     const [showActionChoiceModal, setShowActionChoiceModal] = useState(false)
     const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null)
+    const [showBlockModal, setShowBlockModal] = useState(false)
+    const [blockError, setBlockError] = useState<string | null>(null)
+    const [blockForm, setBlockForm] = useState({ date: '', time: '', duration: 60, reason: '' })
+
+    /** Abre el modal de bloqueo precargado con una fecha/hora concreta. */
+    const openBlockModal = (start: Date) => {
+        setBlockForm({
+            date: format(start, 'yyyy-MM-dd'),
+            time: format(start, 'HH:mm'),
+            duration: 60,
+            reason: '',
+        })
+        setBlockError(null)
+        setShowBlockModal(true)
+    }
 
     // Sincronizar servicios seleccionados cuando el modal abre (edición) o cierra
     useEffect(() => {
@@ -930,11 +945,31 @@ export default function Appointments() {
     }
 
 
+    /**
+     * Crea el bloqueo de agenda. Antes el botón "Bloquear" del banner abría el
+     * modal de Nueva Cita precargado con service='Bloqueo', pero ese modal exige
+     * al menos un servicio del catálogo (`selectedServices`) para habilitar el
+     * botón de guardar — y "Bloqueo" no existe en `clinic_services`. El bloqueo
+     * quedaba imposible de crear por esa vía. Ahora ambos caminos (banner y
+     * calendario) pasan por este handler con su propio modal.
+     */
     const handleBlockSchedule = async () => {
-        if (!selectedSlot || !profile?.clinic_id) return
+        if (!profile?.clinic_id) {
+            setBlockError('No se pudo determinar la clínica activa. Recarga la página e intenta de nuevo.')
+            return
+        }
+        if (!blockForm.date || !blockForm.time) {
+            setBlockError('Indica la fecha y la hora del bloqueo.')
+            return
+        }
 
         setSaving(true)
+        setBlockError(null)
         try {
+            const [year, month, day] = blockForm.date.split('-').map(Number)
+            const [hours, minutes] = blockForm.time.split(':').map(Number)
+            const startDate = new Date(year, month - 1, day, hours, minutes)
+
             const { data, error } = await (supabase as any)
                 .from('appointments')
                 .insert({
@@ -944,9 +979,9 @@ export default function Appointments() {
                     phone_number: '000000000',
                     service: 'Bloqueo',
                     status: 'confirmed',
-                    appointment_date: selectedSlot.start.toISOString(),
-                    duration_minutes: 60,
-                    notes: 'Horario bloqueado manualmente desde el calendario.'
+                    appointment_date: startDate.toISOString(),
+                    duration_minutes: blockForm.duration,
+                    notes: blockForm.reason.trim() || 'Horario bloqueado manualmente desde la agenda.'
                 })
                 .select()
                 .single()
@@ -955,12 +990,13 @@ export default function Appointments() {
 
             if (data) {
                 queryClient.setQueryData<Appointment[]>(['appointments', clinicIdForQueries], (old) => [data, ...(old || [])])
+                setShowBlockModal(false)
                 setShowActionChoiceModal(false)
                 setSelectedSlot(null)
             }
         } catch (error) {
             console.error('Error blocking schedule:', error)
-            alert('Error al bloquear el horario.')
+            setBlockError(error instanceof Error ? error.message : 'No se pudo bloquear el horario.')
         } finally {
             setSaving(false)
         }
@@ -1073,19 +1109,7 @@ export default function Appointments() {
                             {!isProfessional && (
                                 <>
                                     <button
-                                        onClick={() => {
-                                            const now = new Date()
-                                            setNewAppointment({
-                                                ...INITIAL_FORM_STATE,
-                                                patient_name: 'Bloqueo de Agenda',
-                                                tutor_name: 'Sistema',
-                                                service: 'Bloqueo',
-                                                phone_number: '000000000',
-                                                appointment_date: format(now, 'yyyy-MM-dd'),
-                                                appointment_time: format(now, 'HH:00'),
-                                            })
-                                            setShowModal(true)
-                                        }}
+                                        onClick={() => openBlockModal(new Date())}
                                         className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
                                     >
                                         <XCircle className="w-4 h-4" />
@@ -2375,11 +2399,14 @@ export default function Appointments() {
                                 </button>
                                 
                                 <button
-                                    onClick={handleBlockSchedule}
-                                    disabled={saving}
-                                    className="w-full py-4 bg-charcoal text-white font-black rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-3 shadow-lg uppercase text-xs tracking-widest disabled:opacity-50"
+                                    onClick={() => {
+                                        if (!selectedSlot) return
+                                        setShowActionChoiceModal(false)
+                                        openBlockModal(selectedSlot.start)
+                                    }}
+                                    className="w-full py-4 bg-charcoal text-white font-black rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-3 shadow-lg uppercase text-xs tracking-widest"
                                 >
-                                    {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5" />}
+                                    <XCircle className="w-5 h-5" />
                                     Bloquear Horario
                                 </button>
                                 
@@ -2390,6 +2417,112 @@ export default function Appointments() {
                                     Cancelar
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Block Schedule Modal */}
+            {showBlockModal && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-fade-in" onClick={() => !saving && setShowBlockModal(false)} />
+                    <div className="relative bg-white rounded-3xl shadow-premium-lg w-full max-w-md overflow-hidden animate-scale-up border border-silk-beige">
+                        <div className="flex items-center justify-between p-6 border-b border-silk-beige">
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 bg-charcoal rounded-xl flex items-center justify-center">
+                                    <XCircle className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-charcoal uppercase tracking-tight">Bloquear Horario</h3>
+                                    <p className="text-xs text-charcoal/50">Reserva un espacio en la agenda sin agendar una cita</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowBlockModal(false)}
+                                disabled={saving}
+                                className="text-charcoal/40 hover:text-charcoal transition-colors disabled:opacity-40"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-semibold text-charcoal mb-1.5">Fecha *</label>
+                                    <input
+                                        type="date"
+                                        value={blockForm.date}
+                                        onChange={(e) => setBlockForm({ ...blockForm, date: e.target.value })}
+                                        className="input-soft w-full [color-scheme:light]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-charcoal mb-1.5">Hora *</label>
+                                    <input
+                                        type="time"
+                                        value={blockForm.time}
+                                        onChange={(e) => setBlockForm({ ...blockForm, time: e.target.value })}
+                                        className="input-soft w-full [color-scheme:light]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-charcoal mb-1.5">Duración</label>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {[30, 60, 120, 480].map((mins) => (
+                                        <button
+                                            key={mins}
+                                            type="button"
+                                            onClick={() => setBlockForm({ ...blockForm, duration: mins })}
+                                            className={cn(
+                                                'py-2.5 rounded-xl text-sm font-bold transition-colors border',
+                                                blockForm.duration === mins
+                                                    ? 'bg-charcoal text-white border-charcoal'
+                                                    : 'bg-ivory text-charcoal/70 border-silk-beige hover:border-charcoal/30'
+                                            )}
+                                        >
+                                            {mins === 480 ? 'Día' : mins >= 60 ? `${mins / 60} h` : `${mins} min`}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-charcoal mb-1.5">Motivo (opcional)</label>
+                                <input
+                                    type="text"
+                                    value={blockForm.reason}
+                                    onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })}
+                                    placeholder="Ej: Almuerzo, cirugía externa, capacitación"
+                                    className="input-soft w-full"
+                                />
+                            </div>
+
+                            {blockError && (
+                                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                                    {blockError}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 p-6 border-t border-silk-beige bg-ivory/50">
+                            <button
+                                onClick={() => setShowBlockModal(false)}
+                                disabled={saving}
+                                className="px-5 py-3 rounded-xl font-bold text-charcoal/60 hover:text-charcoal transition-colors disabled:opacity-40"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleBlockSchedule}
+                                disabled={saving || !blockForm.date || !blockForm.time}
+                                className="flex-1 py-3 bg-charcoal text-white font-black rounded-xl hover:bg-black transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest disabled:opacity-40"
+                            >
+                                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Bloqueando...</> : <><XCircle className="w-4 h-4" /> Bloquear Horario</>}
+                            </button>
                         </div>
                     </div>
                 </div>,

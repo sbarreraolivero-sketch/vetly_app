@@ -96,6 +96,7 @@ export const PAGE_MIN_PLAN: Partial<Record<PageKey, PlanId>> = {
     messages: 'starter',    // bandeja de conversaciones: sin agente no se alimenta
     ai_settings: 'starter', // configuración del agente y créditos
     crm: 'starter',         // el kanban de prospectos lo llena el agente
+    knowledge_base: 'starter', // la base de conocimiento solo la consume el agente IA
 }
 
 /** ¿El plan actual alcanza el mínimo requerido? */

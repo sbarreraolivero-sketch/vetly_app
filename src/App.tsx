@@ -211,7 +211,10 @@ function MainRoutes() {
 
                         <Route path="knowledge-base" element={
                             <SubscriptionGuard>
-                                <KnowledgeBase />
+                                <PlanGuard minPlan="starter" sectionName="La base de conocimiento"
+                                    description="Los documentos de conocimiento son la fuente que consulta el agente IA para responder por WhatsApp. Sin agente no hay quién los lea: el plan Starter lo activa.">
+                                    <KnowledgeBase />
+                                </PlanGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="crm" element={
