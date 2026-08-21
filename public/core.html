@@ -93,12 +93,43 @@
         /* Fondo del hero: malla de gradientes en color de marca + grilla sutil.
            Reemplaza el gris plano, sin sumar peso (todo es CSS). */
         .hero-bg { position: relative; overflow: hidden; }
-        .hero-bg::before {
-            content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-            background:
-              radial-gradient(48rem 32rem at 12% 8%,  rgba(13,148,136,.16), transparent 60%),
-              radial-gradient(40rem 28rem at 88% 2%,  rgba(14,165,233,.14), transparent 62%),
-              radial-gradient(36rem 26rem at 50% 96%, rgba(13,148,136,.10), transparent 65%);
+        /* Nebulosa: tres manchas de luz que se desplazan y respiran. Van en
+           capas separadas para poder animarlas con distinta duración — con un
+           solo `background` de tres gradientes se moverían las tres a la vez y
+           el efecto se ve mecánico. */
+        .neb {
+            position: absolute; border-radius: 50%; filter: blur(70px);
+            pointer-events: none; will-change: transform, opacity;
+        }
+        .neb-1 {
+            width: 46rem; height: 34rem; top: -10rem; left: -8rem;
+            background: radial-gradient(circle, rgba(13,148,136,.34), transparent 68%);
+            animation: neb-a 19s ease-in-out infinite;
+        }
+        .neb-2 {
+            width: 40rem; height: 30rem; top: -6rem; right: -8rem;
+            background: radial-gradient(circle, rgba(14,165,233,.30), transparent 68%);
+            animation: neb-b 24s ease-in-out infinite;
+        }
+        .neb-3 {
+            width: 38rem; height: 28rem; bottom: -12rem; left: 32%;
+            background: radial-gradient(circle, rgba(45,212,191,.26), transparent 68%);
+            animation: neb-c 21s ease-in-out infinite;
+        }
+        @keyframes neb-a {
+            0%,100% { transform: translate3d(0,0,0)        scale(1);    opacity:.85 }
+            50%     { transform: translate3d(6rem,3rem,0)  scale(1.14); opacity:1   }
+        }
+        @keyframes neb-b {
+            0%,100% { transform: translate3d(0,0,0)         scale(1.08); opacity:.75 }
+            50%     { transform: translate3d(-5rem,4rem,0)  scale(1);    opacity:1   }
+        }
+        @keyframes neb-c {
+            0%,100% { transform: translate3d(0,0,0)         scale(1);    opacity:.6 }
+            50%     { transform: translate3d(-4rem,-3rem,0) scale(1.18); opacity:.9 }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .neb { animation: none !important; }
         }
         .hero-bg::after {
             content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
@@ -109,7 +140,8 @@
             mask-image: radial-gradient(70% 60% at 50% 40%, #000 40%, transparent 100%);
             -webkit-mask-image: radial-gradient(70% 60% at 50% 40%, #000 40%, transparent 100%);
         }
-        .hero-bg > * { position: relative; z-index: 1; }
+        .hero-bg > *:not(.neb) { position: relative; z-index: 1; }
+        .neb { z-index: 0; }
 
         /* Tarjetas con vida: elevación y sombra en el verde de marca */
         .lift {
@@ -182,6 +214,9 @@
 
 <!-- ═══════════════ HERO ═══════════════ -->
 <section class="hero-bg">
+  <div class="neb neb-1"></div>
+  <div class="neb neb-2"></div>
+  <div class="neb neb-3"></div>
   <div class="max-w-6xl mx-auto px-6 pt-14 pb-14">
     <div class="max-w-4xl mx-auto text-center">
         <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-teal-700 text-xs font-bold px-3 py-1.5 rounded-full border border-teal-200 mb-6 shadow-sm">
@@ -211,6 +246,15 @@
                     Sin tarjeta de crédito.<br>Sin cobro automático al terminar.
                 </p>
             </div>
+        </div>
+
+        <div class="flex items-center justify-center gap-2 mb-8">
+            <span class="text-xs text-muted">Disponible en</span>
+            <span class="text-xl" title="Chile">🇨🇱</span>
+            <span class="text-xl" title="Argentina">🇦🇷</span>
+            <span class="text-xl" title="Colombia">🇨🇴</span>
+            <span class="text-xl" title="México">🇲🇽</span>
+            <span class="text-xl" title="Perú">🇵🇪</span>
         </div>
 
         <div class="flex flex-col items-center gap-3">
