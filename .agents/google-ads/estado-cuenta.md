@@ -50,7 +50,7 @@ tag, Consent Mode deja de aplicar en silencio.
 | Conversión `Registro` (`sign_up`) | ✅ dispara tras `signUp()` exitoso, moneda fija CLP | `src/pages/Register.tsx` |
 | **Enhanced Conversions** | 🟡 código ✅ (`gtag('set','user_data',{email})` hasheado por Google). **Falta activarlo en la UI de Ads** | `src/pages/Register.tsx` |
 | Conversión "Demo" | 🟡 ya no manda un label inválido; hoy mide `generate_lead` en GA4. **Falta crear la acción en Ads** | `vetly-tracking.js` → `DEMO_CONVERSION_LABEL` |
-| **GA4** | 🟡 código ✅ y apagado solo. **Falta crear la propiedad y pegar el Measurement ID** | `vetly-tracking.js` → `GA4_ID` |
+| **GA4** | ✅ propiedad creada y `GA4_ID` pegado (`G-7CEW929SSP`), vinculada a la etiqueta ya existente en el sitio (Google detectó `AW-18395838136` y la reutilizó — sin script adicional). Objetivos elegidos: "Generar oportunidades de venta" + "Conocer el tráfico web". **Falta:** vincular GA4 ↔ Google Ads desde la UI de Ads, y confirmar con Realtime que llegan datos | `vetly-tracking.js` → `GA4_ID` |
 | Autoetiquetado (`gclid`) en la cuenta | ✅ `auto_tagging_enabled: true` (verificado 2026-08-20) | — |
 | Importación de conversiones offline | ❌ no existe (T1.4). La tabla ya tiene las columnas para el job | — |
 

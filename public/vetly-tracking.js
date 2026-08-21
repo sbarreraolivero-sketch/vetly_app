@@ -33,11 +33,10 @@
 
     var ADS_ID = 'AW-18395838136';
 
-    // ⚠️ PENDIENTE MANUAL: pegar acá el Measurement ID de GA4 (formato G-XXXXXXXXXX).
-    // Se crea en analytics.google.com → Admin → Crear propiedad → Flujo de datos web.
-    // Mientras diga 'G-XXXXXXXXXX' el código NO configura GA4 (no rompe nada, solo
-    // no mide). Es el ÚNICO lugar del repo donde hay que pegarlo.
-    var GA4_ID = 'G-XXXXXXXXXX';
+    // Propiedad GA4 "Vetly" (analytics.google.com), creada 2026-08-20 vinculada
+    // a la etiqueta de Google ya existente en el sitio (AW-18395838136) — Google
+    // sirve la config de este destino server-side, sin script adicional.
+    var GA4_ID = 'G-7CEW929SSP';
 
     // ⚠️ PENDIENTE MANUAL: label de la acción de conversión "Demo" de Google Ads.
     // Verificado el 2026-08-20 contra la cuenta 2149932315: sólo existe la acción
