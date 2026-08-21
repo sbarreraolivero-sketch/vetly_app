@@ -101,23 +101,31 @@
             position: absolute; border-radius: 50%; filter: blur(56px);
             pointer-events: none; will-change: transform, opacity;
         }
-        /* Las manchas se ubican DENTRO de la sección, no fuera: antes nacían en
-           -10rem y `overflow:hidden` recortaba casi todo el halo, así que sólo
-           asomaba una esquina apagada. */
+        /* Las manchas viven DENTRO de la sección: si nacen muy afuera,
+           `overflow:hidden` recorta el halo y sólo asoma una esquina apagada.
+           Opacidad baja a propósito — la presencia viene del recorrido y del
+           cruce de colores, no de la saturación. */
         .neb-1 {
             width: 40rem; height: 30rem; top: -6rem; left: -6rem;
-            background: radial-gradient(circle, rgba(13,148,136,.62), transparent 66%);
+            background: radial-gradient(circle, rgba(13,148,136,.34), transparent 66%);
             animation: neb-a 16s ease-in-out infinite;
         }
         .neb-2 {
             width: 36rem; height: 28rem; top: -3rem; right: -5rem;
-            background: radial-gradient(circle, rgba(14,165,233,.55), transparent 66%);
+            background: radial-gradient(circle, rgba(14,165,233,.30), transparent 66%);
             animation: neb-b 20s ease-in-out infinite;
         }
         .neb-3 {
             width: 34rem; height: 26rem; bottom: -8rem; left: 34%;
-            background: radial-gradient(circle, rgba(45,212,191,.5), transparent 66%);
+            background: radial-gradient(circle, rgba(45,212,191,.28), transparent 66%);
             animation: neb-c 18s ease-in-out infinite;
+        }
+        /* Violeta: el color de la sección de marketing en la app. Va al centro
+           alto para que se cruce con el teal y el celeste. */
+        .neb-4 {
+            width: 32rem; height: 24rem; top: 2rem; left: 38%;
+            background: radial-gradient(circle, rgba(139,92,246,.26), transparent 66%);
+            animation: neb-d 23s ease-in-out infinite;
         }
         @keyframes neb-a {
             0%,100% { transform: translate3d(0,0,0)          scale(1);    opacity:.7 }
@@ -130,6 +138,10 @@
         @keyframes neb-c {
             0%,100% { transform: translate3d(0,0,0)          scale(1);    opacity:.45 }
             50%     { transform: translate3d(-10rem,-7rem,0) scale(1.35); opacity:.85 }
+        }
+        @keyframes neb-d {
+            0%,100% { transform: translate3d(0,0,0)          scale(1.1);  opacity:.5 }
+            50%     { transform: translate3d(9rem,-6rem,0)   scale(1);    opacity:.9 }
         }
         @media (prefers-reduced-motion: reduce) {
             .neb { animation: none !important; }
@@ -220,6 +232,7 @@
   <div class="neb neb-1"></div>
   <div class="neb neb-2"></div>
   <div class="neb neb-3"></div>
+  <div class="neb neb-4"></div>
   <div class="max-w-6xl mx-auto px-6 pt-14 pb-14">
     <div class="max-w-4xl mx-auto text-center">
         <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-teal-700 text-xs font-bold px-3 py-1.5 rounded-full border border-teal-200 mb-6 shadow-sm">
