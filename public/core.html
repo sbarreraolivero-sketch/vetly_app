@@ -133,10 +133,22 @@
            grande la banda se despega porque el fondo de un inline se pinta
            sobre la caja em de la fuente, no sobre los glifos. */
         .hl-mid {
-            background: linear-gradient(180deg, transparent 50%, rgba(45,212,191,.45) 50%);
+            /* La banda se dibuja de ancho 0 y crece a 100% cuando el título
+               entra en pantalla (ver el observador al final del documento).
+               Se anima `background-size`, no `width`, para no reflowear texto. */
+            background-image: linear-gradient(180deg, transparent 50%, rgba(45,212,191,.45) 50%);
+            background-repeat: no-repeat;
+            background-size: 0% 100%;
             padding: 0 .06em;
             box-decoration-break: clone;
             -webkit-box-decoration-break: clone;
+            transition: background-size .75s cubic-bezier(.22,.61,.36,1);
+        }
+        .hl-mid.is-on { background-size: 100% 100%; }
+
+        /* Quien pidió menos movimiento en su sistema ve la banda ya pintada. */
+        @media (prefers-reduced-motion: reduce) {
+            .hl-mid { background-size: 100% 100%; transition: none; }
         }
 
         details > summary { list-style: none; cursor: pointer; }
@@ -731,6 +743,33 @@
     <span class="hidden sm:inline">Hablar por WhatsApp</span>
 </a>
 <script>
+    // Subrayado de marcador que se rellena al entrar en pantalla y se vacía al
+    // salir, para que vuelva a animarse si el visitante sube y baja de nuevo.
+    (function () {
+        var marcas = document.querySelectorAll('.hl-mid');
+        if (!marcas.length) return;
+
+        // Sin IntersectionObserver (navegador muy antiguo) se pintan sin animar:
+        // el subrayado es decorativo, nunca debe dejar texto sin resaltar.
+        if (!('IntersectionObserver' in window)) {
+            marcas.forEach(function (m) { m.classList.add('is-on'); });
+            return;
+        }
+
+        var obs = new IntersectionObserver(function (entradas) {
+            entradas.forEach(function (e) {
+                e.target.classList.toggle('is-on', e.isIntersecting);
+            });
+        }, {
+            // Se dispara cuando el título ya subió un poco desde el borde
+            // inferior, no apenas asoma.
+            rootMargin: '0px 0px -18% 0px',
+            threshold: 0.6,
+        });
+
+        marcas.forEach(function (m) { obs.observe(m); });
+    })();
+
     (function () {
         var b = document.getElementById('wa-sales-bubble');
         if (!b) return;
