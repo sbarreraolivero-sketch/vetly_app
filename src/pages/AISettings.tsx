@@ -246,7 +246,7 @@ export default function AISettings() {
     // ─── Computed values ──────────────────────────────────────────────────────
 
     // Fuente de verdad: tabla messages (cubre todo el historial, separa costos reales por modelo)
-    const totalUsed = (miniMessages * 1) + (standardMessages * 15) + (proMessages * 15)
+    const totalUsed = (miniMessages * 1) + (standardMessages * 20) + (proMessages * 20)
     const extraExpired = aiCreditsExtraExpiresAt ? new Date(aiCreditsExtraExpiresAt) < new Date() : false
     const extraAvailable = extraExpired ? 0 : (aiCreditsExtraBalance + aiCreditsExtra4o)
     const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
@@ -515,14 +515,14 @@ export default function AISettings() {
                                     </div>
                                     <div>
                                         <p className="text-xs font-black text-charcoal">GPT-4o</p>
-                                        <p className="text-[10px] font-bold text-violet-600">×15 créditos / msg</p>
+                                        <p className="text-[10px] font-bold text-violet-600">×20 créditos / msg</p>
                                     </div>
                                 </div>
                                 <p className="text-3xl font-black text-charcoal tabular-nums">{(proMessages + standardMessages).toLocaleString()}</p>
                                 <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
                                 <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
                                     <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-violet-600 tabular-nums">{((proMessages + standardMessages) * 15).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-violet-600 tabular-nums">{((proMessages + standardMessages) * 20).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>
