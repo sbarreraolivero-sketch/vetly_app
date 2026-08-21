@@ -28,20 +28,21 @@
     <meta name="twitter:image" content="https://vetly.pro/og-image.png">
 
     <!-- ══════════════════════════════════════════════════════════════
-         GOOGLE ADS — AW-18395838136. Solo la etiqueta base — la
-         conversión "Registros" (label CU91CNiuu-McELjt6MNE) se dispara
-         desde Register.tsx cuando el registro se completa de verdad, no
-         al hacer click en el link hacia /register (eso solo mide
-         intención, no conversión real — Google recomienda medir "Carga
-         de página"/evento post-completado para este tipo de acción).
+         MEDICIÓN — vetly-tracking.js va SÍNCRONO y ANTES de gtag.js.
+         Fija los defaults de Consent Mode v2 (todo denied) y captura
+         gclid/wbraid/gbraid/UTMs en cookie first-party de 90 días, que
+         es lo que después viaja hasta la tabla `attribution` cuando el
+         usuario se registra. Ponerle async o moverlo abajo rompe ambas
+         cosas en silencio.
+
+         La conversión "Registros" (label CU91CNiuu-McELjt6MNE) se
+         dispara desde Register.tsx cuando el registro se completa de
+         verdad, no al hacer click en el link hacia /register (eso sólo
+         mide intención — Google recomienda medir el evento
+         post-completado para este tipo de acción).
          ══════════════════════════════════════════════════════════════ -->
+    <script src="/vetly-tracking.js"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18395838136"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'AW-18395838136');
-    </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">

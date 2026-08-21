@@ -17,16 +17,20 @@
 
   <title>Vetly AI - Gestión Inteligente de Citas</title>
 
-  <!-- Google Ads — base tag. El evento de conversión "Registros" se
-       dispara desde Register.tsx solo cuando el registro se completa
-       de verdad, no al hacer click en un link hacia esta página. -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       MEDICIÓN — el orden de estos dos scripts importa.
+
+       vetly-tracking.js va SÍNCRONO y PRIMERO: fija los defaults de
+       Consent Mode v2 (todo denied) y captura gclid/wbraid/UTMs antes de
+       que gtag.js procese cualquier `config`. Si se le pone async/defer o
+       se mueve debajo, el consentimiento por defecto deja de aplicarse.
+
+       El evento de conversión "Registros" se dispara desde Register.tsx
+       sólo cuando el registro se completa de verdad, nunca al hacer click
+       en un link hacia esta página.
+       ══════════════════════════════════════════════════════════════════ -->
+  <script src="/vetly-tracking.js"></script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18395838136"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'AW-18395838136');
-  </script>
 </head>
 
 <body>

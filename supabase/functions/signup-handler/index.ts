@@ -28,6 +28,68 @@ interface SignupRequest {
     payment_provider?: 'mercadopago' | 'paddle';
     referral_code?: string;
     turnstile_token?: string;
+    attribution?: AttributionPayload;
+}
+
+// Atribución publicitaria capturada en la landing por `public/vetly-tracking.js`
+// (cookie first-party de 90 días). Llega desde Register.tsx → AuthContext.signUp.
+interface AttributionPayload {
+    gclid?: string | null;
+    wbraid?: string | null;
+    gbraid?: string | null;
+    msclkid?: string | null;
+    fbclid?: string | null;
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+    utm_term?: string | null;
+    utm_content?: string | null;
+    landing_url?: string | null;
+    referrer?: string | null;
+    first_seen_at?: string | null;
+    last_touch_at?: string | null;
+}
+
+// Recorta y normaliza lo que llega del cliente. Este payload es controlado por
+// el navegador (cualquiera puede llamar a la función con lo que quiera), así que
+// nada se inserta sin truncar: sin esto, un valor de 10 MB en `landing_url`
+// entra tal cual a la base.
+function sanitizeAttribution(a: AttributionPayload | undefined): Record<string, string | null> | null {
+    if (!a || typeof a !== "object") return null;
+
+    const str = (v: unknown, max: number): string | null => {
+        if (typeof v !== "string") return null;
+        const t = v.trim();
+        return t ? t.slice(0, max) : null;
+    };
+    const ts = (v: unknown): string | null => {
+        const s = str(v, 40);
+        if (!s) return null;
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+    };
+
+    const out = {
+        gclid: str(a.gclid, 512),
+        wbraid: str(a.wbraid, 512),
+        gbraid: str(a.gbraid, 512),
+        msclkid: str(a.msclkid, 512),
+        fbclid: str(a.fbclid, 512),
+        utm_source: str(a.utm_source, 255),
+        utm_medium: str(a.utm_medium, 255),
+        utm_campaign: str(a.utm_campaign, 255),
+        utm_term: str(a.utm_term, 255),
+        utm_content: str(a.utm_content, 255),
+        landing_url: str(a.landing_url, 1024),
+        referrer: str(a.referrer, 1024),
+        first_touch_at: ts(a.first_seen_at),
+        last_touch_at: ts(a.last_touch_at),
+    };
+
+    // Sin ningún identificador útil no vale la pena escribir una fila.
+    const hasSignal = out.gclid || out.wbraid || out.gbraid || out.msclkid ||
+        out.fbclid || out.utm_source || out.utm_campaign;
+    return hasSignal ? out : null;
 }
 
 // Verifica el token de Cloudflare Turnstile contra la API de Cloudflare.
@@ -70,7 +132,7 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: SignupRequest = await req.json();
-        const { email, password, full_name, clinic_name, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token } = body;
+        const { email, password, full_name, clinic_name, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token, attribution } = body;
 
         // Validate required fields
         if (!email || !password || !full_name || !clinic_name) {
@@ -323,6 +385,31 @@ Deno.serve(async (req: Request) => {
             } catch (e) {
                 console.warn("Referral capture failed (non-fatal):", e);
             }
+        }
+
+        // 4c. Atribución publicitaria (no fatal — nunca bloquea el registro).
+        // Es la fila que después permite cruzar un clic pagado con el cliente
+        // que efectivamente pagó, vía importación de conversiones offline a
+        // Google Ads. Si falla, se pierde la atribución de ESE registro, no el
+        // registro — mismo criterio que el bloque de referidos de arriba.
+        try {
+            const attr = sanitizeAttribution(attribution);
+            if (attr) {
+                const { error: attrError } = await supabaseAdmin
+                    .from("attribution")
+                    .insert({
+                        ...attr,
+                        user_id: userId,
+                        clinic_id: clinicData.id,
+                        plan: selected_plan,
+                        // Country lo pone el edge de Cloudflare delante de Supabase.
+                        // No se deriva del navegador: el cliente puede mentir.
+                        country: req.headers.get("cf-ipcountry") || null,
+                    });
+                if (attrError) console.warn("Attribution insert failed (non-fatal):", attrError);
+            }
+        } catch (e) {
+            console.warn("Attribution capture failed (non-fatal):", e);
         }
 
         // 5. Send Welcome Email (Async)

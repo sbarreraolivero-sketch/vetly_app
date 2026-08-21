@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { PLANS } from '@/lib/mercadopago'
 import { PADDLE_PLANS } from '@/lib/paddle'
+import { getAttribution, hasPaidAttribution } from '@/lib/attribution'
 // Payment SDKs removed for free-trial onboarding
 
 const PLAN_ORDER = ['core', 'starter', 'pro', 'enterprise'] as const
@@ -22,6 +23,7 @@ declare global {
             remove: (widgetId: string) => void
         }
         gtag?: (...args: unknown[]) => void
+        vetlyGa4Ready?: boolean
     }
 }
 
@@ -30,14 +32,36 @@ declare global {
 // click en un link hacia esta página, que solo mide intención, no conversión
 // real (mismo criterio que recomienda Google: "carga de página"/evento
 // post-completado, no clic previo).
-function trackRegistrationConversion(plan: string, currency: 'CLP' | 'USD') {
+//
+// La moneda va fija en CLP porque la acción de conversión `Registro` (id
+// 7724783448) está definida en CLP del lado de Google, igual que la cuenta
+// 2149932315. Antes se mandaba 'USD' cuando el usuario elegía la modalidad
+// internacional: Google convertía ese 1.0 USD a CLP al tipo de cambio del día
+// y el valor de conversión quedaba inconsistente entre registros idénticos.
+// El valor 1.0 es un proxy de conteo, no el ticket real.
+function trackRegistrationConversion(plan: string, email: string) {
+    // Enhanced Conversions: se manda el email normalizado (minúsculas, sin
+    // espacios) ANTES del evento. La etiqueta de Google lo hashea con SHA-256
+    // en el cliente — nunca sale en claro. Requiere además tener activadas las
+    // conversiones mejoradas en la UI de Google Ads para esta acción.
+    const normalizedEmail = email.trim().toLowerCase()
+    if (normalizedEmail) {
+        window.gtag?.('set', 'user_data', { email: normalizedEmail })
+    }
+
     window.gtag?.('event', 'conversion', {
         send_to: 'AW-18395838136/CU91CNiuu-McELjt6MNE',
         value: 1.0,
-        currency,
+        currency: 'CLP',
         event_category: 'registro',
         event_label: plan,
     })
+
+    // Evento equivalente en GA4. `vetlyGa4Ready` es false mientras no exista la
+    // propiedad, así que esto no hace nada hasta que se pegue el Measurement ID.
+    if (window.vetlyGa4Ready) {
+        window.gtag?.('event', 'sign_up', { method: 'email', plan })
+    }
 }
 
 const ROLE_TRANSLATIONS: Record<string, string> = {
@@ -280,7 +304,13 @@ export default function Register() {
         setError('')
         setLoading(true)
 
-        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined)
+        // Atribución capturada en la landing (gclid/wbraid/UTMs). Viaja al
+        // backend junto al registro para poder cruzar después el clic pagado con
+        // el cliente que efectivamente pagó (importación de conversiones
+        // offline). Si no hay nada guardado va undefined y el backend lo ignora.
+        const attribution = getAttribution()
+
+        const { error }: any = await (signUp as any)(email, password, fullName, clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined)
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
@@ -290,7 +320,7 @@ export default function Register() {
         }
 
         // Cuenta creada de verdad — recién acá cuenta como conversión real.
-        trackRegistrationConversion(selectedPlan, paymentRegion === 'international' ? 'USD' : 'CLP')
+        trackRegistrationConversion(selectedPlan, email)
 
         // Enviar correo de bienvenida
         try {

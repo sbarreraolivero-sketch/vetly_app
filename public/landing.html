@@ -11,30 +11,29 @@
     <link rel="canonical" href="https://vetly.pro/">
 
     <!-- ══════════════════════════════════════════════════════════════
-         GOOGLE ADS — AW-18395838136 es el ID real de la cuenta.
-         El evento de conversión se dispara al hacer click en cualquier
-         CTA "/demo" (el funnel principal de esta landing) — OJO: esto es
-         una acción de conversión DISTINTA a "Registros" (creada para la
-         campaña de /core). Falta crear una acción "Demo" en Google Ads y
-         reemplazar el label XXXXXXXXXXXXXXXXXXX de abajo antes de que
-         este evento reporte de verdad.
+         MEDICIÓN — vetly-tracking.js va SÍNCRONO y ANTES de gtag.js.
+         Fija los defaults de Consent Mode v2, configura GA4 y captura
+         gclid/wbraid/gbraid/UTMs. Ponerle async o moverlo abajo rompe el
+         consentimiento por defecto en silencio.
+
+         La conversión "Demo" es una acción DISTINTA a "Registros" (esta
+         última vive en /core → Register.tsx). Verificado el 2026-08-20
+         contra la cuenta 2149932315: la acción "Demo" TODAVÍA NO EXISTE
+         en Google Ads. El label placeholder que había acá
+         (XXXXXXXXXXXXXXXXXXX) no registraba absolutamente nada.
+
+         Hasta que se cree la acción y se pegue su label en
+         DEMO_CONVERSION_LABEL dentro de vetly-tracking.js, el click en
+         "/demo" se mide sólo como `generate_lead` en GA4 — que sí sirve
+         y no depende de Google Ads.
          ══════════════════════════════════════════════════════════════ -->
+    <script src="/vetly-tracking.js"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18395838136"></script>
     <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'AW-18395838136');
-        // gtag('config', 'G-XXXXXXXXXX');    // GA4 — agregar si se crea la propiedad
-
         document.addEventListener('DOMContentLoaded', function () {
             document.querySelectorAll('a[href="/demo"]').forEach(function (el) {
                 el.addEventListener('click', function () {
-                    gtag('event', 'conversion', {
-                        'send_to': 'AW-18395838136/XXXXXXXXXXXXXXXXXXX',
-                        'event_category': 'demo',
-                        'event_label': 'landing_principal',
-                    });
+                    if (window.vetlyTrackDemo) window.vetlyTrackDemo();
                 });
             });
         });
