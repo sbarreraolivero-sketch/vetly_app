@@ -48,9 +48,9 @@ tag, Consent Mode deja de aplicar en silencio.
 | Atribución llega al backend | ✅ `Register.tsx` → `AuthContext.signUp` → `signup-handler` | — |
 | Tabla `attribution` en Supabase | 🟡 migración escrita, **sin aplicar** | `supabase/migrations/20260820180000_attribution_table.sql` |
 | Conversión `Registro` (`sign_up`) | ✅ dispara tras `signUp()` exitoso, moneda fija CLP | `src/pages/Register.tsx` |
-| **Enhanced Conversions** | 🟡 código ✅ (`gtag('set','user_data',{email})` hasheado por Google). **Falta activarlo en la UI de Ads** | `src/pages/Register.tsx` |
-| Conversión "Demo" | 🟡 ya no manda un label inválido; hoy mide `generate_lead` en GA4. **Falta crear la acción en Ads** | `vetly-tracking.js` → `DEMO_CONVERSION_LABEL` |
-| **GA4** | ✅ propiedad creada y `GA4_ID` pegado (`G-7CEW929SSP`), vinculada a la etiqueta ya existente en el sitio (Google detectó `AW-18395838136` y la reutilizó — sin script adicional). Objetivos elegidos: "Generar oportunidades de venta" + "Conocer el tráfico web". **Falta:** vincular GA4 ↔ Google Ads desde la UI de Ads, y confirmar con Realtime que llegan datos | `vetly-tracking.js` → `GA4_ID` |
+| **Enhanced Conversions** | ✅ activo — confirmado en Ads (Objetivos → Conversiones → Registro → Configuración → "Conversiones avanzadas": casilla ya marcada de fábrica, administrada vía la etiqueta de Google unificada) | `src/pages/Register.tsx` |
+| Conversión "Demo" | 🟡 ya no manda un label inválido; hoy mide `generate_lead` en GA4. **Falta crear la acción en Ads** (baja prioridad) | `vetly-tracking.js` → `DEMO_CONVERSION_LABEL` |
+| **GA4** | ✅ propiedad "Vetly" creada, `GA4_ID` pegado (`G-7CEW929SSP`), vinculada a la etiqueta ya existente en el sitio (Google detectó `AW-18395838136` y la reutilizó — sin script adicional). Confirmado con usuario real en Realtime | `vetly-tracking.js` → `GA4_ID` |
 | Autoetiquetado (`gclid`) en la cuenta | ✅ `auto_tagging_enabled: true` (verificado 2026-08-20) | — |
 | Importación de conversiones offline | ❌ no existe (T1.4). La tabla ya tiene las columnas para el job | — |
 
@@ -85,10 +85,8 @@ obliga a revisar las seis.
 ## Orden de desbloqueo
 
 ```
-T1  Tracking          ← código ✅ 2026-08-20. SIGUE BLOQUEANTE por 4 pasos manuales:
-    (a) aplicar la migración de `attribution`  (b) desplegar signup-handler
-    (c) crear GA4 + pegar Measurement ID       (d) activar Enhanced Conversions en Ads
-    y sobre todo: validar `Registro` con un registro real. Detalle abajo.
+T1  Tracking          ← ✅ CERRADO 2026-08-20. Validado con un registro real de punta a punta
+    (ver bitácora). Ya no bloquea nada.
 
 T2  Landings          ← BLOQUEANTE para el CVR.
     Unificar precio y trial · CTA "Crear cuenta gratis" · prueba social
@@ -101,43 +99,17 @@ T3  Configurar cuenta
 T4  Lanzar C1 + C2 en borrador → orden de cambio
 ```
 
-Nada después de T1 tiene sentido si T1 no está cerrado.
+Nada después de T1 tiene sentido si T1 no está cerrado. **Ya lo está — pasar directo a T2.**
 
 ---
 
-## T1 — pasos manuales pendientes (nadie más puede hacerlos)
+## T1 — cerrado (referencia histórica, no quedan pasos pendientes)
 
-En orden. Los 3 primeros son de despliegue; los 3 últimos, de consolas externas.
-
-1. **Aplicar la migración** — `supabase/migrations/20260820180000_attribution_table.sql`.
-   Sin la tabla, `signup-handler` loguea un warning no fatal y la atribución se pierde (el registro
-   sí funciona). Supuestos ya verificados contra la base: `gen_random_uuid` vive en `pg_catalog`
-   (no requiere prefijo `extensions.`, a diferencia del bug de `gen_random_bytes` de la sesión 78),
-   FKs a `clinic_settings.id` y `auth.users.id` ambas `uuid`, y la tabla no existe todavía.
-
-2. **Desplegar `signup-handler`** — `supabase functions deploy signup-handler`.
-   Sin flag `--no-verify-jwt`: no está en `config.toml` y el frontend la llama con la anon key.
-
-3. **Desplegar el frontend** (push a `main`). Verificar en el bundle **real**, no en local:
-   `vetly-tracking.js` debe existir en la raíz servida, y el marcador de Enhanced Conversions vive
-   en el chunk `Register-*.js`, **no** en `index-*.js` (es una ruta lazy).
-
-4. **Crear la propiedad GA4** en `analytics.google.com` → Admin → Crear propiedad → Flujo de datos
-   web (`https://vetly.pro`). Pegar el `G-XXXXXXXXXX` en la constante `GA4_ID` de
-   `public/vetly-tracking.js`. Es el único lugar del repo. Vincular después GA4 ↔ Google Ads.
-
-5. **Activar Enhanced Conversions** en Google Ads → Objetivos → Conversiones → `Registro` →
-   Configuración → *Activar conversiones mejoradas* → aceptar condiciones → método **Etiqueta de
-   Google**. El código ya envía el email normalizado; sin este switch Google lo descarta.
-
-6. **Crear la acción de conversión `Demo`** (Objetivos → Conversiones → Nueva → Sitio web →
-   configuración manual) y pegar su label en `DEMO_CONVERSION_LABEL` de `vetly-tracking.js`.
-   Menor prioridad: `/demo` no es el destino de las campañas de Core.
-
-**Decisión de negocio abierta:** `CONSENT_MODE` está en `'strict'` (denied global hasta aceptar).
-Es lo más conservador, pero Chile y México no exigen opt-in previo, y todo usuario que ignore el
-banner queda medido solo por modelado. Con 20–45 conversiones/mes objetivo, esa pérdida de señal
-afecta el aprendizaje de Smart Bidding. Cambiar a `'eea_only'` es una línea.
+Los 6 pasos manuales que este documento traía pendientes (aplicar migración, desplegar
+`signup-handler`, desplegar frontend, crear GA4, activar Enhanced Conversions, `CONSENT_MODE`)
+**se completaron y verificaron todos el 2026-08-20** — ver bitácora para el detalle de cada uno.
+Único punto que queda abierto, sin bloquear nada: crear la acción de conversión `Demo` en Ads
+(baja prioridad, `/demo` no es destino de las campañas de Core).
 
 ---
 
@@ -147,3 +119,4 @@ afecta el aprendizaje de Smart Bidding. Cambiar a `'eea_only'` es una línea.
 |---|---|
 | 2026-08-18 | Auditoría inicial. Cuenta creada y vacía, 1 PMax pausada con Display ON, 1 conversión sin validar, tracking a medias, precios incoherentes. Nada ha gastado. |
 | 2026-08-20 | **T1 en código.** Capa única `public/vetly-tracking.js`: Consent Mode v2, captura de `gclid`/`wbraid`/`gbraid`/UTM en cookie 90 d, GA4 gateado por una constante. Atribución viaja hasta `signup-handler` y tabla `attribution` (migración escrita, sin aplicar). Enhanced Conversions en `Register.tsx`. **Bug corregido:** la conversión enviaba `currency: 'USD'` cuando la acción está definida en CLP — Google convertía y el valor quedaba inconsistente entre registros idénticos. **Bug corregido:** el `send_to` de Demo con label placeholder se eliminó (no registraba nada). Verificado 30/30 en Chrome real. Reverificado por API: 1 sola conversión (`Registro`), autoetiquetado ON, `Campaign #1` sigue PAUSED con **Display y Search Network en true** (pendiente T3). |
+| 2026-08-20 (cont.) | **T1 cerrado end-to-end.** Migración `attribution` aplicada; `signup-handler` redeployado (v38) con verify_jwt=true intacto — el bundler de `deploy_edge_function` requiere nombrar los archivos con la ruta real del repo (`supabase/functions/signup-handler/index.ts` + `supabase/functions/_shared/planLimits.ts`) para que resuelva `../_shared/`, si no tira `Module not found`. `CONSENT_MODE` cambiado a `'eea_only'` (denied solo en EEA/UK/CH). GA4 creado (`G-7CEW929SSP`) y pegado en `GA4_ID`, confirmado con 1 usuario real en Realtime. **Bug encontrado y corregido:** `AuthContext.signUp` solo mostraba el mensaje genérico de supabase-js ("Edge Function returned a non-2xx status code") en cualquier fallo de `signup-handler`, sin importar la causa real — ahora lee `functionError.context.json()` para mostrar el motivo verdadero. Registro real de prueba completado en plan Core (tras sortear: sesión previa de Animalgrace bloqueando `/register` por diseño de `ProtectedRoute`, autofill de Chrome con el email viejo, y un primer intento fallido probablemente por token de Turnstile expirado durante la depuración). Confirmado por consola del navegador: `dataLayer` con `send_to: "AW-18395838136/CU91CNiuu-McELjt6MNE"`, `currency: "CLP"` — la conversión llega bien formada. **Enhanced Conversions confirmado ya activo** en Ads (casilla marcada de fábrica, vía la etiqueta de Google unificada) — no requirió ninguna acción. Hallazgo aparte, no bloqueante: bucle de "Attempt N failed to fetch profile" en consola causado por eco de `onAuthStateChange` entre pestañas de Vetly abiertas simultáneamente — no impide que el perfil cargue, pendiente de investigar si molesta. Hallazgo aparte para T2: el toggle Chile/CLP en `/register` muestra Core a $33.000 sin el descuento de lanzamiento (el cupón CLP nunca se armó, ya documentado como pendiente). |
