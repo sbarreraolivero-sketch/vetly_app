@@ -42,6 +42,7 @@ import {
     Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PlanGate } from '@/components/common/PlanGate'
 import { PLANS, type PlanId, normalizePlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
 import { PADDLE_PLANS, type PaddlePlanId, type BillingPeriod, PADDLE_CREDIT_PACKS, planSupportsAnnual, openPaddleSubscriptionCheckout, openPaddleCreditsCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
 import { useAuth } from '@/contexts/AuthContext'
@@ -3165,6 +3166,9 @@ export default function Settings() {
                                     </label>
                                 </div>
 
+                                {/* Exclusiva del agente IA (herramienta escalate_to_human) — Core no
+                                    tiene agente conversacional, así que este aviso nunca se dispararía. */}
+                                <PlanGate requiredPlan="starter" label="Desde Starter">
                                 <div className="flex items-center justify-between p-4 bg-ivory rounded-soft border border-orange-200">
                                     <div>
                                         <div className="flex items-center gap-2">
@@ -3183,6 +3187,7 @@ export default function Settings() {
                                         <div className="w-11 h-6 bg-silk-beige rounded-full peer peer-checked:bg-primary-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
                                     </label>
                                 </div>
+                                </PlanGate>
                             </div>
 
                             <div className="mt-6 pt-6 border-t border-silk-beige">
