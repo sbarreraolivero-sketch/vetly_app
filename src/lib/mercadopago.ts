@@ -203,6 +203,11 @@ export { PLAN_LEGACY_MAP, normalizePlanId } from './plans'
  * CLP Credit Packs — GPT-4o-mini (económico)
  */
 export const CREDIT_PACKS = {
+    // Pack para el plan Core: no tiene agente conversacional, así que sus
+    // créditos se van sólo en el análisis de facturas (20 por archivo). Los
+    // packs de abajo son para clínicas con el agente activo — 4.000 créditos
+    // son 200 facturas, un volumen que Core no consume.
+    'pack_facturas': { id: 'pack_facturas', name: 'Pack Facturas', credits: 600, price: 3000, description: '600 créditos — unas 30 facturas' },
     'pack_500':  { id: 'pack_500',  name: 'Pack Inicial',    credits: 4000,  price: 8000,  description: '4.000 Créditos de IA' },
     'pack_1500': { id: 'pack_1500', name: 'Pack Pro',        credits: 8000,  price: 13000, description: '8.000 Créditos de IA' },
     'pack_4000': { id: 'pack_4000', name: 'Pack Enterprise', credits: 20000, price: 25000, description: '20.000 Créditos de IA' },

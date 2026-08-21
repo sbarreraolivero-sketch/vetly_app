@@ -124,7 +124,10 @@ Deno.serve(async (req: Request) => {
 
                 const currentBalance = (settings as any)?.[balanceField] || 0;
                 const newBalance = currentBalance + creditsToAdd;
-                const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                // Los créditos comprados NO vencen. Antes expiraban a los 30 días: en un
+            // pack chico (600 créditos ≈ 30 facturas) eso significa pagar por algo
+            // que se borra casi entero, y es motivo de reclamo, no de recompra.
+            const expiresAt = null;
 
                 // Update balance + set expiry
                 const { error: updateError } = await supabase

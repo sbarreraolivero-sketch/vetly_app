@@ -5,6 +5,15 @@ const MERCADOPAGO_ACCESS_TOKEN = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 
 const CREDIT_PACKS_MINI: Record<string, { credits: number, prices: Record<string, number>, description: string }> = {
+    // Pack pensado para el plan Core, que no tiene agente conversacional y sólo
+    // usa créditos para el análisis de facturas (20 créditos por archivo).
+    // Los packs grandes de abajo son para clínicas con el agente activo: 4.000
+    // créditos son 200 facturas, un volumen que una clínica Core no consume.
+    'pack_facturas': {
+        credits: 600,
+        prices: { CLP: 3000, ARS: 3000, MXN: 60, COP: 13000, PEN: 12, USD: 3 },
+        description: '600 Créditos de IA — unas 30 facturas',
+    },
     'pack_500': {
         credits: 4000,
         prices: { CLP: 8000, ARS: 8000, MXN: 150, COP: 35000, PEN: 35, USD: 9 },

@@ -14,9 +14,10 @@ import {
 } from '@/services/inventoryService'
 import type { AbcProduct, NoRotationProduct } from '@/services/inventoryService'
 import { InvoiceAnalysisModal } from '@/components/inventory/InvoiceAnalysisModal'
-import { PlanGate } from '@/components/common/PlanGate'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -131,6 +132,13 @@ const Inventory = () => {
     const [transferNotes, setTransferNotes] = useState('')
     const [transferring, setTransferring] = useState(false)
 
+    const navigate = useNavigate()
+
+    // Créditos de IA disponibles del pool de la clínica. El análisis de una
+    // factura consume 20; con menos de eso se manda a comprar en vez de dejar
+    // subir el archivo y fallar recién en la edge function.
+    const [creditosIA, setCreditosIA] = useState(0)
+
     // ── Product modal states ───────────────────────────────────────────
     const [showInvoiceModal, setShowInvoiceModal] = useState(false)
     const [showProductModal, setShowProductModal] = useState(false)
@@ -235,6 +243,33 @@ const Inventory = () => {
         setAbcData(abc)
         setNoRotation(noRot)
     }, [clinicId, abcDays, noRotDays])
+
+    // Créditos disponibles del pool. Se resuelve la clínica raíz porque las
+    // sucursales comparten bolsa con la matriz (`parent_clinic_id`).
+    useEffect(() => {
+        if (!clinicId) return
+        let cancelled = false
+        const cargarCreditos = async () => {
+            const { data: propia } = await supabase
+                .from('clinic_settings')
+                .select('parent_clinic_id')
+                .eq('id', clinicId)
+                .maybeSingle()
+            const poolId = (propia as { parent_clinic_id?: string | null } | null)?.parent_clinic_id || clinicId
+            const { data } = await supabase
+                .from('clinic_settings')
+                .select('ai_credits_extra_balance, ai_credits_monthly_limit, ai_credits_unlimited')
+                .eq('id', poolId)
+                .maybeSingle()
+            if (cancelled || !data) return
+            const d = data as { ai_credits_extra_balance?: number; ai_credits_monthly_limit?: number; ai_credits_unlimited?: boolean }
+            setCreditosIA(d.ai_credits_unlimited
+                ? Number.MAX_SAFE_INTEGER
+                : (d.ai_credits_extra_balance || 0) + (d.ai_credits_monthly_limit || 0))
+        }
+        cargarCreditos()
+        return () => { cancelled = true }
+    }, [clinicId])
 
     useEffect(() => {
         if (!clinicId) return
@@ -518,21 +553,25 @@ const Inventory = () => {
                             </h1>
                             <p className="text-xs sm:text-sm text-primary-200 mt-1">Gestión de productos, stock y movimientos</p>
                         </div>
-                        {/* Análisis de factura consume créditos IA (20/archivo). Core tiene 0 y
-                            no puede comprar más — la única vía de compra es AISettings, que ya
-                            está bloqueada desde Starter. Sin este candado, un usuario Core abría
-                            el modal, subía el archivo, y recién ahí veía el error de créditos
-                            insuficientes desde la edge function. */}
-                        <PlanGate requiredPlan="starter" label="Desde Starter" mode="lock">
-                            <button
-                                onClick={() => setShowInvoiceModal(true)}
-                                className="shrink-0 inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                            >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Analizar Factura con IA</span>
-                                <span className="sm:hidden">Factura IA</span>
-                            </button>
-                        </PlanGate>
+                        {/* Análisis de factura consume 20 créditos IA por archivo. Cualquier
+                            plan puede usarlo comprando un pack; Core no trae créditos incluidos,
+                            así que si no le alcanzan se le manda a comprar en vez de dejarlo
+                            subir el archivo y fallar recién en la edge function. */}
+                        <button
+                            onClick={() => {
+                                if (creditosIA < 20) {
+                                    toast('Necesitas créditos para analizar facturas. Te llevamos a comprarlos.', { icon: '💳' })
+                                    navigate('/app/ai-credits#comprar')
+                                    return
+                                }
+                                setShowInvoiceModal(true)
+                            }}
+                            className="shrink-0 inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Analizar Factura con IA</span>
+                            <span className="sm:hidden">Factura IA</span>
+                        </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 text-center">
                         <div className="bg-white/10 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0">

@@ -9,11 +9,42 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePlan } from '@/hooks/usePlan'
+import { CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
+import { openPaddleCreditsCheckout } from '@/lib/paddle'
 import { AITransactionHistory } from '@/components/dashboard/AITransactionHistory'
 import { toast } from 'react-hot-toast'
 
 export default function AICredits() {
-    const { profile } = useAuth()
+    const { profile, user } = useAuth()
+    const { planId } = usePlan()
+
+    // Core no tiene agente conversacional: sus créditos se van sólo en el
+    // análisis de facturas del inventario. Por eso se le ofrece un único pack
+    // chico, no los tres pensados para clínicas con el agente activo.
+    const esCore = planId === 'core'
+    const packFacturas = CREDIT_PACKS['pack_facturas']
+    const [comprando, setComprando] = useState(false)
+
+    const comprarPack = async () => {
+        if (!profile?.clinic_id || !user?.email || comprando) return
+        setComprando(true)
+        try {
+            // Chile paga por MercadoPago; el resto por Paddle. Si el pack aún no
+            // existe en Paddle, `openPaddleCreditsCheckout` lanza con un mensaje
+            // claro en vez de abrir un overlay roto.
+            const esChile = (profile as { country?: string } | null)?.country !== 'international'
+            if (esChile) {
+                await redirectToCreditsCheckout(profile.clinic_id, user.email, 'pack_facturas', 'mini')
+            } else {
+                await openPaddleCreditsCheckout(profile.clinic_id, user.email, 'pack_facturas', 'mini')
+            }
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'No pudimos abrir el pago. Intenta de nuevo.')
+        } finally {
+            setComprando(false)
+        }
+    }
     const navigate = useNavigate()
     const [transactions, setTransactions] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -107,6 +138,41 @@ export default function AICredits() {
                         </p>
                     </div>
                 </div>
+
+                {/* Compra de créditos — visible para Core, que no puede entrar a
+                    Ajustes IA (bloqueado desde Starter) y por lo tanto no tenía
+                    ninguna vía para comprar. */}
+                {esCore && (
+                    <div id="comprar" className="card-soft bg-white border-2 border-primary-500 shadow-premium-lg p-8 mb-8">
+                        <div className="flex flex-col md:flex-row md:items-center gap-6">
+                            <div className="flex-1">
+                                <p className="text-[11px] font-black text-primary-600 uppercase tracking-[0.2em] mb-2">Análisis de facturas</p>
+                                <h2 className="text-2xl font-black text-charcoal tracking-tight mb-2">{packFacturas.name}</h2>
+                                <p className="text-sm text-charcoal/60 leading-relaxed max-w-md">
+                                    Sube la factura de tu proveedor y los productos se cargan solos al
+                                    inventario. Cada archivo consume 20 créditos — este pack alcanza para
+                                    unas <strong className="text-charcoal">30 facturas</strong>.
+                                </p>
+                                <p className="text-xs text-charcoal/45 mt-3">
+                                    Pago único · <strong className="text-charcoal/70">los créditos no vencen</strong> · sin suscripción
+                                </p>
+                            </div>
+                            <div className="shrink-0 text-center md:text-right">
+                                <p className="text-4xl font-black text-charcoal tracking-tight">
+                                    ${packFacturas.price.toLocaleString('es-CL')}
+                                </p>
+                                <p className="text-xs text-charcoal/40 mb-4">{packFacturas.credits} créditos</p>
+                                <button
+                                    onClick={comprarPack}
+                                    disabled={comprando}
+                                    className="btn-primary px-8 py-3 w-full md:w-auto disabled:opacity-60"
+                                >
+                                    {comprando ? 'Abriendo pago…' : 'Comprar pack'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Main Card Wrapper */}
                 <div className="card-soft bg-white border border-silk-beige shadow-premium-lg overflow-hidden">

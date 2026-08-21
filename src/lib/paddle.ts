@@ -130,6 +130,11 @@ export type BillingPeriod = 'month' | 'year'
  * priceId de producción, creados vía scripts/create-paddle-packs.js.
  */
 export const PADDLE_CREDIT_PACKS = {
+    // ⚠️ PENDIENTE: falta crear este precio en Paddle producción y pegar su
+    // priceId. Con el campo vacío `openPaddleCreditsCheckout` corta con un
+    // mensaje claro en vez de abrir un checkout roto — ver el guard ahí.
+    // Se crea con: node scripts/create-paddle-invoice-pack.js
+    pack_facturas: { id: 'pack_facturas', priceId: '', name: 'Pack Facturas', credits: 600, price: 3, description: '600 créditos — unas 30 facturas' },
     pack_500:  { id: 'pack_500',  priceId: 'pri_01m08n6jtwaghvs8n0e43cme03', name: 'Pack Inicial',    credits: 4000,  price: 9,  description: '4.000 Créditos de IA' },
     pack_1500: { id: 'pack_1500', priceId: 'pri_01m08n6k7a2fdy0za42cgj0cvt', name: 'Pack Pro',        credits: 8000,  price: 15, description: '8.000 Créditos de IA' },
     pack_4000: { id: 'pack_4000', priceId: 'pri_01m08n6kr39wex154w9z14m20d', name: 'Pack Enterprise', credits: 20000, price: 29, description: '20.000 Créditos de IA' },
@@ -288,6 +293,11 @@ export async function openPaddleCreditsCheckout(clinicId: string, email: string,
         ? PADDLE_CREDIT_PACKS_4O[packId as keyof typeof PADDLE_CREDIT_PACKS_4O]
         : PADDLE_CREDIT_PACKS[packId as keyof typeof PADDLE_CREDIT_PACKS]
     if (!pack) throw new Error(`Pack de créditos no encontrado: ${packId}`)
+    // Un priceId vacío significa que el producto todavía no existe en Paddle.
+    // Sin este guard Paddle abriría un overlay que falla sin explicar nada.
+    if (!pack.priceId) {
+        throw new Error('Este pack aún no está disponible para pagos internacionales. Escríbenos por WhatsApp y lo activamos.')
+    }
 
     await ensureEventDispatcher()
     await openCheckout({
