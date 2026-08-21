@@ -424,7 +424,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data, error: functionError } = await supabase.functions.invoke('signup-handler', {
                 body: { email, password, full_name: fullName, clinic_name: clinicName, selected_plan: selectedPlan, card_token: cardToken, payment_provider: paymentProvider, referral_code: referralCode, turnstile_token: turnstileToken, attribution }
             })
-            if (functionError) return { error: new Error(functionError.message || 'Error al crear la cuenta') }
+            if (functionError) {
+                // `functionError.message` de supabase-js es siempre el genérico
+                // "Edge Function returned a non-2xx status code" — nunca el motivo
+                // real que devuelve signup-handler (email duplicado, verificación
+                // anti-bot fallida, etc). El body real viaja en `.context`, la
+                // Response cruda del fetch. Si no se puede leer, cae al genérico.
+                let message = functionError.message || 'Error al crear la cuenta'
+                try {
+                    const body = await (functionError as { context?: Response }).context?.json()
+                    if (body?.error) message = body.error
+                } catch { /* respuesta no era JSON parseable, usar el genérico */ }
+                return { error: new Error(message) }
+            }
             if (data?.error) return { error: new Error(data.error) }
 
             const { error: signInError } = await authSignIn(email, password)
