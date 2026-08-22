@@ -74,6 +74,18 @@ export default function AISettings() {
     const [open, setOpen] = useState({ motor: true, creditos: true, consumo: true, packs: false, historial: false })
     const toggle = (k: keyof typeof open) => setOpen(prev => ({ ...prev, [k]: !prev[k] }))
 
+    // Enlace directo desde el banner de "cerca del límite" (Dashboard) o el
+    // sidebar en pausa: #comprar abre la sección de packs, que por defecto
+    // está colapsada, y hace scroll hasta ella.
+    useEffect(() => {
+        if (window.location.hash !== '#comprar') return
+        setOpen(prev => ({ ...prev, packs: true }))
+        const id = window.setTimeout(() => {
+            document.getElementById('comprar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 150)
+        return () => window.clearTimeout(id)
+    }, [])
+
     // ── History
     const [monthOptions] = useState<Date[]>(generateMonthOptions)
     const [selectedMonth, setSelectedMonth] = useState<Date>(monthOptions[0])
@@ -246,7 +258,7 @@ export default function AISettings() {
     // ─── Computed values ──────────────────────────────────────────────────────
 
     // Fuente de verdad: tabla messages (cubre todo el historial, separa costos reales por modelo)
-    const totalUsed = (miniMessages * 1) + (standardMessages * 20) + (proMessages * 20)
+    const totalUsed = (miniMessages * 1) + (standardMessages * 15) + (proMessages * 15)
     const extraExpired = aiCreditsExtraExpiresAt ? new Date(aiCreditsExtraExpiresAt) < new Date() : false
     const extraAvailable = extraExpired ? 0 : (aiCreditsExtraBalance + aiCreditsExtra4o)
     const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
@@ -515,14 +527,14 @@ export default function AISettings() {
                                     </div>
                                     <div>
                                         <p className="text-xs font-black text-charcoal">GPT-4o</p>
-                                        <p className="text-[10px] font-bold text-violet-600">×20 créditos / msg</p>
+                                        <p className="text-[10px] font-bold text-violet-600">×15 créditos / msg</p>
                                     </div>
                                 </div>
                                 <p className="text-3xl font-black text-charcoal tabular-nums">{(proMessages + standardMessages).toLocaleString()}</p>
                                 <p className="text-[10px] text-charcoal/40 font-bold uppercase mt-0.5">mensajes</p>
                                 <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
                                     <p className="text-[10px] text-charcoal/40 font-bold uppercase">Créditos</p>
-                                    <p className="text-sm font-black text-violet-600 tabular-nums">{((proMessages + standardMessages) * 20).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-violet-600 tabular-nums">{((proMessages + standardMessages) * 15).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>
@@ -538,7 +550,7 @@ export default function AISettings() {
                     </div>
 
                     {/* ── Comprar Créditos Extra ───────────────────────────── */}
-                    <div className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden">
+                    <div id="comprar" className="bg-white rounded-2xl border border-silk-beige shadow-sm overflow-hidden scroll-mt-6">
                         <div className="px-5 pt-5 pb-4 flex items-center justify-between gap-4">
                             <button onClick={() => toggle('packs')} className="flex items-center gap-3 flex-1 text-left min-w-0">
                                 <Plus className="w-5 h-5 text-sky-500 shrink-0" />

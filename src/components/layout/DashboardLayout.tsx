@@ -37,6 +37,7 @@ import { supabase } from '@/lib/supabase'
 import BranchSwitcher from './BranchSwitcher'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePlan } from '@/hooks/usePlan'
+import { useAICreditsStatus } from '@/hooks/useAICreditsStatus'
 import { UPGRADE_URL } from '@/components/common/PlanGate'
 import type { PageKey } from '@/lib/permissions'
 
@@ -141,6 +142,9 @@ export default function DashboardLayout() {
     const [hasMore, setHasMore] = useState(true)
     // Estado real del agente IA (clinic_settings.ai_auto_respond). null = aún cargando.
     const [aiActive, setAiActive] = useState<boolean | null>(null)
+    // Créditos agotados: el agente puede tener ai_auto_respond=true y seguir mudo (sesión 83).
+    const { exhausted: creditsExhausted, unlimited: creditsUnlimited } = useAICreditsStatus(profile?.clinic_id)
+    const aiOutOfCredits = hasAI && aiActive === true && !creditsUnlimited && creditsExhausted
 
     // Check activation status and redirect
     useEffect(() => {
@@ -454,16 +458,16 @@ export default function DashboardLayout() {
                 <div className="p-3 border-t border-white/[0.06] shrink-0">
                     <div className={cn(
                         "flex items-center gap-3 rounded-xl border transition-all duration-200",
-                        (!hasAI || aiActive === false) ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25",
+                        aiOutOfCredits ? "bg-amber-500/[0.12] border-amber-500/25" : (!hasAI || aiActive === false) ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25",
                         isSidebarCollapsed ? "p-2 justify-center" : "px-3 py-3"
                     )}>
                         <div className={cn(
                             "shrink-0 w-2 h-2 rounded-full",
-                            (!hasAI || aiActive === false) ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
+                            aiOutOfCredits ? "bg-amber-400 animate-pulse-soft" : (!hasAI || aiActive === false) ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
                         )} />
                         <div className={cn("min-w-0 overflow-hidden transition-all duration-200", isSidebarCollapsed ? "w-0 opacity-0" : "opacity-100")}>
-                            <p className="text-[13px] font-semibold text-white leading-tight">{!hasAI ? 'IA no incluida' : aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
-                            <p className="text-[11px] text-white/40">{!hasAI ? 'Disponible desde Starter' : aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
+                            <p className="text-[13px] font-semibold text-white leading-tight">{!hasAI ? 'IA no incluida' : aiActive === false ? 'IA Apagada' : aiOutOfCredits ? 'Sin créditos' : 'IA Activa'}</p>
+                            <p className="text-[11px] text-white/40">{!hasAI ? 'Disponible desde Starter' : aiActive === false ? 'No responde mensajes' : aiOutOfCredits ? 'Agente en pausa — compra más' : 'Respondiendo 24/7'}</p>
                         </div>
                     </div>
                 </div>
@@ -526,15 +530,15 @@ export default function DashboardLayout() {
                 <div className="p-3 border-t border-white/[0.06] shrink-0">
                     <div className={cn(
                         "flex items-center gap-3 rounded-xl border px-3 py-3",
-                        (!hasAI || aiActive === false) ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25"
+                        aiOutOfCredits ? "bg-amber-500/[0.12] border-amber-500/25" : (!hasAI || aiActive === false) ? "bg-white/[0.04] border-white/10" : "bg-primary-500/[0.12] border-primary-500/25"
                     )}>
                         <div className={cn(
                             "w-2 h-2 rounded-full shrink-0",
-                            (!hasAI || aiActive === false) ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
+                            aiOutOfCredits ? "bg-amber-400 animate-pulse-soft" : (!hasAI || aiActive === false) ? "bg-white/30" : "bg-primary-400 animate-pulse-soft"
                         )} />
                         <div>
-                            <p className="text-[13px] font-semibold text-white">{!hasAI ? 'IA no incluida' : aiActive === false ? 'IA Apagada' : 'IA Activa'}</p>
-                            <p className="text-[11px] text-white/40">{!hasAI ? 'Disponible desde Starter' : aiActive === false ? 'No responde mensajes' : 'Respondiendo 24/7'}</p>
+                            <p className="text-[13px] font-semibold text-white">{!hasAI ? 'IA no incluida' : aiActive === false ? 'IA Apagada' : aiOutOfCredits ? 'Sin créditos' : 'IA Activa'}</p>
+                            <p className="text-[11px] text-white/40">{!hasAI ? 'Disponible desde Starter' : aiActive === false ? 'No responde mensajes' : aiOutOfCredits ? 'Agente en pausa — compra más' : 'Respondiendo 24/7'}</p>
                         </div>
                     </div>
                 </div>

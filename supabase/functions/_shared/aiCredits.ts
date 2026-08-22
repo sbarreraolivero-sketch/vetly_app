@@ -15,8 +15,8 @@
  * (`CREDIT_COST_4O`) para ambas cosas, así que no pueden volver a separarse.
  */
 
-/** Coste en créditos de un mensaje GPT-4o. Un mensaje `mini` cuesta 1. Subido de 15 a 20 en sesión 83 (2026-08-21). */
-export const CREDIT_COST_4O = 20;
+/** Coste en créditos de un mensaje GPT-4o. Un mensaje `mini` cuesta 1. */
+export const CREDIT_COST_4O = 15;
 
 /** Límite mensual por defecto cuando la clínica no tiene uno configurado. */
 const DEFAULT_MONTHLY_LIMIT = 500;

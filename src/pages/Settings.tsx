@@ -3412,13 +3412,13 @@ export default function Settings() {
                                         <p className="text-3xl font-black text-red-600">
                                             {(
                                                 aiMessagesUsed +
-                                                (aiMessagesUsedStandard * 20) +
-                                                (aiMessagesUsedPro * 20) +
-                                                (aiMessagesUsedLegacy4o * 20)
+                                                (aiMessagesUsedStandard * 15) +
+                                                (aiMessagesUsedPro * 15) +
+                                                (aiMessagesUsedLegacy4o * 15)
                                             ).toLocaleString()}
                                         </p>
                                         <p className="text-xs font-bold text-red-400 mt-1 uppercase">Créditos Usados</p>
-                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 20) + (aiMessagesUsedPro * 20) + (aiMessagesUsedLegacy4o * 20))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
+                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 15) + (aiMessagesUsedPro * 15) + (aiMessagesUsedLegacy4o * 15))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
                                     </div>
                                 </div>
 
@@ -3462,7 +3462,7 @@ export default function Settings() {
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
-                                            <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">20x</div>
+                                            <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">15x</div>
                                             <div>
                                                 <p className="text-sm font-black text-charcoal">N2: GPT-4o</p>
                                                 <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento avanzado para agendamiento, precios, geo y casos clínicos.</p>

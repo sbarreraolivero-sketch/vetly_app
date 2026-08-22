@@ -33,6 +33,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePlan } from '@/hooks/usePlan'
+import { useAICreditsStatus } from '@/hooks/useAICreditsStatus'
 import { PlanGate, UPGRADE_URL } from '@/components/common/PlanGate'
 import { financeService } from '@/services/financeService'
 import { inventoryService } from '@/services/inventoryService'
@@ -159,6 +160,10 @@ export default function Dashboard() {
         }
         fetchAiStatus()
     }, [profile?.clinic_id])
+
+    // Créditos agotados: el agente puede tener ai_auto_respond=true y seguir mudo (sesión 83).
+    const { exhausted: creditsExhausted, nearLimit: creditsNearLimit, unlimited: creditsUnlimited, totalUsed: creditsUsed, totalAvailable: creditsAvailable } = useAICreditsStatus(profile?.clinic_id)
+    const aiOutOfCredits = hasAI && aiActive === true && !creditsUnlimited && creditsExhausted
 
     // Cerrar el picker al hacer clic fuera
     useEffect(() => {
@@ -719,7 +724,9 @@ export default function Dashboard() {
                             ? 'Envía tus recordatorios por WhatsApp desde Recordatorios → Enviar hoy.'
                             : aiActive === false
                                 ? 'Tu asistente IA está apagado y no responde mensajes.'
-                                : 'Tu asistente IA está activo y respondiendo 24/7.'}
+                                : aiOutOfCredits
+                                    ? 'Tu asistente IA se quedó sin créditos y no está respondiendo mensajes.'
+                                    : 'Tu asistente IA está activo y respondiendo 24/7.'}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -732,6 +739,14 @@ export default function Dashboard() {
                         >
                             <Lock className="w-3 h-3" />
                             Agente IA no incluido
+                        </Link>
+                    ) : aiOutOfCredits ? (
+                        <Link
+                            to="/app/ai-settings#comprar"
+                            className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
+                        >
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                            Sin créditos — comprar más
                         </Link>
                     ) : (
                         <div className={cn(
@@ -831,6 +846,27 @@ export default function Dashboard() {
                     </PlanGate>
                 ))}
             </div>
+
+            {/* Créditos IA cerca del límite — aviso proactivo antes de que el agente se corte */}
+            {hasAI && !creditsUnlimited && creditsNearLimit && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
+                        </div>
+                        <p className="text-sm text-charcoal/80">
+                            <span className="font-semibold text-amber-700">Tu clínica está por llegar al límite de créditos IA de este mes</span>
+                            {' '}({creditsUsed.toLocaleString('es-CL')} de {creditsAvailable.toLocaleString('es-CL')} usados). Cuando se agoten, el agente deja de responder por WhatsApp hasta que compres más.
+                        </p>
+                    </div>
+                    <Link
+                        to="/app/ai-settings#comprar"
+                        className="shrink-0 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg transition-colors"
+                    >
+                        Comprar créditos →
+                    </Link>
+                </div>
+            )}
 
             {/* Alertas de inventario — banner condicional */}
             {canAccess('inventory') && (inventoryAlert.lowStock > 0 || inventoryAlert.expiringSoon > 0) && (
