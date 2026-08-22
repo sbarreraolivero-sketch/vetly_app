@@ -236,10 +236,13 @@ export async function redirectToCreditsCheckout(clinicId: string, email: string,
             email: email,
             model: model,
             currency: 'CLP',
+            // /app/ai-settings, no /app/settings?tab=ai: ese último pasa primero por el
+            // chequeo de "payment" de Settings.tsx, que es para compras de PLAN y muestra
+            // "tu suscripción ha sido activada" — mensaje falso para una compra de créditos.
             back_urls: {
-                success: `${window.location.origin}/app/settings?tab=ai&payment=success`,
-                failure: `${window.location.origin}/app/settings?tab=ai&payment=failure`,
-                pending: `${window.location.origin}/app/settings?tab=ai&payment=pending`,
+                success: `${window.location.origin}/app/ai-settings?payment=success`,
+                failure: `${window.location.origin}/app/ai-settings?payment=failure`,
+                pending: `${window.location.origin}/app/ai-settings?payment=pending`,
             },
         },
     })

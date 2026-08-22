@@ -86,6 +86,27 @@ export default function AISettings() {
         return () => window.clearTimeout(id)
     }, [])
 
+    // Retorno de MercadoPago tras comprar un pack de créditos (redirectToCreditsCheckout
+    // apunta acá con ?payment=). El chequeo de créditos/límite de "subscription" en
+    // Settings.tsx es para pagos de PLAN, no de créditos — mostraba "tu suscripción ha
+    // sido activada" para una compra de créditos, que es un mensaje falso.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        const payment = params.get('payment')
+        if (!payment) return
+        if (payment === 'success') {
+            toast.success('¡Créditos acreditados! El saldo ya está actualizado abajo.')
+            setOpen(prev => ({ ...prev, packs: true, creditos: true }))
+        } else if (payment === 'failure') {
+            toast.error('El pago no se pudo procesar. Intenta de nuevo o usa otro método.')
+        } else if (payment === 'pending') {
+            toast('Tu pago está siendo procesado — el saldo se actualiza apenas se confirme.', { icon: '⏳' })
+        }
+        const url = new URL(window.location.href)
+        url.searchParams.delete('payment')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+    }, [])
+
     // ── History
     const [monthOptions] = useState<Date[]>(generateMonthOptions)
     const [selectedMonth, setSelectedMonth] = useState<Date>(monthOptions[0])
