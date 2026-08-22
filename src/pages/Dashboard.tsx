@@ -164,6 +164,7 @@ export default function Dashboard() {
     // Créditos agotados: el agente puede tener ai_auto_respond=true y seguir mudo (sesión 83).
     const { exhausted: creditsExhausted, nearLimit: creditsNearLimit, unlimited: creditsUnlimited, totalUsed: creditsUsed, totalAvailable: creditsAvailable } = useAICreditsStatus(profile?.clinic_id)
     const aiOutOfCredits = hasAI && aiActive === true && !creditsUnlimited && creditsExhausted
+    const [creditsBannerDismissed, setCreditsBannerDismissed] = useState(false)
 
     // Cerrar el picker al hacer clic fuera
     useEffect(() => {
@@ -713,6 +714,37 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            {/* Créditos IA cerca del límite — aviso proactivo antes de que el agente se corte.
+                Va arriba de todo y a ancho completo para que no pase desapercibido. */}
+            {hasAI && !creditsUnlimited && creditsNearLimit && !creditsBannerDismissed && (
+                <div className="w-full flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
+                        </div>
+                        <p className="text-sm text-charcoal/80">
+                            <span className="font-semibold text-amber-700">Tu clínica está por llegar al límite de créditos IA de este mes</span>
+                            {' '}({creditsUsed.toLocaleString('es-CL')} de {creditsAvailable.toLocaleString('es-CL')} usados). Cuando se agoten, el agente deja de responder por WhatsApp hasta que compres más.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                            to="/app/ai-settings#comprar"
+                            className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg transition-colors"
+                        >
+                            Comprar créditos →
+                        </Link>
+                        <button
+                            onClick={() => setCreditsBannerDismissed(true)}
+                            aria-label="Cerrar aviso"
+                            className="p-2 rounded-lg text-amber-600/60 hover:text-amber-700 hover:bg-amber-100 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Page Header — limpio y moderno */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-silk-beige">
                 <div>
@@ -846,27 +878,6 @@ export default function Dashboard() {
                     </PlanGate>
                 ))}
             </div>
-
-            {/* Créditos IA cerca del límite — aviso proactivo antes de que el agente se corte */}
-            {hasAI && !creditsUnlimited && creditsNearLimit && (
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                            <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
-                        </div>
-                        <p className="text-sm text-charcoal/80">
-                            <span className="font-semibold text-amber-700">Tu clínica está por llegar al límite de créditos IA de este mes</span>
-                            {' '}({creditsUsed.toLocaleString('es-CL')} de {creditsAvailable.toLocaleString('es-CL')} usados). Cuando se agoten, el agente deja de responder por WhatsApp hasta que compres más.
-                        </p>
-                    </div>
-                    <Link
-                        to="/app/ai-settings#comprar"
-                        className="shrink-0 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg transition-colors"
-                    >
-                        Comprar créditos →
-                    </Link>
-                </div>
-            )}
 
             {/* Alertas de inventario — banner condicional */}
             {canAccess('inventory') && (inventoryAlert.lowStock > 0 || inventoryAlert.expiringSoon > 0) && (
