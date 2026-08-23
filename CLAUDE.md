@@ -5833,7 +5833,9 @@ Con 17 franjas en el día, truncar a los primeros 15 elimina justo las dos últi
 
 **Causa raíz encontrada, NO corregida — decisión explícita del usuario.** `activeSchedulingFlow` (el mecanismo que mantiene el ruteo en GPT-4o mientras dura un flujo de agendamiento) revisa los **últimos 3 mensajes de la propia IA** contra una lista de ~20 palabras (`schedulingSignals`). Esa lista se fue ampliando sesión tras sesión (9, 15, 36, 66) cada vez que `mini` alucinaba algo — pero incluye palabras genéricas como "cita", "horario", "dirección" que aparecen en casi cualquier cierre de conversación (ej. el aviso obligatorio de rango horario de sesión 22 contiene "horarios"). Resultado medido con datos reales: el ratio GPT-4o:mini pasó de **0,01 en abril** (sano) a **3-9x sostenido desde mayo**, con **78-87% de los mensajes en GPT-4o en los últimos días** — muy por encima de lo que el diseño "mini por defecto, 4o solo para casos específicos" pretendía.
 
-Mapeé palabra por palabra qué se podría sacar de la lista sticky sin reabrir bugs históricos documentados (`comuna`/`cobertura`/`recargo` → sesión 9; `vacun`/`antirrabi`/`octuple` → sesión 36; `sector` → sesión 15/59/64 — todas se quedarían) vs. qué es genérico sin bug documentado detrás (`cita`, `agend`, `direcci`, `ubicaci`, `traslado`, `zona`, `reserv` — candidatas a sacar). El usuario decidió **dejarlo tal como está**: *"No quiero que tengamos problemas en la atención"* — el ahorro de créditos no justifica el riesgo de reabrir un bug real con clientes reales. `selectModelTier()`/`schedulingSignals` quedan intactos.
+Mapeé palabra por palabra qué se podría sacar de la lista sticky sin reabrir bugs históricos documentados (`comuna`/`cobertura`/`recargo` → sesión 9; `vacun`/`antirrabi`/`octuple` → sesión 36; `sector` → sesión 15/59/64 — todas se quedarían) vs. qué es genérico sin bug documentado detrás (`cita`, `agend`, `direcci`, `ubicaci`, `traslado`, `zona`, `reserv` — candidatas a sacar).
+
+**Decisión final del usuario — cerrado, no es un pendiente.** *"Lo dejaremos con el modelo caro como está, y que así está funcional. Lo dejaremos como está."* El ahorro de créditos no justifica el riesgo de reabrir un bug real con clientes reales. `selectModelTier()`/`schedulingSignals` quedan intactos **a propósito, de forma permanente** — no es un recorte pendiente de aplicar en otra sesión, es la configuración elegida para producción. Si en el futuro se quiere revisar, hace falta una decisión nueva del usuario, no retomar esto como "tarea pendiente".
 
 ### Multiplicador de GPT-4o — subido a ×20 y revertido a ×15 el mismo día
 
@@ -5893,6 +5895,5 @@ Resumen ejecutivo — **el detalle técnico completo (IDs, estructura, verificac
 - 🟡 **México** — completar keywords, negativas y anuncios de las 2 campañas (`24171087994`, `24171088219`), hoy cascarones vacíos.
 - 🟡 **Cuota de Pipeboard agotada** — sigue igual horas después (reintentado, mismo error `100/30`). Subir de plan o esperar reset antes de poder auditar o seguir escribiendo por MCP.
 - ✅ **Verificación del anunciante** — aprobada al instante, ya no está pendiente.
-- 🟢 `activeSchedulingFlow`/`schedulingSignals` — el recorte que bajaría el sesgo hacia GPT-4o queda **deliberadamente sin tocar**, decisión explícita del usuario por riesgo a la atención real.
 - 🟢 Landing `/core/mx` (terminología "expediente clínico") y `/core/comparar` — pendientes de sesiones anteriores, sin cambios.
 - 🟢 Logo horizontal 4:1 — no existe todavía, ninguno de los assets actuales tiene esa proporción; opcional, no bloquea el logo cuadrado ya subido.
