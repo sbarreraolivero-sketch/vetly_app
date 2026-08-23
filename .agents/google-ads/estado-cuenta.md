@@ -117,8 +117,9 @@ explícito. El grupo más débil era **"1.1 Software y Sistema de Gestión"** �
 `"Ficha, Agenda e Inventario - 3 Usuarios Incluidos"` podrían ser el anuncio de cualquier vertical de
 software, sin nada que le confirme a un veterinario que escanea el SERP que es relevante para él.
 
-**Propuesta hecha, sin confirmar si se cargó** (todos ≤30 caracteres, varios mirror casi literal de
-keywords ya cargadas):
+**✅ Cargados por el usuario, 2026-08-22** (sin reverificar por MCP cuáles exactamente ni si algún
+RSA quedó con Ad Strength distinto tras el cambio). Todos ≤30 caracteres, varios mirror casi literal
+de keywords ya cargadas:
 
 Nuevos: `Sistema de Gestión Veterinaria` (30) · `Software Gestión Veterinaria` (28) ·
 `Software para Veterinarias` (26) · `Clínica Veterinaria Ordenada` (28) · `Hecho para Veterinarias`
@@ -203,7 +204,7 @@ llega mes y medio después del clic, mucho más tarde de lo que Google atribuye 
 | Landing por país (`/core/mx`) | ❌ pendiente — México dice "expediente clínico", no "ficha clínica" |
 | Comparativa `/core/comparar` | ❌ pendiente — destino previsto de la campaña C4 |
 | Logo para anuncios | ✅ **Subido 2026-08-22** — `public/logo.png`, 1024×1024, cumple spec 1:1 de Google. Falta logo horizontal 4:1 (opcional, no bloquea) |
-| Verificación de identidad del anunciante | 🟡 **Documentos enviados 2026-08-22** — requisito de Google para desbloquear Logo/Nombre de empresa en anuncios de búsqueda. Revisión: 1-10 días hábiles, sin acción adicional mientras tanto |
+| Verificación de identidad del anunciante | ✅ **Aprobada al instante, 2026-08-22** — el usuario reportó que se completó de inmediato, no en 1-10 días hábiles como indicaba la UI de Google. Probable explicación: la documentación de negocio ya estaba validada con Meta y Paddle (mismo RUT/certificado de vigencia), y Google pudo hacer un match automático contra eso sin pasar por revisión manual. **Sin reverificar por MCP** que los recursos de Logo/Nombre de empresa ya estén activos de verdad en las campañas — pendiente en cuanto haya cuota |
 
 **Precios: 6 fuentes que no se sincronizan.** `src/lib/mercadopago.ts` (`PLANS.core.launchPrice`),
 `src/lib/paddle.ts` (`PADDLE_PLANS.core.launchPrice`), `public/landing.html`, `public/core.html`,
