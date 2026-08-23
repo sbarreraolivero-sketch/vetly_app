@@ -5802,3 +5802,97 @@ Todos los datos de prueba se crearon y eliminaron en la clínica Core; los 475 i
 - **Antes de restaurar un respaldo de prompt, revisar si hay respaldos más recientes que el que se va a usar.** Restaurar a un punto en el tiempo pisa todo lo que se agregó después, no solo lo que se quiere revertir.
 - **Cuando un array JSONB con forma flexible gana un campo nuevo, buscar todo lugar que itere sobre él asumiendo la forma vieja** — no basta con no romper la escritura; hay que auditar cada lectura que asuma "1 elemento = 1 unidad" antes de dar el cambio por seguro.
 - **Verificar cambios de inventario/dinero con una venta real de punta a punta**, no solo con la lógica en abstracto — la prueba en navegador con clínica de prueba aislada detectó que el diseño era correcto antes de tocar datos reales de Animalgrace.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 82, 2026-08-20)
+
+### Bug: la IA ofrecía 17:00 como última hora en vez de 18:00 (ambas sucursales)
+
+**Reporte de Claudia:** el agente venía dando las 17:00 como el horario más tardío disponible, cuando el tope configurado (sesión 58) es 18:00.
+
+**Diagnóstico con evidencia real, no solo lectura de código.** Se reconstruyó una conversación real de Santiago del mismo día (20-ago, ~22:57–23:08 hrs): la IA ofreció *"desde las 10:00 AM hasta las 5:00 PM"*, y cuando la clienta pidió las 18:00, la IA insistió *"nuestro horario es hasta las 18:00... la última cita que podemos agendar es a las 5:00 PM"* — contradiciéndose a sí misma en el mismo mensaje.
+
+**Causa raíz — no era el prompt ni la configuración.** El log real de esa conversación (`debug_logs`: `"Check Avail Results", {totalSlots: 17, availableCount: 17}`) y una prueba directa del RPC (`get_available_slots(..., p_last_slot_cap: '18:00')`) confirmaron que la base de datos **sí genera correctamente el slot de las 18:00** — un día 10:00→18:00 cada 30 min da exactamente 17 franjas, y las 17 llegaban disponibles. El problema estaba en el código del webhook, en el paso que arma la respuesta final para el modelo:
+```ts
+const displaySlots = availableFormatted.slice(0, 15);
+```
+Con 17 franjas en el día, truncar a los primeros 15 elimina justo las dos últimas — **17:30 y 18:00** — dejando 17:00 como la hora más tardía que la IA llega a ver. El bug era **idéntico en `meta-whatsapp-webhook` y `ycloud-whatsapp-webhook`** (mismo código duplicado en ambos archivos), aunque solo `meta-whatsapp-webhook` tiene impacto real hoy: **ambas clínicas migraron a Meta Cloud API** (Santiago en sesión 57, Linares en sesión 65) — `ycloud-whatsapp-webhook` ya no procesa tráfico de ninguna clínica en producción, quedó como código de respaldo. Se corrigió en los dos archivos de todas formas, por si alguna clínica futura vuelve a usar YCloud.
+
+**Fix aplicado (`meta-whatsapp-webhook` v45, `ycloud-whatsapp-webhook` v275, deploy vía Supabase CLI):** se quitó el `.slice(0, 15)` — ya existía un campo paralelo `raw_slots` con la lista completa sin truncar, así que la lista `slots` (la que efectivamente lee el modelo) truncada no cumplía ningún propósito, solo cortaba información real.
+
+**Verificación post-fix:** se llamó `get_available_slots` directo con los parámetros reales de un servicio típico (Consulta Médica, 60 min) para una fecha próxima de cada sucursal — ambas devuelven 17 franjas con **18:00 como máximo**, y se confirmó por grep que no queda ningún otro `.slice()`/truncamiento entre esa lista y la respuesta que arma el tool result. `verify_jwt: false` se mantuvo en ambos deploys; sin errores nuevos en `debug_logs` tras desplegar.
+
+**Regla permanente:** cuando se agrega un tope/límite a un flujo de disponibilidad (como el cap de las 18:00 de sesión 58), no basta con verificar que el RPC lo respeta — hay que rastrear la lista completa hasta el punto exacto donde se arma la respuesta que consume el modelo. Un truncamiento genérico (`.slice(0, N)`) aguas abajo de un fix correcto en el RPC puede anular el fix en silencio, y solo se manifiesta en días con más de N franjas — invisible hasta que la apertura estándar de la clínica genera más elementos que el límite.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 83, 2026-08-22)
+
+### Diagnóstico: por qué AnimalGrace agota créditos de OpenAI cada 2 días
+
+**Causa raíz encontrada, NO corregida — decisión explícita del usuario.** `activeSchedulingFlow` (el mecanismo que mantiene el ruteo en GPT-4o mientras dura un flujo de agendamiento) revisa los **últimos 3 mensajes de la propia IA** contra una lista de ~20 palabras (`schedulingSignals`). Esa lista se fue ampliando sesión tras sesión (9, 15, 36, 66) cada vez que `mini` alucinaba algo — pero incluye palabras genéricas como "cita", "horario", "dirección" que aparecen en casi cualquier cierre de conversación (ej. el aviso obligatorio de rango horario de sesión 22 contiene "horarios"). Resultado medido con datos reales: el ratio GPT-4o:mini pasó de **0,01 en abril** (sano) a **3-9x sostenido desde mayo**, con **78-87% de los mensajes en GPT-4o en los últimos días** — muy por encima de lo que el diseño "mini por defecto, 4o solo para casos específicos" pretendía.
+
+Mapeé palabra por palabra qué se podría sacar de la lista sticky sin reabrir bugs históricos documentados (`comuna`/`cobertura`/`recargo` → sesión 9; `vacun`/`antirrabi`/`octuple` → sesión 36; `sector` → sesión 15/59/64 — todas se quedarían) vs. qué es genérico sin bug documentado detrás (`cita`, `agend`, `direcci`, `ubicaci`, `traslado`, `zona`, `reserv` — candidatas a sacar). El usuario decidió **dejarlo tal como está**: *"No quiero que tengamos problemas en la atención"* — el ahorro de créditos no justifica el riesgo de reabrir un bug real con clientes reales. `selectModelTier()`/`schedulingSignals` quedan intactos.
+
+### Multiplicador de GPT-4o — subido a ×20 y revertido a ×15 el mismo día
+
+**Lección real, no teórica.** `CREDIT_COST_4O` (en `supabase/functions/_shared/aiCredits.ts`, fuente única para ambos webhooks) se subió de 15 a 20 a pedido del usuario. El chequeo de saldo recalcula `totalUsed` **en vivo** a partir de contadores crudos acumulados (`mensajes_mini + mensajes_4o × CREDIT_COST_4O`) — subir la constante **repreció retroactivamente todo el consumo 4o ya acumulado en el ciclo**, sin que se enviara un solo mensaje nuevo: AnimalGrace saltó de 28.309/30.000 (bajo el límite) a 37.599/30.000 (agotado) de golpe. El agente quedó mudo ~3 horas con 21 mensajes de clientes reales sin respuesta (6 prospectos nuevos, 3 clientes existentes, 2 de ellos ya en pausa manual desde antes por otra razón) hasta que se detectó y revirtió.
+
+**Revertido a ×15 y desplegado** (`meta-whatsapp-webhook`, `ycloud-whatsapp-webhook`) — con la reversión, el saldo real recalculó a 28.309/30.000 y el agente pudo responder de nuevo sin ninguna acción manual sobre los contadores. Sincronizados los 3 lugares que muestran el multiplicador en pantalla (`Settings.tsx`, `AISettings.tsx`, `landing.html`) de vuelta a ×15 — regla ya establecida en sesiones 36/77: medir, cobrar y mostrar deben usar siempre la misma constante.
+
+**Regla permanente:** el multiplicador de créditos no es solo precio de mensajes *nuevos* — reprecia instantáneamente todo lo ya gastado en el ciclo actual, porque el saldo se recalcula en vivo desde contadores crudos, no desde un histórico de transacciones ya cobradas. Cambiarlo a mitad de mes puede agotar de golpe a una clínica que venía gastando bajo el número viejo. El momento más seguro para subirlo es justo después del reset mensual del ciclo.
+
+### Indicador real de "sin créditos" — nuevo hook `useAICreditsStatus`
+
+**El bug de fondo que hizo invisible la crisis de arriba:** el pill "IA Activa" del sidebar y del Dashboard solo leía `ai_auto_respond` (el toggle manual) — nunca el saldo de créditos. Con el agente mudo por falta de crédito, la pantalla seguía diciendo "IA Activa · Respondiendo 24/7" como si nada.
+
+**`src/hooks/useAICreditsStatus.ts`** (nuevo): espeja en el frontend el mismo cálculo que hace `getCreditStatus()` en el webhook — resuelve el pool (`parent_clinic_id`), lee los mismos contadores, aplica la misma fórmula. ⚠️ `CREDIT_COST_4O = 15` está duplicado ahí a propósito (Deno vs. Vite/React no comparten módulos) — **hay que mantenerlo sincronizado a mano con `_shared/aiCredits.ts`** si el multiplicador vuelve a cambiar.
+
+- **`DashboardLayout.tsx`** (sidebar desktop + mobile): pill ámbar **"Sin créditos"** en vez de "IA Activa" cuando el pool está agotado (`ai_auto_respond=true` pero `exhausted=true`).
+- **`Dashboard.tsx`**: mismo pill en el header, más un **banner nuevo, arriba de todo (antes del "¡Hola, {nombre}!"), a ancho completo, con botón de cerrar** — aparece al **90% del ciclo consumido** (27.000/30.000 para AnimalGrace hoy; la razón, no un número fijo, generaliza sola a Starter/Pro) con enlace directo a `/app/ai-settings#comprar`. El cierre es por sesión — reaparece en la próxima visita si el aviso sigue vigente, a propósito: cerrarlo no debe equivaler a silenciar un problema sin resolver.
+- **`AISettings.tsx`**: nuevo `useEffect` que detecta `#comprar` en la URL, auto-expande la sección de packs (colapsada por defecto) y hace scroll hasta ella.
+
+### Bug: la vuelta de MercadoPago tras comprar créditos mentía
+
+`redirectToCreditsCheckout` (en `src/lib/mercadopago.ts`) devolvía a `/app/settings?tab=ai&payment=success` — esa ruta pasa **primero** por el chequeo de "payment" de `Settings.tsx`, que es para compras de **plan**, no de créditos. Resultado real: Claudia compraba un pack y caía en la pestaña "Suscripción" viendo *"¡Tu suscripción ha sido activada!"* — mensaje falso, sin ver el saldo actualizado ni la sección de créditos.
+
+**Fix:** el retorno ahora apunta directo a `/app/ai-settings?payment=success` — la página real donde vive el saldo. Un `useEffect` nuevo ahí detecta el parámetro, muestra el toast correcto (créditos acreditados / pago rechazado / pendiente), abre la sección de packs y limpia la URL. Como el webhook de MercadoPago ya acredita el saldo antes de que el navegador vuelva, los números que ve al aterrizar ya están al día.
+
+---
+
+### T2 (Google Ads) — landing `/core`: precio en USD y anclas para sitelinks
+
+Continuación del trabajo de lanzamiento de Ads para el plan Core (contexto completo, técnico y actualizado en tiempo real en `.agents/google-ads/estado-cuenta.md` — ese documento manda sobre cualquier resumen de acá).
+
+**Precio principal cambiado de CLP a USD.** La campaña no es solo Chile ("más universal" — decisión del usuario). La tarjeta de precio en `/core` mostraba `$17.000` CLP como número grande con "≈US\$17 fuera de Chile" como nota — se invirtió: **US\$17/mes** (tachado US\$39) es ahora el número grande, `$17.000 CLP/mes en Chile` la nota. Mismo cambio en el CTA de cierre y en `title`/`description`/`og:title`/`twitter:title`. Verificado en producción con `curl` antes y después del deploy — la primera lectura mostró contenido viejo por caché de borde de Vercel, se disipó en segundos.
+
+**Copy: cerrado un hueco real de relevancia con el grupo de anuncios más grande.** El grupo "1.1 Software y Sistema de Gestión" (47 keywords: `sistema para veterinarias`, `gestión de clínicas veterinarias`) apuntaba a una landing que nunca decía la frase "sistema de gestión" literalmente. Se agregó al primer párrafo del hero, junto al resto de los términos ya destacados (agenda, ficha clínica, inventario, finanzas) — mismo texto que ahora también aparece en los títulos de anuncio propuestos, cerrando el círculo anuncio↔landing.
+
+**6 anclas nuevas para poder usar sitelinks de verdad.** Google Ads rechaza sitelinks con la URL final duplicada entre sí — con solo 3 anclas reales en la página (`#recorrido`, `#precio`, `#preguntas`) era matemáticamente imposible armar 8 destinos distintos. Se agregó `id` a cada uno de los 6 módulos del recorrido, que ya existían como bloques HTML separados: `#agenda`, `#ficha-clinica`, `#finanzas`, `#recordatorios`, `#inventario`, `#fidelizacion`. Verificado en producción, las 9 anclas responden.
+
+**Regla permanente — Path del anuncio gráfico vs. URL final:** en la vista previa de un RSA, el texto de dominio+ruta que se muestra (ej. `vetly.pro/core/inventario`) sale del campo **Path 1/Path 2** (cosmético, no necesita existir como página real), no de la **URL final** (el destino real del clic). Confundir ambos lleva a probar con `curl` una URL que nunca se va a visitar de verdad — pasó en esta sesión, se corrigió a tiempo antes de tocar código de más.
+
+### T3/T4 (Google Ads) — cuenta higienizada, campañas activadas
+
+Resumen ejecutivo — **el detalle técnico completo (IDs, estructura, verificación campo por campo) vive en `.agents/google-ads/estado-cuenta.md`**, que se actualizó en la misma sesión y es la fuente de verdad para cualquier trabajo futuro de Ads.
+
+- **`Campaign #1`** (PMax por defecto de Google al crear la cuenta) dada de baja. Hallazgo: **Display es inseparable de Performance Max** — la API rechaza `OPERATION_NOT_PERMITTED_FOR_CONTEXT` al intentar apagarlo, no es una casilla que se pueda desmarcar. Ninguna campaña PMax podrá cumplir nunca la regla "Display siempre OFF" de esta cuenta.
+- **2 campañas Search creadas para Chile** (`[CL] Search - Gestión Veterinaria` y `[CL] Search - Veterinario a Domicilio e Independiente`): 92 keywords, 395 negativas (0 colisiones verificadas contra las keywords), 4 RSAs, 8 sitelinks, 14 callouts, CPC manual CLP 550/clic. **Activadas por el usuario** al cierre de la sesión — el estado real (incluida la corrección crítica de geo a "Presencia", que la API no puede tocar) queda sin re-verificar por MCP, ver pendientes abajo.
+- **2 campañas Search para México creadas — incompletas.** El subagente que las armaba se cortó por límite de sesión de la cuenta de Claude a mitad de cargar keywords (*"Grupos listos. Cargo las keywords"* fue su último mensaje). Quedaron solo las campañas y los 3+1 grupos de anuncios, **sin keywords, sin negativas, sin anuncios** — son cascarones que no servirían nada aunque se activaran. Un detalle rescatable: los grupos ya localizaron la terminología (`"3.2 Expediente Clínico"`, no "Ficha Clínica" — así se dice en México), útil para cuando se retome.
+- **Bloqueante de herramienta encontrado:** el MCP de Google Ads vía Pipeboard tiene un tope de uso en el plan gratis (`100/30`) que se agotó a mitad del trabajo de México y bloqueó toda lectura/escritura posterior por el resto de la sesión.
+- **Sesgo de puja — CPC manual, no Maximizar conversiones:** con 0 conversiones históricas en la cuenta, cualquier estrategia automática (Maximizar conversiones, tCPA) entra en modo exploración sin datos y gasta a ciegas. Regla estándar: CPC manual hasta acumular 15-30 conversiones reales, recién ahí evaluar automatizar.
+- **Auditoría de títulos "no hablan de vets":** de ~10-11 combinaciones de título visibles en la vista previa, solo 4 mencionaban "Vet"/"Veterinario" explícito — el grupo "1.1 Software y Sistema de Gestión" era el más débil en esto (`"Ficha, Agenda e Inventario - 3 Usuarios Incluidos"` podría ser el anuncio de cualquier vertical de software). Se propusieron 7 títulos nuevos anclados en "vet"/"veterinaria" + 2 reemplazos puntuales, todos ≤30 caracteres — **sin confirmar si se cargaron**, el usuario dijo que iba a tipearlos él mismo en la UI que ya tenía abierta.
+- **Logo subido** (`public/logo.png`, 1024×1024 PNG, cumple spec 1:1 de Google) y **verificación de identidad del anunciante enviada** — Google la exige para desbloquear los recursos de Logo/Nombre de empresa en anuncios de búsqueda. Revisión de Google: **entre 1 y 10 días hábiles**, así que el logo puede no verse en los anuncios de inmediato aunque ya esté cargado.
+
+**MCP oficial de Google Ads — investigado, decisión de no usarlo por ahora.** Google lanzó un MCP propio el 28 de abril de 2026 (mismo patrón que Meta), pero a diferencia del de Meta **no es un servicio hospedado al que conectarse con login** — es código de solo lectura (2 tools: `list_accessible_customers` + `search` GAQL) que hay que **autodesplegar en Google Cloud Run**, con proyecto de GCP, developer token propio y credenciales OAuth propias. Para lo que resolvería (ahorrar cuota de Pipeboard en lecturas) el esfuerzo de montar Cloud Run no se justificó — y de todas formas nunca reemplaza a Pipeboard para las mutaciones (crear campañas, cargar keywords), que es de solo lectura por diseño de Google.
+
+### Pendientes — Google Ads (detalle completo en `estado-cuenta.md`)
+
+- 🔴 **Confirmar geo "Presencia"** en las 2 campañas de Chile ya activadas — la API nunca pudo tocar `positive_geo_target_type` (sigue en `PRESENCE_OR_INTEREST`, el default de Google que paga tráfico de España/Colombia). El usuario dijo haberlo resuelto manualmente al activar; **falta re-verificar por MCP** en cuanto la cuota de Pipeboard se libere.
+- 🟡 **México** — completar keywords, negativas y anuncios de las 2 campañas (`24171087994`, `24171088219`), hoy cascarones vacíos.
+- 🟡 **Cuota de Pipeboard agotada** — subir de plan o esperar reset antes de poder auditar o seguir escribiendo por MCP.
+- 🟡 **Verificación del anunciante** — pendiente de aprobación de Google (1-10 días hábiles), sin acción adicional del lado de Vetly.
+- 🟢 `activeSchedulingFlow`/`schedulingSignals` — el recorte que bajaría el sesgo hacia GPT-4o queda **deliberadamente sin tocar**, decisión explícita del usuario por riesgo a la atención real.
+- 🟢 Landing `/core/mx` (terminología "expediente clínico") y `/core/comparar` — pendientes de sesiones anteriores, sin cambios.
+- 🟢 Logo horizontal 4:1 — no existe todavía, ninguno de los assets actuales tiene esa proporción; opcional, no bloquea el logo cuadrado ya subido.
