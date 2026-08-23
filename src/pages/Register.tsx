@@ -24,6 +24,7 @@ declare global {
         }
         gtag?: (...args: unknown[]) => void
         vetlyGa4Ready?: boolean
+        fbq?: (...args: unknown[]) => void
     }
 }
 
@@ -62,6 +63,28 @@ function trackRegistrationConversion(plan: string, email: string) {
     if (window.vetlyGa4Ready) {
         window.gtag?.('event', 'sign_up', { method: 'email', plan })
     }
+
+    // Meta — mismo criterio de "medir el evento real, no el clic" que Google.
+    // `eventID` queda listo para deduplicar contra la Conversions API server-
+    // side cuando se implemente (Meta descarta el duplicado si el navegador y
+    // el servidor mandan el mismo evento con el mismo id dentro de la ventana
+    // de deduplicación). Hoy solo dispara el pixel del navegador.
+    if (normalizedEmail) {
+        // Re-inicializar con Advanced Matching: Meta hashea `em` con SHA-256
+        // en el cliente antes de mandarlo, nunca en claro. Llamar init() una
+        // segunda vez es seguro — solo actualiza los datos de matching, no
+        // reinicia el pixel ni duplica el PageView ya disparado al cargar.
+        window.fbq?.('init', '4447480202191241', { em: normalizedEmail })
+    }
+    const fbEventId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `reg-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    window.fbq?.('track', 'CompleteRegistration', {
+        value: 1.0,
+        currency: 'CLP',
+        content_name: plan,
+        status: true,
+    }, { eventID: fbEventId })
 }
 
 const ROLE_TRANSLATIONS: Record<string, string> = {

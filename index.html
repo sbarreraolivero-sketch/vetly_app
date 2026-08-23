@@ -34,6 +34,13 @@
 </head>
 
 <body>
+  <!-- Fallback del Pixel de Meta para visitantes sin JS. Va en <body>, nunca
+       en <head>: el parser HTML5 no admite <img> dentro de <noscript> cuando
+       está en <head> (solo permite style/meta/link ahí) — mismo criterio que
+       usa el snippet oficial de Meta. El pixel real vive en vetly-tracking.js
+       y no corre si JS está desactivado. -->
+  <noscript><img height="1" width="1" style="display:none" alt=""
+       src="https://www.facebook.com/tr?id=4447480202191241&amp;ev=PageView&amp;noscript=1" /></noscript>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

@@ -17,14 +17,16 @@
 
    Qué hace, en orden:
      1. Consent Mode v2 con todo en `denied` por defecto.
-     2. Captura gclid / wbraid / gbraid / UTMs y los persiste 90 días.
+     2. Captura gclid / wbraid / gbraid / fbclid / UTMs y los persiste 90 días.
      3. Configura GA4 (si hay Measurement ID) y expone helpers.
-     4. Pinta el banner de cookies.
+     3B. Instala el Pixel de Meta e inicia PageView.
+     4. Pinta el banner de cookies (Google + Meta comparten el mismo estado).
 
    Expone en window:
      window.vetlyAttribution()   → objeto con la atribución guardada
      window.vetlyTrackDemo()     → conversión "Demo" (Ads + GA4)
      window.vetlyConsentState()  → 'granted' | 'denied' | null (sin decidir)
+     window.fbq                  → cola de comandos del Pixel de Meta (estándar)
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
     'use strict';
@@ -37,6 +39,12 @@
     // a la etiqueta de Google ya existente en el sitio (AW-18395838136) — Google
     // sirve la config de este destino server-side, sin script adicional.
     var GA4_ID = 'G-7CEW929SSP';
+
+    // Pixel de Meta "Vetly Pixel", creado 2026-08-23 bajo el negocio Nexflow Ai
+    // System (mismo negocio dueño de la página de Facebook de Vetly). No
+    // reutilizar el "Citenly Pixel" del mismo negocio — es de un producto
+    // hermano y mezclaría señales de conversión de ambos.
+    var FB_PIXEL_ID = '4447480202191241';
 
     // ⚠️ PENDIENTE MANUAL: label de la acción de conversión "Demo" de Google Ads.
     // Verificado el 2026-08-20 contra la cuenta 2149932315: sólo existe la acción
@@ -204,6 +212,13 @@
         return readStore(ATTRIBUTION_KEY) || attribution || null;
     };
 
+    // Leído temprano a propósito: el Pixel de Meta necesita saber si el
+    // visitante ya rechazó cookies en una visita anterior ANTES de llamar
+    // fbq('init', ...) — revocar consentimiento después de init/track no
+    // deshace un evento que ya se encoló. La sección 4 más abajo vuelve a
+    // leer la misma cookie para el banner; es la misma fuente, no diverge.
+    var initialConsent = readStore(CONSENT_KEY);
+
     /* ─────────────────────── 3. GA4 + helpers de evento ────────────────── */
 
     gtag('js', new Date());
@@ -231,12 +246,40 @@
         }
     };
 
+    /* ─────────────────────── 3B. PIXEL DE META ──────────────────────────
+       Loader estándar entregado por Events Manager, sin modificar — expone
+       window.fbq como cola de comandos mientras fbevents.js carga async.  */
+
+    !function (f, b, e, v, n, t, s) {
+        if (f.fbq) return; n = f.fbq = function () {
+            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+        };
+        if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+        n.queue = []; t = b.createElement(e); t.async = !0;
+        t.src = v; s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s)
+    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
+    // A diferencia de Consent Mode v2, fbq no tiene noción de región: el
+    // estado por defecto de un pixel recién inicializado es "otorgado". Para
+    // respetar una decisión de rechazo YA guardada de una visita anterior hay
+    // que revocar ANTES de init/track. Si el visitante todavía no respondió
+    // el banner, se deja en el default otorgado — mismo criterio que ya rige
+    // hoy para Google fuera de la EEA en el modo 'eea_only'.
+    if (initialConsent && initialConsent.state === 'denied') {
+        window.fbq('consent', 'revoke');
+    }
+    window.fbq('init', FB_PIXEL_ID);
+    window.fbq('track', 'PageView');
+
     /* ─────────────────────── 4. Banner de consentimiento ───────────────── */
 
     function applyConsent(state) {
         window.gtag('consent', 'update', state === 'granted' ? GRANTED : DENIED);
         if (state === 'granted') {
             window.gtag('set', 'ads_data_redaction', false);
+        }
+        if (window.fbq) {
+            window.fbq('consent', state === 'granted' ? 'grant' : 'revoke');
         }
     }
 
