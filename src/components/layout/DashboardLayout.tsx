@@ -38,6 +38,7 @@ import BranchSwitcher from './BranchSwitcher'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePlan } from '@/hooks/usePlan'
 import { useAICreditsStatus } from '@/hooks/useAICreditsStatus'
+import NewAccountWhatsAppBubble from './NewAccountWhatsAppBubble'
 import { UPGRADE_URL } from '@/components/common/PlanGate'
 import type { PageKey } from '@/lib/permissions'
 
@@ -731,6 +732,8 @@ export default function DashboardLayout() {
                     <Outlet />
                 </main>
             </div>
+
+            <NewAccountWhatsAppBubble clinicId={profile?.clinic_id} />
 
             {/* Click outside to close menus */}
             {(showUserMenu || showNotifications) && (
