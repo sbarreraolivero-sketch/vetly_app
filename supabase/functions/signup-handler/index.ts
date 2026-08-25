@@ -442,6 +442,9 @@ Deno.serve(async (req: Request) => {
                     // Core no tiene agente de IA conversacional — sin esto, el correo
                     // le promete a un cliente Core "entrena a tu IA" como si lo tuviera.
                     is_core_plan: isCorePlan,
+                    // Para prellenar y linkear /agendar a esta clínica específica.
+                    clinic_id: clinicData.id,
+                    plan: selected_plan,
                 })
             }).catch(err => console.error("Error triggering welcome email:", err));
         } catch (e) {

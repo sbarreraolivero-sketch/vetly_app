@@ -6,7 +6,11 @@ import { Calendar as CalendarIcon, Clock, Building2, Mail, Loader2, CheckCircle,
 
 type HQAppointment = {
     id: string
-    clinic_id: string
+    clinic_id: string | null
+    contact_name: string | null
+    contact_email: string | null
+    contact_phone: string | null
+    plan: string | null
     scheduled_at: string
     status: string
     duration_minutes: number
@@ -45,18 +49,19 @@ export default function AdminCalendar() {
 
             if (error) throw error
 
-            const clinicIds = [...new Set(apts.map((a: any) => a.clinic_id))]
+            const clinicIds = [...new Set(apts.map((a: any) => a.clinic_id).filter(Boolean))]
 
-            const { data: clinics } = await supabase
-                .from('clinic_settings')
-                .select('id, clinic_name')
-                .in('id', clinicIds)
+            const { data: clinics } = clinicIds.length
+                ? await supabase.from('clinic_settings').select('id, clinic_name').in('id', clinicIds)
+                : { data: [] as any[] }
 
-            const { data: members } = await supabase
-                .from('clinic_members')
-                .select('clinic_id, email, first_name, last_name, role')
-                .in('clinic_id', clinicIds)
-                .eq('role', 'owner')
+            const { data: members } = clinicIds.length
+                ? await supabase
+                    .from('clinic_members')
+                    .select('clinic_id, email, first_name, last_name, role')
+                    .in('clinic_id', clinicIds)
+                    .eq('role', 'owner')
+                : { data: [] as any[] }
 
             const enriched = apts.map((apt: any) => ({
                 ...apt,
@@ -89,7 +94,7 @@ export default function AdminCalendar() {
         fetchAppointments()
     }, [])
 
-    const handleUpdateStatus = async (id: string, newStatus: string, clinicId?: string) => {
+    const handleUpdateStatus = async (id: string, newStatus: string, clinicId?: string | null) => {
         const { error } = await (supabase as any)
             .from('hq_appointments')
             .update({ status: newStatus })
@@ -258,6 +263,8 @@ export default function AdminCalendar() {
                             ) : appointments.map((apt) => {
                                 const date = new Date(apt.scheduled_at)
                                 const owner = apt.clinic_members?.[0]
+                                const contactName = apt.contact_name || (owner ? `${owner.first_name || ''} ${owner.last_name || ''}`.trim() : null) || 'Sin Nombre'
+                                const contactEmail = apt.contact_email || owner?.email || '-'
 
                                 return (
                                     <tr key={apt.id} className="hover:bg-gray-50 transition-colors">
@@ -275,27 +282,39 @@ export default function AdminCalendar() {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-charcoal to-gray-800 rounded-lg flex items-center justify-center text-white font-bold">
-                                                    {apt.clinic_settings?.clinic_name.charAt(0).toUpperCase()}
+                                                    {(apt.clinic_settings?.clinic_name || contactName).charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="ml-4">
                                                     <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                                                         <Building2 className="w-4 h-4 text-gray-400" />
-                                                        {apt.clinic_settings?.clinic_name || 'Desconocida'}
+                                                        {apt.clinic_settings?.clinic_name || 'Sin cuenta vinculada'}
                                                     </div>
                                                     <div className="text-sm text-gray-500 mt-0.5">
-                                                        Id: <span className="text-xs font-mono">{apt.clinic_id.substring(0, 8)}...</span>
+                                                        {apt.clinic_id
+                                                            ? <>Id: <span className="text-xs font-mono">{apt.clinic_id.substring(0, 8)}...</span></>
+                                                            : apt.plan
+                                                                ? <span className="text-xs uppercase font-bold text-amber-600">Plan {apt.plan}</span>
+                                                                : null}
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900 font-medium">
-                                                {owner ? `${owner.first_name || ''} ${owner.last_name || ''}`.trim() || 'Sin Nombre' : 'Sin Dueño'}
-                                            </div>
+                                            <div className="text-sm text-gray-900 font-medium">{contactName}</div>
                                             <div className="flex items-center text-sm text-gray-500 mt-1">
                                                 <Mail className="w-3.5 h-3.5 mr-1.5" />
-                                                {owner?.email || '-'}
+                                                {contactEmail}
                                             </div>
+                                            {apt.contact_phone && (
+                                                <a
+                                                    href={`https://wa.me/${apt.contact_phone.replace(/\D/g, '')}`}
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    className="flex items-center text-sm text-emerald-600 hover:text-emerald-700 font-medium mt-1"
+                                                >
+                                                    <Phone className="w-3.5 h-3.5 mr-1.5" />
+                                                    {apt.contact_phone}
+                                                </a>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {apt.status === 'scheduled' && (

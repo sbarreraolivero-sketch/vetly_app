@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import {
     Search,
     Loader2, RefreshCw, CreditCard,
-    Sparkles, Plus, GitBranch
+    Sparkles, Plus, GitBranch, Phone, Mail
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +31,11 @@ interface ClinicData {
         first_name: string | null
         role: string
     }[]
+    user_profiles?: {
+        full_name: string | null
+        email: string | null
+        phone: string | null
+    }[]
 }
 
 interface ClinicGroup {
@@ -38,6 +43,7 @@ interface ClinicGroup {
     ownerName: string | null
     primaryClinic: ClinicData
     clinics: ClinicData[]
+    ownerPhone: string | null
     totalRealUsed: number
     totalLimit: number
     totalExtra: number
@@ -72,7 +78,7 @@ export default function AdminClinics() {
 
             const [settingsRes, usageRes] = await Promise.all([
                 fetch(
-                    `${supabaseUrl}/rest/v1/clinic_settings?select=*,clinic_members(email,role,first_name)&order=created_at.desc`,
+                    `${supabaseUrl}/rest/v1/clinic_settings?select=*,clinic_members(email,role,first_name),user_profiles(full_name,email,phone)&order=created_at.desc`,
                     {
                         headers: {
                             'apikey': supabaseKey,
@@ -155,9 +161,12 @@ export default function AdminClinics() {
                 const owner = clinic.clinic_members?.find(m => m.role === 'owner')
                 const key = owner?.email || clinic.id
                 if (!acc[key]) {
+                    const ownerProfile = clinic.user_profiles?.find(p => p.email?.toLowerCase() === owner?.email?.toLowerCase())
+                        || clinic.user_profiles?.find(p => p.phone)
                     acc[key] = {
                         ownerEmail: key,
                         ownerName: owner?.first_name || null,
+                        ownerPhone: ownerProfile?.phone || null,
                         primaryClinic: clinic,
                         clinics: [],
                         totalRealUsed: 0,
@@ -317,7 +326,26 @@ export default function AdminClinics() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="p-4 bg-gray-50 rounded-2xl">
                                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Dueño</p>
-                                    <p className="text-xs font-bold text-gray-800 truncate">{group.ownerEmail}</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate flex items-center gap-1">
+                                        <Mail className="w-3 h-3 text-gray-400 shrink-0" />
+                                        {group.ownerEmail}
+                                    </p>
+                                    {group.ownerPhone ? (
+                                        <a
+                                            href={`https://wa.me/${group.ownerPhone.replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 truncate flex items-center gap-1 mt-1"
+                                        >
+                                            <Phone className="w-3 h-3 shrink-0" />
+                                            {group.ownerPhone}
+                                        </a>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                                            <Phone className="w-3 h-3 shrink-0" />
+                                            Sin teléfono
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="p-4 bg-blue-50/30 border border-blue-50 rounded-2xl">
                                     <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Plan</p>

@@ -14,7 +14,7 @@ serve(async (req) => {
     }
 
     try {
-        const { email, full_name, clinic_name, is_core_plan } = await req.json();
+        const { email, full_name, clinic_name, is_core_plan, clinic_id, plan } = await req.json();
 
         if (!email || !clinic_name) {
             return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -23,12 +23,17 @@ serve(async (req) => {
             });
         }
 
-        // Mismo número/mecanismo que la burbuja flotante de WhatsApp
-        // (NewAccountWhatsAppBubble.tsx) — se refuerza acá por si la persona no
-        // llega a ver la burbuja o abandona antes de entrar al dashboard.
-        const ANDRES_WHATSAPP_NUMBER = "56993089185";
-        const waMessage = `Hola! Soy de ${clinic_name}, acabo de crear mi cuenta en Vetly y quiero agendar mi reunión de implementación.`;
-        const waUrl = `https://wa.me/${ANDRES_WHATSAPP_NUMBER}?text=${encodeURIComponent(waMessage)}`;
+        // Formulario propio de Vetly (/agendar → hq_appointments), no WhatsApp:
+        // así toda reserva queda en el panel HQ (AdminCalendar.tsx) de inmediato,
+        // sin depender de que alguien vea/responda un mensaje entrante.
+        const bookingParams = new URLSearchParams({
+            name: full_name || "",
+            email,
+            clinic: clinic_name,
+            ...(clinic_id ? { clinic_id } : {}),
+            ...(plan ? { plan } : {}),
+        });
+        const bookingUrl = `https://www.vetly.pro/agendar?${bookingParams.toString()}`;
 
         if (!RESEND_API_KEY) {
             console.warn("Missing RESEND_API_KEY. Simulating welcome email send.");
@@ -80,49 +85,22 @@ serve(async (req) => {
                         <td style="padding: 40px 32px;">
                           
                           <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #5a5a5a;">
-                            ¡Bienvenido a Vetly AI! Estamos emocionados de ayudarte a transformar la gestión de tu clínica con tecnología inteligente.
+                            ¡Bienvenido a Vetly AI! Para que aproveches al máximo la plataforma desde el primer día, agenda una videollamada corta con nuestro equipo: te ayudamos a configurar todo correctamente${is_core_plan ? '' : ' y te mostramos cómo sacarle el máximo provecho a tu Asistente IA'}.
                           </p>
 
-                          <h2 style="font-size: 18px; font-weight: 600; color: #2E2E2E; margin-bottom: 16px;">¿Por dónde empezar?</h2>
-                          
-                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                            <tr>
-                              <td style="padding: 0 0 20px 0;">
-                                <div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">1. Configura tu Agenda</div>
-                                <div style="font-size: 14px; color: #666;">Define tus horarios y servicios para empezar a recibir citas automáticamente.</div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 0 0 20px 0;">
-                                ${is_core_plan
-                                  ? `<div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">2. Registra tus primeras fichas</div>
-                                <div style="font-size: 14px; color: #666;">Carga a tus pacientes y tutores para tener su historial médico y de citas a mano.</div>`
-                                  : `<div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">2. Conoce a tu Asistente IA</div>
-                                <div style="font-size: 14px; color: #666;">Entrena a tu IA con la información de tu clínica para que responda dudas de tus clientes.</div>`}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 0 0 20px 0;">
-                                <div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">3. Invita a tu Equipo</div>
-                                <div style="font-size: 14px; color: #666;">Añade a tus veterinarios y recepcionistas para trabajar de forma sincronizada.</div>
-                              </td>
-                            </tr>
-                          </table>
-
-                          <div style="margin: 32px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; text-align: center;">
-                            <p style="margin: 0 0 12px 0; font-size: 15px; line-height: 1.5; color: #166534; font-weight: 600;">
-                              📅 Te recomendamos agendar una videollamada corta con nuestro equipo para ayudarte a configurar tu cuenta y conocer el sistema.
+                          <div style="margin: 8px 0 28px 0; padding: 28px 24px; background-color: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 16px; text-align: center;">
+                            <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #6D28D9;">📅 Videollamada de Activación</p>
+                            <p style="margin: 0 0 18px 0; font-size: 14px; line-height: 1.5; color: #5B21B6;">
+                              30 minutos para configurar tu agenda, servicios y equipo con nuestro apoyo en vivo.
                             </p>
-                            <a href="${waUrl}" style="display: inline-block; background-color: #25D366; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 8px;">
-                              Agendar por WhatsApp
+                            <a href="${bookingUrl}" style="display: inline-block; background-color: #7C3AED; color: #ffffff; font-size: 16px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);">
+                              Agendar mi videollamada
                             </a>
                           </div>
 
-                          <div style="margin: 32px 0; text-align: center;">
-                            <a href="https://www.vetly.pro/app/dashboard" style="display: inline-block; background-color: #7C3AED; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);">
-                              Ir a mi Dashboard
-                            </a>
-                          </div>
+                          <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #888; text-align: center;">
+                            ¿Prefieres explorar primero? <a href="https://www.vetly.pro/app/dashboard" style="color: #7C3AED; font-weight: 600;">Entra a tu Dashboard</a>.
+                          </p>
 
                           <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #5a5a5a;">
                             Si tienes cualquier duda, simplemente responde a este correo. ¡Nuestro equipo (y sus mascotas) están listos para ayudarte!
