@@ -1244,6 +1244,10 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
   { title: "PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE", keywords: ["eutan", "sacrific", "dormir a mi", "dormirlo", "dormirla", "dormir al", "dormir a la", "que no sufra", "no siga sufriendo", "no sufra mas", "no sufra más", "descanse en paz", "quitarle el sufrimiento", "dejarla ir", "dejarlo ir", "ponerle fin"] },
   { title: "PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA_ANIMALGRACE", keywords: ["ecograf", "radiograf", "rayos x", "eco abdominal", "eco de abdomen", "imagenolog"] },
+  // Sesión 85: sacado de ai_behavior_rules (se reenviaba en TODOS los mensajes pese a ser
+  // de uso puntual) para bajar el tamaño del prompt sin perder la reinstrucción — solo se
+  // inyecta completo cuando el tema realmente aparece en la conversación.
+  { title: "PROTOCOLO_EXAMEN_FELV_FIV_LEUCEMIA_FELINA", keywords: ["felv", "fiv", "leucemia felina", "sida felino", "sida felina"] },
   // Sesión 71: el resumen top-5/500-chars corta este doc justo antes de la tabla real
   // de comunas Tramo A/B/C/D — la IA solo veía la intro y alucinaba recargos (ej: San
   // Bernardo, que es Tramo A/$0, cotizado como $6.000). Se fuerza completo cuando el
@@ -2323,7 +2327,25 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
             const recentOutbound = history.filter(m => m.direction === "outbound").slice(-3).map(m => (m.content || "").toLowerCase());
             const schedulingSignals = ["cita", "agend", "disponib", "horario", "slot", "hora disponible", "reserv", "sector", "direcci", "ubicaci", "traslado", "zona", "comuna", "cobertura", "recargo", "castr", "cirug", "esteril", "vacun", "antirrabi", "octuple", "sextuple", "triple felina"];
             const activeSchedulingFlow = recentOutbound.some(msg => schedulingSignals.some(s => msg.includes(s)));
-            const route = selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
+
+            // Mensajes triviales ("sí", "gracias", "ok"...) no necesitan razonamiento, pero
+            // costaban igual que cualquier otro mensaje del modelo caro por la ventana
+            // "pegajosa" de 3 mensajes de arriba. Verificado con datos reales (sesión 85):
+            // el 56% de estos mensajes respondían a un mensaje de la IA que NO ofrecía
+            // ninguna hora/fecha concreta — ahí no hay nada que confirmar, se puede bajar
+            // a mini sin riesgo real. Si el mensaje previo SÍ ofreció hora/fecha, se
+            // mantiene en el modelo caro a propósito: podría ser la confirmación de un
+            // horario real, y ese es justo el escenario donde mini ya falló antes.
+            const trivialAckPattern = /^(si|sí|ok|okay|oka|dale|listo|gracias|muchas gracias|perfecto|genial|bueno|vale|ya|de acuerdo|entendido)[\s!.,¡🙏😊👍✨]*$/i;
+            const lastOutboundText = recentOutbound[recentOutbound.length - 1] || "";
+            const lastOutboundOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOutboundText);
+            const trimmedUserText = lastUserText.trim();
+            const isSafeTrivialAck = !hasImageInBurst && trimmedUserText.length > 0 && trimmedUserText.length <= 20
+              && trivialAckPattern.test(trimmedUserText) && !lastOutboundOfferedTime;
+
+            const route = isSafeTrivialAck
+              ? { model: "gpt-4o-mini", tier: 1 }
+              : selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
             targetModel = route.model;
             tierUsed = route.tier;
           } else if (clinic.ai_active_model === "pro") {
