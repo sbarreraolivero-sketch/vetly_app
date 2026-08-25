@@ -47,6 +47,8 @@ export interface Database {
                     address_references: string | null
                     google_maps_url: string | null
                     business_model: 'physical' | 'mobile' | 'hybrid' | null
+                    scheduling_mode: 'ai_autonomous' | 'coordinator_approval' | null
+                    coordinator_phone: string | null
                     clinic_address: string | null
                     address: string | null
                     currency: string | null
@@ -116,6 +118,8 @@ export interface Database {
                     address_references?: string | null
                     google_maps_url?: string | null
                     business_model?: 'physical' | 'mobile' | 'hybrid' | null
+                    scheduling_mode?: 'ai_autonomous' | 'coordinator_approval' | null
+                    coordinator_phone?: string | null
                     clinic_address?: string | null
                     address?: string | null
                     currency?: string | null
@@ -180,6 +184,8 @@ export interface Database {
                     address_references?: string | null
                     google_maps_url?: string | null
                     business_model?: 'physical' | 'mobile' | 'hybrid' | null
+                    scheduling_mode?: 'ai_autonomous' | 'coordinator_approval' | null
+                    coordinator_phone?: string | null
                     clinic_address?: string | null
                     address?: string | null
                     currency?: string | null

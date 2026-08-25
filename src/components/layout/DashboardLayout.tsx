@@ -14,6 +14,7 @@ import {
     CalendarPlus,
     CalendarCheck,
     CalendarX,
+    CalendarClock,
     Clock,
     Star,
     BookOpen,
@@ -120,6 +121,8 @@ const getNotificationIcon = (type: string) => {
             return <Star className="w-4 h-4 text-yellow-500" />
         case 'human_handoff':
             return <BellOff className="w-4 h-4 text-red-500" />
+        case 'scheduling_review':
+            return <CalendarClock className="w-4 h-4 text-primary-600" />
         default:
             return <Bell className="w-4 h-4 text-charcoal/50" />
     }
@@ -302,6 +305,7 @@ export default function DashboardLayout() {
             case 'confirmed':
             case 'cancelled':
             case 'pending_reminder':
+            case 'scheduling_review':
                 navigate('/app/appointments')
                 break
             case 'new_message':

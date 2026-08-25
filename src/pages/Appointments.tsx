@@ -34,6 +34,7 @@ import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
 import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { GuideBox } from '@/components/ui/GuideBox'
 import { RoutePlanPanel } from '@/components/appointments/RoutePlanPanel'
+import { SchedulingRequestsPanel } from '@/components/appointments/SchedulingRequestsPanel'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 
 interface Appointment {
@@ -285,6 +286,7 @@ export default function Appointments() {
     const { timezone } = useClinicTimezone()
     const clinicId = member?.clinic_id || profile?.clinic_id
     const [routeSectors, setRouteSectors] = useState<string[] | null>(null)
+    const [coordinatorApproval, setCoordinatorApproval] = useState(false)
     // "Hoy" en la zona de la clínica — nunca derivar de toISOString() (bug UTC recurrente).
     const todayLocalStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
 
@@ -293,17 +295,22 @@ export default function Appointments() {
     const [hasWhatsAppChannel, setHasWhatsAppChannel] = useState(true)
 
     useEffect(() => {
-        if (!clinicId) { setRouteSectors(null); return }
+        if (!clinicId) { setRouteSectors(null); setCoordinatorApproval(false); return }
         let cancelled = false
 
         const fetchRoutingMode = async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any)
                 .from('clinic_settings')
-                .select('logistics_config, whatsapp_provider, ycloud_api_key, ycloud_phone_number, meta_access_token, meta_phone_number_id, meta_waba_id')
+                .select('logistics_config, business_model, scheduling_mode, whatsapp_provider, ycloud_api_key, ycloud_phone_number, meta_access_token, meta_phone_number_id, meta_waba_id')
                 .eq('id', clinicId)
                 .maybeSingle()
             if (cancelled) return
+
+            // El flujo de coordinación solo tiene sentido con atención a domicilio.
+            setCoordinatorApproval(
+                data?.scheduling_mode === 'coordinator_approval' && data?.business_model !== 'physical'
+            )
 
             // Mismo criterio que cron-process-reminders (hasMetaChannel / hasYCloudChannel).
             const hasMeta = data?.whatsapp_provider === 'meta'
@@ -1147,6 +1154,11 @@ export default function Appointments() {
                     </ul>
                 </div>
             </GuideBox>
+
+            {/* Solicitudes esperando que la coordinadora defina horarios */}
+            {!isProfessional && coordinatorApproval && clinicId && (
+                <SchedulingRequestsPanel clinicId={clinicId} />
+            )}
 
             {/* Plan de ruta — solo clínicas móviles con sectorización configurada */}
             {!isProfessional && routeSectors && routeSectors.length > 0 && clinicId && (

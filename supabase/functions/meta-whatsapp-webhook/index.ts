@@ -49,6 +49,17 @@ const surgeryPrompt = `
 6. DEBES explicar que "Claudia (nuestra encargada de logística) te contactará personalmente para coordinar el día y la hora de la cirugía".
 7. Cierra la conversación ahí. No intentes usar herramientas de agenda.`;
 
+// Clínicas con scheduling_mode = 'coordinator_approval': la ruta del día la arma
+// una persona, no la IA. Un cupo libre en la agenda no significa que sea viable.
+const coordinatorPrompt = `
+[NORMATIVA NUCLEAR - COORDINACIÓN DE RUTA]:
+1. TIENES PROHIBIDO decir que vas a "revisar disponibilidad", ofrecer un día o dar horarios, aunque creas ver cupos libres.
+2. La agenda de este tutor está bloqueada hasta que la coordinadora autorice horarios concretos.
+3. Si aún te faltan datos, síguelos pidiendo con calidez y de a uno: nombre del tutor, mascota (especie/edad/peso si aplica), motivo o servicio, comuna y dirección si corresponde, si necesita atención urgente, y su DISPONIBILIDAD AMPLIA (varios días y rangos horarios posibles, no uno solo).
+4. Para la disponibilidad pregunta algo como: "¿Qué días de esta semana podrías recibirnos y en qué horarios? Si tienes más de una alternativa, indícamelas para revisar cuál coincide mejor con nuestra ruta 😊".
+5. Cuando tengas todo, usa request_scheduling_coordination. NUNCA uses create_appointment ni ofrezcas una hora tú misma.
+6. Explícale que la coordinadora revisará la ruta del día y le escribirá por este mismo medio con las opciones.`;
+
 // ── HMAC Verification (Meta global secret) ────────────────────────────────────
 async function verifyMetaSignature(rawBody: string, signatureHeader: string | null): Promise<boolean> {
   if (!signatureHeader || !APP_SECRET) return false;
@@ -288,6 +299,26 @@ const functions = [
     },
   },
   {
+    name: "request_scheduling_coordination",
+    description: "Envía la solicitud de agenda a la coordinadora para que ella defina los horarios según la ruta del día. Úsala SOLO cuando ya tengas todos los datos del tutor y su disponibilidad amplia (varios días y rangos horarios posibles). En las clínicas que trabajan con este flujo, reemplaza por completo a check_availability y create_appointment: nunca decidas tú el horario.",
+    parameters: {
+      type: "object",
+      properties: {
+        tutor_name: { type: "string", description: "Nombre real del tutor. Nunca un placeholder." },
+        pet_name: { type: "string", description: "Nombre de la mascota" },
+        pet_details: { type: "string", description: "Especie, edad y peso si aplica al servicio" },
+        service_name: { type: "string", description: "Servicio o motivo de la atención" },
+        comuna: { type: "string", description: "Comuna del tutor" },
+        sector: { type: "string", description: "Sector/zona interna según el protocolo de logística, si se puede inferir de la comuna" },
+        address: { type: "string", description: "Dirección exacta si el tutor ya la entregó" },
+        is_urgent: { type: "boolean", description: "true si necesita atención urgente; false si puede esperar los próximos días" },
+        availability_text: { type: "string", description: "Disponibilidad amplia en las palabras del tutor: varios días y rangos horarios. Ej: 'martes después de las 15:00, miércoles todo el día o viernes en la mañana'" },
+        additional_notes: { type: "string", description: "Cualquier antecedente adicional relevante para el servicio solicitado" },
+      },
+      required: ["tutor_name", "service_name", "comuna", "is_urgent", "availability_text"],
+    },
+  },
+  {
     name: "tag_patient",
     description: "Asigna una etiqueta al tutor/cliente para segmentación futura.",
     parameters: {
@@ -324,6 +355,32 @@ const normalizePhone = (phone: string): string => {
 
 const isValidUUID = (uuid: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+
+// ── Coordinación de agenda (scheduling_mode = 'coordinator_approval') ─────────
+const needsCoordinatorApproval = (clinic: any) =>
+  clinic?.scheduling_mode === "coordinator_approval";
+
+// Solicitud ya autorizada por la coordinadora para este tutor, si existe.
+// Falla ABIERTO por diseño: si la query falla no dejamos a la clínica sin agendar.
+const getAuthorizedRequest = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+  phone: string,
+): Promise<{ id: string; authorized_options: string | null } | null> => {
+  try {
+    const { data } = await sb.from("scheduling_requests")
+      .select("id, authorized_options")
+      .eq("clinic_id", clinicId)
+      .eq("tutor_phone", normalizePhone(phone))
+      .eq("status", "authorized")
+      .order("updated_at", { ascending: false })
+      .limit(1).maybeSingle();
+    return (data as any) || null;
+  } catch (e) {
+    console.error("[Meta] getAuthorizedRequest failed:", e);
+    return null;
+  }
+};
 
 // ── ¿La conversación está pausada (tomada por un humano)? ──
 // Debe re-consultarse en CADA punto de control, no una sola vez al recibir el mensaje:
@@ -571,6 +628,14 @@ const checkAvail = async (
   const isSurgery = lowerService.includes("cirug") || lowerService.includes("esterili") || lowerService.includes("castra");
   if (isAnimalGrace && isSurgery) {
     return { available: false, reason: "surgery_manual", message: surgeryPrompt };
+  }
+
+  // Bloqueo por coordinación de ruta: mientras la coordinadora no autorice
+  // horarios para este tutor, la IA no ve ningún cupo. Si YA hay una solicitud
+  // autorizada, el flujo sigue normal para poder validar el horario elegido
+  // contra la agenda real (createAppt re-valida contra raw_slots).
+  if (needsCoordinatorApproval(clinic) && !(await getAuthorizedRequest(sb, clinicId, phone))) {
+    return { available: false, reason: "coordinator_approval_required", message: coordinatorPrompt };
   }
 
   // --- ÚLTIMO HORARIO DEL DÍA ---
@@ -895,8 +960,20 @@ const createAppt = async (
   timezone = "America/Santiago",
   refId?: string,
   logisticsConfig?: any,
+  schedulingMode?: string,
 ) => {
   const normalizedPhone = normalizePhone(phone);
+
+  // Coordinación de ruta: sin autorización previa de la coordinadora, la IA no
+  // puede agendar aunque el horario esté libre.
+  let authorizedRequestId: string | null = null;
+  if (needsCoordinatorApproval({ scheduling_mode: schedulingMode })) {
+    const authorized = await getAuthorizedRequest(sb, clinicId, phone);
+    if (!authorized) {
+      return { success: false, message: "COORDINACION_REQUERIDA: No puedes agendar directamente para este tutor. Reúne sus datos y su disponibilidad amplia (varios días y rangos horarios) y usa request_scheduling_coordination. La coordinadora autorizará los horarios antes de que puedas agendar." };
+    }
+    authorizedRequestId = authorized.id;
+  }
 
   // Guard against placeholder names
   const tutorNameRaw = (args.tutor_name || "").trim();
@@ -1034,6 +1111,13 @@ const createAppt = async (
   if (error) {
     await debugLog(sb, "DB Create Appt Error", { error, args, clinicId });
     return { success: false, message: "Error DB-AG-01: No pudimos registrar la cita. Por favor confirma el nombre de tu mascota y vuelve a intentarlo." };
+  }
+
+  // La solicitud de coordinación quedó resuelta con esta cita.
+  if (authorizedRequestId) {
+    try {
+      await sb.from("scheduling_requests").update({ status: "fulfilled" }).eq("id", authorizedRequestId);
+    } catch (e) { console.error("[createAppt] No se pudo cerrar la solicitud de coordinación:", e); }
   }
 
   try {
@@ -1215,6 +1299,119 @@ const escalateToHuman = async (sb: ReturnType<typeof createClient>, clinicId: st
   return { success: true, message: "El chat ha sido derivado a un agente humano. Nuestro equipo se pondrá en contacto contigo a la brevedad." };
 };
 
+// ── Solicitud de coordinación de agenda ───────────────────────────────────────
+// La IA reunió los datos y la disponibilidad amplia del tutor; ahora una persona
+// decide qué horarios ofrecer según la ruta del día. La conversación queda pausada
+// hasta que se autoricen opciones desde el dashboard.
+const requestSchedulingCoordination = async (
+  sb: ReturnType<typeof createClient>,
+  clinicId: string,
+  phone: string,
+  args: any,
+  clinic?: any,
+) => {
+  const normalizedPhone = normalizePhone(phone);
+  const tutorName = (args.tutor_name || "").trim();
+  const availability = (args.availability_text || "").trim();
+  if (!tutorName || !availability) {
+    return { success: false, message: "FALTAN_DATOS: Necesitas el nombre real del tutor y su disponibilidad amplia (varios días y rangos horarios) antes de enviar la solicitud a la coordinadora." };
+  }
+
+  const { data: tutor } = await sb.from("tutors").select("id")
+    .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone).limit(1).maybeSingle();
+
+  const payload = {
+    clinic_id: clinicId,
+    tutor_id: (tutor as any)?.id || null,
+    tutor_phone: normalizedPhone,
+    tutor_name: tutorName,
+    pet_name: args.pet_name || null,
+    pet_details: args.pet_details || null,
+    service_requested: (args.service_name || "").trim() || "Sin especificar",
+    comuna: args.comuna || null,
+    sector: args.sector || null,
+    address: args.address || null,
+    is_urgent: args.is_urgent === true,
+    availability_text: availability,
+    additional_notes: args.additional_notes || null,
+    status: "pending",
+  };
+
+  // Una solicitud abierta por tutor: si ya existe (ninguna opción le sirvió),
+  // se reabre la misma fila en vez de duplicarla.
+  const { data: existing } = await sb.from("scheduling_requests")
+    .select("id, round")
+    .eq("clinic_id", clinicId).eq("tutor_phone", normalizedPhone)
+    .in("status", ["pending", "authorized"])
+    .limit(1).maybeSingle();
+
+  if (existing) {
+    const { error } = await sb.from("scheduling_requests").update({
+      ...payload,
+      round: ((existing as any).round || 1) + 1,
+      authorized_options: null,
+      reviewed_by: null,
+      reviewed_at: null,
+    }).eq("id", (existing as any).id);
+    if (error) {
+      await debugLog(sb, "Scheduling Request Update Error", { error, clinicId, phone: normalizedPhone });
+      return { success: false, message: "Error técnico al registrar la solicitud. Intenta nuevamente." };
+    }
+  } else {
+    const { error } = await sb.from("scheduling_requests").insert(payload);
+    if (error) {
+      await debugLog(sb, "Scheduling Request Insert Error", { error, clinicId, phone: normalizedPhone });
+      return { success: false, message: "Error técnico al registrar la solicitud. Intenta nuevamente." };
+    }
+  }
+
+  // Pausa la IA hasta que la coordinadora autorice horarios.
+  await sb.from("tutors").update({ requires_human: true })
+    .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
+  await sb.from("crm_prospects").update({ requires_human: true })
+    .eq("clinic_id", clinicId).or(`phone.eq.${phone},phone.eq.+${normalizedPhone}`);
+
+  const resumen = [
+    `Tutor: ${tutorName}`,
+    args.pet_name ? `Mascota: ${args.pet_name}${args.pet_details ? ` (${args.pet_details})` : ""}` : null,
+    `Servicio: ${payload.service_requested}`,
+    args.comuna ? `Comuna/sector: ${args.comuna}${args.sector ? ` — ${args.sector}` : ""}` : null,
+    `Urgencia: ${payload.is_urgent ? "SÍ ⚠️" : "No, puede esperar"}`,
+    `Disponibilidad: ${availability}`,
+    args.additional_notes ? `Antecedentes: ${args.additional_notes}` : null,
+  ].filter(Boolean).join("\n");
+
+  try {
+    await sb.from("notifications").insert({
+      clinic_id: clinicId,
+      type: "scheduling_review",
+      title: `Solicitud de agenda: ${tutorName}`,
+      message: `${payload.service_requested}${args.comuna ? ` — ${args.comuna}` : ""}. Disponibilidad: ${availability}`,
+      link: "/app/appointments",
+      is_read: false,
+    });
+  } catch { /* non-critical */ }
+
+  // Aviso directo por WhatsApp a quien coordina la ruta (trabaja en terreno,
+  // puede pasar horas sin abrir el dashboard).
+  const coordinatorPhone = clinic?.coordinator_phone;
+  if (coordinatorPhone && clinic?.meta_phone_number_id && clinic?.meta_access_token) {
+    try {
+      await sendMetaMessage(
+        clinic.meta_phone_number_id,
+        clinic.meta_access_token,
+        normalizePhone(coordinatorPhone),
+        `🐾 Nueva solicitud de agenda — revisar ruta\n\n${resumen}\n\nTeléfono: +${normalizedPhone}\n\nAutoriza los horarios en Citas Médicas.`,
+      );
+    } catch (e) { console.error("[requestSchedulingCoordination] WhatsApp a coordinadora falló:", e); }
+  }
+
+  return {
+    success: true,
+    message: "Solicitud enviada a la coordinadora. Informa al cliente que revisará la ruta y le escribirá por este mismo medio con las opciones. NO ofrezcas ningún horario ni sigas usando herramientas de agenda.",
+  };
+};
+
 // ── Tag Patient ───────────────────────────────────────────────────────────────
 const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { tag_name: string; tag_color?: string }) => {
   const normalizedPhone = normalizePhone(phone);
@@ -1246,8 +1443,20 @@ const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string,
 };
 
 // ── Reschedule Appointment ────────────────────────────────────────────────────
-const rescheduleAppt = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { new_date: string; new_time: string }, timezone: string) => {
+const rescheduleAppt = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { new_date: string; new_time: string }, timezone: string, schedulingMode?: string) => {
   const normalizedPhone = normalizePhone(phone);
+
+  // Elegir una fecha/hora nueva es la misma decisión que agendar: también requiere
+  // que la coordinadora haya autorizado horarios.
+  let authorizedRequestId: string | null = null;
+  if (needsCoordinatorApproval({ scheduling_mode: schedulingMode })) {
+    const authorized = await getAuthorizedRequest(sb, clinicId, phone);
+    if (!authorized) {
+      return { success: false, message: "COORDINACION_REQUERIDA: No puedes reagendar directamente. Pregúntale al tutor su nueva disponibilidad amplia (varios días y rangos horarios) y usa request_scheduling_coordination. La coordinadora autorizará el nuevo horario." };
+    }
+    authorizedRequestId = authorized.id;
+  }
+
   const { data: appt } = await sb.from("appointments").select("*")
     .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone)
     .in("status", ["pending", "confirmed"]).gte("appointment_date", new Date().toISOString())
@@ -1257,6 +1466,13 @@ const rescheduleAppt = async (sb: ReturnType<typeof createClient>, clinicId: str
   const offset = getOffset(timezone, new Date(`${args.new_date}T12:00:00`));
   const newDate = `${args.new_date}T${args.new_time}:00${offset}`;
   await sb.from("appointments").update({ appointment_date: newDate, status: "pending", reminder_sent: false }).eq("id", appt.id);
+
+  if (authorizedRequestId) {
+    try {
+      await sb.from("scheduling_requests").update({ status: "fulfilled" }).eq("id", authorizedRequestId);
+    } catch (e) { console.error("[rescheduleAppt] No se pudo cerrar la solicitud de coordinación:", e); }
+  }
+
   return { success: true, message: `Cita reagendada para el ${args.new_date} a las ${args.new_time}.` };
 };
 
@@ -1272,11 +1488,12 @@ const processFunc = async (
   _history: Msg[] = [],
 ) => {
   const logisticsConfig = clinic?.logistics_config || null;
+  const schedulingMode = clinic?.scheduling_mode;
   switch (name) {
     case "check_availability":
       return checkAvail(sb, clinicId, phone, args.date, args.service_name, timezone, args.professional_name, null, args.address, logisticsConfig);
     case "create_appointment":
-      return createAppt(sb, clinicId, phone, args, timezone, clinicId, logisticsConfig);
+      return createAppt(sb, clinicId, phone, args, timezone, clinicId, logisticsConfig, schedulingMode);
     case "get_services":
       return getServices(sb, clinicId);
     case "confirm_appointment":
@@ -1287,7 +1504,9 @@ const processFunc = async (
     case "escalate_to_human":
       return escalateToHuman(sb, clinicId, phone);
     case "reschedule_appointment":
-      return rescheduleAppt(sb, clinicId, phone, args, timezone);
+      return rescheduleAppt(sb, clinicId, phone, args, timezone, schedulingMode);
+    case "request_scheduling_coordination":
+      return requestSchedulingCoordination(sb, clinicId, phone, args, clinic);
     case "tag_patient":
       return tagPatient(sb, clinicId, phone, args);
     default:
@@ -1668,6 +1887,24 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Estado de la solicitud de coordinación de agenda para ESTE tutor.
+      let schedulingContext = "";
+      if (needsCoordinatorApproval(clinic)) {
+        try {
+          const { data: schedReq } = await sb.from("scheduling_requests")
+            .select("status, availability_text, service_requested, authorized_options")
+            .eq("clinic_id", clinic.id).eq("tutor_phone", normalizePhone(from))
+            .in("status", ["pending", "authorized"])
+            .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const req = schedReq as any;
+          if (req?.status === "pending") {
+            schedulingContext = `\n\n### SOLICITUD DE AGENDA EN REVISIÓN ###\nEste tutor ya entregó sus datos y su disponibilidad ("${req.availability_text}") para "${req.service_requested}". La coordinadora está revisando la ruta.\nINSTRUCCIÓN: NO ofrezcas horarios ni uses check_availability, create_appointment o reschedule_appointment. Si pregunta por el estado, dile con calidez que la coordinadora le escribirá por este mismo medio muy pronto. Si quiere corregir o ampliar su disponibilidad, vuelve a usar request_scheduling_coordination con los datos actualizados.\n`;
+          } else if (req?.status === "authorized") {
+            schedulingContext = `\n\n### OPCIONES AUTORIZADAS POR LA COORDINADORA ###\nSOLO puedes ofrecerle a este tutor estas alternativas:\n"${req.authorized_options}"\nINSTRUCCIÓN: Preséntaselas con calidez (puedes adaptar el tono, nunca el contenido). Si elige una, usa check_availability y luego create_appointment o reschedule_appointment para esa fecha y hora exactas. Si ninguna le acomoda, pregúntale de nuevo qué días y rangos horarios le sirven y usa request_scheduling_coordination otra vez. NUNCA ofrezcas un horario que no esté en esta lista.\n`;
+          }
+        } catch (e) { console.error("[Meta] schedulingContext lookup failed:", e); }
+      }
+
       // CAPI: LeadSubmitted (before ai_auto_respond check — fires even when AI is off)
       if (!tutor && ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
         const capiResult = await sendMetaCAPIEvent(clinic.meta_pixel_id, clinic.meta_capi_token, "LeadSubmitted", from, ctwaClid, undefined, clinic.meta_test_event_code || undefined, clinic.meta_page_id || undefined);
@@ -2044,7 +2281,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
 
           const finalSysPrompt = staticSysPrompt + dynamicSysPrompt +
             (globalLocContext ? `\n\n### INFO SISTEMA: GEO-DATA ###\n${globalLocContext}` : "") +
-            (tutorContext || "") + (referralContext || "");
+            (tutorContext || "") + (referralContext || "") + (schedulingContext || "");
 
           // Build message history
           let lastOutboundIndex = -1;
@@ -2151,7 +2388,13 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // requires_human — punto de control 3 de 3: última barrera antes de enviar.
           // El tool loop de OpenAI puede tardar decenas de segundos; sin este chequeo,
           // un clic en "Silenciar IA" hecho mientras el modelo razonaba se ignoraría.
-          if (await isPausedForHuman(sb, clinic.id, from)) {
+          // Excepción: si fue ESTA misma vuelta la que pausó al tutor al derivar a la
+          // coordinadora, el aviso de "la coordinadora revisará la ruta" sí debe salir —
+          // si no, el cliente entrega todos sus datos y queda en silencio absoluto.
+          const pausedByThisTurn = allFuncResults.some(
+            r => r.name === "request_scheduling_coordination" && r.result?.success === true,
+          );
+          if (!pausedByThisTurn && await isPausedForHuman(sb, clinic.id, from)) {
             console.log(`[Meta] requires_human=true for ${from}, discarding reply (pre-send)`);
             return;
           }

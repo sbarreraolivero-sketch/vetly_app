@@ -40,6 +40,7 @@ import {
     ShieldAlert,
     Settings2,
     Package,
+    CalendarClock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
@@ -121,6 +122,8 @@ export default function Settings() {
     const [services, setServices] = useState<any[]>([])
     const [workingHours, setWorkingHours] = useState<any>(mockWorkingHours)
     const [businessModel, setBusinessModel] = useState<'physical' | 'mobile' | 'hybrid'>('physical')
+    const [schedulingMode, setSchedulingMode] = useState<'ai_autonomous' | 'coordinator_approval'>('ai_autonomous')
+    const [coordinatorPhone, setCoordinatorPhone] = useState('')
     const [showMobileList, setShowMobileList] = useState(true)
 
     // Service modal state
@@ -445,6 +448,8 @@ export default function Settings() {
                     setAiActiveModel(clinicData.ai_active_model || 'hybrid')
                     setAiAutoRespond(clinicData.ai_auto_respond !== false)
                     setBusinessModel(clinicData.business_model || 'physical')
+                    setSchedulingMode(clinicData.scheduling_mode === 'coordinator_approval' ? 'coordinator_approval' : 'ai_autonomous')
+                    setCoordinatorPhone(clinicData.coordinator_phone || '')
                     setPaymentRegion(clinicData.payment_provider === 'paddle' ? 'international' : 'chile')
                     setCurrentPaymentProvider(clinicData.payment_provider || null)
                     if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
@@ -870,6 +875,9 @@ export default function Settings() {
                     currency,
                     timezone,
                     business_model: businessModel,
+                    // Una clínica de local fijo no coordina rutas: el modo vuelve al default.
+                    scheduling_mode: businessModel === 'physical' ? 'ai_autonomous' : schedulingMode,
+                    coordinator_phone: coordinatorPhone.trim() || null,
                     template_survey: templateSurvey,
                     iva_enabled: ivaEnabled,
                     iva_rate: ivaRate,
@@ -1510,6 +1518,80 @@ export default function Settings() {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Solo tiene sentido con atención a domicilio: en un local fijo
+                                    no hay ruta que coordinar. */}
+                                {businessModel !== 'physical' && (
+                                    <div className="bg-silk-beige/20 p-4 rounded-soft border border-silk-beige/30 mb-8">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 bg-primary-500/10 rounded-full flex items-center justify-center">
+                                                <CalendarClock className="w-5 h-5 text-primary-600" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-charcoal leading-none mb-1">Modo de Agendamiento</h3>
+                                                <p className="text-xs text-charcoal/50">Define quién decide el horario que se le ofrece al cliente</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => setSchedulingMode('ai_autonomous')}
+                                                className={cn(
+                                                    "flex items-start gap-3 p-3 rounded-soft border text-left transition-all",
+                                                    schedulingMode === 'ai_autonomous'
+                                                        ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500"
+                                                        : "bg-white/40 border-silk-beige hover:border-primary-200"
+                                                )}
+                                            >
+                                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", schedulingMode === 'ai_autonomous' ? "bg-primary-500 text-white" : "bg-silk-beige/40 text-charcoal/40")}>
+                                                    <Zap className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <p className={cn("text-[11px] font-bold", schedulingMode === 'ai_autonomous' ? "text-primary-700" : "text-charcoal")}>La IA agenda directamente</p>
+                                                    <p className="text-[10px] text-charcoal/50 mt-0.5">Ofrece los horarios libres de la agenda y cierra la cita sola.</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={() => setSchedulingMode('coordinator_approval')}
+                                                className={cn(
+                                                    "flex items-start gap-3 p-3 rounded-soft border text-left transition-all",
+                                                    schedulingMode === 'coordinator_approval'
+                                                        ? "bg-white border-primary-500 shadow-sm ring-1 ring-primary-500"
+                                                        : "bg-white/40 border-silk-beige hover:border-primary-200"
+                                                )}
+                                            >
+                                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", schedulingMode === 'coordinator_approval' ? "bg-primary-500 text-white" : "bg-silk-beige/40 text-charcoal/40")}>
+                                                    <CalendarClock className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <p className={cn("text-[11px] font-bold", schedulingMode === 'coordinator_approval' ? "text-primary-700" : "text-charcoal")}>Requiere aprobación de coordinación</p>
+                                                    <p className="text-[10px] text-charcoal/50 mt-0.5">La IA reúne los datos y la disponibilidad; tú decides los horarios según la ruta del día.</p>
+                                                </div>
+                                            </button>
+                                        </div>
+
+                                        {schedulingMode === 'coordinator_approval' && (
+                                            <div className="mt-4">
+                                                <label className="block text-xs font-bold text-charcoal mb-1.5">
+                                                    WhatsApp de quien coordina la ruta
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    value={coordinatorPhone}
+                                                    onChange={(e) => setCoordinatorPhone(e.target.value)}
+                                                    placeholder="+56 9 1234 5678"
+                                                    className="w-full px-3 py-2 rounded-soft border border-silk-beige bg-white text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                                                />
+                                                <p className="text-[10px] text-charcoal/40 mt-1.5">
+                                                    Recibirá un WhatsApp cada vez que un cliente quede esperando horarios.
+                                                    Las solicitudes se revisan en Citas Médicas. Si lo dejas vacío, solo llegará
+                                                    la notificación dentro de la plataforma.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="space-y-4">
                                     <div>
