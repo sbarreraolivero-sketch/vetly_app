@@ -63,9 +63,16 @@ export default function BookOnboardingCall() {
             const [hours, minutes] = selectedTime.split(':').map(Number)
             const scheduledDatetime = setMinutes(setHours(selectedDate, hours), minutes)
 
-            const { data: inserted, error: insertErr } = await (publicClient as any)
+            // Se genera el id en el cliente para no depender de "insert ...
+            // returning": eso exigiría privilegio SELECT (y pasar la policy de
+            // SELECT) sobre la tabla para el rol anon, lo que reabriría la
+            // fuga de contactos que la RLS de esta tabla evita a propósito.
+            const appointmentId = crypto.randomUUID()
+
+            const { error: insertErr } = await (publicClient as any)
                 .from('hq_appointments')
                 .insert({
+                    id: appointmentId,
                     clinic_id: clinicId,
                     contact_name: name.trim(),
                     contact_email: email.trim(),
@@ -76,14 +83,12 @@ export default function BookOnboardingCall() {
                     status: 'scheduled',
                     source: 'welcome_email',
                 })
-                .select('id')
-                .single()
 
             if (insertErr) throw insertErr
 
             // Fire-and-forget: la reserva ya quedó guardada, la notificación no
             // debe bloquear la pantalla de éxito si falla.
-            publicClient.functions.invoke('hq-booking-notify', { body: { appointment_id: inserted.id } }).catch(() => {})
+            publicClient.functions.invoke('hq-booking-notify', { body: { appointment_id: appointmentId } }).catch(() => {})
 
             setSuccess(true)
         } catch (err: any) {
