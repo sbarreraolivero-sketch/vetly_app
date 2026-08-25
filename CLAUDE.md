@@ -5973,3 +5973,13 @@ Antes de esta sesión el impacto era bajo (tope fijo de 200 puntos); al converti
 **Regla permanente:** cuando dos ramas de una misma función pagan recompensas relacionadas (bono al referido / bono al referidor), cualquier invariante de seguridad validada en una (aquí, "el referidor no puede ser el propio comprador") debe replicarse explícitamente en la otra — no asumir que aplica por simetría de diseño si el código no lo dice.
 
 **Regla permanente:** al subir el techo o quitar el tope de una recompensa monetaria automática (fija → porcentual sin techo), revisar también las validaciones de abuso alrededor de esa recompensa — un bug de bajo impacto con un tope bajo puede volverse significativo cuando cambia la economía, aunque el bug en sí no sea nuevo.
+
+### Corrección posterior (misma sesión): correo de bienvenida prometía IA a clientes Core
+
+El usuario detectó que el correo de bienvenida —incluso el reenviado a los 4 leads reales de la Parte 1— decía en su paso 2: *"Conoce a tu Asistente IA — entrena a tu IA con la información de tu clínica..."*, algo que el plan Core (justo el de estos 4 leads) no tiene.
+
+**Causa:** `send-welcome-email/index.ts` nunca recibía el plan — `signup-handler` solo mandaba `{email, full_name, clinic_name}`. La plantilla es estática y no distinguía nada por plan.
+
+**Fix:** `signup-handler` ahora manda también `is_core_plan: isCorePlan` (variable que ya existía en la función, solo faltaba pasarla). `send-welcome-email` usa ese flag para reemplazar el paso 2 por *"Registra tus primeras fichas — Carga a tus pacientes y tutores..."* cuando el plan es Core, dejando "Conoce a tu Asistente IA" solo para Starter/Pro/Enterprise. Desplegado ambas funciones y **reenviado el correo corregido a los mismos 4 leads** (los IDs de Resend del primer envío quedan obsoletos frente a estos nuevos).
+
+**Regla permanente:** cualquier comunicación automática dirigida a un cliente nuevo (correos, banners, etc.) debe recibir explícitamente el plan contratado si su contenido menciona una feature que no está en todos los planes — no asumir que el mensaje genérico sirve para todos. Core en particular no tiene agente de IA conversacional; cualquier copy nuevo dirigido a clientes nuevos debe revisarse contra esa restricción antes de darse por bueno.

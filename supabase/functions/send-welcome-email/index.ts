@@ -14,7 +14,7 @@ serve(async (req) => {
     }
 
     try {
-        const { email, full_name, clinic_name } = await req.json();
+        const { email, full_name, clinic_name, is_core_plan } = await req.json();
 
         if (!email || !clinic_name) {
             return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -94,8 +94,11 @@ serve(async (req) => {
                             </tr>
                             <tr>
                               <td style="padding: 0 0 20px 0;">
-                                <div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">2. Conoce a tu Asistente IA</div>
-                                <div style="font-size: 14px; color: #666;">Entrena a tu IA con la información de tu clínica para que responda dudas de tus clientes.</div>
+                                ${is_core_plan
+                                  ? `<div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">2. Registra tus primeras fichas</div>
+                                <div style="font-size: 14px; color: #666;">Carga a tus pacientes y tutores para tener su historial médico y de citas a mano.</div>`
+                                  : `<div style="font-weight: 600; color: #7C3AED; margin-bottom: 4px;">2. Conoce a tu Asistente IA</div>
+                                <div style="font-size: 14px; color: #666;">Entrena a tu IA con la información de tu clínica para que responda dudas de tus clientes.</div>`}
                               </td>
                             </tr>
                             <tr>
