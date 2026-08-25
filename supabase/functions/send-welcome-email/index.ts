@@ -23,6 +23,13 @@ serve(async (req) => {
             });
         }
 
+        // Mismo número/mecanismo que la burbuja flotante de WhatsApp
+        // (NewAccountWhatsAppBubble.tsx) — se refuerza acá por si la persona no
+        // llega a ver la burbuja o abandona antes de entrar al dashboard.
+        const ANDRES_WHATSAPP_NUMBER = "56993089185";
+        const waMessage = `Hola! Soy de ${clinic_name}, acabo de crear mi cuenta en Vetly y quiero agendar mi reunión de implementación.`;
+        const waUrl = `https://wa.me/${ANDRES_WHATSAPP_NUMBER}?text=${encodeURIComponent(waMessage)}`;
+
         if (!RESEND_API_KEY) {
             console.warn("Missing RESEND_API_KEY. Simulating welcome email send.");
             return new Response(JSON.stringify({ message: "Email simulation successful" }), {
@@ -98,6 +105,15 @@ serve(async (req) => {
                               </td>
                             </tr>
                           </table>
+
+                          <div style="margin: 32px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; text-align: center;">
+                            <p style="margin: 0 0 12px 0; font-size: 15px; line-height: 1.5; color: #166534; font-weight: 600;">
+                              📅 Te recomendamos agendar una videollamada corta con nuestro equipo para ayudarte a configurar tu cuenta y conocer el sistema.
+                            </p>
+                            <a href="${waUrl}" style="display: inline-block; background-color: #25D366; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 8px;">
+                              Agendar por WhatsApp
+                            </a>
+                          </div>
 
                           <div style="margin: 32px 0; text-align: center;">
                             <a href="https://www.vetly.pro/app/dashboard" style="display: inline-block; background-color: #7C3AED; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);">

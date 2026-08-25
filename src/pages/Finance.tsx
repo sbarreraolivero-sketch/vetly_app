@@ -41,6 +41,7 @@ import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
 import { printCajaReport } from '@/components/finance/CajaReport'
 import { ExportModal } from '@/components/finance/ExportModal'
 import { cn } from '@/lib/utils'
+import { CURRENCY_SYMBOLS, CURRENCY_LOCALES, CURRENCIES_WITHOUT_DECIMALS } from '@/lib/currency'
 import { toast } from 'react-hot-toast'
 import { GuideBox } from '@/components/ui/GuideBox'
 import { NewIncomeForm } from '@/components/finance/NewIncomeForm'
@@ -81,20 +82,6 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 }
 
 const translatePaymentMethod = (m?: string | null) => (m ? (PAYMENT_METHOD_LABELS[m.toLowerCase()] ?? m) : '—')
-
-// Monedas sin subunidad en circulación: mostrarles centavos es incorrecto.
-const CURRENCIES_WITHOUT_DECIMALS = new Set(['CLP', 'COP', 'PYG', 'JPY', 'KRW', 'ISK', 'VND'])
-
-const CURRENCY_LOCALES: Record<string, string> = {
-    CLP: 'es-CL', ARS: 'es-AR', COP: 'es-CO', PEN: 'es-PE',
-    MXN: 'es-MX', UYU: 'es-UY', PYG: 'es-PY', BOB: 'es-BO',
-    USD: 'en-US', EUR: 'es-ES', BRL: 'pt-BR',
-}
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-    CLP: '$', ARS: '$', COP: '$', MXN: '$', UYU: '$', USD: '$',
-    PEN: 'S/', PYG: '₲', BOB: 'Bs', EUR: '€', BRL: 'R$',
-}
 
 // Serie de ingresos y de gastos del gráfico. Verde/rojo — la convención obvia —
 // está descartada a propósito: es la peor combinación para daltonismo

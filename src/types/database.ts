@@ -50,6 +50,17 @@ export interface Database {
                     clinic_address: string | null
                     address: string | null
                     currency: string | null
+                    loyalty_enabled: boolean | null
+                    loyalty_points_percentage: number | null
+                    loyalty_referral_bonus: number | null
+                    loyalty_referral_bonus_type: 'fixed' | 'percentage'
+                    loyalty_welcome_bonus: number | null
+                    loyalty_welcome_bonus_type: 'fixed' | 'percentage'
+                    loyalty_points_name: string | null
+                    /** @deprecated cosmético, el motor de fidelización nunca lo lee */
+                    loyalty_program_mode: string | null
+                    /** @deprecated usar `currency` + CURRENCY_SYMBOLS en su lugar */
+                    loyalty_currency_symbol: string | null
                     template_survey: string | null
                     template_reactivation: string | null
                     vaccine_reminder_template: string | null
@@ -108,6 +119,15 @@ export interface Database {
                     clinic_address?: string | null
                     address?: string | null
                     currency?: string | null
+                    loyalty_enabled?: boolean | null
+                    loyalty_points_percentage?: number | null
+                    loyalty_referral_bonus?: number | null
+                    loyalty_referral_bonus_type?: 'fixed' | 'percentage'
+                    loyalty_welcome_bonus?: number | null
+                    loyalty_welcome_bonus_type?: 'fixed' | 'percentage'
+                    loyalty_points_name?: string | null
+                    loyalty_program_mode?: string | null
+                    loyalty_currency_symbol?: string | null
                     template_survey?: string | null
                     template_reactivation?: string | null
                     contact_phone?: string | null
@@ -163,6 +183,15 @@ export interface Database {
                     clinic_address?: string | null
                     address?: string | null
                     currency?: string | null
+                    loyalty_enabled?: boolean | null
+                    loyalty_points_percentage?: number | null
+                    loyalty_referral_bonus?: number | null
+                    loyalty_referral_bonus_type?: 'fixed' | 'percentage'
+                    loyalty_welcome_bonus?: number | null
+                    loyalty_welcome_bonus_type?: 'fixed' | 'percentage'
+                    loyalty_points_name?: string | null
+                    loyalty_program_mode?: string | null
+                    loyalty_currency_symbol?: string | null
                     template_survey?: string | null
                     template_reactivation?: string | null
                     contact_phone?: string | null

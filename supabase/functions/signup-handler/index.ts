@@ -23,6 +23,7 @@ interface SignupRequest {
     password: string;
     full_name: string;
     clinic_name: string;
+    phone?: string;
     selected_plan?: string;
     card_token?: string;
     payment_provider?: 'mercadopago' | 'paddle';
@@ -132,7 +133,9 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: SignupRequest = await req.json();
-        const { email, password, full_name, clinic_name, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token, attribution } = body;
+        const { email, password, full_name, clinic_name, phone, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token, attribution } = body;
+        // Solo dígitos, mismo criterio que appointments.phone_number en el resto del proyecto.
+        const sanitizedPhone = (phone || "").replace(/\D/g, "") || null;
 
         // Validate required fields
         if (!email || !password || !full_name || !clinic_name) {
@@ -302,6 +305,17 @@ Deno.serve(async (req: Request) => {
                 trial_start_date: now.toISOString(),
                 trial_end_date: trialEndDate.toISOString(),
                 trial_status: 'running',
+                // Fidelización: preset "Recomendado" (15% bienvenida / 10% al
+                // referidor / 5% acumulación) — porcentual a propósito, agnóstico
+                // de moneda/país, para el rollout global de Core. Se deja
+                // APAGADO por defecto: una clínica nueva no debe empezar a pagar
+                // bonos sin que su dueño lo encienda a propósito desde el wizard.
+                loyalty_enabled: false,
+                loyalty_welcome_bonus: 15,
+                loyalty_welcome_bonus_type: 'percentage',
+                loyalty_referral_bonus: 10,
+                loyalty_referral_bonus_type: 'percentage',
+                loyalty_points_percentage: 5,
             })
             .select()
             .single();
@@ -323,6 +337,7 @@ Deno.serve(async (req: Request) => {
                 id: userId,
                 email: email,
                 full_name: full_name,
+                phone: sanitizedPhone,
                 clinic_id: clinicData.id,
                 role: "owner",
             });

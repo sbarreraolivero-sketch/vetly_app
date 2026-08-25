@@ -19,14 +19,18 @@ export interface LoyaltyTransaction {
 
 export interface LoyaltySettings {
     loyalty_enabled: boolean
+    /** % de acumulación en cada compra desde la 2ª en adelante (cualquier cliente). */
     loyalty_points_percentage: number
+    /** Bono al referidor cuando su recomendado hace su primera compra. */
     loyalty_referral_bonus: number
+    /** 'percentage' = loyalty_referral_bonus es un % de esa primera compra. */
+    loyalty_referral_bonus_type: 'fixed' | 'percentage'
+    /** Bono al referido (nuevo cliente) en su primera compra. */
     loyalty_welcome_bonus: number
     /** 'percentage' = el bono de bienvenida es un % de la primera compra. */
     loyalty_welcome_bonus_type: 'fixed' | 'percentage'
-    loyalty_program_mode: 'points' | 'money' | 'percentage'
+    /** Etiqueta opcional del saldo (ej. "Puntos", "Pesos AnimalGrace"). Cosmético. */
     loyalty_points_name: string
-    loyalty_currency_symbol: string
 }
 
 export interface LoyaltyReward {
@@ -81,7 +85,7 @@ export const loyaltyService = {
     async getSettings(clinicId: string): Promise<LoyaltySettings> {
         const { data, error } = await supabase
             .from('clinic_settings')
-            .select('loyalty_enabled, loyalty_points_percentage, loyalty_referral_bonus, loyalty_welcome_bonus, loyalty_welcome_bonus_type, loyalty_program_mode, loyalty_points_name, loyalty_currency_symbol')
+            .select('loyalty_enabled, loyalty_points_percentage, loyalty_referral_bonus, loyalty_referral_bonus_type, loyalty_welcome_bonus, loyalty_welcome_bonus_type, loyalty_points_name')
             .eq('id', clinicId)
             .single()
         if (error) throw error

@@ -5897,3 +5897,79 @@ Resumen ejecutivo — **el detalle técnico completo (IDs, estructura, verificac
 - ✅ **Verificación del anunciante** — aprobada al instante, ya no está pendiente.
 - 🟢 Landing `/core/mx` (terminología "expediente clínico") y `/core/comparar` — pendientes de sesiones anteriores, sin cambios.
 - 🟢 Logo horizontal 4:1 — no existe todavía, ninguno de los assets actuales tiene esa proporción; opcional, no bloquea el logo cuadrado ya subido.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 84, 2026-08-25)
+
+Sesión de seguimiento a la primera campaña de Facebook para el plan Core (4 registros reales) que terminó auditando y rediseñando el sistema de fidelización/referidos, encontrando un bug en producción independiente de la campaña.
+
+### Parte 1 — Los 4 leads reales de la campaña
+
+Campaña identificada: `META_Conv_LATAM5-Broad_CorePlan_2026-08` (objetivo `OUTCOME_LEADS`, tráfico real a `/core→/register`, sin formulario nativo de Facebook — la cuenta no tiene ninguna Página vinculada). Cruzando `attribution` (fbclid/utm) con `clinic_settings`/`user_profiles` se identificaron 4 registros reales desde el lanzamiento: Claudio Domínguez, Fernando Losada, Cliver Lopez y Servando Mendoza. El "3 vs 4" que reportaba Meta se explica porque el píxel `CompleteRegistration` solo dispara client-side (sin Conversions API server-side para el registro de Vetly) — cualquiera de los 4 pudo perder el evento por bloqueador de anuncios o el navegador in-app de Instagram.
+
+**Hallazgo que bloqueaba el seguimiento:** el registro nunca capturaba teléfono, solo email — no había forma de contactar a un lead nuevo por WhatsApp salvo pidiéndoselo aparte.
+
+### Parte 2 — Campo de WhatsApp en el registro
+
+- **Migración `20260825050000_add_phone_to_user_profiles.sql`**: `user_profiles.phone TEXT` — el contacto de la persona que crea la cuenta, distinto de `clinic_settings.contact_phone` (que ya es el número público que la IA entrega a los pacientes de esa clínica; no se tocó ni se reutilizó).
+- **`Register.tsx`**: campo "WhatsApp" obligatorio junto a nombre/email/password, solo en el flujo de alta de clínica nueva (oculto en `isJoinMode`, donde alguien se une a una clínica ya existente por invitación — no necesita pasar por esto). Se guarda como solo dígitos, mismo criterio que ya usa el proyecto para `appointments.phone_number`.
+- **`AuthContext.tsx`**: `signUp()` gana un 11º parámetro posicional `phone` (al final, para no romper la única otra dependencia del orden de argumentos).
+- **`signup-handler/index.ts`**: recibe y sanitiza `phone` (`replace(/\D/g, "")`), lo guarda en el `insert` de `user_profiles`.
+- **Limpieza de paso:** se eliminó la llamada duplicada a `send-welcome-email` desde el cliente (`Register.tsx`, antes ~línea 402) — mandaba `{email, name}` en vez de `{email, full_name, clinic_name}`, así que fallaba siempre en silencio (capturado en un try/catch que solo logueaba). El envío real y correcto ya lo hacía `signup-handler` server-side.
+- **Decisión explícita del usuario, revertida de una propuesta inicial:** NO se agregó ningún paso nuevo al flujo de registro (se había propuesto un redirect obligatorio a agendar una llamada tras registrarse — el usuario lo rechazó: el registro debe quedar exactamente igual que hoy, la invitación a agendar va solo por correo).
+- **Verificado:** confirmado que ya existe una burbuja flotante de WhatsApp (`src/components/layout/NewAccountWhatsAppBubble.tsx`, commit `79096e6`, ya en `main`) que invita a "Agenda tu reunión de implementación" — se activa por antigüedad de la clínica (`clinic_settings.created_at` ≤ 14 días), no por evento de pago, así que **ya cubre Core** (que nunca pasa por checkout). El otro mecanismo existente, `PostPaymentOnboardingBanner`, NO aplica a Core por la misma razón.
+
+**Fuera de esta sesión (encontrado, no se tocó):** el formulario "agenda tu activación" para planes no-Core (`HQBookingForm.tsx`, ruta `/pending-activation`) está roto en producción — escribe en `hq_appointments`, tabla que **no existe en la base viva** (solo existe la migración local, nunca se aplicó), y llama a `send-booking-email`, función no desplegada. No afecta a Core ni a los 4 leads de esta campaña. Queda anotado para una sesión aparte.
+
+### Parte 3 — Correo de bienvenida con invitación a agendar
+
+**`send-welcome-email/index.ts`**: nueva sección en el HTML ya existente, con el mismo número/mensaje que ya usa la burbuja (`wa.me/56993089185`), invitando a agendar la videollamada de activación. Desplegado y **enviado retroactivamente** a los 4 leads reales de la Parte 1 (4 IDs de Resend confirmados) — acción puntual de esta sesión, no un mecanismo de reenvío masivo nuevo.
+
+### Parte 4 — Simplificación del programa de fidelización/referidos
+
+**Diagnóstico corregido (verificado contra la base viva, no solo el código):** los montos (15% / $5.000 / 5%) de Animalgrace **no están hardcodeados** — el motor `sync_income_loyalty` lee todo desde `clinic_settings`. Pero las columnas de configuración (`loyalty_enabled`, `loyalty_welcome_bonus`, `loyalty_referral_bonus`, etc.) tenían defaults reales en la base (`loyalty_enabled DEFAULT true`, bonos fijos en pesos chilenos) **nunca trackeados en ninguna migración**. Consecuencia verificada fila por fila: **los 4 leads reales de esta misma campaña ya tenían `loyalty_enabled = true`**, pagando bonos fijos de $200/$500 sin que nadie lo hubiera configurado ni encendido a propósito — un bug de producción, no solo de UX.
+
+También se encontró **"Veterinaria Los Robles"** (plan Core, creada 21-ago) con la configuración exacta de Animalgrace (15% / $5.000 fijo / 5%, `loyalty_enabled=true`) — **confirmada por el usuario como cuenta de prueba propia**, excluida de cualquier trato como lead real.
+
+**Decisiones del usuario para el rediseño:**
+- Simplificación completa, no un parche mínimo.
+- Colapsar las 3 "modalidades" cosméticas (Puntos/Dinero/% Descuento — el motor nunca las leía) en un solo modelo de cashback, con el símbolo derivado de `clinic_settings.currency` en vez de un campo propio.
+- El bono al referidor pasa a soportar **monto fijo y porcentaje** (antes solo fijo), simétrico al bono de bienvenida.
+- Configuración por **wizard de 3 preguntas** en vez de una grilla de 6-7 campos sueltos, con un preset "Recomendado" de un clic.
+- **`loyalty_enabled` apagado por defecto** para cuentas nuevas (corrección explícita a mitad de sesión — la primera versión del plan lo dejaba encendido).
+
+**1. Migraciones aplicadas** (`supabase/migrations/20260825050100..050400`):
+- `loyalty_formalize_base_schema.sql`: formaliza en una migración las 7 columnas que ya existían en producción sin tracking, con comentarios marcando `loyalty_program_mode`/`loyalty_currency_symbol` como `DEPRECATED`.
+- `loyalty_referral_bonus_type.sql`: agrega `loyalty_referral_bonus_type ('fixed'|'percentage')`, cambia el DEFAULT de `loyalty_enabled` a `false` a nivel de columna (defensa en profundidad), y extiende `sync_income_loyalty` para que el bono al referidor calcule con el mismo `CASE` fijo/porcentaje que ya tenía el de bienvenida.
+- `loyalty_recommended_preset_backfill.sql`: respaldo completo a `clinic_settings_loyalty_backup` + backfill que aplica el preset **15% bienvenida / 10% referidor / 5% acumulación** (todo porcentual, agnóstico de moneda/país) SOLO a las clínicas que coincidían exactamente con el default crudo — es decir, nunca configuradas a mano. El predicado excluyó automáticamente a Animalgrace ×2 y "Los Robles". El backfill también **apagó** `loyalty_enabled` en las 6 filas afectadas (Vetly HQ, clínica de prueba, y los 4 leads reales).
+- `loyalty_prevent_self_referral_welcome_bonus.sql`: ver hallazgo de seguridad más abajo.
+
+**2. `signup-handler/index.ts`**: el INSERT de `clinic_settings` ahora setea explícitamente el preset (15/10/5, `loyalty_enabled: false`) en vez de depender del default crudo de columna.
+
+**3. Frontend:**
+- **`src/components/loyalty/LoyaltyConfigWizard.tsx`** (nuevo): reemplaza el bloque viejo de `Loyalty.tsx`. Dos caminos — "Recomendado" (un clic aplica 15/10/5) o "Personalizado" (3 preguntas: bono de bienvenida y bono al referidor con toggle %/monto fijo + input, acumulación siempre en %). Detecta si la config actual coincide con el preset y muestra el badge "Aplicado".
+- **`src/lib/currency.ts`** (nuevo): `CURRENCY_SYMBOLS`/`CURRENCY_LOCALES`/`CURRENCIES_WITHOUT_DECIMALS` extraídos de `Finance.tsx` (que antes los tenía privados) para reusarlos en el wizard, `NewIncomeForm.tsx` y `PetOwnerPortal.tsx`.
+- **`Loyalty.tsx`**: interruptor maestro sin cambios; el resto de la pestaña "Ajustes" reemplazado por el wizard; referencias a `loyalty_currency_symbol`/`loyalty_program_mode` reemplazadas por `currencySymbol(clinicCurrency)`.
+- **`loyaltyService.ts`**: `LoyaltySettings` gana `loyalty_referral_bonus_type`, pierde `loyalty_program_mode`/`loyalty_currency_symbol`.
+- **`NewIncomeForm.tsx`**: preview del bono al referidor ahora sensible al tipo (antes asumía monto fijo siempre).
+- **`PetOwnerPortal.tsx`** + RPC `get_pet_owner_portal`: agregado `currency`/`referral_bonus_type` al JSON; el símbolo del carnet digital se deriva de la moneda real de la clínica en vez del campo deprecado.
+- **`meta-whatsapp-webhook`/`ycloud-whatsapp-webhook`**: el texto que la IA usa para anunciar "Recomendar a un amigo" ahora es sensible al tipo del bono al referidor (antes asumía siempre monto fijo — con el nuevo preset porcentual habría dicho "ganas $10" en vez de "ganas 10%").
+- **`src/types/database.ts`**: agregados los 9 campos `loyalty_*` a `clinic_settings` (antes completamente ausentes del archivo de tipos, pese a que las columnas existían hace meses).
+
+**Verificación en producción (SQL con `BEGIN/ROLLBACK`, sin dejar rastro):**
+- Bono al referidor en porcentaje: paga correctamente el % de la venta.
+- Bono al referidor en monto fijo (config real de Animalgrace): sin regresión.
+- Acumulación en recompra: 5% correcto.
+- Animalgrace ×2 y "Los Robles" confirmados sin cambios tras el backfill (diff contra el respaldo).
+- Wizard verificado visualmente con Playwright + Chrome del sistema contra la cuenta de prueba real (sesión inyectada vía `admin.generateLink` + `verifyOtp`): "Programa pausado" por defecto, preset 15/10/5 visible con badge "APLICADO", camino "Personalizado" con las 3 preguntas y el toggle %/fijo funcionando.
+
+#### Hallazgo de seguridad: autorreferido en el bono de bienvenida
+
+La revisión de seguridad final (skill `security-review`) no encontró vulnerabilidades nuevas explotables en el diff, pero detectó un hallazgo real cuyo impacto esta misma sesión amplió: la rama del **bono de bienvenida** en `sync_income_loyalty` nunca validaba que el referidor no fuera el propio comprador — a diferencia de la rama del **bono al referidor**, que sí tenía `v_referrer <> v_income.tutor_id`. El buscador manual de `NewIncomeForm.tsx` ya excluye la auto-selección (`t.id !== selectedTutor?.id`), pero el canal de WhatsApp detecta el código de referido por regex sin ese chequeo — un cliente podía escribir su propio código y cobrar el bono de bienvenida, que de otro modo no aplica sin un referidor real.
+
+Antes de esta sesión el impacto era bajo (tope fijo de 200 puntos); al convertir el preset por defecto en 15% sin techo, correspondía cerrarlo en la misma pasada. **Fix** (`loyalty_prevent_self_referral_welcome_bonus.sql`): se agregó `IF v_referrer = v_income.tutor_id THEN v_referrer := NULL; END IF;` antes de calcular cualquier bono — mismo criterio que ya tenía la rama del referidor. Verificado con una venta de prueba de autorreferido real: 0 transacciones generadas (antes habría pagado $15.000 de bono de bienvenida sobre una venta de $100.000).
+
+**Regla permanente:** cuando dos ramas de una misma función pagan recompensas relacionadas (bono al referido / bono al referidor), cualquier invariante de seguridad validada en una (aquí, "el referidor no puede ser el propio comprador") debe replicarse explícitamente en la otra — no asumir que aplica por simetría de diseño si el código no lo dice.
+
+**Regla permanente:** al subir el techo o quitar el tope de una recompensa monetaria automática (fija → porcentual sin techo), revisar también las validaciones de abuso alrededor de esa recompensa — un bug de bajo impacto con un tope bajo puede volverse significativo cuando cambia la economía, aunque el bug en sí no sea nuevo.

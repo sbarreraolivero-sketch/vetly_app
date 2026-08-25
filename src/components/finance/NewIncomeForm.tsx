@@ -33,8 +33,8 @@ interface LoyaltyConfig {
     welcomeBonus: number
     welcomeBonusType: 'fixed' | 'percentage'
     referralBonus: number
+    referralBonusType: 'fixed' | 'percentage'
     pointsName: string
-    symbol: string
 }
 
 // Motivos de descuento predefinidos. Antes era un texto libre opcional y el
@@ -218,7 +218,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 (supabase as any).from('clinic_settings').select(
                     'currency, iva_enabled, iva_rate, loyalty_enabled, loyalty_points_percentage, ' +
                     'loyalty_welcome_bonus, loyalty_welcome_bonus_type, loyalty_referral_bonus, ' +
-                    'loyalty_points_name, loyalty_currency_symbol'
+                    'loyalty_referral_bonus_type, loyalty_points_name'
                 ).eq('id', clinicId).single(),
             ])
 
@@ -257,8 +257,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                     welcomeBonus:     Number(clinicRes.data.loyalty_welcome_bonus ?? 0),
                     welcomeBonusType: (clinicRes.data.loyalty_welcome_bonus_type ?? 'fixed') as 'fixed' | 'percentage',
                     referralBonus:    Number(clinicRes.data.loyalty_referral_bonus ?? 0),
+                    referralBonusType: (clinicRes.data.loyalty_referral_bonus_type ?? 'fixed') as 'fixed' | 'percentage',
                     pointsName:       clinicRes.data.loyalty_points_name || 'Puntos',
-                    symbol:           clinicRes.data.loyalty_currency_symbol || 'pts',
                 })
             }
 
@@ -764,7 +764,11 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
 
                                     {selectedReferrer && loyaltyCfg && (
                                         <p className="text-[11px] text-charcoal/50 mt-1.5">
-                                            {selectedReferrer.name} recibirá {formatMoney(loyaltyCfg.referralBonus)} al guardar esta venta.
+                                            {selectedReferrer.name} recibirá {
+                                                loyaltyCfg.referralBonusType === 'percentage'
+                                                    ? `${loyaltyCfg.referralBonus}% de esta venta (${formatMoney(Math.round(finalAmount * loyaltyCfg.referralBonus / 100))})`
+                                                    : formatMoney(loyaltyCfg.referralBonus)
+                                            } al guardar esta venta.
                                         </p>
                                     )}
                                 </div>

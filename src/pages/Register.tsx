@@ -110,6 +110,7 @@ export default function Register() {
     const [email, setEmail] = useState(inviteEmail || '')
     const [password, setPassword] = useState('')
     const [fullName, setFullName] = useState(firstNameParam || '')
+    const [phone, setPhone] = useState('')
     const [clinicName, setClinicName] = useState('')
     const [selectedPlan, setSelectedPlan] = useState(initialPlan)
     const [error, setError] = useState('')
@@ -222,6 +223,10 @@ export default function Register() {
                 setError('Completa todos los campos')
                 return
             }
+            if (phone.replace(/\D/g, '').length < 8) {
+                setError('Ingresa un número de WhatsApp válido')
+                return
+            }
             if (password.length < 6) {
                 setError('La contraseña debe tener al menos 6 caracteres')
                 return
@@ -249,6 +254,12 @@ export default function Register() {
             }
             if (isJoinMode && !jobTitle) {
                 setError('Por favor indica tu cargo en la clínica (ej: Administrador, Asistente)')
+                return
+            }
+            // El teléfono solo aplica a quien crea una clínica nueva — un miembro
+            // que se une a una ya existente (isJoinMode) no lo necesita.
+            if (!isJoinMode && phone.replace(/\D/g, '').length < 8) {
+                setError('Ingresa un número de WhatsApp válido')
                 return
             }
 
@@ -385,7 +396,7 @@ export default function Register() {
         // offline). Si no hay nada guardado va undefined y el backend lo ignora.
         const attribution = getAttribution()
 
-        const { error }: any = await (signUp as any)(email, password, fullName, effectiveClinicName || clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined)
+        const { error }: any = await (signUp as any)(email, password, fullName, effectiveClinicName || clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined, phone)
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
@@ -397,14 +408,11 @@ export default function Register() {
         // Cuenta creada de verdad — recién acá cuenta como conversión real.
         trackRegistrationConversion(selectedPlan, email)
 
-        // Enviar correo de bienvenida
-        try {
-            await supabase.functions.invoke('send-welcome-email', {
-                body: { email, name: fullName }
-            });
-        } catch (e) {
-            console.error('Error enviando email de bienvenida:', e);
-        }
+        // El correo de bienvenida ya lo envía `signup-handler` server-side (con
+        // full_name/clinic_name correctos). Esta llamada duplicada desde el
+        // cliente mandaba `{email, name}` — un payload que no coincide con lo
+        // que la función espera (`full_name`, `clinic_name` requerido) y por
+        // eso siempre fallaba en silencio. Se elimina en vez de arreglarla.
 
         // Note: Payment redirects disabled for card-free onboarding
 
@@ -611,6 +619,29 @@ export default function Register() {
                                         />
                                     </div>
                                 </div>
+
+                                {!isJoinMode && (
+                                    <div>
+                                        <label htmlFor="phone" className="block text-sm font-medium text-charcoal mb-2">
+                                            WhatsApp
+                                        </label>
+                                        <div className="relative">
+                                            <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-charcoal/40" />
+                                            <input
+                                                id="phone"
+                                                type="tel"
+                                                value={phone}
+                                                onChange={(e) => setPhone(e.target.value)}
+                                                className="input-soft pl-12 w-full"
+                                                placeholder="+56 9 1234 5678"
+                                                required
+                                            />
+                                        </div>
+                                        <p className="text-xs text-charcoal/40 mt-1">
+                                            Para invitarte a la sesión de activación y ayudarte a configurar tu cuenta.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label htmlFor="password" className="block text-sm font-medium text-charcoal mb-2">

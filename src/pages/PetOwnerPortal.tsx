@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
+import { currencySymbol } from '@/lib/currency'
 
 const publicClient = createClient(
     import.meta.env.VITE_SUPABASE_URL || '',
@@ -21,10 +22,11 @@ interface LoyaltyMovement { type: string; points: number; description: string | 
 interface PortalData {
     tutor: { name: string; loyalty_points: number; referral_code: string; referral_count: number }
     clinic: {
-        name: string; phone: string
+        name: string; phone: string; currency: string | null
         loyalty_points_name: string | null; loyalty_currency_symbol: string | null; loyalty_enabled: boolean
         earn_percentage: number; welcome_bonus: number
         welcome_bonus_type: 'fixed' | 'percentage'; referral_bonus: number
+        referral_bonus_type: 'fixed' | 'percentage'
     }
     patients: Patient[]
     /** Citas futuras aún no atendidas. */
@@ -127,13 +129,19 @@ export default function PetOwnerPortal() {
     const { tutor, clinic, patients, appointments } = data
     const upcoming  = data.upcoming ?? []
     const movements = data.loyalty_movements ?? []
-    const sym = clinic.loyalty_currency_symbol || 'pts'
+    // Símbolo derivado de la moneda real de la clínica. `loyalty_currency_symbol`
+    // quedó deprecado (se configuraba a mano y se desincronizaba de `currency`),
+    // pero se mantiene como fallback para clínicas que aún no tengan `currency`.
+    const sym = currencySymbol(clinic.currency) || clinic.loyalty_currency_symbol || 'pts'
     const pointsName = clinic.loyalty_points_name || 'Puntos'
     // El saldo es dinero (1 punto = 1 peso), así que se muestra con separador de miles.
     const money = (n: number) => new Intl.NumberFormat('es-CL').format(Math.round(n))
     const welcomeLabel = clinic.welcome_bonus_type === 'percentage'
         ? `${clinic.welcome_bonus}%`
         : `${sym}${money(clinic.welcome_bonus)}`
+    const referralBonusLabel = clinic.referral_bonus_type === 'percentage'
+        ? `${clinic.referral_bonus}%`
+        : `${sym}${money(clinic.referral_bonus)}`
     const MOVEMENT_LABEL: Record<string, string> = {
         earn:            'Acumulación por visita',
         welcome_bonus:   'Bono de bienvenida',
@@ -223,7 +231,7 @@ export default function PetOwnerPortal() {
                             )}
                             {clinic.referral_bonus > 0 && (
                                 <p className="text-xs text-gray-600">
-                                    · <strong>{sym}{money(clinic.referral_bonus)}</strong> cuando alguien que recomiendas se atiende por primera vez.
+                                    · <strong>{referralBonusLabel}</strong> cuando alguien que recomiendas se atiende por primera vez.
                                 </p>
                             )}
                             {clinic.welcome_bonus > 0 && (

@@ -13,20 +13,20 @@ import {
     Save,
     Settings as SettingsIcon,
     ShoppingBag,
-    Coins,
     DollarSign,
     Percent,
-    Calculator,
     Trophy,
     History as HistoryIcon
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { currencySymbol } from '@/lib/currency'
 import { useAuth } from '@/contexts/AuthContext'
 import { loyaltyService, LoyaltySettings, LoyaltyReward } from '@/services/loyaltyService'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
 import { LoyaltyRewardModal } from '@/components/loyalty/LoyaltyRewardModal'
+import { LoyaltyConfigWizard } from '@/components/loyalty/LoyaltyConfigWizard'
 
 export default function Loyalty() {
     const { profile } = useAuth()
@@ -60,6 +60,7 @@ export default function Loyalty() {
     const [tutorAmounts, setTutorAmounts] = useState<Record<string, string>>({});
     const [pendingAdjustments, setPendingAdjustments] = useState<Record<string, number>>({});
     const [_clinicPhone, setClinicPhone] = useState<string>('')
+    const [clinicCurrency, setClinicCurrency] = useState<string>('CLP')
     const [togglingProgram, setTogglingProgram] = useState(false)
 
     // Encender/apagar el programa completo. Guarda de inmediato y no espera al botón
@@ -107,13 +108,14 @@ export default function Loyalty() {
                 // no llevaban a ninguna parte.
                 (supabase as any)
                     .from('clinic_settings')
-                    .select('ycloud_phone_number, contact_phone')
+                    .select('ycloud_phone_number, contact_phone, currency')
                     .eq('id', profile.clinic_id)
                     .maybeSingle()
             ])
             setSettings(s)
             setTutors(tDataRes.data || [])
             setClinicPhone(clinicSettingsRes.data?.ycloud_phone_number || clinicSettingsRes.data?.contact_phone || '')
+            setClinicCurrency(clinicSettingsRes.data?.currency || 'CLP')
             setRewards(rData || [])
             setTransactions(transDataRes.data || [])
 
@@ -373,7 +375,7 @@ export default function Loyalty() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-xs font-bold font-black text-charcoal/30 uppercase tracking-widest leading-none mb-1">Saldo Actual</p>
-                                            <p className="text-xl font-black text-charcoal">{tutor.loyalty_points || 0} <span className="text-sm font-bold text-accent-500">{settings?.loyalty_currency_symbol || 'pts'}</span></p>
+                                            <p className="text-xl font-black text-charcoal">{tutor.loyalty_points || 0} <span className="text-sm font-bold text-accent-500">{currencySymbol(clinicCurrency)}</span></p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-xs font-bold font-black text-charcoal/20 uppercase tracking-widest leading-none mb-1">Referidos</p>
@@ -453,7 +455,7 @@ export default function Loyalty() {
                                 <h3 className="text-lg font-bold text-charcoal">Ranking de Embajadores</h3>
                                 <div className="flex items-center gap-2 text-accent-600 bg-accent-50 px-3 py-1.5 rounded-full text-xs font-bold">
                                     <Award className="w-4 h-4" />
-                                    Bono: {settings?.loyalty_referral_bonus} {settings?.loyalty_currency_symbol || 'pts'} / amigo referido
+                                    Bono: {settings?.loyalty_referral_bonus}{settings?.loyalty_referral_bonus_type === 'percentage' ? '%' : ` ${currencySymbol(clinicCurrency)}`} / amigo referido
                                 </div>
                             </div>
 
@@ -597,7 +599,7 @@ export default function Loyalty() {
                                     </div>
                                     <div className="text-right">
                                         <p className={cn("font-black", tx.points > 0 ? "text-emerald-500" : "text-red-500")}>
-                                            {tx.points > 0 ? '+' : ''}{tx.points} {settings?.loyalty_currency_symbol}
+                                            {tx.points > 0 ? '+' : ''}{tx.points} {currencySymbol(clinicCurrency)}
                                         </p>
                                         <p className="text-xs font-bold uppercase font-bold text-charcoal/20">{tx.type}</p>
                                     </div>
@@ -659,180 +661,63 @@ export default function Loyalty() {
                             </div>
                         </section>
 
-                        <section className="bg-white rounded-softer border border-silk-beige p-8 shadow-soft-sm">
-                            <h3 className="text-xl font-black text-charcoal mb-6 flex items-center gap-2">
-                                <Calculator className="w-6 h-6 text-accent-500" />
-                                Configuración del Programa
-                            </h3>
-
-                            <div className="space-y-8">
-                                <div>
-                                    <label className="text-xs font-black text-charcoal uppercase tracking-widest block mb-4">Modo del Programa</label>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        {[
-                                            { id: 'points', icon: Coins, label: 'Puntos Clásicos', desc: 'Acumula puntos para canjear en el catálogo.' },
-                                            { id: 'money', icon: DollarSign, label: 'Dinero (Cashback)', desc: 'Acumula saldo en dinero real para el monedero.' },
-                                            { id: 'percentage', icon: Percent, label: '% Descuento', desc: 'Acumula porcentaje de descuento para la próxima cita.' },
-                                        ].map((mode) => (
-                                            <button
-                                                key={mode.id}
-                                                onClick={() => setSettings(s => {
-                                                    if (!s) return null;
-                                                    let newName = s.loyalty_points_name;
-                                                    let newSymbol = s.loyalty_currency_symbol;
-
-                                                    // Auto-fill logic based on mode
-                                                    if (mode.id === 'points') { newName = 'Puntos'; newSymbol = 'pts'; }
-                                                    else if (mode.id === 'money') { newName = 'Saldo'; newSymbol = '$'; }
-                                                    else if (mode.id === 'percentage') { newName = 'Descuento'; newSymbol = '%'; }
-
-                                                    return {
-                                                        ...s,
-                                                        loyalty_program_mode: mode.id as any,
-                                                        loyalty_points_name: newName,
-                                                        loyalty_currency_symbol: newSymbol
-                                                    };
-                                                })}
-                                                className={cn(
-                                                    "flex flex-col items-center text-center p-6 rounded-softer border-2 transition-all",
-                                                    settings?.loyalty_program_mode === mode.id
-                                                        ? "border-accent-500 bg-accent-50 shadow-inner"
-                                                        : "border-silk-beige bg-white hover:border-silk-beige/80"
-                                                )}
-                                            >
-                                                <mode.icon className={cn("w-8 h-8 mb-4", settings?.loyalty_program_mode === mode.id ? "text-accent-500" : "text-charcoal/30")} />
-                                                <p className="font-bold text-sm mb-1">{mode.label}</p>
-                                                <p className="text-xs text-charcoal/40 font-medium leading-tight">{mode.desc}</p>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="text-xs font-black text-charcoal uppercase tracking-widest block mb-1">Nombre de la Unidad</label>
-                                        <p className="text-xs text-charcoal/40 mb-2">Ej: Puntos, Estrellas, Coins, $</p>
-                                        <input
-                                            type="text"
-                                            value={settings?.loyalty_points_name}
-                                            onChange={(e) => setSettings(s => s ? { ...s, loyalty_points_name: e.target.value } : null)}
-                                            className="w-full h-11 px-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-accent-100"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-black text-charcoal uppercase tracking-widest block mb-1">Símbolo</label>
-                                        <p className="text-xs text-charcoal/40 mb-2">Se mostrará junto al saldo</p>
-                                        <input
-                                            type="text"
-                                            value={settings?.loyalty_currency_symbol}
-                                            onChange={(e) => setSettings(s => s ? { ...s, loyalty_currency_symbol: e.target.value } : null)}
-                                            className="w-full h-11 px-4 bg-ivory border border-silk-beige rounded-soft text-sm focus:outline-none focus:ring-2 focus:ring-accent-100"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <div className="flex justify-end pt-4">
-                            <button
-                                onClick={async () => {
-                                    if (!profile?.clinic_id || !settings) return
-                                    try {
-                                        await loyaltyService.updateSettings(profile.clinic_id, settings)
-                                        toast.success('Configuración guardada')
-                                    } catch (error) {
-                                        toast.error('Error al guardar configuración')
-                                    }
-                                }}
-                                className="px-8 py-3 bg-charcoal text-white rounded-full font-black text-sm hover:bg-charcoal/90 transition-all shadow-lg"
-                            >
-                                Aplicar Cambios Globales
-                            </button>
-                        </div>
+                        {settings && profile?.clinic_id && (
+                            <LoyaltyConfigWizard
+                                clinicId={profile.clinic_id}
+                                currency={clinicCurrency}
+                                settings={settings}
+                                onSaved={(updated) => setSettings(s => s ? { ...s, ...updated } : null)}
+                            />
+                        )}
                     </div>
 
                     <div className="space-y-6">
                         <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-softer p-6 text-white shadow-soft-md">
                             <Trophy className="w-8 h-8 mb-4 text-primary-200" />
-                            <h3 className="text-lg font-bold mb-2 text-white">Reglas de Bienvenida</h3>
-                            <p className="text-sm text-primary-100 mb-6">
-                                Lo que recibe un tutor que llega <strong>con el enlace de un referidor</strong>, en su
-                                primera compra registrada. Un cliente nuevo sin referidor no recibe bienvenida:
-                                empieza a acumular desde su segunda visita.
-                            </p>
-                            <div className="bg-black/20 rounded-soft p-4 border border-white/10">
-                                <label className="text-xs uppercase font-black mb-2 block tracking-widest text-white/60">Bono Actual</label>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl font-black text-white">{settings?.loyalty_welcome_bonus}</span>
-                                    <span className="text-xs text-white/60 uppercase font-bold">
-                                        {settings?.loyalty_welcome_bonus_type === 'percentage'
-                                            ? '% de la primera compra'
-                                            : settings?.loyalty_currency_symbol}
-                                    </span>
-                                </div>
-                            </div>
+                            <h3 className="text-lg font-bold mb-2 text-white">Cómo funciona</h3>
+                            <ul className="text-sm text-primary-100 space-y-3 leading-snug">
+                                <li>
+                                    <strong className="text-white">Bono de bienvenida.</strong> Solo lo recibe
+                                    quien llega recomendado por otro cliente, en su primera compra. Un cliente
+                                    nuevo sin referidor no lo recibe: empieza a acumular desde su segunda visita.
+                                </li>
+                                <li>
+                                    <strong className="text-white">Bono al que refiere.</strong> Se paga recién
+                                    cuando su recomendado hace su primera compra, no al compartir el código.
+                                </li>
+                                <li>
+                                    <strong className="text-white">Acumulación.</strong> Cualquier cliente suma
+                                    saldo en cada compra desde la segunda, y lo canjea en caja.
+                                </li>
+                            </ul>
                         </div>
 
-                        <div className="bg-gradient-to-br from-sky-500 to-primary-600 rounded-softer p-6 shadow-soft-md text-white border border-sky-400/30">
-                            <h4 className="font-bold mb-4 tracking-tight flex items-center gap-2">
-                                <Coins className="w-5 h-5 text-sky-200" />
-                                <span className="text-white">
-                                    Reglas de Ganancia
-                                </span>
-                            </h4>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">Bono por Referir (Al Referente)</label>
-                                    <p className="text-xs text-white/60 mb-2 leading-tight">Lo que gana la persona que comparte su código.</p>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            value={settings?.loyalty_referral_bonus}
-                                            onChange={(e) => setSettings(s => s ? { ...s, loyalty_referral_bonus: parseInt(e.target.value) } : null)}
-                                            className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
-                                        />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
-                                    </div>
+                        <div className="bg-ivory rounded-softer border border-silk-beige p-6">
+                            <h4 className="font-black text-charcoal mb-3 text-sm">Configuración actual</h4>
+                            <dl className="space-y-2 text-sm">
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <dt className="text-charcoal/50">Bienvenida</dt>
+                                    <dd className="font-black text-charcoal">
+                                        {settings?.loyalty_welcome_bonus}
+                                        {settings?.loyalty_welcome_bonus_type === 'percentage'
+                                            ? '%'
+                                            : ` ${currencySymbol(clinicCurrency)}`}
+                                    </dd>
                                 </div>
-                                <div>
-                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">Bono de Bienvenida (Al Referido)</label>
-                                    <p className="text-xs text-white/60 mb-2 leading-tight">Lo que gana el nuevo cliente al llegar por invitación.</p>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            value={settings?.loyalty_welcome_bonus}
-                                            onChange={(e) => setSettings(s => s ? { ...s, loyalty_welcome_bonus: parseInt(e.target.value) } : null)}
-                                            className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
-                                        />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">{settings?.loyalty_currency_symbol}</span>
-                                    </div>
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <dt className="text-charcoal/50">Al que refiere</dt>
+                                    <dd className="font-black text-charcoal">
+                                        {settings?.loyalty_referral_bonus}
+                                        {settings?.loyalty_referral_bonus_type === 'percentage'
+                                            ? '%'
+                                            : ` ${currencySymbol(clinicCurrency)}`}
+                                    </dd>
                                 </div>
-                                <div className="pt-2 border-t border-white/10">
-                                    <label className="text-xs font-black text-sky-200 uppercase block mb-1 tracking-widest opacity-80">
-                                        {settings?.loyalty_program_mode === 'money'
-                                            ? `Cashback / Acumulación (${settings?.loyalty_currency_symbol})`
-                                            : 'Cashback / Acumulación (%)'}
-                                    </label>
-                                    <p className="text-xs text-white/60 mb-2 leading-tight">
-                                        {settings?.loyalty_program_mode === 'money'
-                                            ? `Dinero que el cliente acumula por sí mismo en cada cita (en ${settings?.loyalty_currency_symbol}).`
-                                            : 'Porcentaje del valor de la cita que el cliente acumula.'}
-                                    </p>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            value={settings?.loyalty_points_percentage}
-                                            onChange={(e) => setSettings(s => s ? { ...s, loyalty_points_percentage: parseFloat(e.target.value) } : null)}
-                                            className="w-full h-10 pl-4 pr-12 bg-black/20 border border-white/15 rounded-soft text-sm font-bold text-white placeholder-white/40 focus:bg-black/30 transition-all outline-none"
-                                        />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-sky-200 opacity-60">
-                                            {settings?.loyalty_program_mode === 'money'
-                                                ? settings?.loyalty_currency_symbol
-                                                : '%'}
-                                        </span>
-                                    </div>
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <dt className="text-charcoal/50">Compras siguientes</dt>
+                                    <dd className="font-black text-charcoal">{settings?.loyalty_points_percentage}%</dd>
                                 </div>
-                            </div>
+                            </dl>
                         </div>
                     </div>
                 </div>

@@ -1609,7 +1609,13 @@ const checkAvail = async (
       }`;
     });
 
-  const displaySlots = availableFormatted.slice(0, 15);
+  // Bug encontrado 2026-08-20: truncar a 15 cortaba las últimas 2 franjas
+  // (17:30/18:00) en cualquier día con apertura 10:00 y cap de cierre 18:00
+  // (17 slots de 30 min = índices 0-16; slice(0,15) dejaba fuera los índices
+  // 15-16). El agente ofrecía 17:00 como "última hora" contradiciendo el tope
+  // real de 18:00. `slots` ahora va sin truncar — `raw_slots` ya duplicaba
+  // la lista completa sin truncar, así que no hay motivo real para dos listas.
+  const displaySlots = availableFormatted;
   const routingMsg = recommendedSlot
     ? `📍 Contamos con disponibilidad ese día en su zona. `
     : "";
@@ -4103,12 +4109,15 @@ Deno.serve(async (req) => {
           const welcomeLabel = clinic.loyalty_welcome_bonus_type === "percentage"
             ? `${welcome}% de esa primera atención`
             : `$${welcome.toLocaleString("es-CL")}`;
+          const refBonusLabel = clinic.loyalty_referral_bonus_type === "percentage"
+            ? `${refBonus}% de esa primera atención`
+            : `$${refBonus.toLocaleString("es-CL")}`;
           loyaltyRulesBlock = `
 
 ## PROGRAMA ${unitName.toUpperCase()}
 ${earnPct > 0 ? `* **CIERRE DE AGENDAMIENTO:** Justo después del aviso de rango horario, cierra con UNA sola frase breve, nunca un párrafo: "Además, desde tu segunda visita acumulas automáticamente el ${earnPct}% del total de cada atención en ${unitName}, que puedes usar cuando quieras para descontar de futuras visitas 🐾". Si ya lo mencionaste antes en esta conversación, no lo repitas.\n` : ""}* **FICHA DIGITAL:** Si preguntan por su saldo, cómo recomendar o sus próximas atenciones, entrega el enlace de Ficha Digital que aparece en el bloque [FIDELIZACIÓN] del contexto.
 * **⚠️ PROHIBIDO INVENTAR SALDOS (ABSOLUTO):** Menciona un monto SOLO si aparece explícitamente en el bloque [FIDELIZACIÓN] del contexto. Si no aparece, di que puede revisarlo en su Ficha Digital. NUNCA estimes ni inventes un saldo.
-${refBonus > 0 ? `* **RECOMENDAR A UN AMIGO:** Quien comparte su código gana $${refBonus.toLocaleString("es-CL")} en ${unitName} cuando su recomendado se atiende por primera vez, y ese nuevo cliente recibe ${welcomeLabel}. El código aparece en el bloque [FIDELIZACIÓN]; entrégalo solo si lo piden. El premio se paga con la atención, no por mandar el código.` : ""}`;
+${refBonus > 0 ? `* **RECOMENDAR A UN AMIGO:** Quien comparte su código gana ${refBonusLabel} en ${unitName} cuando su recomendado se atiende por primera vez, y ese nuevo cliente recibe ${welcomeLabel}. El código aparece en el bloque [FIDELIZACIÓN]; entrégalo solo si lo piden. El premio se paga con la atención, no por mandar el código.` : ""}`;
         }
 
         let routePlanBlock = "";
