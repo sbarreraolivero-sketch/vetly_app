@@ -2131,7 +2131,22 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
             }
           }
 
-          const reply = assistant?.content || "Error. ¿Puedes repetir?";
+          let reply = assistant?.content;
+          if (!reply) {
+            // Llamada exitosa a OpenAI (res.ok) pero sin content final — normalmente
+            // porque el tool loop agotó las 5 iteraciones sin llegar a una respuesta
+            // de texto. No pasa por el catch de abajo, así que sin este log quedaba
+            // invisible: el cliente recibía un mensaje de error genérico y nadie se
+            // enteraba (caso real: Santiago, 2026-08-25, gata con alergia sin foto
+            // procesada, cliente sin respuesta y sin rastro en debug_logs).
+            await debugLog(sb, "Meta AI empty content", {
+              phone: from,
+              hadPendingToolCalls: !!(assistant?.tool_calls?.length || assistant?.function_call),
+              maxCallsExhausted: maxCalls <= 0,
+              finishReason: res?.choices?.[0]?.finish_reason || null,
+            });
+            reply = "Lo siento, tuve un problema técnico procesando tu mensaje. Por favor intenta consultarme en unos minutos.";
+          }
 
           // requires_human — punto de control 3 de 3: última barrera antes de enviar.
           // El tool loop de OpenAI puede tardar decenas de segundos; sin este chequeo,
