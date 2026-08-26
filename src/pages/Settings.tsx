@@ -41,6 +41,9 @@ import {
     Settings2,
     Package,
     CalendarClock,
+    Link2,
+    Image as ImageIcon,
+    Palette,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
@@ -61,6 +64,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const tabs = [
     { id: 'profile', label: 'Mi Perfil', icon: User },
     { id: 'clinic', label: 'Clínica', icon: Building2 },
+    { id: 'booking', label: 'Reservas Online', icon: Link2 },
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'subscription', label: 'Plan', icon: CreditCard },
     { id: 'schedule', label: 'Horarios', icon: Clock },
@@ -126,6 +130,16 @@ export default function Settings() {
     const [coordinatorPhone, setCoordinatorPhone] = useState('')
     const [showMobileList, setShowMobileList] = useState(true)
 
+    // Reservas online — página pública vetly.pro/reservar/:slug (plan Core,
+    // reemplaza al agente de IA para agendar).
+    const [publicBookingEnabled, setPublicBookingEnabled] = useState(false)
+    const [publicBookingSlug, setPublicBookingSlug] = useState('')
+    const [bookingLogoUrl, setBookingLogoUrl] = useState('')
+    const [bookingBrandColor, setBookingBrandColor] = useState('#0d9488')
+    const [savingBooking, setSavingBooking] = useState(false)
+    const [uploadingLogo, setUploadingLogo] = useState(false)
+    const [bookingLinkCopied, setBookingLinkCopied] = useState(false)
+
     // Service modal state
     const [showServiceModal, setShowServiceModal] = useState(false)
     const [newServiceName, setNewServiceName] = useState('')
@@ -135,6 +149,7 @@ export default function Settings() {
     // "Vacuna Antirrábica" descuenta 1 unidad del producto "Vacuna antirrábica").
     const [newServiceLinkedProductId, setNewServiceLinkedProductId] = useState<string>('')
     const [newServiceLinkedProductQty, setNewServiceLinkedProductQty] = useState<string>('1')
+    const [newServicePublicBookable, setNewServicePublicBookable] = useState(false)
     const [inventoryProducts, setInventoryProducts] = useState<any[]>([])
 
     // Professional assignment state for service modal
@@ -394,7 +409,7 @@ export default function Settings() {
                     safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', clinicId).single()),
                     safe((supabase as any).from('clinic_settings').select('*').eq('id', clinicId).single()),
                     safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', clinicId).single()),
-                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty').eq('clinic_id', clinicId)),
+                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty, is_public_bookable').eq('clinic_id', clinicId)),
                     safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: clinicId })),
                     safe((supabase as any).from('webhooks').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: true })),
                     safe((supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: clinicId })),
@@ -453,6 +468,10 @@ export default function Settings() {
                     setPaymentRegion(clinicData.payment_provider === 'paddle' ? 'international' : 'chile')
                     setCurrentPaymentProvider(clinicData.payment_provider || null)
                     if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
+                    setPublicBookingEnabled(clinicData.public_booking_enabled ?? false)
+                    setPublicBookingSlug(clinicData.public_booking_slug || '')
+                    setBookingLogoUrl(clinicData.booking_logo_url || '')
+                    setBookingBrandColor(clinicData.booking_brand_color || '#0d9488')
                 }
 
                 // --- Procesar servicios ---
@@ -466,6 +485,7 @@ export default function Settings() {
                         aiDescription: s.ai_description,
                         linkedProductId: s.linked_product_id,
                         linkedProductQty: s.linked_product_qty,
+                        publicBookable: s.is_public_bookable,
                     })))
                 }
 
@@ -910,6 +930,87 @@ export default function Settings() {
         }
     }
 
+    const slugify = (text: string) =>
+        text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase().trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+
+    const handleSaveBooking = async () => {
+        if (!clinicId) return
+        const cleanSlug = slugify(publicBookingSlug || clinicName)
+        if (publicBookingEnabled && !cleanSlug) {
+            toast.error('Elige un nombre para tu enlace antes de activar la página.')
+            return
+        }
+        setSavingBooking(true)
+        try {
+            const { error } = await (supabase as any)
+                .from('clinic_settings')
+                .update({
+                    public_booking_enabled: publicBookingEnabled,
+                    public_booking_slug: cleanSlug || null,
+                    booking_logo_url: bookingLogoUrl || null,
+                    booking_brand_color: bookingBrandColor,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', clinicId)
+
+            if (error) {
+                // Violación de unicidad del slug -- otra clínica ya lo usa.
+                if (error.code === '23505') {
+                    toast.error('Ese enlace ya está en uso por otra clínica. Elige otro nombre.')
+                    return
+                }
+                throw error
+            }
+            setPublicBookingSlug(cleanSlug)
+            toast.success('Reservas online guardadas correctamente')
+        } catch (error: any) {
+            toast.error('Error al guardar: ' + (error.message || 'Error desconocido'))
+        } finally {
+            setSavingBooking(false)
+        }
+    }
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file || !clinicId) return
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('El logo debe pesar menos de 2MB.')
+            return
+        }
+        setUploadingLogo(true)
+        try {
+            const ext = file.name.split('.').pop() || 'png'
+            const path = `${clinicId}/logo.${ext}`
+            const { error: uploadError } = await supabase.storage
+                .from('clinic-branding')
+                .upload(path, file, { upsert: true })
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage.from('clinic-branding').getPublicUrl(path)
+            // Cache-bust: el mismo path puede quedar cacheado en el navegador
+            // tras reemplazar el logo.
+            setBookingLogoUrl(`${publicUrl}?t=${Date.now()}`)
+            toast.success('Logo subido. No olvides guardar los cambios.')
+        } catch (error: any) {
+            toast.error('Error al subir el logo: ' + (error.message || 'Error desconocido'))
+        } finally {
+            setUploadingLogo(false)
+            e.target.value = ''
+        }
+    }
+
+    const bookingUrl = publicBookingSlug ? `https://www.vetly.pro/reservar/${slugify(publicBookingSlug)}` : ''
+    const copyBookingUrl = () => {
+        if (!bookingUrl) return
+        navigator.clipboard.writeText(bookingUrl)
+        setBookingLinkCopied(true)
+        setTimeout(() => setBookingLinkCopied(false), 2000)
+    }
+
     const handleSaveSchedule = async () => {
         if (!clinicId) return
         setSavingSchedule(true)
@@ -1121,6 +1222,7 @@ export default function Settings() {
         setNewServicePrice('')
         setNewServiceLinkedProductId('')
         setNewServiceLinkedProductQty('1')
+        setNewServicePublicBookable(false)
     }
 
     const handleEditService = async (service: any) => {
@@ -1130,6 +1232,7 @@ export default function Settings() {
         setNewServicePrice(service.price.toString())
         setNewServiceLinkedProductId(service.linkedProductId ?? '')
         setNewServiceLinkedProductQty(String(service.linkedProductQty ?? 1))
+        setNewServicePublicBookable(!!service.publicBookable)
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
@@ -1168,6 +1271,7 @@ export default function Settings() {
                 price: parseFloat(newServicePrice) || 0,
                 linked_product_id: newServiceLinkedProductId || null,
                 linked_product_qty: Math.max(1, parseInt(newServiceLinkedProductQty) || 1),
+                is_public_bookable: newServicePublicBookable,
             }
 
             let savedServiceId = editingServiceId
@@ -1191,6 +1295,7 @@ export default function Settings() {
                     price: serviceData.price,
                     linkedProductId: serviceData.linked_product_id,
                     linkedProductQty: serviceData.linked_product_qty,
+                    publicBookable: serviceData.is_public_bookable,
                 } : s))
             } else {
                 // Insert new service
@@ -1213,6 +1318,7 @@ export default function Settings() {
                     aiDescription: data.ai_description,
                     linkedProductId: data.linked_product_id,
                     linkedProductQty: data.linked_product_qty,
+                    publicBookable: data.is_public_bookable,
                 }])
             }
 
@@ -1897,6 +2003,15 @@ export default function Settings() {
                                                             Descuenta stock
                                                         </span>
                                                     )}
+                                                    {service.publicBookable && (
+                                                        <span
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full"
+                                                            title="Los clientes pueden reservarlo desde tu página online"
+                                                        >
+                                                            <Link2 className="w-2.5 h-2.5" />
+                                                            Reservable online
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="text-sm text-charcoal/50">
                                                     {service.duration} minutos · {currencySymbols[currency]}{service.price.toLocaleString()} {currency}
@@ -2031,6 +2146,25 @@ export default function Settings() {
                                             </div>
                                         )}
 
+                                        {/* Reservable en la página pública */}
+                                        <div className="border-t border-silk-beige pt-4 mt-4">
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={newServicePublicBookable}
+                                                    onChange={(e) => setNewServicePublicBookable(e.target.checked)}
+                                                    className="accent-primary-500 w-4 h-4"
+                                                />
+                                                <span className="text-sm font-medium text-charcoal flex items-center gap-2">
+                                                    <Link2 className="w-4 h-4 text-primary-500" />
+                                                    Reservable en tu página online
+                                                </span>
+                                            </label>
+                                            <p className="text-xs text-charcoal/50 mt-1 ml-7">
+                                                Aparece en {publicBookingSlug ? `vetly.pro/reservar/${publicBookingSlug}` : 'tu página de reservas (configúrala en la pestaña "Reservas Online")'} para que los clientes agenden solos.
+                                            </p>
+                                        </div>
+
                                         {/* Professional Assignment Section */}
                                         {clinicProfessionals.length > 0 && (
                                             <div className="border-t border-silk-beige pt-4 mt-4">
@@ -2121,6 +2255,111 @@ export default function Settings() {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Public Booking Settings */}
+                    {activeTab === 'booking' && (
+                        <div className="space-y-6">
+                            <div className="card-soft p-4 sm:p-6">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
+                                            <Link2 className="w-5 h-5 text-primary-500" />
+                                            Página de Reservas Online
+                                        </h2>
+                                        <p className="text-sm text-charcoal/50 mt-1">
+                                            Un enlace propio para que tus clientes agenden sus citas directamente, sin necesidad de un agente de IA.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPublicBookingEnabled(!publicBookingEnabled)}
+                                        className={cn(
+                                            "relative w-12 h-6 rounded-full transition-colors shrink-0 ml-4",
+                                            publicBookingEnabled ? "bg-primary-500" : "bg-charcoal/20"
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            "absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform",
+                                            publicBookingEnabled && "translate-x-6"
+                                        )} />
+                                    </button>
+                                </div>
+
+                                {publicBookingEnabled && (
+                                    <div className="mt-6 space-y-5 border-t border-silk-beige pt-5">
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2">Tu enlace</label>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-charcoal/40 shrink-0">vetly.pro/reservar/</span>
+                                                <input
+                                                    type="text"
+                                                    value={publicBookingSlug}
+                                                    onChange={(e) => setPublicBookingSlug(e.target.value)}
+                                                    placeholder={slugify(clinicName) || 'mi-clinica'}
+                                                    className="input-soft flex-1"
+                                                />
+                                            </div>
+                                            {bookingUrl && (
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 hover:underline truncate">{bookingUrl}</a>
+                                                    <button onClick={copyBookingUrl} className="text-xs font-bold text-charcoal/50 hover:text-primary-600 flex items-center gap-1 shrink-0">
+                                                        {bookingLinkCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                                        {bookingLinkCopied ? 'Copiado' : 'Copiar'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
+                                                <ImageIcon className="w-4 h-4 text-charcoal/40" /> Logo
+                                            </label>
+                                            <div className="flex items-center gap-4">
+                                                {bookingLogoUrl && (
+                                                    <img src={bookingLogoUrl} alt="Logo" className="h-12 w-12 object-contain rounded-lg border border-silk-beige bg-ivory" />
+                                                )}
+                                                <label className="btn-ghost cursor-pointer flex items-center gap-2 text-sm">
+                                                    {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                                                    {bookingLogoUrl ? 'Cambiar logo' : 'Subir logo'}
+                                                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoUpload} disabled={uploadingLogo} className="hidden" />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
+                                                <Palette className="w-4 h-4 text-charcoal/40" /> Color de marca
+                                            </label>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="color"
+                                                    value={bookingBrandColor}
+                                                    onChange={(e) => setBookingBrandColor(e.target.value)}
+                                                    className="w-12 h-10 rounded-lg border border-silk-beige cursor-pointer"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={bookingBrandColor}
+                                                    onChange={(e) => setBookingBrandColor(e.target.value)}
+                                                    className="input-soft w-32 font-mono text-sm"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                                            Marca qué servicios son reservables desde la pestaña <strong>Clínica → Servicios</strong> (checkbox "Reservable en tu página online" al editar cada uno).
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end mt-6">
+                                    <button onClick={handleSaveBooking} disabled={savingBooking} className="btn-primary flex items-center gap-2">
+                                        {savingBooking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                        Guardar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
 

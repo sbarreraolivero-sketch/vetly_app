@@ -49,6 +49,7 @@ const PartnerReferral = lazy(() => import('./pages/PartnerReferral'))
 const ReferralRedirect = lazy(() => import('./pages/ReferralRedirect'))
 const PetOwnerPortal = lazy(() => import('./pages/PetOwnerPortal'))
 const BookOnboardingCall = lazy(() => import('./pages/BookOnboardingCall'))
+const PublicBooking = lazy(() => import('./pages/PublicBooking'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const AICredits = lazy(() => import('./pages/AICredits'))
 const AISettings = lazy(() => import('./pages/AISettings'))
@@ -132,6 +133,7 @@ function MainRoutes() {
                     <Route path="/r/:code" element={<ReferralRedirect />} />
                     <Route path="/p/:code" element={<PetOwnerPortal />} />
                     <Route path="/agendar" element={<BookOnboardingCall />} />
+                    <Route path="/reservar/:slug" element={<PublicBooking />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/update-password" element={<UpdatePassword />} />
                     <Route
