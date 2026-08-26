@@ -2516,7 +2516,7 @@ export default function Settings() {
                                 <div className="flex flex-wrap gap-4">
                                     {!isPaidActive && (
                                         <button
-                                            onClick={() => document.getElementById('compare-plans')?.scrollIntoView({ behavior: 'smooth' })}
+                                            onClick={() => handlePlanSelection(normalizePlanId(subscription?.plan || 'starter'))}
                                             className="btn-primary"
                                         >
                                             {isInTrialWindow ? 'Suscribirme ahora' : 'Reactivar suscripción'}

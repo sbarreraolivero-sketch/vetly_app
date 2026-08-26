@@ -86,22 +86,28 @@ interface RequestBody {
 // Los límites por plan vienen de la tabla `plan_limits` vía _shared/planLimits.ts.
 // No declararlos inline aquí.
 
+// Sin estos headers en TODA respuesta (incluidas las de error), el
+// navegador bloquea la respuesta por CORS antes de que el JS del
+// cliente llegue a verla -- supabase-js reporta un `error` genérico sin
+// cuerpo, y cualquier fallo real de Mercado Pago (token, precio,
+// parámetros) queda invisible detrás de un "Error al iniciar el pago"
+// sin más detalle. Bug encontrado en sesión de billing, 2026-08-26.
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 Deno.serve(async (req: Request) => {
     // Handle CORS
     if (req.method === "OPTIONS") {
-        return new Response(null, {
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            },
-        });
+        return new Response(null, { headers: CORS_HEADERS });
     }
 
     if (req.method !== "POST") {
         return new Response(JSON.stringify({ error: "Method not allowed" }), {
             status: 405,
-            headers: { "Content-Type": "application/json" },
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
     }
 
@@ -113,11 +119,45 @@ Deno.serve(async (req: Request) => {
         if (!clinic_id || !plan || !email) {
             return new Response(
                 JSON.stringify({ error: "Missing required fields" }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
+                { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
             );
         }
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        // Verificar que quien llama sea miembro activo de `clinic_id` -- sin
+        // esto, cualquier usuario autenticado de CUALQUIER clínica (incluida
+        // una cuenta Core recién creada) podía pasar el UUID de otra clínica
+        // y sobrescribirle plan_id/plan/status en `subscriptions` y max_users
+        // en `clinic_settings` más abajo. verify_jwt=true solo confirma que
+        // hay una sesión válida, no que sea dueño de ese clinic_id.
+        const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "").trim();
+        if (!jwt) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            });
+        }
+        const sbUser = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+            global: { headers: { Authorization: `Bearer ${jwt}` } },
+        });
+        const { data: { user } } = await sbUser.auth.getUser();
+        if (!user) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            });
+        }
+        const { data: member } = await supabase
+            .from("clinic_members")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("clinic_id", clinic_id)
+            .eq("status", "active")
+            .maybeSingle();
+        if (!member) {
+            return new Response(JSON.stringify({ error: "Forbidden" }), {
+                status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            });
+        }
 
         // Determine currency (request -> database -> default CLP)
         let currency = reqCurrency;
@@ -172,7 +212,7 @@ Deno.serve(async (req: Request) => {
             console.error("Mercado Pago error:", errorData);
             return new Response(
                 JSON.stringify({ error: "Failed to create preference", details: errorData }),
-                { status: 500, headers: { "Content-Type": "application/json" } }
+                { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
             );
         }
 
@@ -215,17 +255,14 @@ Deno.serve(async (req: Request) => {
                 sandbox_init_point: preference.sandbox_init_point,
             }),
             {
-                headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*",
-                },
+                headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
             }
         );
     } catch (error) {
         console.error("Error:", error);
         return new Response(
             JSON.stringify({ error: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
+            { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
     }
 });
