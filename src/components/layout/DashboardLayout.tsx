@@ -165,7 +165,7 @@ export default function DashboardLayout() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data } = await (supabase as any)
                     .from('clinic_settings')
-                    .select('activation_status')
+                    .select('activation_status, trial_end_date')
                     .eq('id', profile.clinic_id)
                     .single()
 
@@ -184,9 +184,20 @@ export default function DashboardLayout() {
                     .single()
 
                 if (subData) {
-                    const trialExpired = subData.current_period_end && new Date(subData.current_period_end) < new Date()
-                    const notActive = subData.status !== 'active' && !subData.manually_active
-                    if (trialExpired && notActive && location.pathname !== '/app/settings') {
+                    const isPaidActive = subData.status === 'active' || subData.manually_active
+                    const periodEnd = subData.current_period_end ? new Date(subData.current_period_end) : null
+                    const trialEnd = data?.trial_end_date ? new Date(data.trial_end_date) : null
+                    // El acceso corre hasta lo que venza más tarde entre el período
+                    // pagado real (para que cancelar conserve acceso hasta el fin
+                    // del ciclo ya pagado) y el trial gratuito prometido (30 días
+                    // para Core) -- `current_period_end` por sí solo tiene un
+                    // default de 14 días sin relación con esa promesa real, que
+                    // vive en `clinic_settings.trial_end_date`.
+                    const accessUntil = [periodEnd, trialEnd]
+                        .filter((d): d is Date => !!d)
+                        .sort((a, b) => b.getTime() - a.getTime())[0]
+                    const trialExpired = !isPaidActive && !!accessUntil && accessUntil.getTime() < Date.now()
+                    if (trialExpired && location.pathname !== '/app/settings') {
                         console.warn('DashboardLayout: Trial expired, redirecting to settings/plan')
                         navigate('/app/settings?tab=subscription&expired=1', { replace: true })
                     }

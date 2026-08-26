@@ -68,7 +68,9 @@ export default function AISettings() {
     const [proMessages, setProMessages] = useState(0)
 
     // ── Payment
-    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
+    // Default USD/internacional (ver mismo criterio en Settings.tsx): se
+    // corrige a 'chile' más abajo solo si hay una suscripción real cobrada en CLP.
+    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('international')
 
     // ── Secciones desplegables (motor/creditos/consumo abiertos por defecto, packs/historial cerrados)
     const [open, setOpen] = useState({ motor: true, creditos: true, consumo: true, packs: false, historial: false })
@@ -132,7 +134,18 @@ export default function AISettings() {
                 if (cs) {
                     setAiActiveModel(cs.ai_active_model || 'hybrid')
                     setAiAutoRespond(cs.ai_auto_respond !== false)
-                    setPaymentRegion(cs.payment_provider === 'paddle' ? 'international' : 'chile')
+
+                    // Mismo criterio que Settings.tsx: 'chile' solo si ya hay una
+                    // suscripción real cobrada en esa moneda -- si no, `payment_provider`
+                    // es solo el artefacto del default que tenía Register.tsx al firmar.
+                    const { data: subForRegion } = await (supabase as any)
+                        .from('subscriptions')
+                        .select('manually_active, mercadopago_subscription_id, paddle_subscription_id')
+                        .eq('clinic_id', profile.clinic_id)
+                        .maybeSingle()
+                    const hasRealSubscription = !!subForRegion?.manually_active || !!subForRegion?.mercadopago_subscription_id || !!subForRegion?.paddle_subscription_id
+                    const isChileanPayer = cs.payment_provider === 'mercadopago' || cs.payment_provider === 'lemonsqueezy'
+                    setPaymentRegion(hasRealSubscription && isChileanPayer ? 'chile' : 'international')
 
                     let unlimited = cs.ai_credits_unlimited || false
                     let monthlyLimit = cs.ai_credits_monthly_limit || 500

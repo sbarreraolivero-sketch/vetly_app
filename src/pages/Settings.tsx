@@ -195,7 +195,10 @@ export default function Settings() {
     const [aiAutoRespond, setAiAutoRespond] = useState(true)
     const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For purchase, keep legacy values for payment backend
-    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
+    // Default USD/internacional: casi todos los signups son de fuera de Chile
+    // (Animalgrace es hoy la única clínica chilena real). Se corrige a 'chile'
+    // más abajo solo para quien ya tiene una suscripción real cobrada en CLP.
+    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('international')
     // Proveedor real de facturación (distinto de paymentRegion, que es solo el toggle
     // de moneda para explorar precios — no cambia hasta que el usuario efectivamente
     // paga con el otro proveedor). Usado para decidir si mostrar "Gestionar en Mercado Pago".
@@ -289,6 +292,16 @@ export default function Settings() {
         manuallyActive: boolean
     } | null>(null)
     const [cancellingSubscription, setCancellingSubscription] = useState(false)
+
+    // Suscripción real y pagada -- nunca depende del texto exacto de
+    // `subscriptions.status`, que en DB puede quedar como 'trialing' (lo que
+    // pone el trigger de creación de la clínica, nunca 'trial') hasta que un
+    // webhook de pago real lo cambia a 'active'. manuallyActive cubre las
+    // cuentas que pagan por transferencia (Animalgrace) y nunca pasan por MP/Paddle.
+    const isPaidActive = !!subscription?.manuallyActive || subscription?.status === 'active'
+    const trialEndsAtDate = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt) : null
+    const isInTrialWindow = !!trialEndsAtDate && trialEndsAtDate.getTime() > Date.now()
+    const subscriptionStatusLabel = isPaidActive ? 'Activo' : isInTrialWindow ? 'Suscrito' : 'Inactivo'
 
     // AI usage state - consolidated at top of component
 
@@ -465,7 +478,18 @@ export default function Settings() {
                     setBusinessModel(clinicData.business_model || 'physical')
                     setSchedulingMode(clinicData.scheduling_mode === 'coordinator_approval' ? 'coordinator_approval' : 'ai_autonomous')
                     setCoordinatorPhone(clinicData.coordinator_phone || '')
-                    setPaymentRegion(clinicData.payment_provider === 'paddle' ? 'international' : 'chile')
+                    // El toggle de moneda solo respeta 'chile' cuando hay una
+                    // suscripción REAL ya cobrada en CLP (pagó vía MercadoPago,
+                    // o es una cuenta manually_active como Animalgrace). Sin
+                    // eso, `payment_provider` es solo un artefacto del default
+                    // que Register.tsx haya tenido en el momento del signup,
+                    // no una elección real de moneda -- por eso todo trial sin
+                    // pagar cae siempre a USD, sin importar ese campo.
+                    {
+                        const hasRealSubscription = !!subData?.manually_active || !!subData?.mercadopago_subscription_id || !!subData?.paddle_subscription_id
+                        const isChileanPayer = clinicData.payment_provider === 'mercadopago' || clinicData.payment_provider === 'lemonsqueezy'
+                        setPaymentRegion(hasRealSubscription && isChileanPayer ? 'chile' : 'international')
+                    }
                     setCurrentPaymentProvider(clinicData.payment_provider || null)
                     if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
                     setPublicBookingEnabled(clinicData.public_booking_enabled ?? false)
@@ -1175,7 +1199,10 @@ export default function Settings() {
         // Primera conversión real (trial → plan pago): guardar flag para mostrar
         // el CTA de onboarding al volver del checkout. sessionStorage sobrevive
         // el round-trip fuera del SPA sin persistir entre sesiones futuras.
-        const isFirstConversion = subscription?.plan === 'trial'
+        // `subscription.plan` nunca es literalmente 'trial' (es el plan_id
+        // elegido, ej. 'core') -- lo que distingue una primera conversión real
+        // es que hoy todavía no hay una suscripción paga.
+        const isFirstConversion = !isPaidActive
         if (isFirstConversion) {
             sessionStorage.setItem('vetly_pending_onboarding_prompt', JSON.stringify({ planId, clinicName }))
         }
@@ -2417,20 +2444,14 @@ export default function Settings() {
                                             <p className="text-sm text-charcoal/50">Gestiona tu plan y facturación</p>
                                         </div>
                                     </div>
-                                    {(() => {
-                                        const isTrial = subscription?.status === 'trial'
-                                        const isActive = subscription?.manuallyActive || subscription?.status === 'active'
-                                        return (
-                                            <div className={cn(
-                                                "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider",
-                                                isTrial ? 'bg-amber-100 text-amber-700' :
-                                                    isActive ? 'bg-emerald-100 text-emerald-700' :
-                                                        'bg-charcoal/10 text-charcoal/60'
-                                            )}>
-                                                {isTrial ? 'En Prueba' : isActive ? 'Plan Activo' : 'Inactivo'}
-                                            </div>
-                                        )
-                                    })()}
+                                    <div className={cn(
+                                        "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider",
+                                        isPaidActive ? 'bg-emerald-100 text-emerald-700' :
+                                            isInTrialWindow ? 'bg-amber-100 text-amber-700' :
+                                                'bg-charcoal/10 text-charcoal/60'
+                                    )}>
+                                        {subscriptionStatusLabel}
+                                    </div>
                                 </div>
 
                                 <div className="bg-ivory border border-silk-beige rounded-soft p-6 mb-8">
@@ -2451,17 +2472,36 @@ export default function Settings() {
                                         <div className="text-right">
                                             {(() => {
                                                 const np = normalizePlanId(subscription?.plan || '')
-                                                const clpPrice = PLANS[np as PlanId]?.price
-                                                const usdPrice = PADDLE_PLANS[np as PaddlePlanId]?.price
+                                                const mpPlanInfo = PLANS[np as PlanId]
+                                                const paddlePlanInfo = PADDLE_PLANS[np as PaddlePlanId]
+                                                const clpLaunch = mpPlanInfo && 'launchPrice' in mpPlanInfo ? mpPlanInfo.launchPrice : null
+                                                const usdLaunch = paddlePlanInfo && 'launchPrice' in paddlePlanInfo ? paddlePlanInfo.launchPrice : null
+                                                const clpPrice = clpLaunch ?? mpPlanInfo?.price
+                                                const usdPrice = usdLaunch ?? paddlePlanInfo?.price
                                                 return (
                                                     <div>
-                                                        {clpPrice ? <p className="text-2xl font-black text-charcoal">${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span></p> : null}
-                                                        {usdPrice ? <p className="text-sm font-semibold text-charcoal/50 mt-0.5">US${usdPrice} <span className="text-xs">USD/mes</span></p> : null}
+                                                        {clpPrice ? (
+                                                            <p className="text-2xl font-black text-charcoal">
+                                                                {clpLaunch != null && <span className="text-sm font-semibold text-charcoal/40 line-through mr-1.5">${mpPlanInfo!.price.toLocaleString()}</span>}
+                                                                ${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span>
+                                                            </p>
+                                                        ) : null}
+                                                        {usdPrice ? (
+                                                            <p className="text-sm font-semibold text-charcoal/50 mt-0.5">
+                                                                {usdLaunch != null && <span className="line-through mr-1">US${paddlePlanInfo!.price}</span>}
+                                                                US${usdPrice} <span className="text-xs">USD/mes</span>
+                                                            </p>
+                                                        ) : null}
+                                                        {(clpLaunch != null || usdLaunch != null) && (
+                                                            <span className="inline-block mt-1 bg-primary-500 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                                                Precio de lanzamiento
+                                                            </span>
+                                                        )}
                                                         {!clpPrice && !usdPrice && <p className="text-2xl font-black text-charcoal">$0 <span className="text-xs font-bold text-charcoal/40">CLP/mes</span></p>}
                                                     </div>
                                                 )
                                             })()}
-                                            {subscription?.trialEndsAt && (
+                                            {isInTrialWindow && subscription?.trialEndsAt && (
                                                 <div className="mt-2 flex items-center justify-end gap-2 text-amber-600">
                                                     <Clock className="w-4 h-4" />
                                                     <p className="text-xs font-bold">
@@ -2474,15 +2514,15 @@ export default function Settings() {
                                 </div>
 
                                 <div className="flex flex-wrap gap-4">
-                                    {subscription?.status === 'trial' && (
+                                    {!isPaidActive && (
                                         <button
                                             onClick={() => document.getElementById('compare-plans')?.scrollIntoView({ behavior: 'smooth' })}
                                             className="btn-primary"
                                         >
-                                            Activar Plan Premium
+                                            {isInTrialWindow ? 'Suscribirme ahora' : 'Reactivar suscripción'}
                                         </button>
                                     )}
-                                    {currentPaymentProvider === 'mercadopago' && (
+                                    {isPaidActive && currentPaymentProvider === 'mercadopago' && (
                                         <a
                                             href="https://www.mercadopago.com.mx/subscriptions"
                                             target="_blank"
@@ -2601,8 +2641,16 @@ export default function Settings() {
                                         const mpPlan = PLANS[planId]
                                         const paddlePlan = PADDLE_PLANS[planId as PaddlePlanId]
                                         const normalizedCurrent = normalizePlanId(subscription?.plan || '')
-                                        const isCurrentPlan = planId === normalizedCurrent
+                                        const isOwnPlan = planId === normalizedCurrent
+                                        // "Plan Actual" (deshabilitado) solo cuando ya se está pagando de
+                                        // verdad -- si no, es el propio plan de un trial sin pagar, y el
+                                        // botón debe seguir habilitado para poder suscribirse.
+                                        const isCurrentPlan = isOwnPlan && isPaidActive
+                                        const isOwnUnpaidPlan = isOwnPlan && !isPaidActive
                                         const isPro = planId === 'pro'
+                                        const mpLaunch = 'launchPrice' in mpPlan ? mpPlan.launchPrice : null
+                                        const paddleLaunch = paddlePlan && 'launchPrice' in paddlePlan ? paddlePlan.launchPrice : null
+                                        const paddleLaunchAnnual = paddlePlan && 'launchAnnualTotal' in paddlePlan ? paddlePlan.launchAnnualTotal : null
                                         // Solo Core tiene precio anual creado en Paddle por ahora.
                                         const supportsAnnual = !!paddlePlan && planSupportsAnnual(planId as PaddlePlanId)
 
@@ -2629,36 +2677,44 @@ export default function Settings() {
                                                             billingPeriod === 'year' && supportsAnnual ? (
                                                                 <>
                                                                     <div className="flex items-baseline gap-1 flex-wrap">
-                                                                        <span className="text-3xl font-black text-charcoal">US${paddlePlan?.annualTotal ?? 0}</span>
+                                                                        {paddleLaunchAnnual != null && <span className="text-sm font-semibold text-charcoal/40 line-through">US${paddlePlan?.annualTotal ?? 0}</span>}
+                                                                        <span className="text-3xl font-black text-charcoal">US${paddleLaunchAnnual ?? paddlePlan?.annualTotal ?? 0}</span>
                                                                         <span className="text-xs font-bold text-charcoal/40 uppercase">USD/año</span>
                                                                     </div>
                                                                     <p className="text-xs font-semibold text-emerald-600 mt-0.5">
-                                                                        Equivale a US${Math.round((paddlePlan?.annualTotal ?? 0) / 12)}/mes · 2 meses gratis
+                                                                        Equivale a US${Math.round((paddleLaunchAnnual ?? paddlePlan?.annualTotal ?? 0) / 12)}/mes · 2 meses gratis
                                                                     </p>
                                                                 </>
                                                             ) : (
                                                             <>
                                                                 <div className="flex items-baseline gap-1 flex-wrap">
-                                                                    <span className="text-3xl font-black text-charcoal">US${paddlePlan?.price ?? 0}</span>
+                                                                    {paddleLaunch != null && <span className="text-sm font-semibold text-charcoal/40 line-through">US${paddlePlan?.price ?? 0}</span>}
+                                                                    <span className="text-3xl font-black text-charcoal">US${paddleLaunch ?? paddlePlan?.price ?? 0}</span>
                                                                     <span className="text-xs font-bold text-charcoal/40 uppercase">USD/mes</span>
                                                                 </div>
                                                                 {billingPeriod === 'year' ? (
                                                                     <p className="text-xs font-semibold text-charcoal/40 mt-0.5">Este plan solo se factura mensualmente</p>
                                                                 ) : (
-                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">${mpPlan.price.toLocaleString()} CLP/mes</p>
+                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">${(mpLaunch ?? mpPlan.price).toLocaleString()} CLP/mes</p>
                                                                 )}
                                                             </>
                                                             )
                                                         ) : (
                                                             <>
                                                                 <div className="flex items-baseline gap-1 flex-wrap">
-                                                                    <span className="text-3xl font-black text-charcoal">${mpPlan.price.toLocaleString()}</span>
+                                                                    {mpLaunch != null && <span className="text-sm font-semibold text-charcoal/40 line-through">${mpPlan.price.toLocaleString()}</span>}
+                                                                    <span className="text-3xl font-black text-charcoal">${(mpLaunch ?? mpPlan.price).toLocaleString()}</span>
                                                                     <span className="text-xs font-bold text-charcoal/40 uppercase">CLP/mes</span>
                                                                 </div>
                                                                 {paddlePlan && (
-                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${paddlePlan.price} USD/mes</p>
+                                                                    <p className="text-xs font-semibold text-charcoal/40 mt-0.5">US${paddleLaunch ?? paddlePlan.price} USD/mes</p>
                                                                 )}
                                                             </>
+                                                        )}
+                                                        {(mpLaunch != null || paddleLaunch != null) && (
+                                                            <span className="inline-block mt-1.5 bg-primary-500 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                                                Lanzamiento
+                                                            </span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -2686,7 +2742,7 @@ export default function Settings() {
                                                                 : "bg-charcoal text-white hover:bg-primary-500"
                                                     )}
                                                 >
-                                                    {isCurrentPlan ? 'Plan Actual' : 'Seleccionar Plan'}
+                                                    {isCurrentPlan ? 'Plan Actual' : isOwnUnpaidPlan ? 'Suscribirme ahora' : 'Seleccionar Plan'}
                                                 </button>
                                             </div>
                                         )

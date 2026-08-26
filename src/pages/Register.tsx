@@ -117,7 +117,9 @@ export default function Register() {
     const [loading, setLoading] = useState(false)
 
     const [jobTitle, setJobTitle] = useState(ROLE_TRANSLATIONS[inviteRole as string] || inviteRole || '')
-    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('chile')
+    // Default USD/internacional -- casi todo el tráfico de registro es de
+    // fuera de Chile hoy. Quien sea de Chile puede tocar el toggle manual.
+    const [paymentRegion, setPaymentRegion] = useState<'chile' | 'international'>('international')
     const [referralCode, setReferralCode] = useState(refParam || '')
     const [turnstileToken, setTurnstileToken] = useState<string>('')
     const turnstileRef = useRef<HTMLDivElement>(null)
