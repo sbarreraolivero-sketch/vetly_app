@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
 import { format, addDays, isSameDay, startOfToday, setHours, setMinutes, isWeekend } from 'date-fns'
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz'
 import { es } from 'date-fns/locale'
 import { Loader2, Calendar as CalendarIcon, Clock, CheckCircle2, PawPrint } from 'lucide-react'
 
@@ -21,15 +22,46 @@ for (let h = 9; h < 18; h++) {
     timeSlots.push(`${h.toString().padStart(2, '0')}:30`)
 }
 
+// Mismo mapeo país→zona horaria que hq-booking-notify / cron-hq-appointment-
+// reminders -- mantener sincronizado si se agrega un país nuevo. Los horarios
+// del calendario siempre se ofrecen en hora de Chile (es donde vive Sebastián);
+// esto solo permite mostrarle al cliente la equivalencia en su propia zona.
+const COUNTRY_TIMEZONES: Record<string, string> = {
+    'Chile': 'America/Santiago',
+    'México': 'America/Mexico_City',
+    'Colombia': 'America/Bogota',
+    'Perú': 'America/Lima',
+    'Argentina': 'America/Argentina/Buenos_Aires',
+    'Ecuador': 'America/Guayaquil',
+    'Bolivia': 'America/La_Paz',
+}
+
+// El calendario ofrece horarios en hora de Chile SIEMPRE, sin importar en qué
+// zona horaria esté el navegador de quien reserva. setHours/setMinutes de
+// date-fns operan en la hora local del navegador -- sin este paso, un cliente
+// en México reservando "10:00" habría quedado agendado a las 10:00 de su
+// propia zona (8:00 en Chile), no a las 10:00 de Chile como muestra la UI.
+const chileDateTime = (date: Date, timeStr: string): Date => {
+    const [hours, minutes] = timeStr.split(':').map(Number)
+    const naive = setMinutes(setHours(date, hours), minutes)
+    return fromZonedTime(naive, 'America/Santiago')
+}
+
 export default function BookOnboardingCall() {
     const [searchParams] = useSearchParams()
     const clinicId = searchParams.get('clinic_id') || null
     const plan = searchParams.get('plan') || null
 
-    const [name, setName] = useState(searchParams.get('name') || '')
+    // El correo de bienvenida solo manda el nombre completo en un solo query
+    // param -- se separa en nombre/apellido lo mejor posible para prellenar,
+    // pero ambos quedan editables y obligatorios igual.
+    const prefillName = searchParams.get('name') || ''
+    const [firstName, setFirstName] = useState(prefillName.split(' ')[0] || '')
+    const [lastName, setLastName] = useState(prefillName.split(' ').slice(1).join(' ') || '')
     const [email, setEmail] = useState(searchParams.get('email') || '')
     const [clinicName] = useState(searchParams.get('clinic') || '')
     const [phone, setPhone] = useState('')
+    const [country, setCountry] = useState('Chile')
 
     const [selectedDate, setSelectedDate] = useState<Date | null>(null)
     const [selectedTime, setSelectedTime] = useState<string | null>(null)
@@ -38,6 +70,15 @@ export default function BookOnboardingCall() {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
+
+    // Hora equivalente en el país del cliente, para no dejarlo adivinando
+    // cuántas horas de diferencia hay con Chile. null si eligió "Otro" o si
+    // ya está en Chile (no hace falta mostrar la misma hora dos veces).
+    const localTimeLabel = (date: Date, timeStr: string): string | null => {
+        const tz = COUNTRY_TIMEZONES[country]
+        if (!tz || country === 'Chile') return null
+        return formatInTimeZone(chileDateTime(date, timeStr), tz, 'HH:mm')
+    }
 
     const availableDates = useMemo(
         () => Array.from({ length: 14 }).map((_, i) => addDays(startOfToday(), i + 1)).filter(d => !isWeekend(d)).slice(0, 8),
@@ -53,15 +94,14 @@ export default function BookOnboardingCall() {
     }, [])
 
     const handleConfirm = async () => {
-        if (!selectedDate || !selectedTime || !name.trim() || !email.trim()) {
-            setError('Completa tu nombre, correo y elige día/hora.')
+        if (!selectedDate || !selectedTime || !firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
+            setError('Completa nombre, apellido, correo, WhatsApp y elige día/hora.')
             return
         }
         setError(null)
         setSubmitting(true)
         try {
-            const [hours, minutes] = selectedTime.split(':').map(Number)
-            const scheduledDatetime = setMinutes(setHours(selectedDate, hours), minutes)
+            const scheduledDatetime = chileDateTime(selectedDate, selectedTime)
 
             // Se genera el id en el cliente para no depender de "insert ...
             // returning": eso exigiría privilegio SELECT (y pasar la policy de
@@ -74,9 +114,10 @@ export default function BookOnboardingCall() {
                 .insert({
                     id: appointmentId,
                     clinic_id: clinicId,
-                    contact_name: name.trim(),
+                    contact_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
                     contact_email: email.trim(),
-                    contact_phone: phone.trim() ? phone.trim().replace(/\D/g, '') : null,
+                    contact_phone: phone.trim().replace(/\D/g, ''),
+                    contact_country: country,
                     plan,
                     scheduled_at: scheduledDatetime.toISOString(),
                     duration_minutes: 30,
@@ -108,7 +149,7 @@ export default function BookOnboardingCall() {
                     </div>
                     <h1 className="text-2xl font-black text-charcoal mb-3">¡Videollamada agendada!</h1>
                     <p className="text-charcoal/60 mb-8">
-                        Te enviamos la confirmación a <strong>{email}</strong>. Nuestro equipo te escribirá por WhatsApp a la hora agendada para conectar la llamada.
+                        Te enviamos la confirmación a <strong>{email}</strong> con el link de la videollamada. Guárdalo — es el mismo que vas a usar el día de la reunión.
                     </p>
                     {selectedDate && selectedTime && (
                         <div className="bg-white p-6 rounded-2xl border border-silk-beige text-left">
@@ -118,7 +159,10 @@ export default function BookOnboardingCall() {
                             </div>
                             <div className="flex items-center gap-3 text-charcoal">
                                 <Clock className="w-5 h-5 text-primary-600" />
-                                <span className="font-bold">{selectedTime} hrs (Chile)</span>
+                                <span className="font-bold">
+                                    {selectedTime} hrs (Chile)
+                                    {localTimeLabel(selectedDate, selectedTime) && ` — ${localTimeLabel(selectedDate, selectedTime)} hrs en ${country}`}
+                                </span>
                             </div>
                         </div>
                     )}
@@ -139,22 +183,37 @@ export default function BookOnboardingCall() {
                 </div>
 
                 <div className="bg-white rounded-3xl border border-silk-beige shadow-sm overflow-hidden">
-                    <div className="p-6 sm:p-8 border-b border-silk-beige grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-6 sm:p-8 border-b border-silk-beige grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <input
-                            type="text" placeholder="Tu nombre" value={name}
-                            onChange={e => setName(e.target.value)}
+                            type="text" placeholder="Nombre" value={firstName} required
+                            onChange={e => setFirstName(e.target.value)}
                             className="px-4 py-3 rounded-xl border border-silk-beige bg-ivory/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-charcoal font-medium"
                         />
                         <input
-                            type="email" placeholder="Tu correo" value={email}
+                            type="text" placeholder="Apellido" value={lastName} required
+                            onChange={e => setLastName(e.target.value)}
+                            className="px-4 py-3 rounded-xl border border-silk-beige bg-ivory/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-charcoal font-medium"
+                        />
+                        <input
+                            type="email" placeholder="Tu correo" value={email} required
                             onChange={e => setEmail(e.target.value)}
                             className="px-4 py-3 rounded-xl border border-silk-beige bg-ivory/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-charcoal font-medium"
                         />
                         <input
-                            type="tel" placeholder="WhatsApp (opcional)" value={phone}
+                            type="tel" placeholder="WhatsApp" value={phone} required
                             onChange={e => setPhone(e.target.value)}
                             className="px-4 py-3 rounded-xl border border-silk-beige bg-ivory/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-charcoal font-medium"
                         />
+                        <select
+                            value={country} required
+                            onChange={e => setCountry(e.target.value)}
+                            className="px-4 py-3 rounded-xl border border-silk-beige bg-ivory/60 focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-charcoal font-medium sm:col-span-2"
+                        >
+                            {Object.keys(COUNTRY_TIMEZONES).map(c => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                            <option value="Otro">Otro país</option>
+                        </select>
                     </div>
 
                     <div className="flex flex-col md:flex-row p-6 sm:p-8 gap-8">
@@ -189,8 +248,7 @@ export default function BookOnboardingCall() {
                             ) : selectedDate ? (
                                 <div className="grid grid-cols-3 gap-2">
                                     {timeSlots.map(time => {
-                                        const [h, m] = time.split(':').map(Number)
-                                        const slotTime = setMinutes(setHours(selectedDate, h), m)
+                                        const slotTime = chileDateTime(selectedDate, time)
                                         const isBooked = bookedSlots.some(b => b.getTime() === slotTime.getTime())
                                         const isSelected = selectedTime === time
                                         return (
@@ -220,7 +278,12 @@ export default function BookOnboardingCall() {
                         <div className="text-sm text-charcoal/60">
                             {error && <span className="text-red-600 font-medium">{error}</span>}
                             {!error && selectedDate && selectedTime && (
-                                <span>Reserva para el <strong className="capitalize">{format(selectedDate, 'EEEE d')} a las {selectedTime}</strong> hrs</span>
+                                <span>
+                                    Reserva para el <strong className="capitalize">{format(selectedDate, 'EEEE d', { locale: es })} a las {selectedTime}</strong> hrs (Chile)
+                                    {localTimeLabel(selectedDate, selectedTime) && (
+                                        <> — <strong>{localTimeLabel(selectedDate, selectedTime)}</strong> hrs en {country}</>
+                                    )}
+                                </span>
                             )}
                         </div>
                         <button

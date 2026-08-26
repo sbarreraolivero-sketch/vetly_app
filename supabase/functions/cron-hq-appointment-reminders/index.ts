@@ -10,6 +10,18 @@ import { sendWhatsApp } from "../_shared/diagnostics.ts";
 
 const HQ_ID = "00000000-0000-0000-0000-000000000000";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+// Misma sala fija que hq-booking-notify -- mantener sincronizado si cambia.
+const MEET_LINK = "https://meet.google.com/crh-jujw-fch";
+// Mismo mapeo que BookOnboardingCall.tsx / hq-booking-notify -- mantener
+// sincronizado si se agrega un país nuevo.
+const COUNTRY_TIMEZONES: Record<string, string> = {
+    "México": "America/Mexico_City",
+    "Colombia": "America/Bogota",
+    "Perú": "America/Lima",
+    "Argentina": "America/Argentina/Buenos_Aires",
+    "Ecuador": "America/Guayaquil",
+    "Bolivia": "America/La_Paz",
+};
 
 Deno.serve(async () => {
     const sb = createClient(
@@ -23,7 +35,7 @@ Deno.serve(async () => {
 
     const { data: appts, error } = await sb
         .from("hq_appointments")
-        .select("id, contact_name, contact_email, contact_phone, scheduled_at")
+        .select("id, contact_name, contact_email, contact_phone, contact_country, scheduled_at")
         .eq("status", "scheduled")
         .is("reminder_sent_at", null)
         .gte("scheduled_at", windowStart)
@@ -55,6 +67,17 @@ Deno.serve(async () => {
         const dateTimeStr = fmt.format(scheduled);
         const firstName = String(appt.contact_name || "").split(" ")[0] || appt.contact_name;
 
+        const localTz = COUNTRY_TIMEZONES[(appt.contact_country as string) || ""];
+        const localDateTimeStr = localTz
+            ? new Intl.DateTimeFormat("es", {
+                timeZone: localTz, weekday: "long", day: "numeric", month: "long",
+                hour: "2-digit", minute: "2-digit", hour12: false,
+            }).format(scheduled)
+            : null;
+        const whenLine = localDateTimeStr
+            ? `${dateTimeStr} hrs (Chile) — ${localDateTimeStr} hrs (${appt.contact_country})`
+            : `${dateTimeStr} hrs (Chile)`;
+
         if (RESEND_API_KEY && appt.contact_email) {
             try {
                 await fetch("https://api.resend.com/emails", {
@@ -69,8 +92,13 @@ Deno.serve(async () => {
                                 <h2 style="color: #7C3AED;">¡Nos vemos mañana, ${firstName}!</h2>
                                 <p>Este es un recordatorio de tu videollamada de activación con el equipo de Vetly.</p>
                                 <div style="background:#F5F3FF; border:1px solid #DDD6FE; border-radius:12px; padding:20px; margin:24px 0;">
-                                    <p style="margin:0; font-size:15px;"><strong>📅 Cuándo:</strong> ${dateTimeStr} hrs (Chile)</p>
-                                    <p style="margin:8px 0 0; font-size:15px;"><strong>📱 Cómo:</strong> Te contactamos por WhatsApp a la hora agendada.</p>
+                                    <p style="margin:0; font-size:15px;"><strong>📅 Cuándo:</strong> ${whenLine}</p>
+                                </div>
+                                <div style="text-align:center; margin:28px 0;">
+                                    <a href="${MEET_LINK}" style="display:inline-block; background-color:#7C3AED; color:#ffffff; font-size:16px; font-weight:700; text-decoration:none; padding:14px 32px; border-radius:10px;">
+                                        📹 Unirme a la videollamada
+                                    </a>
+                                    <p style="margin:10px 0 0; font-size:13px; color:#888;">${MEET_LINK}</p>
                                 </div>
                                 <p style="color:#888; font-size:13px; margin-top:32px;">— El equipo de Vetly</p>
                             </div>
@@ -89,7 +117,7 @@ Deno.serve(async () => {
                         hq.ycloud_api_key as string,
                         hq.ycloud_phone_number as string,
                         appt.contact_phone as string,
-                        `¡Hola ${firstName}! 👋 Te recuerdo que mañana tenemos nuestra videollamada de activación, *${dateTimeStr} hrs* (Chile). Te escribo por acá a esa hora. ¡Nos vemos!`,
+                        `¡Hola ${firstName}! 👋 Te recuerdo que mañana tenemos nuestra videollamada de activación, *${whenLine}*.\n\n📹 Link: ${MEET_LINK}\n\n¡Nos vemos!`,
                     );
                 } catch (e) {
                     console.error(`[hq-appointment-reminders] client WA failed for ${appt.id}:`, e);

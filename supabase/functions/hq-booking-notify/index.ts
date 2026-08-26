@@ -13,6 +13,23 @@ import { sendWhatsApp } from "../_shared/diagnostics.ts";
 
 const HQ_ID = "00000000-0000-0000-0000-000000000000";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+// Sala fija de Google Meet (evento recurrente en el Calendar de Sebastián,
+// nunca se borra). No es un link único por reserva -- ver decisión de sesión
+// 2026-08-26: la integración real con Calendar API para links dinámicos
+// existe a medias en el repo (create-google-event) pero la tabla que
+// necesita ni siquiera está creada en producción. Un link fijo cubre la
+// necesidad real (videollamadas de activación, una a la vez) sin ese riesgo.
+const MEET_LINK = "https://meet.google.com/crh-jujw-fch";
+// Mismo mapeo que BookOnboardingCall.tsx / cron-hq-appointment-reminders --
+// mantener sincronizado si se agrega un país nuevo.
+const COUNTRY_TIMEZONES: Record<string, string> = {
+    "México": "America/Mexico_City",
+    "Colombia": "America/Bogota",
+    "Perú": "America/Lima",
+    "Argentina": "America/Argentina/Buenos_Aires",
+    "Ecuador": "America/Guayaquil",
+    "Bolivia": "America/La_Paz",
+};
 
 const CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -46,7 +63,7 @@ Deno.serve(async (req) => {
 
         const { data: appt, error: apptErr } = await sb
             .from("hq_appointments")
-            .select("id, contact_name, contact_email, contact_phone, plan, scheduled_at, duration_minutes")
+            .select("id, contact_name, contact_email, contact_phone, contact_country, plan, scheduled_at, duration_minutes")
             .eq("id", appointment_id)
             .maybeSingle();
 
@@ -77,6 +94,17 @@ Deno.serve(async (req) => {
         const dateTimeStr = fmt.format(scheduled);
         const firstName = String(appt.contact_name || "").split(" ")[0] || appt.contact_name;
 
+        const localTz = COUNTRY_TIMEZONES[(appt.contact_country as string) || ""];
+        const localDateTimeStr = localTz
+            ? new Intl.DateTimeFormat("es", {
+                timeZone: localTz, weekday: "long", day: "numeric", month: "long",
+                hour: "2-digit", minute: "2-digit", hour12: false,
+            }).format(scheduled)
+            : null;
+        const whenLine = localDateTimeStr
+            ? `${dateTimeStr} hrs (Chile) — ${localDateTimeStr} hrs (${appt.contact_country})`
+            : `${dateTimeStr} hrs (Chile)`;
+
         // --- Email de confirmación (canal primario) ---
         if (RESEND_API_KEY) {
             try {
@@ -95,11 +123,16 @@ Deno.serve(async (req) => {
                                 <h2 style="color: #7C3AED;">¡Listo, ${firstName}! Tu videollamada quedó agendada</h2>
                                 <p>Nuestro equipo te va a acompañar para configurar Vetly de punta a punta y sacarle el máximo provecho desde el primer día.</p>
                                 <div style="background:#F5F3FF; border:1px solid #DDD6FE; border-radius:12px; padding:20px; margin:24px 0;">
-                                    <p style="margin:0; font-size:15px;"><strong>📅 Cuándo:</strong> ${dateTimeStr} hrs (Chile)</p>
+                                    <p style="margin:0; font-size:15px;"><strong>📅 Cuándo:</strong> ${whenLine}</p>
                                     <p style="margin:8px 0 0; font-size:15px;"><strong>⏱️ Duración:</strong> ~${appt.duration_minutes} minutos</p>
-                                    <p style="margin:8px 0 0; font-size:15px;"><strong>📱 Cómo:</strong> Te contactamos por WhatsApp a la hora agendada para la videollamada.</p>
                                 </div>
-                                <p>Si necesitas reagendar, solo responde este correo o escríbenos por WhatsApp.</p>
+                                <div style="text-align:center; margin:28px 0;">
+                                    <a href="${MEET_LINK}" style="display:inline-block; background-color:#7C3AED; color:#ffffff; font-size:16px; font-weight:700; text-decoration:none; padding:14px 32px; border-radius:10px;">
+                                        📹 Unirme a la videollamada
+                                    </a>
+                                    <p style="margin:10px 0 0; font-size:13px; color:#888;">${MEET_LINK}</p>
+                                </div>
+                                <p>Guarda este link — es el mismo que vas a usar el día de la reunión. Si necesitas reagendar, solo responde este correo o escríbenos por WhatsApp.</p>
                                 <p style="color:#888; font-size:13px; margin-top:32px;">— El equipo de Vetly</p>
                             </div>
                         `,
@@ -121,8 +154,8 @@ Deno.serve(async (req) => {
         if (hq?.ycloud_api_key && hq?.ycloud_phone_number) {
             const clientMsg =
                 `¡Hola ${firstName}! 👋 Soy Andrés de Vetly.\n\n` +
-                `Tu videollamada de activación quedó agendada para el *${dateTimeStr} hrs* (Chile). ` +
-                `Te voy a escribir por acá mismo a esa hora para conectarnos.\n\n` +
+                `Tu videollamada de activación quedó agendada para el *${whenLine}*.\n\n` +
+                `📹 Link de la reunión: ${MEET_LINK}\n\n` +
                 `Si necesitas cambiar el horario, respóndeme cuando quieras.`;
 
             if (appt.contact_phone) {
@@ -140,7 +173,8 @@ Deno.serve(async (req) => {
                     `📱 ${appt.contact_phone || "sin teléfono"}\n` +
                     `✉️ ${appt.contact_email}\n` +
                     `💳 Plan: ${appt.plan || "sin especificar"}\n` +
-                    `🗓️ ${dateTimeStr} hrs`;
+                    `🌎 País: ${appt.contact_country || "sin especificar"}\n` +
+                    `🗓️ ${dateTimeStr} hrs (Chile)`;
                 try {
                     await sendWhatsApp(hq.ycloud_api_key as string, hq.ycloud_phone_number as string, hq.hq_escalation_phone as string, founderMsg);
                 } catch (e) {
