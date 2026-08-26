@@ -136,14 +136,18 @@ export default function AISettings() {
                     setAiAutoRespond(cs.ai_auto_respond !== false)
 
                     // Mismo criterio que Settings.tsx: 'chile' solo si ya hay una
-                    // suscripción real cobrada en esa moneda -- si no, `payment_provider`
-                    // es solo el artefacto del default que tenía Register.tsx al firmar.
+                    // suscripción real PAGADA en esa moneda -- `mercadopago_
+                    // subscription_id`/`paddle_subscription_id` se escriben apenas
+                    // se crea la preferencia de pago, no cuando se completa, así
+                    // que no sirven como señal de "ya pagó" por sí solos. Si no,
+                    // `payment_provider` es solo el artefacto del default que
+                    // tenía Register.tsx al firmar.
                     const { data: subForRegion } = await (supabase as any)
                         .from('subscriptions')
-                        .select('manually_active, mercadopago_subscription_id, paddle_subscription_id')
+                        .select('manually_active, status')
                         .eq('clinic_id', profile.clinic_id)
                         .maybeSingle()
-                    const hasRealSubscription = !!subForRegion?.manually_active || !!subForRegion?.mercadopago_subscription_id || !!subForRegion?.paddle_subscription_id
+                    const hasRealSubscription = !!subForRegion?.manually_active || subForRegion?.status === 'active'
                     const isChileanPayer = cs.payment_provider === 'mercadopago' || cs.payment_provider === 'lemonsqueezy'
                     setPaymentRegion(hasRealSubscription && isChileanPayer ? 'chile' : 'international')
 

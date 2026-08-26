@@ -479,14 +479,18 @@ export default function Settings() {
                     setSchedulingMode(clinicData.scheduling_mode === 'coordinator_approval' ? 'coordinator_approval' : 'ai_autonomous')
                     setCoordinatorPhone(clinicData.coordinator_phone || '')
                     // El toggle de moneda solo respeta 'chile' cuando hay una
-                    // suscripción REAL ya cobrada en CLP (pagó vía MercadoPago,
-                    // o es una cuenta manually_active como Animalgrace). Sin
-                    // eso, `payment_provider` es solo un artefacto del default
+                    // suscripción REAL ya PAGADA en CLP (o es una cuenta
+                    // manually_active como Animalgrace). Ojo: `mercadopago_
+                    // subscription_id` se escribe apenas se CREA la preferencia
+                    // de pago, no cuando se completa -- un intento de checkout
+                    // sin terminar (o rechazado) ya deja ese campo con un valor
+                    // no-nulo, así que no sirve como señal de "ya pagó". Sin
+                    // esto, `payment_provider` es solo un artefacto del default
                     // que Register.tsx haya tenido en el momento del signup,
                     // no una elección real de moneda -- por eso todo trial sin
                     // pagar cae siempre a USD, sin importar ese campo.
                     {
-                        const hasRealSubscription = !!subData?.manually_active || !!subData?.mercadopago_subscription_id || !!subData?.paddle_subscription_id
+                        const hasRealSubscription = !!subData?.manually_active || subData?.status === 'active'
                         const isChileanPayer = clinicData.payment_provider === 'mercadopago' || clinicData.payment_provider === 'lemonsqueezy'
                         setPaymentRegion(hasRealSubscription && isChileanPayer ? 'chile' : 'international')
                     }
@@ -2478,20 +2482,38 @@ export default function Settings() {
                                                 const usdLaunch = paddlePlanInfo && 'launchPrice' in paddlePlanInfo ? paddlePlanInfo.launchPrice : null
                                                 const clpPrice = clpLaunch ?? mpPlanInfo?.price
                                                 const usdPrice = usdLaunch ?? paddlePlanInfo?.price
+                                                // El número grande sigue el toggle de moneda (paymentRegion), igual
+                                                // que el grid de abajo -- antes siempre mostraba CLP como
+                                                // protagonista aunque el toggle dijera "Internacional (USD)".
+                                                const showUsdFirst = paymentRegion === 'international' && usdPrice != null
+                                                const primaryBlock = showUsdFirst ? (
+                                                    <p className="text-2xl font-black text-charcoal">
+                                                        {usdLaunch != null && <span className="text-sm font-semibold text-charcoal/40 line-through mr-1.5">US${paddlePlanInfo!.price}</span>}
+                                                        US${usdPrice} <span className="text-xs font-bold text-charcoal/40">USD/mes</span>
+                                                    </p>
+                                                ) : clpPrice != null ? (
+                                                    <p className="text-2xl font-black text-charcoal">
+                                                        {clpLaunch != null && <span className="text-sm font-semibold text-charcoal/40 line-through mr-1.5">${mpPlanInfo!.price.toLocaleString()}</span>}
+                                                        ${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span>
+                                                    </p>
+                                                ) : null
+                                                const secondaryBlock = showUsdFirst
+                                                    ? (clpPrice != null ? (
+                                                        <p className="text-sm font-semibold text-charcoal/50 mt-0.5">
+                                                            {clpLaunch != null && <span className="line-through mr-1">${mpPlanInfo!.price.toLocaleString()}</span>}
+                                                            ${clpPrice.toLocaleString()} <span className="text-xs">CLP/mes</span>
+                                                        </p>
+                                                    ) : null)
+                                                    : (usdPrice != null ? (
+                                                        <p className="text-sm font-semibold text-charcoal/50 mt-0.5">
+                                                            {usdLaunch != null && <span className="line-through mr-1">US${paddlePlanInfo!.price}</span>}
+                                                            US${usdPrice} <span className="text-xs">USD/mes</span>
+                                                        </p>
+                                                    ) : null)
                                                 return (
                                                     <div>
-                                                        {clpPrice ? (
-                                                            <p className="text-2xl font-black text-charcoal">
-                                                                {clpLaunch != null && <span className="text-sm font-semibold text-charcoal/40 line-through mr-1.5">${mpPlanInfo!.price.toLocaleString()}</span>}
-                                                                ${clpPrice.toLocaleString()} <span className="text-xs font-bold text-charcoal/40">CLP/mes</span>
-                                                            </p>
-                                                        ) : null}
-                                                        {usdPrice ? (
-                                                            <p className="text-sm font-semibold text-charcoal/50 mt-0.5">
-                                                                {usdLaunch != null && <span className="line-through mr-1">US${paddlePlanInfo!.price}</span>}
-                                                                US${usdPrice} <span className="text-xs">USD/mes</span>
-                                                            </p>
-                                                        ) : null}
+                                                        {primaryBlock}
+                                                        {secondaryBlock}
                                                         {(clpLaunch != null || usdLaunch != null) && (
                                                             <span className="inline-block mt-1 bg-primary-500 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full">
                                                                 Precio de lanzamiento
