@@ -5983,3 +5983,208 @@ El usuario detectó que el correo de bienvenida —incluso el reenviado a los 4 
 **Fix:** `signup-handler` ahora manda también `is_core_plan: isCorePlan` (variable que ya existía en la función, solo faltaba pasarla). `send-welcome-email` usa ese flag para reemplazar el paso 2 por *"Registra tus primeras fichas — Carga a tus pacientes y tutores..."* cuando el plan es Core, dejando "Conoce a tu Asistente IA" solo para Starter/Pro/Enterprise. Desplegado ambas funciones y **reenviado el correo corregido a los mismos 4 leads** (los IDs de Resend del primer envío quedan obsoletos frente a estos nuevos).
 
 **Regla permanente:** cualquier comunicación automática dirigida a un cliente nuevo (correos, banners, etc.) debe recibir explícitamente el plan contratado si su contenido menciona una feature que no está en todos los planes — no asumir que el mensaje genérico sirve para todos. Core en particular no tiene agente de IA conversacional; cualquier copy nuevo dirigido a clientes nuevos debe revisarse contra esa restricción antes de darse por bueno.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 85, 2026-08-25)
+
+### Modo de agendamiento con aprobación de coordinadora — configurable por clínica (Animal Grace Santiago)
+
+Claudia pidió que el agente de IA de Santiago deje de decidir por sí solo qué día/hora ofrecer al cliente. Hoy el agente (Ary, canal `meta-whatsapp-webhook`) recopilaba los datos del tutor y llamaba `create_appointment` apenas los tenía — sin considerar que la ruta de un móvil depende de distancia entre domicilios, sector y las otras citas del día, algo que solo una persona puede evaluar con criterio real. El pedido: el agente recolecta disponibilidad **amplia** (varios días/rangos, no una hora) y avisa que "la coordinadora revisará la ruta"; una persona autoriza horarios concretos desde un panel nuevo; recién ahí el agente cierra el agendamiento — nunca ofreciendo algo fuera de lo autorizado.
+
+**Decisión de diseño (pedida explícitamente por el usuario al revisar el plan):** no construirlo como una regla especial de Santiago, sino como una **configuración elegible por clínica**, reutilizando la misma lógica que ya existe en Settings para "Físico / Móvil / Híbrido" (`business_model`). Investigado antes de diseñar: `business_model` hoy no deriva nada por sí solo — solo 2 lugares del código lo leen (`isMobile = business_model !== "physical"`) para cálculo de traslados — y `logistics_config.routing_mode`/`routing_zone` (lo que gobierna el panel de sectores de Linares y la zonificación de Santiago) es un campo completamente independiente, sin ninguna UI propia, seteado a mano por SQL para las 2 únicas clínicas que lo usan. Confirmado con datos reales que esto ya generaba inconsistencias (una clínica `hybrid` sin ningún `routing_mode`).
+
+**Modelo de dos niveles resultante:**
+1. **`business_model` (ya existía)** sigue siendo el interruptor maestro de "¿esta clínica tiene logística de rutas?". Si es `physical`, ninguna sección de coordinación aparece nunca.
+2. **`scheduling_mode` (columna nueva en `clinic_settings`, mismo patrón que `business_model`)**: `'ai_autonomous'` (default, comportamiento actual, cero cambios para cualquier clínica existente) o `'coordinator_approval'`. Solo visible/editable en Settings cuando `business_model !== 'physical'`.
+
+Con este diseño, activar el flujo en una clínica es 100% self-service desde Settings — **nada en el código del webhook referencia el `clinic_id` de Santiago**, la activación fue un simple `UPDATE` de datos, no un deploy de lógica nueva.
+
+#### Migración `20260825120000_scheduling_mode_and_requests.sql`
+
+```sql
+ALTER TABLE public.clinic_settings
+    ADD COLUMN scheduling_mode TEXT NOT NULL DEFAULT 'ai_autonomous'
+        CHECK (scheduling_mode IN ('ai_autonomous', 'coordinator_approval')),
+    ADD COLUMN coordinator_phone TEXT;
+
+CREATE TABLE public.scheduling_requests (
+    id UUID PK, clinic_id UUID FK clinic_settings, tutor_id UUID FK tutors,
+    tutor_phone TEXT, tutor_name TEXT, pet_name TEXT, pet_details TEXT,
+    service_requested TEXT, comuna TEXT, sector TEXT, address TEXT,
+    is_urgent BOOLEAN, availability_text TEXT, additional_notes TEXT,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending','authorized','fulfilled','dismissed')),
+    authorized_options TEXT, round INT DEFAULT 1,
+    reviewed_by UUID, reviewed_at TIMESTAMPTZ, created_at, updated_at
+);
+-- Un tutor no puede tener 2 solicitudes abiertas a la vez → fuerza upsert, no insert ciego.
+CREATE UNIQUE INDEX scheduling_requests_open_unique ON scheduling_requests (clinic_id, tutor_phone)
+    WHERE status IN ('pending','authorized');
+```
+
+RLS estándar (`clinic_members`) — **sin policy de INSERT/DELETE para `authenticated`**: la fila la crea siempre el webhook con `service_role`; el dashboard solo autoriza o descarta (`UPDATE`). Reduce superficie de ataque a propósito.
+
+#### Backend — `supabase/functions/meta-whatsapp-webhook/index.ts` (y paridad en `ycloud-whatsapp-webhook`)
+
+- **Tool nuevo `request_scheduling_coordination`**: reemplaza a `check_availability`/`create_appointment` cuando `scheduling_mode = 'coordinator_approval'`. Parámetros: tutor, mascota, servicio, comuna/sector, urgencia, `availability_text` (texto libre — mismo formato que Claudia usó en su propio ejemplo: "martes después de las 15:00, miércoles todo el día o viernes en la mañana").
+- **`requestSchedulingCoordination()`** (junto a `escalateToHuman()`): upsert en `scheduling_requests` (si ya había una fila abierta para ese tutor, la resetea a `pending` con `round+1` en vez de duplicar — cubre el ciclo "ninguna opción le sirvió"), pausa al tutor (`requires_human=true`, mismo mecanismo que `escalateToHuman`), notificación in-app (`type: "scheduling_review"`), y WhatsApp directo a `clinic.coordinator_phone` vía `sendMetaMessage()` (ya existente) si está configurado.
+- **Bloqueo generalizado en `checkAvail`**: mismo patrón que el bloqueo de cirugías de AnimalGrace (`isAnimalGrace && isSurgery → available:false`) pero condicionado a `clinic.scheduling_mode === "coordinator_approval"` y ausencia de una fila `scheduling_requests.status='authorized'` vigente para ese teléfono. Si SÍ hay una autorizada, el flujo sigue normal (necesario para que `createAppt` re-valide contra `raw_slots` y evite doble-booking dentro de la ventana autorizada).
+- **Guard en `createAppt` y `rescheduleAppt`**: mismo estilo que el guard `FALTA_NOMBRE_TUTOR` ya existente — si `scheduling_mode='coordinator_approval'` y no hay fila `authorized`, rechaza con mensaje `COORDINACION_REQUERIDA: ...`. `rescheduleAppt` no recibía `logisticsConfig`/modo antes — se le agregó el parámetro (reagendar es la misma decisión que agendar: elegir fecha/hora nueva).
+- **Bloque de contexto por tutor en el prompt** (junto a `tutorContext`/`referralContext`, antes de armar `finalSysPrompt`): si hay solicitud `pending`, instruye a no ofrecer nada; si hay `authorized`, inyecta `authorized_options` literal + instrucción de solo ofrecer esas opciones.
+- **Excepción al chequeo de `requires_human` pre-send**: si la propia vuelta del tool loop fue la que pausó al tutor vía `request_scheduling_coordination`, el aviso de "la coordinadora revisará la ruta" sí debe salir — si no, el cliente entrega todos sus datos y queda en silencio absoluto. Se detecta con `allFuncResults.some(r => r.name === "request_scheduling_coordination" && r.result?.success)`.
+
+`confirm_appointment`/`cancel_appointment` no se tocaron — no eligen fecha/hora.
+
+#### Frontend
+
+- **`src/components/appointments/SchedulingRequestsPanel.tsx`** (nuevo): panel dedicado en Citas Médicas, mismo patrón visual que `RoutePlanPanel.tsx`. Lista **todas** las solicitudes abiertas juntas (pending primero) — a diferencia de `RoutePlanPanel`, no colapsa por defecto, porque el objetivo es ver varias a la vez para armar la ruta del día. Suscripción realtime (mismo patrón que `Messages.tsx`). Por tarjeta: datos + textarea "Opciones que puedes ofrecer" + botón "Autorizar" → marca `status='authorized'` y limpia `requires_human=false` (reactivación explícita — la IA nunca se reactiva sola, mismo principio que el comando `/reset ia`).
+- **`src/pages/Settings.tsx`**: sección "Modo de Agendamiento" nueva junto al selector de `business_model`, visible solo si `businessModel !== 'physical'`. 2 tarjetas (mismo componente visual que Físico/Móvil/Híbrido). Si se elige `coordinator_approval`, se revela el input de `coordinator_phone`.
+- **`src/pages/Appointments.tsx`**: monta `SchedulingRequestsPanel` cuando `scheduling_mode === 'coordinator_approval'` (leído en el mismo `useEffect` que ya carga `logistics_config`).
+- **`src/components/layout/DashboardLayout.tsx`**: `case 'scheduling_review'` agregado en `getNotificationIcon`/`handleNotificationClick` (navega a `/app/appointments`) — sin esto la notificación in-app no llevaba a ningún lado.
+
+#### Activación y verificación
+
+Activado para Santiago: `scheduling_mode='coordinator_approval'` (con `ai_auto_respond` intencionalmente sin tocar — sigue en `false`, decisión de Claudia). `coordinator_phone` ya apareció con un valor cargado (`+56989790949`) sin que nadie de esta sesión lo escribiera — evidencia de que alguien ya probó la UI self-service.
+
+**Contradicción encontrada en la revisión final del prompt (antes de darlo por consistente):** la regla "PROHIBIDO DERIVAR A OTRA CLÍNICA" seguía diciendo literalmente *"tu conducta es ofrecer disponibilidad... el horario que le ofrezcas"* — exactamente lo opuesto a la Sección 10 nueva. Corregida a "reunir sus datos y su disponibilidad amplia, siguiendo el protocolo normal de agendamiento (Sección 10)". Respaldos previos en `prompt_backups` (`pre_coordinacion_ruta_2026_08_25`, `post_coordinacion_ruta_2026_08_25`).
+
+**No verificado en vivo:** con `ai_auto_respond=false` en ambas clínicas no hubo tráfico real que ejercitara el código nuevo — pendiente revisar las primeras conversaciones reales cuando Claudia reactive el agente.
+
+**Regla permanente — generalizar en vez de hardcodear a una clínica:** cuando una feature nace para un caso puntual pero es conceptualmente aplicable a cualquier clínica del mismo tipo de negocio, diseñarla como configuración elegible (columna/flag con default seguro que preserva el comportamiento de todas las clínicas existentes), no como un `if (clinicId === '...')`. El costo de generalizar aquí fue mínimo porque el diseño técnico ya estaba condicionado por config, no por `clinic_id`; lo único que cambió fue *dónde* vive el flag.
+
+**Regla permanente — activar un flujo de "pausa + panel de revisión" exige que ambas mitades lleguen juntas.** Si el prompt le dice a la IA que use un tool nuevo que pausa la conversación, pero el flag que habilita el panel de revisión (o el guard de código que hace cumplir la pausa) no está activo, el cliente queda esperando una revisión que nadie puede hacer — peor que el comportamiento anterior. Verificar siempre que activar el comportamiento en el prompt y activar el enforcement en código sean un solo paso atómico, no dos cambios independientes.
+
+### Auditoría y optimización de consumo de créditos IA (Animalgrace, pool compartido Linares+Santiago)
+
+Motivada por consumo alto reportado por el usuario. Diagnóstico con datos reales de `messages` (fuente de verdad, no los contadores auxiliares de `clinic_settings`):
+
+- Pool del ciclo: 30.000 (plan) + 20.000 (pack extra) = 50.000. **Ya consumidos: 31.386** (63% del pool, superó el plan base).
+- De 2.560 mensajes de IA del mes: 501 al modelo barato (mini), 2.059 al modelo caro (4o) — **80% de los mensajes, pero 98,4% del gasto** (2.059×15=30.885 de los 31.386 totales), porque el modelo caro cuesta 15× el barato (`CREDIT_COST_4O`, `_shared/aiCredits.ts`).
+- Causa: `selectModelTier()` rutea al modelo caro por keywords (`needsSchedulingReason`/`needsMedicalReason`, `meta-whatsapp-webhook/index.ts:1518-1535`) **más** un mecanismo "pegajoso" (`activeSchedulingFlow`, línea ~2324): si cualquiera de los últimos 3 mensajes de la IA tocó un tema de agenda/precio, el modelo caro se queda pegado ahí, aunque el mensaje del cliente sea "sí" o "gracias".
+- **Comparación de proveedor evaluada y descartada:** el usuario preguntó si migrar a modelos de Claude ayudaría. No — el modelo barato de Claude (Haiku 4.5, $1/$5 por MTok) cuesta más que gpt-4o-mini ($0.15/$0.60), que es el que maneja el grueso del tráfico; Sonnet 5 queda parejo con gpt-4o. Además el código está construido específicamente para el formato de tools de OpenAI — migrar reescribiría el tool loop en ambos webhooks. No se tocó nada de esto.
+
+#### Limpieza de prompt (sin recortar duplicados — no había, casi todo el crecimiento desde la limpieza de mayo/sesión 61 es reglas legítimas ligadas a bugs reales)
+
+Se identificaron 2 bloques de uso **puntual** que se reenviaban en **todos** los mensajes sin importar el tema: el protocolo del examen FeLV/FIV (ambas clínicas) y la campaña del ebook gratis (solo Linares, luego descartada por completo porque ya no está vigente). Se sacaron del prompt siempre-activo y se movieron al mecanismo ya existente `FORCED_KB_TOPICS`/`getForcedKnowledgeBlock` (usado desde sesión 62 para cirugía/sedación/eutanasia/ecografía): se inyectan completos solo cuando el mensaje del cliente toca ese tema puntual, mismo contenido y misma fuerza cuando se necesita, sin pagarlo en cada mensaje.
+
+```ts
+{ title: "PROTOCOLO_EXAMEN_FELV_FIV_LEUCEMIA_FELINA", keywords: ["felv", "fiv", "leucemia felina", "sida felino", "sida felina"] },
+```
+
+Documento KB nuevo creado para ambas clínicas (mismo contenido, antes duplicado byte a byte en `ai_behavior_rules` de Linares y Santiago). La campaña del ebook se creó, se usó como demostración, y se **eliminó por completo** (KB doc borrado, entrada de `FORCED_KB_TOPICS` quitada, puntero quitado de `ai_behavior_rules`) al confirmar el usuario que ya no está vigente.
+
+Resultado: Linares 41.981 → 39.437 caracteres, Santiago 36.300 (original) → 37.372 (incluye ya el flujo de coordinación nuevo, que agrega texto). Ahorro modesto (~5%) — consistente con el diagnóstico: el problema real no es duplicación, es el volumen de mensajes ruteados al modelo caro.
+
+#### Ruteo de confirmaciones triviales — el fix real, validado con datos antes de tocar código
+
+Antes de tocar nada se midió con SQL real cuántos mensajes tipo "sí"/"gracias"/"ok" (≤20 caracteres, matcheando un patrón acotado de acuses de recibo) terminaban en el modelo caro, y **por qué**:
+
+```sql
+-- De 176 respuestas a mensajes triviales: 165 (94%) fueron al modelo caro, solo 11 al barato.
+-- De esos 165, separados por si el mensaje previo de la IA ofrecía o no una hora/fecha:
+--   93 (56%) → el mensaje previo NO mencionaba hora/fecha (precio, saludo, info general)
+--   51 (31%) → el mensaje previo SÍ mencionaba hora/fecha (podría ser confirmación real)
+--   19 (12%) → sin mensaje previo detectable
+```
+
+**Fix aplicado — aditivo, no toca `needsSchedulingReason`/`schedulingSignals` existentes:** justo antes de llamar `selectModelTier()`, si el mensaje del cliente matchea el patrón de acuse de recibo trivial (≤20 caracteres) **y** el último mensaje de la IA no contenía ningún patrón de hora/fecha (`\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|...`), se fuerza `gpt-4o-mini` sin pasar por el ruteo normal. Si el mensaje previo sí ofrecía hora/fecha, el flujo sigue exactamente igual que antes (modelo caro, vía `activeSchedulingFlow`).
+
+```ts
+const trivialAckPattern = /^(si|sí|ok|okay|oka|dale|listo|gracias|muchas gracias|perfecto|genial|bueno|vale|ya|de acuerdo|entendido)[\s!.,¡🙏😊👍✨]*$/i;
+const lastOutboundOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOutboundText);
+const isSafeTrivialAck = !hasImageInBurst && trimmedUserText.length > 0 && trimmedUserText.length <= 20
+  && trivialAckPattern.test(trimmedUserText) && !lastOutboundOfferedTime;
+
+const route = isSafeTrivialAck
+  ? { model: "gpt-4o-mini", tier: 1 }
+  : selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
+```
+
+Aplicado en ambos webhooks (`meta-whatsapp-webhook` línea ~2330, `ycloud-whatsapp-webhook` línea ~4413). Impacto estimado: 93 mensajes de este mes solos representan ~1.300 créditos gastados de más (93 × 14 de diferencia) — patrón recurrente, no puntual. **No verificado en vivo** — la IA sigue apagada en ambas clínicas.
+
+#### Decisión explícita — NO recortar `needsSchedulingReason`/`schedulingSignals`, ni siquiera solo para Santiago
+
+El usuario preguntó si, ahora que Santiago ya no ofrece horarios directamente (flujo de coordinadora), se podían sacar algunas palabras de la lista que rutea al modelo caro. Evaluado y descartado, con razones concretas (no genéricas):
+
+1. **La lista es una sola, compartida por Linares y Santiago.** Linares sigue en `ai_autonomous` — sigue decidiendo sectores, tramos y horarios sola, con toda la lógica que costó varias sesiones arreglar (rebote Talca→Linares→Talca, corte de las 11:30 en Talca). Recortar la lista global reabriría esos bugs para Linares.
+2. **Aunque se limitara a Santiago, la misma lista mantiene "pegajoso" el modelo caro durante los 3 mensajes siguientes** — incluido el momento en que la coordinadora ya autorizó horarios y el cliente elige uno (Sección 10, regla 4: ahí la IA sí necesita llamar `create_appointment` con la fecha exacta). Sacar palabras como "horario"/"disponib" debilitaría también esa protección final, no solo el filtro de entrada — es el mismo mecanismo, no dos independientes.
+
+**Regla permanente:** antes de recortar una lista de keywords de ruteo compartida entre clínicas con configuraciones distintas, verificar explícitamente si el cambio es seguro para *todas* las clínicas que comparten ese código, no solo la que motivó la pregunta — y verificar si la lista cumple más de una función (aquí: ruteo de entrada + mantenimiento de contexto "pegajoso") antes de asumir que un recorte solo afecta el uso que se tiene en mente.
+
+**Regla permanente — antes de tocar routing/costo de IA, medir con SQL real cuál es la composición exacta del problema.** La intuición ("los mensajes cortos deberían ser baratos") coincidió con los datos en este caso, pero la segmentación por "¿el mensaje anterior ofrecía hora?" fue lo que separó el 56% genuinamente seguro del 31% que debía quedar intacto — sin esa medición, cualquier fix habría sido o bien tibio (no tocar nada) o bien riesgoso (bajar todos los acuses de recibo sin excepción, incluidas las confirmaciones reales de horario).
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 86, 2026-08-26)
+
+### Reservas online por link propio (`/reservar/:slug`) — feature completa para Core
+
+Motivación: el plan Core no tiene agente de IA que agende por WhatsApp — necesitaba una forma de que sus clientes reserven solos. Se construyó una página pública de agendamiento por clínica, configurable desde Ajustes → "Reservas Online" (toggle, slug propio, logo, color de marca), conectada a la agenda real.
+
+**`src/pages/PublicBooking.tsx`** (nuevo, ruta pública `/reservar/:slug`, sin sesión): flujo de 4 pasos (servicio → día/hora → datos de contacto → confirmación), con `publicClient` propio (mismo patrón que `/r/:code` y `/p/:code` — evita el conflicto de Web Locks si se abre en el mismo navegador que ya tiene el dashboard abierto). Colores/logo aplicados con `style={{}}` inline porque Tailwind no puede generar clases con un hex dinámico. Horarios calculados con `fromZonedTime(naive, clinic.timezone)` (nunca asumir Chile — mismo bug que ya se había corregido antes en `/agendar`: `setHours`/`setMinutes` operan en la zona horaria del navegador visitante, no en la de la clínica).
+
+**3 RPCs `SECURITY DEFINER` nuevas** (`get_public_booking_clinic`, `get_public_booking_services`, `get_public_booking_slots`) — el filtro real vive en las funciones (`public_booking_enabled = true`), no en RLS de las tablas base.
+
+**`supabase/functions/public-booking-notify/index.ts`** (nuevo): confirmación al cliente + aviso al dueño de la clínica (Core no tiene IA que le avise por WhatsApp que llegó una reserva).
+
+**`src/pages/Settings.tsx`** — tab nueva "Reservas Online": toggle, slug (validado único, mensaje amigable en `23505`), upload de logo a bucket `clinic-branding`, selector de color. Checkbox "Reservable en tu página online" en el modal de servicios (`clinic_services.is_public_bookable`).
+
+#### Bugs de RLS encontrados y corregidos en el camino
+
+- **4 funciones helper de RLS (`is_clinic_admin`, `is_admin_of_clinic`, `is_clinic_member`, `is_platform_admin`) nunca tuvieron `EXECUTE` para `anon`.** Como las policies de `clinic_settings`/`clinic_members` las referencian en su `USING`, cualquier query de `anon` que tocara esas tablas (aunque fuera indirectamente) fallaba con "permission denied for function X". Corregido con `GRANT EXECUTE ... TO anon` en las 4 — seguro porque las cuatro solo comparan contra `auth.uid()` (NULL para anon → siempre false).
+- **Un `EXISTS (SELECT ... FROM clinic_settings ...)` crudo dentro de una policy hereda la RLS de la tabla referenciada.** El check de "¿esta clínica tiene reservas online activadas?" seguía devolviendo false para `anon` después del fix anterior — no por permisos, sino porque `clinic_settings` genuinamente no tiene filas visibles para `anon` bajo su propia RLS. Resuelto envolviendo el check en una función `SECURITY DEFINER` (`clinic_has_public_booking`), que sí puede leer la tabla saltándose la RLS de forma controlada.
+- **`INSERT ... RETURNING` exige SELECT y pasar la policy de SELECT de la tabla destino.** El insert anon de `tutors`/`appointments` nunca debe pedir `RETURNING` — se genera el UUID en el cliente (`crypto.randomUUID()`) antes del insert.
+
+### `public/core.html` — sección nueva de agendamiento online + refuerzos de copy
+
+A pedido del usuario, se comparó un post de marketing que había escrito con lo que ya mostraba la landing de Core, para identificar qué destacar mejor:
+
+- **Nueva sección** "Agendamiento online" (entre Agenda y Ficha clínica) con **screenshot real** de `/reservar/:slug` — capturado con Playwright contra una clínica de prueba con datos 100% inventados (nombre "Clínica Huellitas", logo propio en SVG, color violeta, 3 servicios), revertida a su estado original apenas terminó la captura.
+- Reforzado el bullet del carnet digital en Fidelización (antes un ítem suelto, ahora explícito como feature con enlace de referido).
+- Sumado "ranking de servicios y productos" a Finanzas (existe desde sesión 69, no se mencionaba en la landing).
+- Sumada "importación masiva de pacientes desde Excel" (CSVUploader reescrito en la sesión de la que continúa esta) al checklist y a Fichas médicas — identificada como la "joyita" más fuerte no mencionada en ningún lado: resuelve la objeción #1 de cualquier prospecto ("tengo todo en Excel, es mucho trabajo migrar").
+- Meta description/OG actualizados para mencionar el link de reservas.
+
+### `public/links.html` — botón del plan Core (oferta de lanzamiento)
+
+Botón nuevo, primero en la lista, con badge "Oferta de lanzamiento" y precio US$17/mes · 30 días gratis, apuntando a `/core`.
+
+**Bug encontrado y corregido:** el badge quedaba cortado por arriba. Causa: estaba posicionado con `-top-2.5` (fuera de los límites del botón) **dentro** de un `<a class="link-btn">`, y `.link-btn` tiene `overflow: hidden` (necesario para el efecto shimmer del hover) — cualquier hijo posicionado fuera de esos límites queda recortado. Fix: el badge se movió a un `<div class="relative">` hermano, fuera del elemento con `overflow:hidden`. Se sumó también el subtítulo "Gestión completa sin IA conversacional" pedido.
+
+### Suscripción de Core — causa raíz de "aparece Inactivo, sin botón para pagar"
+
+Diagnóstico completo con datos reales de producción (no supuesto): el trigger que crea la suscripción al registrarse (`handle_new_clinic_subscription`, gana la carrera por orden alfabético sobre un segundo trigger duplicado que nunca llega a ejecutar por `ON CONFLICT DO NOTHING`) deja `subscriptions.status` en el string literal **`'trialing'`** — nunca `'trial'`. Ninguna condición de Settings.tsx lo contemplaba (comparaban contra `'trial'`), así que el badge caía siempre a "Inactivo" y el botón para pagar el propio plan Core quedaba deshabilitado por `isCurrentPlan` (que no exigía que la suscripción estuviera realmente pagada).
+
+**Fix — un solo criterio (`isPaidActive = manually_active || status==='active'`) reutilizado en todo `Settings.tsx`:**
+- Badge de 3 estados: **Suscrito** (en período de prueba, sin pagar aún — vía `clinic_settings.trial_end_date`, el trial real de 30 días) → **Activo** (pagando) → **Inactivo** (prueba vencida sin pagar).
+- El plan propio sin pagar queda habilitado en el grid con botón "Suscribirme ahora" (antes `isCurrentPlan` lo deshabilitaba con solo que `planId` coincidiera, sin mirar si estaba pagado).
+- Precio de lanzamiento visible: Core mostraba $39 USD / $33.000 CLP de lista en toda la página aunque el checkout real (Paddle con cupón, MercadoPago con el monto ya rebajado) cobre $17 — ahora se muestra tachado + el precio real, con badge "Lanzamiento", en la tarjeta de "Plan Actual" y en el grid comparativo.
+- `isFirstConversion` (dispara el banner de onboarding post-pago) comparaba `subscription?.plan === 'trial'`, string que nunca ocurre — corregido a `!isPaidActive`.
+- "Gestionar en Mercado Pago" aparecía para cualquier cuenta con `payment_provider='mercadopago'` en `clinic_settings` aunque nunca hubiera pagado ahí — ahora exige `isPaidActive`.
+- `DashboardLayout.tsx`: el redirect a "trial vencido" usaba `subscriptions.current_period_end`, que para cualquier cuenta nunca pagada tiene un default de **14 días** (columna, sin relación con la promesa real de 30 días de Core) — corregido a tomar el más tardío entre ese período y `clinic_settings.trial_end_date`, preservando el comportamiento correcto para un cliente pago que cancela (acceso hasta el fin del ciclo ya pagado, usando su `current_period_end` real).
+- El botón "Suscribirme ahora" del bloque superior solo hacía scroll hasta el grid de planes — ahora llama a `handlePlanSelection` directo con el plan actual, abriendo el checkout de una vez.
+
+**`paymentRegion` (CLP/USD) defaulteaba a Chile** en `Settings.tsx`, `AISettings.tsx` y `Register.tsx` — verificado que casi todo el tráfico real es de fuera de Chile (Animalgrace es la única clínica chilena). Cambiado el default a `'international'` en los 3, y el override post-carga ya no confía en `clinic_settings.payment_provider` a menos que exista una suscripción real cobrada en esa moneda (`manually_active` o un `mercadopago_subscription_id`/`paddle_subscription_id` real) — antes ese campo era solo el artefacto de cuál había sido el default en el momento del registro, no una elección real.
+
+Verificado con 3 capturas reales en un dev server local (pagado/activo, Core en prueba sin pagar, prueba vencida) usando una sesión inyectada por magic-link sobre la clínica de prueba, revertida a su estado original al terminar.
+
+### Bug real encontrado en `mercadopago-create-subscription` — CORS ausente en toda respuesta de error
+
+El toggle a moneda chilena tiraba "Error al iniciar el proceso de pago" sin ningún detalle. Causa: la función solo agregaba headers CORS (`Access-Control-Allow-Origin`) en la respuesta de **éxito** — las 4 respuestas de error (400, 405, 500 de Mercado Pago, 500 catch-all) no los tenían. El navegador bloquea por CORS cualquier respuesta sin esos headers antes de que el JS del cliente llegue a leer el body, así que `supabase-js` reportaba un `error` genérico sin cuerpo — cualquier fallo real de Mercado Pago (token, precio, parámetros) quedaba invisible detrás del alert genérico. Fix: `CORS_HEADERS` compartido aplicado a las 6 respuestas de la función. Verificado con curl: la respuesta 400 ahora sí trae los headers y el cuerpo llega al navegador.
+
+### Hallazgo de seguridad — `mercadopago-create-subscription` sin control de acceso multi-tenant
+
+En la misma revisión (pedida explícitamente por el usuario) se encontró que la función **nunca verificaba que el usuario autenticado perteneciera al `clinic_id` del body**. `verify_jwt=true` solo confirma que hay una sesión válida — no que sea dueño de esa clínica. Cualquier cuenta logueada (incluida una cuenta Core recién creada y gratis) podía mandar el UUID de **otra** clínica y:
+- Sobrescribirle `plan_id`/`plan`/`status` en `subscriptions` (downgrade o corrupción del plan real de otra clínica).
+- Sobrescribirle `max_users` en `clinic_settings`.
+
+**Fix:** mismo patrón ya establecido en otras funciones (`send-visit-receipt`, sesión 41) — JWT → `auth.getUser()` → chequeo de `clinic_members` activo, antes de tocar nada. **Verificado con un intento de exploit real** contra el UUID de Animalgrace Linares (con un email/clinic_id ajenos): bloqueado con `403 Forbidden`, confirmado en DB que `subscriptions` de Animalgrace quedó exactamente intacta.
+
+**Hallazgo relacionado, no corregido esta sesión (menor severidad, fuera de alcance del fix pedido):** `paddle-create-transaction` tiene el mismo problema — cualquier `clinic_id` se acepta sin verificar membresía. Diferencia de severidad real: esa función no escribe nada en la base por sí sola (solo crea una transacción draft en Paddle); para que tuviera efecto, el atacante tendría que pagar de verdad con el `clinic_id` de otra clínica en el `custom_data`, lo que en el peor caso le regala créditos a una clínica ajena — molesto pero no una corrupción de datos como el caso de MercadoPago. Queda pendiente para una pasada de seguridad futura sobre el resto de las funciones de pago.
+
+### Reglas permanentes de esta sesión
+
+- **Un elemento posicionado fuera de los límites de un contenedor con `overflow:hidden` se recorta, aunque el `overflow:hidden` esté ahí por otra razón** (acá, el shimmer de hover de `.link-btn`). Si un badge/tooltip necesita sobresalir del borde de un botón, sacarlo a un wrapper hermano sin ese overflow.
+- **Cualquier respuesta de una edge function — incluidas las de error — necesita los mismos headers CORS que la de éxito.** Si solo el camino feliz los tiene, todo error queda invisible para el navegador y se ve como un fallo genérico sin causa, aunque el body de la respuesta sí traiga el detalle real.
+- **Toda edge function que reciba un `clinic_id` en el body debe verificar que el usuario autenticado pertenezca a esa clínica** (JWT → `auth.getUser()` → `clinic_members` activo) antes de leer o escribir nada. `verify_jwt=true` en `config.toml` solo exige una sesión válida, nunca que esa sesión sea dueña del recurso que el body pide tocar — confundir ambas cosas es la fuente más común de bugs multi-tenant en este proyecto (ver también sesiones 74/77/78).
+- **Antes de dar por buena una condición de estado (`status === 'trial'`, `status === 'active'`), verificar el valor literal exacto que escribe cada fuente real** (trigger de DB, webhook de pago) — un typo de un solo carácter entre `'trial'` y `'trialing'` puede dejar una condición entera permanentemente muerta sin ningún error visible.
