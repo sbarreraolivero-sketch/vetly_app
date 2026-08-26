@@ -14,7 +14,10 @@ interface PetFormProps {
     onSave: (pet?: Patient) => void
 }
 
-const speciesOptions = ['Canino', 'Felino', 'Ave', 'Reptil', 'Conejo', 'Otro']
+const speciesOptions = [
+    'Canino', 'Felino', 'Ave', 'Conejo', 'Roedor', 'Reptil',
+    'Equino', 'Bovino', 'Porcino', 'Ovino', 'Caprino', 'Otro',
+]
 const sexOptions = [
     { value: 'M', label: 'Macho' },
     { value: 'F', label: 'Hembra' },
@@ -27,6 +30,7 @@ export function PetForm({ tutorId, clinicId, pet, onClose, onSave }: PetFormProp
     const [formData, setFormData] = useState({
         name: '',
         species: 'Canino',
+        speciesOther: '',
         breed: '',
         color: '',
         sex: 'M' as 'M' | 'F',
@@ -42,9 +46,14 @@ export function PetForm({ tutorId, clinicId, pet, onClose, onSave }: PetFormProp
             const rawSex = (pet.sex as string) || 'M'
             const sex: 'M' | 'F' = rawSex === 'MN' ? 'M' : rawSex === 'FN' ? 'F' : rawSex === 'H' ? 'F' : rawSex as 'M' | 'F'
             const isSterilized = pet.is_sterilized || rawSex === 'MN' || rawSex === 'FN'
+            // Si la especie guardada no está en la lista (ej. viene de una
+            // importación CSV con "Llama" o "Alpaca"), preseleccionar "Otro"
+            // y conservar el valor real en el campo de texto libre.
+            const knownSpecies = speciesOptions.includes(pet.species || '')
             setFormData({
                 name: pet.name || '',
-                species: pet.species || 'Canino',
+                species: knownSpecies ? (pet.species || 'Canino') : 'Otro',
+                speciesOther: knownSpecies ? '' : (pet.species || ''),
                 breed: pet.breed || '',
                 color: pet.color || '',
                 sex,
@@ -71,7 +80,9 @@ export function PetForm({ tutorId, clinicId, pet, onClose, onSave }: PetFormProp
                 clinic_id: clinicId,
                 tutor_id: tutorId,
                 name: formData.name,
-                species: formData.species,
+                species: formData.species === 'Otro'
+                    ? (formData.speciesOther.trim() || 'Otro')
+                    : formData.species,
                 breed: formData.breed || null,
                 color: formData.color || null,
                 sex: formData.sex,
@@ -170,6 +181,16 @@ export function PetForm({ tutorId, clinicId, pet, onClose, onSave }: PetFormProp
                                     <option key={s} value={s}>{s}</option>
                                 ))}
                             </select>
+                            {formData.species === 'Otro' && (
+                                <input
+                                    type="text"
+                                    required
+                                    value={formData.speciesOther}
+                                    onChange={(e) => setFormData({ ...formData, speciesOther: e.target.value })}
+                                    className="input-soft font-bold mt-2"
+                                    placeholder="Ej: Llama, Alpaca, Hurón..."
+                                />
+                            )}
                         </div>
 
                         <div>

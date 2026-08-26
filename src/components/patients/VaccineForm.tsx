@@ -32,9 +32,13 @@ export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProp
 
     const speciesLower = patient.species?.toLowerCase() || ''
     const isCat = speciesLower.includes('felin') || speciesLower.includes('gat')
-    
-    const species = isCat ? 'cat' : 'dog'
-    const vaccineOptions = species === 'cat' ? CAT_VACCINES : DOG_VACCINES
+    const isDog = speciesLower.includes('canin') || speciesLower.includes('perr')
+
+    // Antes cualquier especie que no fuera claramente felina caía al catálogo
+    // canino por defecto (un caballo o un ave veían Óctuple/Sextuple/KC). Para
+    // especies fuera de perro/gato no hay catálogo clínico definido — se
+    // fuerza directo a "Otra" (texto libre), nunca a un catálogo ajeno.
+    const vaccineOptions = isCat ? CAT_VACCINES : isDog ? DOG_VACCINES : ['Otra']
 
     const [formData, setFormData] = useState({
         name: vaccineOptions[0],
@@ -163,7 +167,9 @@ export function VaccineForm({ patient, event, onClose, onSave }: VaccineFormProp
                             <h2 className="text-lg font-bold text-charcoal uppercase tracking-tight">
                                  {event ? 'Editar Vacuna' : 'Registro de Vacunación'}
                             </h2>
-                            <p className="text-[10px] text-charcoal/60 uppercase tracking-widest font-bold">{species === 'cat' ? 'Protocolo Felino' : 'Protocolo Canino'}</p>
+                            <p className="text-[10px] text-charcoal/60 uppercase tracking-widest font-bold">
+                                {isCat ? 'Protocolo Felino' : isDog ? 'Protocolo Canino' : (patient.species || 'Protocolo General')}
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-silk-beige rounded-full transition-colors">
