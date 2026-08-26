@@ -148,8 +148,11 @@ export default function BookOnboardingCall() {
                         <CheckCircle2 className="w-10 h-10 text-emerald-600" />
                     </div>
                     <h1 className="text-2xl font-black text-charcoal mb-3">¡Videollamada agendada!</h1>
-                    <p className="text-charcoal/60 mb-8">
+                    <p className="text-charcoal/60 mb-4">
                         Te enviamos la confirmación a <strong>{email}</strong> con el link de la videollamada. Guárdalo — es el mismo que vas a usar el día de la reunión.
+                    </p>
+                    <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm mb-8">
+                        Si no lo ves en tu bandeja principal en unos minutos, revisa <strong>Promociones</strong> o <strong>Spam</strong> — a veces llega ahí.
                     </p>
                     {selectedDate && selectedTime && (
                         <div className="bg-white p-6 rounded-2xl border border-silk-beige text-left">
