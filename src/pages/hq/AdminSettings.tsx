@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import MetaWhatsAppConnect from '@/components/settings/MetaWhatsAppConnect'
 import {
     Settings, Shield, Users, Globe, Bell, Loader2, Save, CheckCircle,
     Building2, Calendar, Database, RefreshCw, AlertTriangle,
-    Plug, Copy, Phone, KeyRound, ShoppingCart, LifeBuoy, Eye, EyeOff
+    Plug, ShoppingCart, LifeBuoy
 } from 'lucide-react'
 
 const HQ_ID = '00000000-0000-0000-0000-000000000000'
 
 interface HqConfig {
-    ycloud_api_key: string
-    ycloud_webhook_secret: string
     hq_admin_phones: string[]
     hq_escalation_phone: string
     hq_support_agent_enabled: boolean
@@ -47,8 +46,6 @@ export default function AdminSettings() {
 
     // HQ integrations config
     const [hqConfig, setHqConfig] = useState<HqConfig>({
-        ycloud_api_key: '',
-        ycloud_webhook_secret: '',
         hq_admin_phones: [],
         hq_escalation_phone: '',
         hq_support_agent_enabled: true,
@@ -58,11 +55,10 @@ export default function AdminSettings() {
     })
     const [adminPhonesInput, setAdminPhonesInput] = useState('')
     const [savingHq, setSavingHq] = useState(false)
-    const [showApiKey, setShowApiKey] = useState(false)
-    const [showSecret, setShowSecret] = useState(false)
-    const [copied, setCopied] = useState(false)
-
-    const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vetly-hq-agent`
+    // Estado de la conexión WhatsApp (Meta) del HQ -- de solo lectura acá,
+    // MetaWhatsAppConnect maneja su propio flujo y persiste directo en DB.
+    const [metaPhoneNumberId, setMetaPhoneNumberId] = useState<string | null>(null)
+    const [metaWabaId, setMetaWabaId] = useState<string | null>(null)
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -113,15 +109,13 @@ export default function AdminSettings() {
             // that breaks supabase-js typed select, same pattern as Integrations.tsx)
             const { data: hq } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ycloud_api_key, ycloud_webhook_secret, hq_admin_phones, hq_escalation_phone, hq_support_agent_enabled, hq_sales_agent_enabled, hq_ycloud_balance_threshold, hq_sales_agent_prompt')
+                .select('hq_admin_phones, hq_escalation_phone, hq_support_agent_enabled, hq_sales_agent_enabled, hq_ycloud_balance_threshold, hq_sales_agent_prompt, meta_phone_number_id, meta_waba_id')
                 .eq('id', HQ_ID)
                 .maybeSingle()
 
             if (hq) {
                 const phones: string[] = Array.isArray(hq.hq_admin_phones) ? hq.hq_admin_phones : []
                 setHqConfig({
-                    ycloud_api_key: hq.ycloud_api_key || '',
-                    ycloud_webhook_secret: hq.ycloud_webhook_secret || '',
                     hq_admin_phones: phones,
                     hq_escalation_phone: hq.hq_escalation_phone || '',
                     hq_support_agent_enabled: hq.hq_support_agent_enabled ?? true,
@@ -130,6 +124,8 @@ export default function AdminSettings() {
                     hq_sales_agent_prompt: hq.hq_sales_agent_prompt || '',
                 })
                 setAdminPhonesInput(phones.join(', '))
+                setMetaPhoneNumberId(hq.meta_phone_number_id || null)
+                setMetaWabaId(hq.meta_waba_id || null)
             }
         } catch (err) {
             console.error('Error fetching settings data:', err)
@@ -228,8 +224,6 @@ export default function AdminSettings() {
             const { error } = await (supabase as any)
                 .from('clinic_settings')
                 .update({
-                    ycloud_api_key: hqConfig.ycloud_api_key.trim() || null,
-                    ycloud_webhook_secret: hqConfig.ycloud_webhook_secret.trim() || null,
                     hq_admin_phones: phones,
                     hq_escalation_phone: hqConfig.hq_escalation_phone.trim() || null,
                     hq_support_agent_enabled: hqConfig.hq_support_agent_enabled,
@@ -247,12 +241,6 @@ export default function AdminSettings() {
         } finally {
             setSavingHq(false)
         }
-    }
-
-    const copyWebhookUrl = () => {
-        navigator.clipboard.writeText(webhookUrl)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
     }
 
     const tabs = [
@@ -448,72 +436,19 @@ export default function AdminSettings() {
             {/* Integrations Tab */}
             {activeTab === 'integrations' && (
                 <div className="space-y-6">
-                    {/* YCloud */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                            <Phone className="w-5 h-5 text-primary-500" />
-                            YCloud — Número oficial de Vetly
-                        </h3>
-                        <p className="text-sm text-gray-500 mb-5">
-                            Conexión WhatsApp para los agentes de soporte y ventas. Número: <span className="font-mono font-medium text-gray-700">+56993089185</span>
-                        </p>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">API Key de YCloud</label>
-                                <div className="relative">
-                                    <input
-                                        type={showApiKey ? 'text' : 'password'}
-                                        value={hqConfig.ycloud_api_key}
-                                        onChange={(e) => setHqConfig(prev => ({ ...prev, ycloud_api_key: e.target.value }))}
-                                        placeholder="Pega aquí la API Key de YCloud"
-                                        className="w-full px-4 py-2.5 pr-11 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                    />
-                                    <button type="button" onClick={() => setShowApiKey(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
-                                <div className="flex gap-2">
-                                    <input
-                                        readOnly
-                                        value={webhookUrl}
-                                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-mono bg-gray-50 text-gray-600 truncate"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={copyWebhookUrl}
-                                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
-                                    >
-                                        {copied ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                                        {copied ? 'Copiado' : 'Copiar'}
-                                    </button>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-1">Pega esta URL en el webhook de tu cuenta YCloud (evento: mensaje entrante).</p>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
-                                    <KeyRound className="w-3.5 h-3.5" /> Webhook Secret
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showSecret ? 'text' : 'password'}
-                                        value={hqConfig.ycloud_webhook_secret}
-                                        onChange={(e) => setHqConfig(prev => ({ ...prev, ycloud_webhook_secret: e.target.value }))}
-                                        placeholder="whsec_..."
-                                        className="w-full px-4 py-2.5 pr-11 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                    />
-                                    <button type="button" onClick={() => setShowSecret(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                        {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-1">El secret que genera YCloud al crear el webhook. Verifica la firma HMAC de cada mensaje.</p>
-                            </div>
+                    {/* WhatsApp del HQ — Meta Cloud API (reemplaza YCloud) */}
+                    <div>
+                        <div className="mb-3">
+                            <p className="text-sm text-gray-500">
+                                Número oficial de Vetly para los agentes de soporte y ventas: <span className="font-mono font-medium text-gray-700">+56993089185</span>
+                            </p>
                         </div>
+                        <MetaWhatsAppConnect
+                            clinicId={HQ_ID}
+                            connectedPhoneNumberId={metaPhoneNumberId}
+                            connectedWabaId={metaWabaId}
+                            onConnected={fetchData}
+                        />
                     </div>
 
                     {/* Sales Agent */}
