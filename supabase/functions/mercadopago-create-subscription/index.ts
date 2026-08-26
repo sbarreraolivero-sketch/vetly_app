@@ -95,7 +95,11 @@ interface RequestBody {
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    // supabase-js manda x-client-info y apikey en toda llamada a functions.invoke()
+    // -- una lista más corta hace que el navegador bloquee el preflight OPTIONS
+    // antes de que la request real salga siquiera, sin que el código del servidor
+    // llegue nunca a correr (mismo patrón usado en send-visit-receipt).
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req: Request) => {
