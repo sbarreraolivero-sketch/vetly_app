@@ -6389,3 +6389,23 @@ La función aceptaba cualquier `clinic_id` en el body sin verificar que el usuar
 | MercadoPago | `address_pending`, cuenta sigue como "personal" | Panel de MercadoPago → Configuración → Datos de la cuenta (completar como empresa + dirección) | Todo checkout de MercadoPago en producción (CLP) |
 
 Ninguno de los dos requiere cambio de código — son configuraciones de cuenta en cada plataforma de pago. En cuanto el usuario los resuelva, no hace falta ningún deploy adicional: el código de checkout de ambos ya está listo y probado end-to-end (sesión 68 para Paddle sandbox, sesión 86 para MercadoPago CORS/multi-tenant).
+
+### Actualización el mismo día — Paddle resuelto, causa exacta de MP encontrada
+
+**Paddle: ✅ resuelto.** El usuario configuró el "Default payment link" en la cuenta live. Reverificado con el mismo método (transacción draft real contra `pri_01m08n7kjtxc9zcr658hhx5dem`): `status: 201`, transacción creada sin error. **El checkout de Paddle en producción queda desbloqueado — sin pendientes de código ni de cuenta.**
+
+**MercadoPago: causa exacta identificada — no es un problema de código, ni de identificación tributaria.** El usuario reportó que la cuenta SÍ es de empresa, con todos los datos y documentos cargados y verificados. Se releyó el JSON completo (sin filtrar) de `GET /users/me` y se confirmó:
+
+```json
+"identification": { "number": "78362063-4", "type": "RUT" },
+"company": { "brand_name": "NEXFLOW AI SYSTEMS SPA", "corporate_name": "NEXFLOW AI SYSTEMS SPA", "cust_type_id": "BU" },
+"tags": ["user_product_seller", "business", "messages_as_seller", "normal"],
+"address": { "address": null, "city": null, "state": null, "zip_code": null },
+"phone": { "number": "", "verified": false }
+```
+
+La identificación tributaria de empresa está completa (RUT, razón social, tag `business`). Pero el objeto `address` del **perfil de la cuenta** —campo separado del proceso de verificación de identidad/documentos— tiene los 4 subcampos en `null`. Ese hueco puntual es la causa literal de `billing.allow: false, codes: ["address_pending"]`. `phone.number` también vacío (no es lo que reporta el código de error, pero vale la pena completarlo de paso).
+
+`mercadopago_account_type: "personal"` sigue apareciendo junto a los datos de empresa — probablemente un campo legado de cómo se creó la cuenta, no necesariamente el bloqueante (el código de error que devuelve la API apunta específicamente a `address`, no a `account_type`). Si tras completar la dirección el bloqueo persiste, ese sería el siguiente punto a escalar con soporte de MP.
+
+**Acción pendiente del usuario, sin cambio de código:** completar la dirección postal de la cuenta en el panel de MercadoPago (`nexflow.cl@gmail.com`) — es un formulario de dirección (calle/ciudad/región/código postal) separado del que ya se completó para la verificación de identidad/documentos.
