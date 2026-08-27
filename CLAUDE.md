@@ -6186,9 +6186,40 @@ En la misma revisión (pedida explícitamente por el usuario) se encontró que l
 
 **Hallazgo relacionado, no corregido esta sesión (menor severidad, fuera de alcance del fix pedido):** `paddle-create-transaction` tiene el mismo problema — cualquier `clinic_id` se acepta sin verificar membresía. Diferencia de severidad real: esa función no escribe nada en la base por sí sola (solo crea una transacción draft en Paddle); para que tuviera efecto, el atacante tendría que pagar de verdad con el `clinic_id` de otra clínica en el `custom_data`, lo que en el peor caso le regala créditos a una clínica ajena — molesto pero no una corrupción de datos como el caso de MercadoPago. Queda pendiente para una pasada de seguridad futura sobre el resto de las funciones de pago.
 
+### Toggle de moneda pegado en CLP y botón de pago bloqueado en MercadoPago
+
+Dos síntomas reportados juntos tras el fix de CORS, con causas distintas — uno de código, otro externo.
+
+**1. El toggle volvía a CLP solo después de un intento de checkout (bug real).** `hasRealSubscription` trataba la sola presencia de `mercadopago_subscription_id`/`paddle_subscription_id` como prueba de que la clínica ya pagaba en esa moneda. Pero esos campos se escriben apenas se **crea** la preferencia/transacción de pago, no cuando el pago se **completa** (`mercadopago-create-subscription` hace el upsert con el `preference.id` antes de que el usuario vea siquiera el checkout). Un solo clic en "Suscribirme ahora" —aunque el pago no se terminara, como pasaba por el problema #2— ya dejaba esos campos no nulos, y el toggle caía de vuelta a CLP en cada carga de página aunque el usuario lo cambiara a Internacional. Corregido en `Settings.tsx` y `AISettings.tsx` a exigir `status === 'active'` (o `manually_active`), la única señal real de un pago completado.
+
+**2. La tarjeta "Plan Actual" ignoraba el toggle.** Siempre mostraba el CLP como número protagonista y el USD como línea secundaria, sin importar la moneda seleccionada — inconsistente con el grid de comparación de abajo, que sí lo respetaba. Ahora el número grande sigue `paymentRegion`, con el tachado del precio de lista en la moneda que corresponda.
+
+**3. Botón de pagar bloqueado dentro del checkout de MercadoPago — NO es un bug de Vetly.** Diagnosticado consultando directo la API de MercadoPago (preferencia real recién creada + `GET /users/me`, vía una edge function de diagnóstico temporal eliminada al terminar). La preferencia se crea perfecta (monto, moneda, back_urls, metadata correctos), pero la cuenta vendedora devuelve:
+
+```json
+"billing": { "allow": false, "codes": ["address_pending"] }
+```
+
+**La cuenta de MercadoPago de Nextflow no puede cobrar hasta completar la dirección del negocio en su panel.** Es un bloqueo de configuración externa, del mismo tipo que la verificación pendiente de Paddle — no requiere ningún cambio de código.
+
+### Bug: subir el logo de la clínica fallaba siempre con error de RLS
+
+**Síntoma:** en Ajustes → Reservas Online, "Subir logo" devolvía `new row violates row-level security policy` para cualquier clínica, incluso con el usuario siendo owner activo y el path correcto.
+
+**Causa raíz:** las 3 políticas del bucket `clinic-branding` (creadas en esta misma sesión, junto con la feature de reservas online) estaban con `TO authenticated`. **El servicio de Storage no evalúa las políticas bajo ese rol**, así que ninguna aplicaba y todo INSERT se rechazaba. Encontrado por contraste con los dos buckets que sí funcionaban desde antes (`expense-receipts`, `patient-documents`): ambos usan una sola policy `FOR ALL TO public`.
+
+**Hipótesis descartadas por prueba directa** (quedan anotadas para no reinvestigarlas): la lógica de la policy era correcta — un INSERT manual con el JWT del usuario **sí pasaba** dentro de una transacción SQL con `SET LOCAL ROLE authenticated`; la membresía en `clinic_members` existía y estaba activa; `storage.foldername(path)[1]` resolvía al `clinic_id` correcto; y no era caché de plan de Postgres ni el tipo del casteo (`::uuid` vs `::text`) — ambas se probaron con `ALTER POLICY` y siguió fallando igual.
+
+**Fix** (migración `20260826234500_fix_clinic_branding_storage_policy_role.sql`): las 3 políticas reemplazadas por una sola `FOR ALL TO public`, idéntica en forma a la de `expense-receipts`. Verificado contra el endpoint real de Storage con la sesión real de la cuenta afectada: la subida pasa de inmediato. Los archivos de prueba subidos durante el diagnóstico se borraron vía la API de Storage.
+
+**`public` no debilita el aislamiento acá:** el filtro real sigue siendo la pertenencia a `clinic_members` vía `auth.uid()`, que para un visitante anónimo es NULL y por lo tanto nunca hace match.
+
 ### Reglas permanentes de esta sesión
 
 - **Un elemento posicionado fuera de los límites de un contenedor con `overflow:hidden` se recorta, aunque el `overflow:hidden` esté ahí por otra razón** (acá, el shimmer de hover de `.link-btn`). Si un badge/tooltip necesita sobresalir del borde de un botón, sacarlo a un wrapper hermano sin ese overflow.
 - **Cualquier respuesta de una edge function — incluidas las de error — necesita los mismos headers CORS que la de éxito.** Si solo el camino feliz los tiene, todo error queda invisible para el navegador y se ve como un fallo genérico sin causa, aunque el body de la respuesta sí traiga el detalle real.
 - **Toda edge function que reciba un `clinic_id` en el body debe verificar que el usuario autenticado pertenezca a esa clínica** (JWT → `auth.getUser()` → `clinic_members` activo) antes de leer o escribir nada. `verify_jwt=true` en `config.toml` solo exige una sesión válida, nunca que esa sesión sea dueña del recurso que el body pide tocar — confundir ambas cosas es la fuente más común de bugs multi-tenant en este proyecto (ver también sesiones 74/77/78).
 - **Antes de dar por buena una condición de estado (`status === 'trial'`, `status === 'active'`), verificar el valor literal exacto que escribe cada fuente real** (trigger de DB, webhook de pago) — un typo de un solo carácter entre `'trial'` y `'trialing'` puede dejar una condición entera permanentemente muerta sin ningún error visible.
+- **`mercadopago_subscription_id` / `paddle_subscription_id` NO son señal de "ya pagó".** Se escriben al **crear** la preferencia/transacción, antes de que el usuario vea el checkout — un intento abandonado o rechazado ya los deja poblados. La única señal de pago completado es `status === 'active'` (o `manually_active`).
+- **Las políticas de Storage deben crearse `TO public`, no `TO authenticated`.** El servicio de Storage no evalúa las políticas bajo el rol `authenticated`, así que una policy con ese rol nunca aplica y todo INSERT falla con "new row violates row-level security policy" aunque la lógica sea correcta. El aislamiento real lo da el filtro por `clinic_members` vía `auth.uid()` (NULL para anónimos), no el rol de la policy. Buckets de referencia que funcionan: `expense-receipts`, `patient-documents`, `clinic-branding`.
+- **Un INSERT que pasa en SQL pero falla vía la API no es un problema de lógica de la policy.** Si `SET LOCAL ROLE authenticated` + INSERT manual funciona pero el endpoint real rechaza, el problema está en cómo el servicio (Storage/PostgREST) resuelve el rol — no en la condición de la policy. Comparar contra un bucket/tabla equivalente que sí funcione es más rápido que seguir iterando sobre la expresión.
