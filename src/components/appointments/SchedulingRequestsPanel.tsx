@@ -126,6 +126,14 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
         }
 
         await resumeAI(req.tutor_phone)
+
+        // Aviso proactivo por WhatsApp — fire-and-forget, no debe bloquear la
+        // autorización si el envío falla (la IA igual sabrá las opciones si el
+        // tutor vuelve a escribir, esto solo evita que tenga que hacerlo).
+        void supabase.functions
+            .invoke('scheduling-notify-authorized', { body: { clinic_id: clinicId, request_id: req.id } })
+            .catch(() => { /* no crítico */ })
+
         setRequests(curr => curr.map(r =>
             r.id === req.id ? { ...r, status: 'authorized', authorized_options: options } : r
         ))

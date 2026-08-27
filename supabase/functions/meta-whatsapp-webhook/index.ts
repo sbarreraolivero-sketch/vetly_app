@@ -310,12 +310,12 @@ const functions = [
         service_name: { type: "string", description: "Servicio o motivo de la atención" },
         comuna: { type: "string", description: "Comuna del tutor" },
         sector: { type: "string", description: "Sector/zona interna según el protocolo de logística, si se puede inferir de la comuna" },
-        address: { type: "string", description: "Dirección exacta si el tutor ya la entregó" },
+        address: { type: "string", description: "Dirección exacta (calle, número y referencias) que el tutor entregó por escrito o mediante su pin de ubicación. OBLIGATORIA: nunca un placeholder ni un valor inventado. Si el tutor no la ha dado, NO llames esta función — pídesela primero." },
         is_urgent: { type: "boolean", description: "true si necesita atención urgente; false si puede esperar los próximos días" },
         availability_text: { type: "string", description: "Disponibilidad amplia en las palabras del tutor: varios días y rangos horarios. Ej: 'martes después de las 15:00, miércoles todo el día o viernes en la mañana'" },
         additional_notes: { type: "string", description: "Cualquier antecedente adicional relevante para el servicio solicitado" },
       },
-      required: ["tutor_name", "service_name", "comuna", "is_urgent", "availability_text"],
+      required: ["tutor_name", "service_name", "comuna", "address", "is_urgent", "availability_text"],
     },
   },
   {
@@ -951,6 +951,25 @@ const checkAvail = async (
     };
 };
 
+// ── Placeholder guard (nombres/direcciones inventados por el modelo para satisfacer el schema) ──
+const GENERIC_NAME_WORDS = ["tutor", "cliente", "dueño", "dueno", "nombre", "sin nombre", "n/a", "na", "no especificado", "desconocido", "pendiente"];
+const GENERIC_ADDRESS_WORDS = ["direccion", "dirección", "sin direccion", "sin dirección", "domicilio", "n/a", "na", "no especificado", "desconocido", "pendiente"];
+const GENERIC_PET_WORDS = ["mascota", "sin nombre", "n/a", "na", "no especificado", "desconocido", "pendiente"];
+
+const isPlaceholderValue = (raw: string, genericWords: string[] = GENERIC_NAME_WORDS): boolean => {
+  const value = (raw || "").trim();
+  const norm = value.toLowerCase();
+  return (
+    !value ||
+    value.includes("[") || value.includes("]") ||
+    value.includes("{") || value.includes("}") ||
+    genericWords.includes(norm) ||
+    norm.startsWith("nombre del") || norm.startsWith("nombre de") ||
+    norm.startsWith("direccion del") || norm.startsWith("dirección del") ||
+    norm.startsWith("direccion exacta") || norm.startsWith("dirección exacta")
+  );
+};
+
 // ── Create Appointment ────────────────────────────────────────────────────────
 const createAppt = async (
   sb: ReturnType<typeof createClient>,
@@ -976,15 +995,7 @@ const createAppt = async (
   }
 
   // Guard against placeholder names
-  const tutorNameRaw = (args.tutor_name || "").trim();
-  const tutorNameNorm = tutorNameRaw.toLowerCase();
-  const isPlaceholderName =
-    !tutorNameRaw ||
-    tutorNameRaw.includes("[") || tutorNameRaw.includes("]") ||
-    tutorNameRaw.includes("{") || tutorNameRaw.includes("}") ||
-    ["tutor", "cliente", "dueño", "dueno", "nombre", "sin nombre", "n/a", "na", "no especificado", "desconocido", "pendiente"].includes(tutorNameNorm) ||
-    tutorNameNorm.startsWith("nombre del") || tutorNameNorm.startsWith("nombre de");
-  if (isPlaceholderName) {
+  if (isPlaceholderValue(args.tutor_name)) {
     return { success: false, message: "FALTA_NOMBRE_TUTOR: No se puede agendar sin el nombre real del tutor. Pregunta al cliente su nombre completo antes de volver a intentar crear la cita." };
   }
 
@@ -1317,8 +1328,24 @@ const requestSchedulingCoordination = async (
   const normalizedPhone = normalizePhone(phone);
   const tutorName = (args.tutor_name || "").trim();
   const availability = (args.availability_text || "").trim();
-  if (!tutorName || !availability) {
-    return { success: false, message: "FALTAN_DATOS: Necesitas el nombre real del tutor y su disponibilidad amplia (varios días y rangos horarios) antes de enviar la solicitud a la coordinadora." };
+  const address = (args.address || "").trim();
+
+  // Guard anti-placeholder: el modelo puede inventar "[Nombre del Tutor]" o
+  // "[Dirección exacta]" para satisfacer el schema cuando el tutor aún no dio
+  // el dato real. Sin esto, la coordinadora recibe solicitudes inservibles
+  // (verificado en producción: 4 de 6 solicitudes reales llegaron sin dirección
+  // utilizable). No escribe nada en scheduling_requests hasta tener datos reales.
+  if (!availability) {
+    return { success: false, message: "FALTAN_DATOS: Necesitas la disponibilidad amplia del tutor (varios días y rangos horarios) antes de enviar la solicitud a la coordinadora." };
+  }
+  if (isPlaceholderValue(tutorName)) {
+    return { success: false, message: "FALTA_NOMBRE_TUTOR: No se puede enviar la solicitud sin el nombre real del tutor. Pregúntaselo explícitamente y no llames a esta función hasta tenerlo." };
+  }
+  if (isPlaceholderValue(address, GENERIC_ADDRESS_WORDS)) {
+    return { success: false, message: "FALTA_DIRECCION: No se puede enviar la solicitud sin la dirección real del domicilio (calle, número y referencias). Es indispensable para que la coordinadora pueda armar la ruta. Pídesela explícitamente al tutor — insiste si no la da a la primera — y no llames a esta función hasta tenerla." };
+  }
+  if (args.pet_name !== undefined && isPlaceholderValue(args.pet_name, GENERIC_PET_WORDS)) {
+    return { success: false, message: "FALTA_NOMBRE_MASCOTA: No se puede enviar la solicitud sin el nombre real de la mascota. Pregúntaselo al tutor antes de volver a intentar." };
   }
 
   const { data: tutor } = await sb.from("tutors").select("id")
@@ -1380,6 +1407,7 @@ const requestSchedulingCoordination = async (
     args.pet_name ? `Mascota: ${args.pet_name}${args.pet_details ? ` (${args.pet_details})` : ""}` : null,
     `Servicio: ${payload.service_requested}`,
     args.comuna ? `Comuna/sector: ${args.comuna}${args.sector ? ` — ${args.sector}` : ""}` : null,
+    `Dirección: ${address}`,
     `Urgencia: ${payload.is_urgent ? "SÍ ⚠️" : "No, puede esperar"}`,
     `Disponibilidad: ${availability}`,
     args.additional_notes ? `Antecedentes: ${args.additional_notes}` : null,
@@ -1904,7 +1932,7 @@ Deno.serve(async (req) => {
           if (req?.status === "pending") {
             schedulingContext = `\n\n### SOLICITUD DE AGENDA EN REVISIÓN ###\nEste tutor ya entregó sus datos y su disponibilidad ("${req.availability_text}") para "${req.service_requested}". La coordinadora está revisando la ruta.\nINSTRUCCIÓN: NO ofrezcas horarios ni uses check_availability, create_appointment o reschedule_appointment. Si pregunta por el estado, dile con calidez que la coordinadora le escribirá por este mismo medio muy pronto. Si quiere corregir o ampliar su disponibilidad, vuelve a usar request_scheduling_coordination con los datos actualizados.\n`;
           } else if (req?.status === "authorized") {
-            schedulingContext = `\n\n### OPCIONES AUTORIZADAS POR LA COORDINADORA ###\nSOLO puedes ofrecerle a este tutor estas alternativas:\n"${req.authorized_options}"\nINSTRUCCIÓN: Preséntaselas con calidez (puedes adaptar el tono, nunca el contenido). Si elige una, usa check_availability y luego create_appointment o reschedule_appointment para esa fecha y hora exactas. Si ninguna le acomoda, pregúntale de nuevo qué días y rangos horarios le sirven y usa request_scheduling_coordination otra vez. NUNCA ofrezcas un horario que no esté en esta lista.\n`;
+            schedulingContext = `\n\n### OPCIONES AUTORIZADAS POR LA COORDINADORA ###\nSOLO puedes ofrecerle a este tutor estas alternativas:\n"${req.authorized_options}"\nINSTRUCCIÓN CRÍTICA: en tu SIGUIENTE respuesta a este tutor, comunícale estas opciones de inmediato, sin esperar que te lo pregunte — incluso si su mensaje trata de otro tema. Preséntaselas con calidez (puedes adaptar el tono, nunca el contenido). Si elige una, usa check_availability y luego create_appointment o reschedule_appointment para esa fecha y hora exactas. Si ninguna le acomoda, pregúntale de nuevo qué días y rangos horarios le sirven y usa request_scheduling_coordination otra vez. NUNCA ofrezcas un horario que no esté en esta lista.\n`;
           }
         } catch (e) { console.error("[Meta] schedulingContext lookup failed:", e); }
       }

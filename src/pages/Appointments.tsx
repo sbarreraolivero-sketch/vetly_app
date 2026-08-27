@@ -1160,8 +1160,11 @@ export default function Appointments() {
                 <SchedulingRequestsPanel clinicId={clinicId} />
             )}
 
-            {/* Plan de ruta — solo clínicas móviles con sectorización configurada */}
-            {!isProfessional && routeSectors && routeSectors.length > 0 && clinicId && (
+            {/* Plan de ruta — solo clínicas móviles con sectorización configurada.
+                Se oculta en modo coordinadora: ese panel decide la ruta día a día,
+                y dejar ambos mecanismos activos a la vez puede contradecirse entre
+                sí (causa confirmada de un bloqueo real el 2026-08-26). */}
+            {!isProfessional && !coordinatorApproval && routeSectors && routeSectors.length > 0 && clinicId && (
                 <RoutePlanPanel
                     clinicId={clinicId}
                     sectors={routeSectors}
