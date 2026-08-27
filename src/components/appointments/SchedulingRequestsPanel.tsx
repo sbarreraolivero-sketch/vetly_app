@@ -127,12 +127,20 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
 
         await resumeAI(req.tutor_phone)
 
-        // Aviso proactivo por WhatsApp — fire-and-forget, no debe bloquear la
+        // Aviso proactivo por WhatsApp — solo si es la primera autorización o si el
+        // texto realmente cambió. Sin este check, cada vez que se reabre y re-guarda
+        // una fila ya autorizada (ej: agregar la fecha exacta después de guardar solo
+        // la hora) se reenvía el mismo WhatsApp — confirmado real en producción el
+        // 2026-08-27: un mismo tutor recibió el aviso 3 veces por 3 guardados
+        // seguidos con texto casi idéntico. Fire-and-forget: no debe bloquear la
         // autorización si el envío falla (la IA igual sabrá las opciones si el
-        // tutor vuelve a escribir, esto solo evita que tenga que hacerlo).
-        void supabase.functions
-            .invoke('scheduling-notify-authorized', { body: { clinic_id: clinicId, request_id: req.id } })
-            .catch(() => { /* no crítico */ })
+        // tutor vuelve a escribir).
+        const isGenuinelyNew = req.status !== 'authorized' || options !== (req.authorized_options ?? '').trim()
+        if (isGenuinelyNew) {
+            void supabase.functions
+                .invoke('scheduling-notify-authorized', { body: { clinic_id: clinicId, request_id: req.id } })
+                .catch(() => { /* no crítico */ })
+        }
 
         setRequests(curr => curr.map(r =>
             r.id === req.id ? { ...r, status: 'authorized', authorized_options: options } : r

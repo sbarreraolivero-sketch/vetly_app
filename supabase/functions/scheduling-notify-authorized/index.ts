@@ -74,6 +74,19 @@ Deno.serve(async (req) => {
             return json({ skipped: "not_authorized" });
         }
 
+        // CRÍTICO: reactivar la IA con service_role, no confiar solo en el resumeAI()
+        // del frontend. Confirmado en producción el 2026-08-27 (2 casos reales,
+        // Ragnar/Ema y Gastón/Carol): el tutor confirmaba el horario y la IA se
+        // quedaba completamente muda — crm_prospects.requires_human seguía en
+        // `true` pese a que el panel ya había "autorizado" varias veces. La llamada
+        // del frontend queda como camino rápido para la UI, pero esta es la que
+        // garantiza el resultado (bypassa cualquier problema de RLS/timing del lado
+        // del cliente).
+        await supabase.from("tutors").update({ requires_human: false })
+            .eq("clinic_id", clinic_id).eq("phone_number", request.tutor_phone);
+        await supabase.from("crm_prospects").update({ requires_human: false })
+            .eq("clinic_id", clinic_id).or(`phone.eq.${request.tutor_phone},phone.eq.+${request.tutor_phone}`);
+
         const { data: clinic } = await supabase
             .from("clinic_settings")
             .select("meta_phone_number_id, meta_access_token")
@@ -86,7 +99,15 @@ Deno.serve(async (req) => {
             return json({ skipped: "no_meta_channel" });
         }
 
-        const text = `¡Hola de nuevo! 😊 Ya coordinamos la ruta para tu visita. Podemos ofrecerte:\n\n${request.authorized_options}\n\n¿Cuál de esas opciones te acomoda más?`;
+        // "¿Cuál de esas opciones...?" no tiene sentido si la coordinadora solo
+        // autorizó un horario — confirmado real en producción el 2026-08-27
+        // (Ragnar: "Próximo jueves 10.30 am" con esa pregunta plural). Heurística
+        // simple: si el texto trae un separador de lista, es plural.
+        const hasMultipleOptions = /[,;/]| o | ó /i.test(request.authorized_options);
+        const closingQuestion = hasMultipleOptions
+            ? "¿Cuál de esas opciones te acomoda más?"
+            : "¿Te acomoda ese horario?";
+        const text = `¡Hola de nuevo! 😊 Ya coordinamos la ruta para tu visita. Podemos ofrecerte:\n\n${request.authorized_options}\n\n${closingQuestion}`;
 
         const result = await sendMetaMessage(
             clinic.meta_phone_number_id,
