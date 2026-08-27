@@ -128,6 +128,11 @@ export default function Settings() {
     const [businessModel, setBusinessModel] = useState<'physical' | 'mobile' | 'hybrid'>('physical')
     const [schedulingMode, setSchedulingMode] = useState<'ai_autonomous' | 'coordinator_approval'>('ai_autonomous')
     const [coordinatorPhone, setCoordinatorPhone] = useState('')
+    // "Logística Pro" = el cálculo automático de tramos/recargo por tiempo de viaje
+    // (panel en Conocimiento). Vive dentro de logistics_config.is_active — se
+    // conserva el resto del JSON (locations, routing_mode, etc.) tal cual al guardar.
+    const [logisticsProEnabled, setLogisticsProEnabled] = useState(false)
+    const [logisticsConfigRaw, setLogisticsConfigRaw] = useState<Record<string, any>>({})
     const [showMobileList, setShowMobileList] = useState(true)
 
     // Reservas online — página pública vetly.pro/reservar/:slug (plan Core,
@@ -478,6 +483,8 @@ export default function Settings() {
                     setBusinessModel(clinicData.business_model || 'physical')
                     setSchedulingMode(clinicData.scheduling_mode === 'coordinator_approval' ? 'coordinator_approval' : 'ai_autonomous')
                     setCoordinatorPhone(clinicData.coordinator_phone || '')
+                    setLogisticsConfigRaw(clinicData.logistics_config || {})
+                    setLogisticsProEnabled(clinicData.logistics_config?.is_active === true)
                     // El toggle de moneda solo respeta 'chile' cuando hay una
                     // suscripción REAL ya PAGADA en CLP (o es una cuenta
                     // manually_active como Animalgrace). Ojo: `mercadopago_
@@ -926,6 +933,12 @@ export default function Settings() {
                     // Una clínica de local fijo no coordina rutas: el modo vuelve al default.
                     scheduling_mode: businessModel === 'physical' ? 'ai_autonomous' : schedulingMode,
                     coordinator_phone: coordinatorPhone.trim() || null,
+                    // Preserva locations/routing_mode/etc. ya configurados; solo cambia el switch.
+                    // Un local fijo no puede tener Logística Pro activa.
+                    logistics_config: {
+                        ...logisticsConfigRaw,
+                        is_active: businessModel === 'physical' ? false : logisticsProEnabled,
+                    },
                     template_survey: templateSurvey,
                     iva_enabled: ivaEnabled,
                     iva_rate: ivaRate,
@@ -1727,6 +1740,40 @@ export default function Settings() {
                                                 </p>
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* Cálculo automático de tramos por tiempo de viaje (Google Maps).
+                                    Opt-in explícito: por defecto apagado, se edita en Conocimiento
+                                    → Logística Pro, que solo aparece si este switch está activo. */}
+                                {businessModel !== 'physical' && (
+                                    <div className="bg-silk-beige/20 p-4 rounded-soft border border-silk-beige/30 mb-8">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-primary-500/10 rounded-full flex items-center justify-center">
+                                                    <Sparkles className="w-5 h-5 text-primary-600" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-charcoal leading-none mb-1">Logística Pro</h3>
+                                                    <p className="text-xs text-charcoal/50 max-w-md">
+                                                        Calcula el recargo de traslado exacto vía Google Maps según sedes y tramos
+                                                        de tiempo. Actívalo solo si quieres configurar esas sedes en Conocimiento.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLogisticsProEnabled(v => !v)}
+                                                className="shrink-0"
+                                                aria-label="Activar Logística Pro"
+                                            >
+                                                {logisticsProEnabled ? (
+                                                    <ToggleRight className="w-9 h-9 text-primary-600" />
+                                                ) : (
+                                                    <ToggleLeft className="w-9 h-9 text-charcoal/30" />
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 

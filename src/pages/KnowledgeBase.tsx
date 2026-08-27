@@ -97,6 +97,7 @@ export default function KnowledgeBase() {
         }>,
         is_active: false
     })
+    const [businessModel, setBusinessModel] = useState<'physical' | 'mobile' | 'hybrid'>('physical')
     const [activeModel, setActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
     const [savingPrompt, setSavingPrompt] = useState(false)
     const [promptSaved, setPromptSaved] = useState(false)
@@ -141,7 +142,7 @@ export default function KnowledgeBase() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error: fetchError } = await (supabase as any)
                 .from('clinic_settings')
-                .select('ai_personality, ai_behavior_rules, transfer_details, logistics_config, ai_active_model')
+                .select('ai_personality, ai_behavior_rules, transfer_details, logistics_config, ai_active_model, business_model')
                 .eq('id', profile.clinic_id)
                 .single()
 
@@ -152,6 +153,7 @@ export default function KnowledgeBase() {
             if (data.ai_behavior_rules) setBehaviorRules(data.ai_behavior_rules)
             if (data.transfer_details) setTransferDetails(data.transfer_details)
             if (data.ai_active_model) setActiveModel(data.ai_active_model as 'hybrid' | 'mini' | 'pro')
+            setBusinessModel((data.business_model as 'physical' | 'mobile' | 'hybrid') || 'physical')
             
             // Migration: Handle old schema if necessary
             let finalConfig = data.logistics_config;
@@ -617,7 +619,10 @@ export default function KnowledgeBase() {
                 )}
             </div>
 
-            {/* Logística Pro (Independent Section) */}
+            {/* Logística Pro (Independent Section) — opt-in: solo se muestra si la
+                clínica activó el switch en Configuración → Modelo de Negocio. Antes
+                aparecía siempre para cualquier clínica, incluso las de local fijo. */}
+            {businessModel !== 'physical' && logisticsConfig.is_active && (
             <div className="card-soft overflow-hidden">
                 <button 
                     onClick={() => setShowLogisticsSection(!showLogisticsSection)}
@@ -947,6 +952,7 @@ export default function KnowledgeBase() {
                     </div>
                 )}
             </div>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
