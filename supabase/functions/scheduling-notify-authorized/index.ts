@@ -95,6 +95,22 @@ Deno.serve(async (req) => {
             text,
         );
 
+        // CRÍTICO: registrar el mensaje en `messages`, con el mismo shape que usa
+        // saveMsg() en el webhook. Sin esto el envío es invisible tanto para el
+        // dashboard como para el propio historial que arma el AI agent — su
+        // "memoria" de la conversación se construye leyendo esta tabla, así que
+        // un mensaje real no registrado aquí deja a la IA sin saber que ya le
+        // ofreció esas horas al tutor. Confirmado como causa raíz de contradicciones
+        // reales en producción el 2026-08-27 (ver auditoría de esa fecha).
+        await supabase.from("messages").insert({
+            clinic_id,
+            phone_number: request.tutor_phone,
+            content: text,
+            direction: "outbound",
+            ai_generated: false,
+            message_type: "text",
+        });
+
         await supabase.from("debug_logs").insert({
             message: `[SCHEDULING NOTIFY] Aviso de autorización enviado a ${request.tutor_phone}`,
             payload: result,

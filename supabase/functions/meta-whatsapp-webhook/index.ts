@@ -300,7 +300,7 @@ const functions = [
   },
   {
     name: "request_scheduling_coordination",
-    description: "Envía la solicitud de agenda a la coordinadora para que ella defina los horarios según la ruta del día. Úsala SOLO cuando ya tengas todos los datos del tutor y su disponibilidad amplia (varios días y rangos horarios posibles). En las clínicas que trabajan con este flujo, reemplaza por completo a check_availability y create_appointment: nunca decidas tú el horario.",
+    description: "Envía la solicitud de agenda a la coordinadora para que ella defina los horarios según la ruta del día. Úsala SOLO cuando ya tengas todos los datos del tutor y su disponibilidad amplia (varios días y rangos horarios posibles). En las clínicas que trabajan con este flujo, reemplaza por completo a check_availability y create_appointment: nunca decidas tú el horario. IMPORTANTE: NO la llames de nuevo si este tutor ya tiene opciones autorizadas por la coordinadora vigentes (verás un bloque 'OPCIONES AUTORIZADAS' en tu contexto) — en ese caso, interpreta su respuesta como aceptación de una de esas opciones y usa create_appointment directamente. Solo vuelve a llamar esta función si el tutor rechaza explícitamente TODAS las opciones ofrecidas y da disponibilidad nueva.",
     parameters: {
       type: "object",
       properties: {
@@ -631,9 +631,17 @@ const checkAvail = async (
   }
 
   // Bloqueo por coordinación de ruta: mientras la coordinadora no autorice
-  // horarios para este tutor, la IA no ve ningún cupo. Si YA hay una solicitud
-  // autorizada, el flujo sigue normal para poder validar el horario elegido
-  // contra la agenda real (createAppt re-valida contra raw_slots).
+  // horarios para este tutor, la IA no ve ningún cupo.
+  // NOTA (2026-08-27): si YA hay una solicitud autorizada, este check ya no debe
+  // usarse para validar el horario elegido — createAppt deja de invocar checkAvail
+  // por completo en ese caso (bypass explícito ahí), porque este motor de buffers/
+  // traslados es el mismo del flujo autónomo y contradecía en producción horarios
+  // que la coordinadora ya había decidido. El prompt instruye a la IA a NO llamar
+  // check_availability una vez autorizado; si igual lo hiciera, esta función sigue
+  // corriendo su cálculo normal más abajo (no se bloqueó por completo a propósito,
+  // para no reescribir el motor completo bajo presión de incidente) — el resultado
+  // ya no puede impedir la creación de la cita, solo podría producir un mensaje
+  // inicial desactualizado si el modelo desobedece la instrucción.
   if (needsCoordinatorApproval(clinic) && !(await getAuthorizedRequest(sb, clinicId, phone))) {
     return { available: false, reason: "coordinator_approval_required", message: coordinatorPrompt };
   }
@@ -1065,23 +1073,32 @@ const createAppt = async (
     return { success: true, message: existingAppt.status === "confirmed" ? "Ya tienes esta cita confirmada en nuestra agenda. ¡Te esperamos!" : "Ya registré esta solicitud y está pendiente de pago." };
   }
 
-  // Proactive availability check
-  const availResult = await checkAvail(sb, refId || clinicId, normalizedPhone, args.date, args.service_name, timezone, profName, null, args.address, logisticsConfig);
-  const availableRawSlots = availResult.raw_slots || [];
-  const isSpecificTimeAvailable = availResult.available && availableRawSlots.includes(args.time);
+  // Proactive availability check — se OMITE por completo cuando la coordinadora ya
+  // autorizó este horario (authorizedRequestId): es exactamente el motor de rutas/
+  // buffers de traslado del flujo autónomo, y volver a correrlo aquí contradecía en
+  // producción horarios que Claudia ya había decidido explícitamente (confirmado con
+  // datos reales el 2026-08-27: este mismo bloque generaba el mensaje "no es factible
+  // por el tiempo de traslado" incluso cuando la IA llegaba directo a create_appointment
+  // sin pasar por check_availability — el veto vivía aquí, no en el tool call). Bajo
+  // coordinación humana, la decisión de la coordinadora reemplaza a este chequeo.
+  if (!authorizedRequestId) {
+    const availResult = await checkAvail(sb, refId || clinicId, normalizedPhone, args.date, args.service_name, timezone, profName, null, args.address, logisticsConfig);
+    const availableRawSlots = availResult.raw_slots || [];
+    const isSpecificTimeAvailable = availResult.available && availableRawSlots.includes(args.time);
 
-  if (!isSpecificTimeAvailable) {
-    let rejectionMsg = "Lo siento, ese horario ya no está disponible.";
-    if (!availResult.available || availableRawSlots.length === 0) {
-      rejectionMsg = `Lo siento, consultando con su dirección, no tenemos disponibilidad para ese día considerando los traslados necesarios.`;
-    } else {
-      const alternatives = (availResult.slots || []).slice(0, 3).join(", ");
-      rejectionMsg = `Lo siento, el horario de las ${args.time} no es factible por el tiempo de traslado. Los horarios más cercanos disponibles son: ${alternatives}. ¿Le acomoda alguno?`;
+    if (!isSpecificTimeAvailable) {
+      let rejectionMsg = "Lo siento, ese horario ya no está disponible.";
+      if (!availResult.available || availableRawSlots.length === 0) {
+        rejectionMsg = `Lo siento, consultando con su dirección, no tenemos disponibilidad para ese día considerando los traslados necesarios.`;
+      } else {
+        const alternatives = (availResult.slots || []).slice(0, 3).join(", ");
+        rejectionMsg = `Lo siento, el horario de las ${args.time} no es factible por el tiempo de traslado. Los horarios más cercanos disponibles son: ${alternatives}. ¿Le acomoda alguno?`;
+      }
+      return { success: false, message: rejectionMsg };
     }
-    return { success: false, message: rejectionMsg };
-  }
 
-  if (availResult.total_price) price = availResult.total_price;
+    if (availResult.total_price) price = availResult.total_price;
+  }
 
   // Geocode appointment address
   const { data: tutorGeo } = await sb.from("tutors").select("latitude, longitude, name, address")
@@ -1932,7 +1949,7 @@ Deno.serve(async (req) => {
           if (req?.status === "pending") {
             schedulingContext = `\n\n### SOLICITUD DE AGENDA EN REVISIÓN ###\nEste tutor ya entregó sus datos y su disponibilidad ("${req.availability_text}") para "${req.service_requested}". La coordinadora está revisando la ruta.\nINSTRUCCIÓN: NO ofrezcas horarios ni uses check_availability, create_appointment o reschedule_appointment. Si pregunta por el estado, dile con calidez que la coordinadora le escribirá por este mismo medio muy pronto. Si quiere corregir o ampliar su disponibilidad, vuelve a usar request_scheduling_coordination con los datos actualizados.\n`;
           } else if (req?.status === "authorized") {
-            schedulingContext = `\n\n### OPCIONES AUTORIZADAS POR LA COORDINADORA ###\nSOLO puedes ofrecerle a este tutor estas alternativas:\n"${req.authorized_options}"\nINSTRUCCIÓN CRÍTICA: en tu SIGUIENTE respuesta a este tutor, comunícale estas opciones de inmediato, sin esperar que te lo pregunte — incluso si su mensaje trata de otro tema. Preséntaselas con calidez (puedes adaptar el tono, nunca el contenido). Si elige una, usa check_availability y luego create_appointment o reschedule_appointment para esa fecha y hora exactas. Si ninguna le acomoda, pregúntale de nuevo qué días y rangos horarios le sirven y usa request_scheduling_coordination otra vez. NUNCA ofrezcas un horario que no esté en esta lista.\n`;
+            schedulingContext = `\n\n### OPCIONES AUTORIZADAS POR LA COORDINADORA ###\nSOLO puedes ofrecerle a este tutor estas alternativas:\n"${req.authorized_options}"\nINSTRUCCIÓN CRÍTICA: en tu SIGUIENTE respuesta a este tutor, comunícale estas opciones de inmediato, sin esperar que te lo pregunte — incluso si su mensaje trata de otro tema. Preséntaselas con calidez (puedes adaptar el tono, nunca el contenido).\nSi elige una (o si su mensaje ya confirma/acepta una de estas opciones, aunque sea con un simple "sí" o "me acomoda" — interprétalo como la aceptación de la opción que le acabas de ofrecer), llama DIRECTAMENTE a create_appointment o reschedule_appointment con esa fecha y hora exactas. NO llames a check_availability antes: la coordinadora YA verificó que ese horario es viable considerando la ruta, y check_availability puede devolver una respuesta distinta (calculada para el flujo automático) que contradiría lo que ella decidió — eso ya causó respuestas reales incorrectas, está PROHIBIDO.\nSi el tutor dice explícitamente que NINGUNA opción le sirve, pregúntale qué otros días y rangos horarios le acomodan y usa request_scheduling_coordination con esa disponibilidad nueva. Mientras estas opciones sigan vigentes, TERMINANTEMENTE PROHIBIDO volver a llamar request_scheduling_coordination solo porque el tutor respondió algo ambiguo o breve — en ese caso, confirma tú primero a cuál opción se refiere en vez de reiniciar la coordinación.\nNUNCA ofrezcas un horario que no esté en esta lista.\n`;
           }
         } catch (e) { console.error("[Meta] schedulingContext lookup failed:", e); }
       }
