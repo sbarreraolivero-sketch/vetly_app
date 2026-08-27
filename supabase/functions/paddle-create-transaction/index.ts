@@ -4,12 +4,17 @@
 // Paddle.js pasando el transaction_id devuelto — no hay redirect, es overlay.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const PADDLE_API_KEY = Deno.env.get("PADDLE_API_KEY") || "";
 const PADDLE_ENVIRONMENT = Deno.env.get("PADDLE_ENVIRONMENT") || "sandbox";
 const PADDLE_API_HOST = PADDLE_ENVIRONMENT === "production"
     ? "https://api.paddle.com"
     : "https://sandbox-api.paddle.com";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
 // Producto "contenedor" para precios no-catálogo — sin precio fijo propio,
 // solo sirve como product_id requerido por la API de Paddle. Creado una vez
@@ -49,6 +54,40 @@ Deno.serve(async (req: Request) => {
                 JSON.stringify({ error: "Missing required fields: clinic_id, type, quantity" }),
                 { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
+        }
+
+        // Verificar que quien llama sea miembro activo de `clinic_id` -- hallazgo de
+        // seguridad de sesión 86: sin esto, cualquier cuenta autenticada podía pasar
+        // el UUID de otra clínica y, al pagar, acreditarle créditos de campaña o
+        // recordatorios a una clínica ajena vía custom_data.clinic_id. Mismo patrón
+        // que mercadopago-create-subscription.
+        const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "").trim();
+        if (!jwt) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+        const sbUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${jwt}` } },
+        });
+        const { data: { user } } = await sbUser.auth.getUser();
+        if (!user) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data: member } = await supabase
+            .from("clinic_members")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("clinic_id", clinic_id)
+            .eq("status", "active")
+            .maybeSingle();
+        if (!member) {
+            return new Response(JSON.stringify({ error: "Forbidden" }), {
+                status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
         }
 
         if (!PADDLE_API_KEY || !PADDLE_CONTAINER_PRODUCT_ID) {

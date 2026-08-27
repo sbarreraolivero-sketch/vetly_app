@@ -6354,3 +6354,38 @@ Verificado explícitamente por pedido del usuario ("revisa también la parte de 
 - **Una regla anti-alucinación acotada a "servicios y precios" no cubre afirmaciones operativas** (certificados, documentos, garantías, plazos). Si el negocio tiene reglas del tipo "nunca inventes X", conviene revisar si el alcance real cubre también las preguntas de "¿hacen/entregan Y?" que no encajan en la categoría original.
 - **Antes de asumir que un flag de configuración (`is_active`, o similar) "controla" algo, verificar con grep que efectivamente se lee en alguna parte del código.** `logistics_config.is_active` llevaba desde la sesión 6 guardándose sin que nada lo consultara — parecía un interruptor funcional y era pura decoración hasta esta sesión.
 - **Ante un cambio que afecta el pricing/comportamiento en vivo de un cliente real, preguntar antes de ejecutar — incluso si la lectura literal del pedido del usuario sugiere lo contrario.** El pedido inicial ("ya no debe aplicar por ningún motivo") sonaba a apagar el cálculo automático de traslado; una pregunta directa reveló que el pedido real era solo de visibilidad/arquitectura, no de comportamiento. Sin esa pregunta, se habría roto el cálculo de precios de Animalgrace en producción.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 88, 2026-08-27)
+
+### Verificación real de Paddle y MercadoPago — bloqueos actuales, no supuestos
+
+El usuario reportó que la cuenta de Paddle "ya está verificada". Antes de asumirlo, se verificó contra la API real (patrón de diagnóstico temporal ya usado en sesiones 78/86: edge function desechable con las credenciales de producción, curl, borrar) en vez de confiar en el estado documentado.
+
+**Paddle — el KYB efectivamente pasó, pero apareció el siguiente bloqueo documentado desde sesión 68/78.** Una transacción draft real contra `pri_01m08n7kjtxc9zcr658hhx5dem` (precio real de Core) ya no devuelve `transaction_checkout_not_enabled` (el error de cuenta no verificada) — devuelve:
+```json
+{"code":"transaction_default_checkout_url_not_set","detail":"Cannot create a transaction or open a checkout as no default payment link has been set for this account. Set in the Paddle dashboard, then try again."}
+```
+**Acción pendiente, solo dashboard (no hay endpoint de API para esto — confirmado en sesión 68):** Paddle → Checkout → Checkout Settings → configurar un "Default payment link" en la cuenta **live**. Ya se había hecho en sandbox (sesión 68) pero nunca en producción. Sin esto, ningún checkout de Paddle (suscripciones ni packs) puede completarse en producción, aunque el resto de la integración (catálogo, secrets, webhook) esté lista desde sesión 78.
+
+**MercadoPago — sigue bloqueado, sin cambios respecto a sesión 86.** `GET /users/me` con el `MERCADOPAGO_ACCESS_TOKEN` de producción confirma:
+```json
+"billing": { "allow": false, "codes": ["address_pending"] }
+```
+**Hallazgo nuevo:** `"mercadopago_account_type": "personal"` — la cuenta sigue registrada como **persona física**, no como empresa, pese a que sesión 78 documentó la migración a "cuenta empresa Nextflow". El email (`nexflow.cl@gmail.com`) es de la empresa, pero el tipo de cuenta interno de MP no se migró — probablemente la causa raíz de por qué `address_pending` no se resuelve solo completando una dirección: si la cuenta sigue como persona física, MP puede estar pidiendo el registro completo de persona jurídica (RUT de empresa, representante legal, etc.), no solo una dirección de despacho. **Acción pendiente del usuario:** entrar al panel de MercadoPago (cuenta `nexflow.cl@gmail.com`) y verificar en Configuración → Datos de la cuenta si hay una opción para completar el registro como empresa/persona jurídica, además de la dirección.
+
+### Fix de seguridad cerrado — `paddle-create-transaction` sin control de acceso (pendiente desde sesión 86)
+
+La función aceptaba cualquier `clinic_id` en el body sin verificar que el usuario autenticado perteneciera a esa clínica — cualquier cuenta logueada (incluida una Core recién creada) podía pagar con el UUID de otra clínica y, al completarse el pago, acreditarle créditos de campaña o recordatorios a una clínica ajena vía `custom_data.clinic_id` en `paddle-webhook`.
+
+**Fix aplicado**, mismo patrón exacto que `mercadopago-create-subscription` (sesión 86): JWT del header → `auth.getUser()` → check de `clinic_members` activo (`user_id` + `clinic_id` + `status='active'`) antes de tocar la API de Paddle. `supabase.functions.invoke()` del frontend (`src/lib/paddle.ts`) ya manda el JWT de sesión automáticamente — no requirió ningún cambio de frontend. Desplegado (`paddle-create-transaction`).
+
+### Estado real al cierre — 2 bloqueos externos, ambos de acción manual del usuario en dashboards ajenos a Vetly
+
+| Proveedor | Bloqueo | Dónde se resuelve | Bloquea |
+|---|---|---|---|
+| Paddle | Falta "Default payment link" en la cuenta live | Paddle Dashboard → Checkout → Checkout Settings | Todo checkout de Paddle en producción (planes y packs) |
+| MercadoPago | `address_pending`, cuenta sigue como "personal" | Panel de MercadoPago → Configuración → Datos de la cuenta (completar como empresa + dirección) | Todo checkout de MercadoPago en producción (CLP) |
+
+Ninguno de los dos requiere cambio de código — son configuraciones de cuenta en cada plataforma de pago. En cuanto el usuario los resuelva, no hace falta ningún deploy adicional: el código de checkout de ambos ya está listo y probado end-to-end (sesión 68 para Paddle sandbox, sesión 86 para MercadoPago CORS/multi-tenant).
