@@ -6223,3 +6223,134 @@ Dos síntomas reportados juntos tras el fix de CORS, con causas distintas — un
 - **`mercadopago_subscription_id` / `paddle_subscription_id` NO son señal de "ya pagó".** Se escriben al **crear** la preferencia/transacción, antes de que el usuario vea el checkout — un intento abandonado o rechazado ya los deja poblados. La única señal de pago completado es `status === 'active'` (o `manually_active`).
 - **Las políticas de Storage deben crearse `TO public`, no `TO authenticated`.** El servicio de Storage no evalúa las políticas bajo el rol `authenticated`, así que una policy con ese rol nunca aplica y todo INSERT falla con "new row violates row-level security policy" aunque la lógica sea correcta. El aislamiento real lo da el filtro por `clinic_members` vía `auth.uid()` (NULL para anónimos), no el rol de la policy. Buckets de referencia que funcionan: `expense-receipts`, `patient-documents`, `clinic-branding`.
 - **Un INSERT que pasa en SQL pero falla vía la API no es un problema de lógica de la policy.** Si `SET LOCAL ROLE authenticated` + INSERT manual funciona pero el endpoint real rechaza, el problema está en cómo el servicio (Storage/PostgREST) resuelve el rol — no en la condición de la policy. Comparar contra un bucket/tabla equivalente que sí funcione es más rápido que seguir iterando sobre la expresión.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 87, 2026-08-27)
+
+> Nota de numeración: otra sesión escribió "sesión 86" en paralelo sobre este mismo archivo (ver commit `09bec43`, intercalado entre dos commits de esta sesión). Mismo patrón ya documentado en la sesión 66 — se salta a 87 para no pisar esa entrada.
+
+### Generalización del modo coordinadora a Linares/Talca
+
+Santiago venía trabajando con el modo "coordinadora" (IA reúne datos y disponibilidad amplia, una persona decide los horarios reales, la IA solo ofrece lo autorizado) desde la sesión anterior. El usuario pidió que Linares/Talca trabaje exactamente igual — "pero bien, sin bugs" — y que la IA insista en los datos faltantes (sobre todo la dirección) y pida el pin de ubicación cuando el sector sea rural.
+
+**Activación** (solo datos, sin deploy nuevo — el mecanismo base ya era genérico desde la sesión anterior):
+```sql
+UPDATE clinic_settings SET
+  scheduling_mode = 'coordinator_approval',
+  coordinator_phone = '+56989790949'  -- mismo número que Santiago, es el de Claudia
+WHERE id = 'fd11b7e4-7d96-461c-a292-2caa5e2592ce';
+```
+
+**Reescritura de `ai_behavior_rules` de Linares** (respaldo previo en `prompt_backups`, label `pre_coordinacion_linares_2026_08_26`):
+- **"PROHIBIDO DERIVAR A OTRA CLÍNICA"**: pasaba de "ofrecer disponibilidad y agendar" a "reunir datos y disponibilidad amplia, la coordinadora decide qué tan pronto se le puede atender" — misma corrección que ya tenía Santiago.
+- **"REGLA DE ORO LOGÍSTICA"** (sectores, regla de 1 hora, capacidad ≥5, anti-rebote) → renombrada a **"SECTORES GEOGRÁFICOS (REFERENCIA INTERNA)"**: se conserva solo la definición de qué comunas son Linares/Talca (útil para completar el campo `sector` de la solicitud), se elimina toda la lógica de decisión operativa — ya no es la IA quien evalúa viabilidad de horario por sector.
+- **Sección 3 "INTELIGENCIA DE RUTA"** → **"LOGÍSTICA Y RECARGOS (SUCURSAL MAULE)"**: "LA RUTA LA ARMA LA COORDINADORA, NO TÚ" — mismo patrón que Santiago. Los precios/tramos de traslado siguen siendo responsabilidad de la IA (eso no cambia), solo la decisión de horario pasa a la coordinadora.
+- **Sección 10 "REQUISITOS Y EJECUCIÓN"**: reescrita completa con los mismos 7 puntos que ya tenía Santiago (nombre, mascota, especie/sexo, comuna+dirección con pin si es rural, motivo, urgencia, disponibilidad amplia) + regla de ejecución que prohíbe ofrecer horario por cuenta propia y exige `request_scheduling_coordination`.
+- Cirugías **no se tocaron** — ya escalaban directo a `escalate_to_human` (Sección 7), nunca pasaron por `create_appointment` ni necesitan el flujo nuevo; mismo criterio que Santiago ("excepto cirugías").
+- REGLA 3 (pin de ubicación actual, nunca en tiempo real; "ZONAS CONFIRMADAS" vs "ZONAS DESCONOCIDAS") **se mantuvo intacta** — ya contenía exactamente el framework que pidió el usuario, solo se referenció desde la Sección 10 nueva.
+
+**KB `Protocolo_de_Destartraje` (Linares)** — Claudia confirmó que el KB no distinguía especie: "Gato o Perro hasta 10 kilos = $90.000" se separó en dos filas, con el mismo patrón anti-confusión ya usado para cirugías:
+```
+| Gato (cualquier peso)   | $85.000  |
+| Perro hasta 10 kilos    | $90.000  |
+| Canino 11-20 kilos      | $105.000 |
+| Canino 21-30 kilos      | $120.000 |
+| Canino 31-40 kilos      | $135.000 |
+```
+Santiago no se tocó (su KB ya dice $70.000 para gatos y el usuario no dio un valor nuevo para esa sucursal).
+
+**`RoutePlanPanel` oculto en modo coordinador** (`src/pages/Appointments.tsx`): con `scheduling_mode='coordinator_approval'` activo, el panel de "Plan de ruta del móvil" (`clinic_route_plan`) queda redundante y puede volver a contradecir lo que Claudia autorice caso por caso — exactamente la causa del bug de disponibilidad de Maule reportado el mismo día. Se agregó `!coordinatorApproval` a la condición de render; `SchedulingRequestsPanel` pasa a ser el único mecanismo visible para coordinar la ruta.
+
+`ai_auto_respond` de Linares se **pausó** antes de tocar el prompt (había clientes reales escribiendo con el flujo viejo) y se dejó pausada al cierre — decisión del usuario, pendiente que él avise cuándo reactivarla.
+
+**Deploy:** `meta-whatsapp-webhook` (v56). `ycloud-whatsapp-webhook` **no se tocó** — se descubrió que nunca recibió el mecanismo de coordinación en la sesión anterior (ni el tool `request_scheduling_coordination`, ni la tabla `scheduling_requests` en su código), a pesar de que el plan de esa sesión decía que se replicaría "por paridad". Como no procesa tráfico real (ambas clínicas están en Meta desde las sesiones 57/65), no se improvisó un port sin poder probarlo — queda como deuda documentada para una sesión dedicada si algún día se necesita.
+
+### Auditoría del mismo día — 3 bugs reales reportados por el usuario con capturas de WhatsApp
+
+Con Santiago ya en modo coordinador, el usuario reportó 3 problemas reales el mismo 27 de agosto. Auditados con datos reales de producción (`messages`, `scheduling_requests`, `debug_logs`), nunca supuestos.
+
+#### Bug 1 — Claudia autoriza un horario y la IA lo contradice ("no es factible por el tiempo de traslado")
+
+**Evidencia real, 3 casos del mismo día:** Claudia autorizó las 11:00, las 14:30 y las 11:30 para tres tutores distintos — en los tres casos la IA respondió *"Parece que el horario de las X no es factible debido al tiempo de traslado. Sin embargo, tengo disponibles..."* y ofreció horas completamente distintas a las autorizadas.
+
+**Causa raíz real (no era el prompt):** `createAppt` — la función que efectivamente crea la cita — volvía a llamar internamente a `checkAvail()` como "chequeo proactivo de disponibilidad" (línea ~1085), **sin importar si ya existía una solicitud autorizada por la coordinadora**. Ese `checkAvail()` es el mismo motor de buffers/traslado del flujo autónomo (Google Maps, sector, capacidad) — y cuando el horario elegido por Claudia no calzaba con ese cálculo automático, `createAppt` lo rechazaba con el mensaje exacto que se veía en las capturas. La instrucción del prompt de "no volver a validar" no importaba, porque el veto no vivía en una decisión de la IA, vivía en el código de `createAppt`.
+
+**Fix** (`meta-whatsapp-webhook/index.ts`): el bloque completo de "Proactive availability check" se envuelve en `if (!authorizedRequestId)` — cuando hay una solicitud autorizada, `createAppt` ya no vuelve a llamar `checkAvail` en absoluto:
+```typescript
+// Proactive availability check — se OMITE por completo cuando la coordinadora ya
+// autorizó este horario (authorizedRequestId): es exactamente el motor de rutas/
+// buffers de traslado del flujo autónomo, y volver a correrlo aquí contradecía en
+// producción horarios que Claudia ya había decidido explícitamente.
+if (!authorizedRequestId) {
+  const availResult = await checkAvail(...);
+  // ... validación y rechazo, sin cambios
+}
+```
+`rescheduleAppt` no necesitó el mismo fix — nunca llamó `checkAvail` internamente, solo actualiza la fecha directo.
+
+**Defensa adicional (no bloqueante):** se reforzó también la instrucción dinámica `schedulingContext` ("OPCIONES AUTORIZADAS POR LA COORDINADORA") para que la IA vaya directo a `create_appointment`/`reschedule_appointment` sin llamar `check_availability` — como red de seguridad en caso de que el modelo desobedezca, ya que `createAppt` es ahora la garantía real (el resultado de `check_availability`, si igual se llamara, ya no puede impedir que la cita se cree).
+
+#### Bug 2 — Confirma el horario pero después dice "estaremos en contacto" y no agenda
+
+**Causa raíz, distinta y más de fondo:** `scheduling-notify-authorized` (la edge function nueva de la sesión anterior que avisa por WhatsApp al tutor cuando Claudia autoriza) enviaba el mensaje real por WhatsApp, pero **nunca lo guardaba en la tabla `messages`**. Reconstruido con timestamps reales de una conversación completa (Jacqueline Uribe / Luly, 27-ago): el mensaje "Ya coordinamos la ruta... Podemos ofrecerte: Si confirmar para el martes a las 6pm" existía de verdad (confirmado en `debug_logs`, envío 200 vía Meta) pero **no aparecía en ningún lado del historial** que arma el propio agente. Cuando la tutora respondió "sí me acomoda, gracias", la IA no tenía en su propio historial ningún mensaje suyo ofreciendo "el martes a las 6pm" — su última respuesta visible era la genérica "he enviado tus datos a la coordinadora" — así que no pudo conectar la confirmación con ninguna oferta concreta y devolvió una respuesta vaga en vez de agendar. El mismo patrón (con round=2, la solicitud se había reabierto una vez) explicaba también por qué a veces el flujo volvía a `request_scheduling_coordination` sin necesidad: sin memoria de lo ya ofrecido, hasta un "sí perfecto" ambiguo del tutor podía interpretarse como que había que volver a coordinar.
+
+**Comparación que confirmó el diagnóstico:** en otra conversación real (Valentina Ramírez) el tutor sí restituyó el día/hora exacto en su respuesta ("Jueves a las 330 por favor") — ahí la IA agendó de inmediato, porque no necesitaba memoria conversacional, el mensaje mismo traía el dato. La falla solo aparecía con confirmaciones vagas ("sí me acomoda", "sí perfecto").
+
+**Fix** (`scheduling-notify-authorized/index.ts`): el mensaje enviado se inserta en `messages` con el mismo shape que usa `saveMsg()` en el webhook (`direction: "outbound"`, `ai_generated: false` para no disparar el descuento de créditos IA de un mensaje que nunca pasó por OpenAI, `message_type: "text"`). Como el `role` de cada mensaje del historial se decide solo por `direction` (nunca por `ai_generated`), el modelo lo ve como algo que él mismo dijo — recupera la memoria de la oferta.
+
+#### Bug 3 — Inventó que entregan certificado después de una cirugía
+
+**Confirmado real, no alucinación aislada:** un tutor preguntó *"¿Se entrega algún certificado o algo que acredite [la cirugía]?"* y `4o_pro` respondió con un párrafo completo describiendo un "informe detallado del procedimiento... que sirve como comprobante" — inventado por completo, AnimalGrace no entrega eso.
+
+**Causa raíz:** la REGLA 1 anti-alucinación (ya existente, "solo servicios y valores verificados en la Base de Conocimiento") solo cubre **servicios** y **precios** explícitamente. Una pregunta sobre si se entrega un documento/certificado/garantía no es ni lo uno ni lo otro — quedaba en un hueco donde el modelo, sin una prohibición explícita, respondía lo que le parecía razonable.
+
+**Fix** (ambas clínicas, misma sección REGLA 1):
+```
+*   **NO INVENTES DETALLES OPERATIVOS NO DOCUMENTADOS (CRÍTICO):** Esta misma
+prohibición aplica a cualquier afirmación sobre qué se entrega, incluye o
+garantiza — certificados, informes, boletas, documentos post-procedimiento,
+garantías, plazos, etc. — que no esté descrita explícitamente en la Base de
+Conocimiento. [...] Responde: "Voy a confirmar ese detalle con el equipo y te
+aviso." y usa `escalate_to_human`.
+```
+
+#### Limpieza de KB — "lógica antigua" de Linares que aún podía confundir al modelo
+
+Verificado explícitamente por pedido del usuario ("revisa también la parte de logística antigua de Linares que no esté interfiriendo"): el fix de código (bug 1) ya neutraliza cualquier contradicción a nivel de *booking real*, pero el documento `PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES` (Linares) seguía teniendo, en su Sección 4, toda la lógica de ruta autónoma completa (bloques de horario, restricción 11:30 en Talca, buffer de 1 hora entre sectores, anti-rebote, orden lineal obligatorio) — texto que el propio `ai_behavior_rules` sigue instruyendo a consultar para precios, y que podía inducir a la IA a comunicar verbalmente una restricción operativa aunque el código ya no la hiciera cumplir. Se comparó contra el documento equivalente de Santiago (`#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES`) — **ya estaba limpio desde la sesión anterior**, confirmando que el bug de Santiago nunca fue de KB, siempre fue el de código del bug 1.
+
+**Reescrita la Sección 4 de Linares**, mismo patrón que ya tenía Santiago (4.1 sectores solo como referencia interna, 4.2 "quién decide el horario" con la coordinadora como autoridad absoluta, 4.3 tutores en sectores sin ruta ese día → `escalate_to_human` si hay urgencia real). Se eliminó toda la lógica de bloques horarios/buffer/anti-rebote; las tablas de precios y tramos (secciones 1-3B) quedaron intactas.
+
+**Deploy:** `meta-whatsapp-webhook` (v57, incluye los 3 fixes de código). Respaldo posterior en `prompt_backups`, label `post_auditoria_coordinacion_2026_08_27` (ambos `ai_behavior_rules` + el KB de Linares). Commits `7822b27` y `fcddc08`, pusheados a `main`.
+
+**No recuperable por código — recomendado a Claudia mensajear directo:** las solicitudes ya autorizadas antes del fix (Carolina Sáez, y un tutor sin nombre real registrado) no recibieron el aviso corregido retroactivamente — se le entregó al usuario la lista con teléfonos y horarios exactos para que Claudia les escribiera directo por WhatsApp.
+
+### "Logística Pro" — pasa a ser opt-in por clínica, no visible por defecto
+
+**Reporte del usuario:** el panel "Logística Pro (Tramos por Tiempo)" (`src/pages/KnowledgeBase.tsx`) seguía apareciendo visualmente en Conocimiento para Linares, aunque ya no debería aplicarle "por ningún motivo".
+
+**Investigación antes de tocar nada:** este panel edita `clinic_settings.logistics_config` (sedes, tramos por minutos de viaje, recargos) y **se renderiza siempre, para cualquier clínica**, sin ninguna condición — ni siquiera estaba gateado por `business_model`. Ya existía un campo `logistics_config.is_active` (default `false` desde el fix de la sesión 6, precisamente para que clínicas nuevas no heredaran configuración ajena) pero **nada en el webhook lo leía** — era un flag completamente inerte, guardado en la base pero sin ningún efecto real, ni siquiera controlaba si el panel se mostraba.
+
+**Pregunta al usuario antes de tocar el comportamiento funcional:** apagar `is_active` de verdad significaría que la IA deja de calcular el recargo exacto por Google Maps y pasa a un mensaje genérico tipo "dentro del radio urbano no hay recargo, fuera de él se confirma con tu ubicación" (coherente con que Claudia ya cierra el precio final al autorizar). El usuario respondió explícitamente: **"Mejor no lo apagues, déjalo tal como está"** — o sea, el pedido real era solo de visibilidad/arquitectura (que sea un interruptor real y opt-in), no un cambio de comportamiento de precios para Animalgrace.
+
+**Implementado:**
+- **`src/pages/Settings.tsx`**: nuevo interruptor "Logística Pro" en Configuración → Modelo de Negocio, visible solo si `businessModel !== 'physical'`. Nuevo estado `logisticsConfigRaw` que guarda el JSON completo tal como se fetch (locations, routing_mode, routing_zone, etc.) para que al guardar solo se parchee `is_active`, sin perder el resto:
+  ```typescript
+  logistics_config: {
+      ...logisticsConfigRaw,
+      is_active: businessModel === 'physical' ? false : logisticsProEnabled,
+  },
+  ```
+- **`src/pages/KnowledgeBase.tsx`**: agregado fetch de `business_model` (antes no se pedía en el select). El panel completo de "Logística Pro" queda envuelto en `{businessModel !== 'physical' && logisticsConfig.is_active && (...)}` — antes se renderizaba siempre, incluso para clínicas de local fijo.
+- **Sin cambios en el webhook**: por decisión explícita del usuario, el cómputo GPS-based de recargos (el bloque `if (globalGPS && logisticsConfig && GOOGLE_MAPS_API_KEY)` que inyecta `[LOGÍSTICA: ...]` al prompt) sigue sin consultar `is_active` — sigue corriendo siempre que `logistics_config` tenga datos, exactamente como antes.
+- **Animalgrace no cambia de comportamiento**: su `logistics_config.is_active` ya estaba en `true` para ambas sucursales y no se tocó — el interruptor nuevo en Settings simplemente refleja ese estado ya existente, en vez de dejar el panel suelto sin ningún control visible.
+
+**Deploy:** verificado con `npx tsc --noEmit` limpio, build desde `git worktree` aislado (nunca el working tree local con archivos sueltos de otras sesiones sin commitear), y confirmación de los marcadores reales (`business_model` en el select de `KnowledgeBase`, `logisticsProEnabled` en `Settings`) dentro de los chunks JS ya minificados — un primer intento de grep sobre el identificador `businessModel` dio falso negativo porque la minificación renombra identificadores; buscar el string literal de la columna SQL (`business_model`, entre comillas, no se minifica) sí lo confirmó. Commit `05e679e`, pusheado a `main`.
+
+### Reglas permanentes de esta sesión
+
+- **Cuando una función de creación (`createAppt`) tiene su propio chequeo de disponibilidad interno, reforzar solo el prompt no alcanza.** El bug 1 de esta sesión existía porque la instrucción del prompt ("no vuelvas a validar, usa create_appointment directo") era irrelevante frente a un `checkAvail()` que el propio código de `createAppt` llamaba sin condición. Cualquier guard de "confía en la decisión humana" debe aplicarse en el código que efectivamente inserta el registro, no solo en las instrucciones que llegan al modelo.
+- **Un mensaje real enviado por una edge function nueva, si no se registra en `messages`, es invisible para el propio agente de IA** — no solo para el dashboard. El historial que arma el modelo se construye leyendo esa tabla; cualquier canal de envío nuevo (recordatorios, avisos, confirmaciones) que no inserte ahí deja al agente con amnesia sobre lo que "él mismo" dijo, y eso produce respuestas contradictorias o repetidas en el siguiente turno. Regla aplicable a cualquier función de envío proactivo futura.
+- **Una regla anti-alucinación acotada a "servicios y precios" no cubre afirmaciones operativas** (certificados, documentos, garantías, plazos). Si el negocio tiene reglas del tipo "nunca inventes X", conviene revisar si el alcance real cubre también las preguntas de "¿hacen/entregan Y?" que no encajan en la categoría original.
+- **Antes de asumir que un flag de configuración (`is_active`, o similar) "controla" algo, verificar con grep que efectivamente se lee en alguna parte del código.** `logistics_config.is_active` llevaba desde la sesión 6 guardándose sin que nada lo consultara — parecía un interruptor funcional y era pura decoración hasta esta sesión.
+- **Ante un cambio que afecta el pricing/comportamiento en vivo de un cliente real, preguntar antes de ejecutar — incluso si la lectura literal del pedido del usuario sugiere lo contrario.** El pedido inicial ("ya no debe aplicar por ningún motivo") sonaba a apagar el cálculo automático de traslado; una pregunta directa reveló que el pedido real era solo de visibilidad/arquitectura, no de comportamiento. Sin esa pregunta, se habría roto el cálculo de precios de Animalgrace en producción.
