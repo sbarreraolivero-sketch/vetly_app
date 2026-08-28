@@ -33,3 +33,9 @@ verify_jwt = false
 
 [functions.paddle-webhook]
 verify_jwt = false
+
+[functions.cron-lifecycle-emails]
+verify_jwt = false
+
+[functions.unsubscribe-lifecycle-emails]
+verify_jwt = false

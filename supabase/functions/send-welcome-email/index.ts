@@ -1,7 +1,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 serve(async (req) => {
     if (req.method === "OPTIONS") {
@@ -14,7 +17,7 @@ serve(async (req) => {
     }
 
     try {
-        const { email, full_name, clinic_name, is_core_plan, clinic_id, plan } = await req.json();
+        const { email, full_name, clinic_name, is_core_plan, clinic_id, plan, lifecycle_email_token } = await req.json();
 
         if (!email || !clinic_name) {
             return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -22,6 +25,11 @@ serve(async (req) => {
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
             });
         }
+
+        // full_name puede venir vacío/null (ej. desde un flujo que no lo pida
+        // aún) — sin este guard, `full_name.split(' ')` tronaba con TypeError
+        // y el correo nunca salía, sin ningún rastro del motivo.
+        const firstName = full_name ? full_name.split(' ')[0] : 'colega';
 
         // Formulario propio de Vetly (/agendar → hq_appointments), no WhatsApp:
         // así toda reserva queda en el panel HQ (AdminCalendar.tsx) de inmediato,
@@ -34,6 +42,12 @@ serve(async (req) => {
             ...(plan ? { plan } : {}),
         });
         const bookingUrl = `https://www.vetly.pro/agendar?${bookingParams.toString()}`;
+
+        // Link de baja de la secuencia de onboarding — token dedicado, nunca el
+        // clinic_id (mismo criterio que tutors.portal_token, sesión 74).
+        const unsubscribeUrl = lifecycle_email_token
+            ? `${SUPABASE_URL}/functions/v1/unsubscribe-lifecycle-emails?token=${lifecycle_email_token}`
+            : null;
 
         if (!RESEND_API_KEY) {
             console.warn("Missing RESEND_API_KEY. Simulating welcome email send.");
@@ -52,7 +66,7 @@ serve(async (req) => {
             body: JSON.stringify({
                 from: "Vetly AI <hola@vetly.pro>",
                 to: email,
-                subject: `¡Bienvenido a la familia Vetly, ${full_name.split(' ')[0]}! 🐾`,
+                subject: `¡Bienvenido a la familia Vetly, ${firstName}! 🐾`,
                 html: `
           <!DOCTYPE html>
           <html>
@@ -62,18 +76,18 @@ serve(async (req) => {
               <title>Bienvenida a Vetly AI</title>
             </head>
             <body style="margin: 0; padding: 0; background-color: #FAFAF8; font-family: 'Plus Jakarta Sans', Arial, sans-serif; color: #2E2E2E;">
-              
+
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0; padding: 40px 20px; background-color: #FAFAF8;">
                 <tr>
                   <td align="center">
-                    
+
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #EDE6DE; box-shadow: 0 4px 12px rgba(46, 46, 46, 0.05); overflow: hidden;">
-                      
+
                       <tr>
                         <td style="padding: 40px 32px; background: linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%); text-align: center;">
                           <div style="font-size: 32px; margin-bottom: 16px;">🐾</div>
                           <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">
-                            ¡Hola, ${full_name.split(' ')[0]}!
+                            ¡Hola, ${firstName}!
                           </h1>
                           <p style="margin: 8px 0 0 0; font-size: 18px; color: rgba(255, 255, 255, 0.9);">
                             Estamos felices de acompañarte en <strong>${clinic_name}</strong>
@@ -83,7 +97,7 @@ serve(async (req) => {
 
                       <tr>
                         <td style="padding: 40px 32px;">
-                          
+
                           <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #5a5a5a;">
                             ¡Bienvenido a Vetly AI! Para que aproveches al máximo la plataforma desde el primer día, agenda una videollamada corta con nuestro equipo: te ayudamos a configurar todo correctamente${is_core_plan ? '' : ' y te mostramos cómo sacarle el máximo provecho a tu Asistente IA'}.
                           </p>
@@ -108,13 +122,14 @@ serve(async (req) => {
 
                         </td>
                       </tr>
-                      
+
                       <tr>
                         <td style="background-color: #FAFAF8; padding: 24px; text-align: center; border-top: 1px solid #EDE6DE;">
                           <p style="margin: 0; font-size: 12px; color: #888888;">
                             &copy; 2026 Vetly AI. Todos los derechos reservados.<br>
                             Santiago, Chile.
                           </p>
+                          ${unsubscribeUrl ? `<p style="margin: 8px 0 0 0; font-size: 11px;"><a href="${unsubscribeUrl}" style="color: #aaaaaa;">Dejar de recibir correos de bienvenida y ayuda</a></p>` : ''}
                         </td>
                       </tr>
 
@@ -123,14 +138,44 @@ serve(async (req) => {
                   </td>
                 </tr>
               </table>
-              
+
             </body>
           </html>
         `,
             }),
         });
 
+        // Antes se reenviaba el JSON crudo de Resend sin comprobar el status —
+        // un 4xx/5xx (API key vencida, dominio no verificado) se veía igual que
+        // un envío exitoso, tanto para el caller como para quien revisara logs.
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            console.error("Resend error:", res.status, text);
+            return new Response(JSON.stringify({ error: `Resend respondió ${res.status}` }), {
+                status: 502,
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+            });
+        }
+
         const data = await res.json();
+
+        // Registro para la secuencia de onboarding — el email_key='welcome' que
+        // el cron de secuencia usa para saber que este paso ya se cumplió, y
+        // para que un fallo real (que antes era invisible) quede detectable por
+        // ausencia de fila. No fatal: un fallo acá nunca debe hacer fallar un
+        // envío que sí llegó al destinatario.
+        if (clinic_id && SUPABASE_SERVICE_ROLE_KEY) {
+            try {
+                const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+                const { error: logError } = await supabaseAdmin
+                    .from("email_sequence_log")
+                    .insert({ clinic_id, email_key: "welcome", resend_id: data?.id || null });
+                if (logError) console.warn("No se pudo registrar el envío en email_sequence_log:", logError);
+            } catch (e) {
+                console.warn("No se pudo registrar el envío en email_sequence_log:", e);
+            }
+        }
+
         return new Response(JSON.stringify(data), {
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
