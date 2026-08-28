@@ -6493,3 +6493,201 @@ A pedido explícito del usuario, revisión de seguridad completa del sistema de 
 - **Un texto de plantilla que asume cantidad (singular/plural) debe verificar la cantidad real antes de fijar la frase**, sobre todo cuando el contenido variable (`authorized_options`) lo escribe una persona a mano y puede tener 1 o varias opciones indistintamente.
 
 **Próximo paso, sin acción de código:** reverificar (mismo método: función de diagnóstico temporal + `GET /users/me`, sin necesidad de que el usuario haga nada) cuando el usuario avise que pasó un tiempo prudente desde la subida del e-RUT, o cuando MP le notifique algún cambio de estado.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 90, 2026-08-28)
+
+### Landing `/core-a-ciegas` — variante de `/core` para el video ad de Meta
+
+Video ad (`~/Desktop/video-ads-1.mp4`, 30s, 9:16) con el ángulo **"Así se ve trabajar a
+ciegas"** → tráfico pagado de Meta al plan Core. Se creó `public/core-a-ciegas.html` como copia
+de `public/core.html` con **message match** al video: H1 "Deja de trabajar a ciegas en tu propia
+clínica", sub-línea de la sección de dolor con el frame clave del video verbatim ("Así se ve
+trabajar a ciegas, en la práctica"), H2 de cierre "Deja de trabajar a ciegas. Empieza hoy."
+
+- **Metáfora acotada a información/organización** (historial, caja, stock) — nunca a resultados
+  clínicos. El video dramatiza una emergencia; Vetly no previene emergencias. Respeta
+  `feedback_core_plan_messaging.md` (ángulo de gestión pura, no de Lía).
+- `noindex, follow` + `canonical` → `/core` (variante solo-pauta, casi duplicada).
+- **Tracking: cero código nuevo.** Hereda `/vetly-tracking.js` + CTA a `/register?plan=core` →
+  cookie `vetly_attribution` con `fbclid`/UTM → tabla `attribution` + Meta Pixel
+  `CompleteRegistration` desde `Register.tsx`. Se separa con `where landing_url ilike
+  '%core-a-ciegas%'` o `utm_campaign='core_a_ciegas'`.
+- Ruta en `vercel.json` (`{ "src": "/core-a-ciegas", "dest": "/core-a-ciegas.html" }`). Archivo
+  **plano a profundidad 0** — un subpath `/core/x` rompería las rutas `./` de las imágenes.
+- Entregado aparte (no en archivos): texto en pantalla del cierre del video ("Mira la
+  descripción" → "Toca para ver cómo funciona"), 3 primary text + titulares para el anuncio.
+- Commits `b184495`, `2fbba50`. Registrado en `.agents/google-ads/estado-cuenta.md`.
+- Ver [[reference_meta_core_landing_tracking]].
+
+### Secuencia de correos de onboarding — plan Core
+
+**Contexto:** la campaña de Meta Core trajo **15 registros en 7 días (21-28 ago)** pero la
+activación es casi nula — 9 de 14 clínicas reales en cero absoluto (0 pacientes, 0 ingresos),
+0 con reservas online, 0 con WhatsApp. Ninguna ha pagado. La secuencia es el rescate de esa
+cohorte. Los 4 leads documentados de sesión 84 (Servando Mendoza, Cliver Lopez, Claudio
+Domínguez, Fernando Losada) están en ella; Servando importó 236 pacientes pero 0 ingresos.
+
+**Estado previo:** una sesión paralela había construido el sistema completo
+(`cron-lifecycle-emails`, `unsubscribe-lifecycle-emails`, `_shared/email.ts`, migraciones,
+`email_sequence_log`, columnas `clinic_settings.lifecycle_email_token` /
+`lifecycle_emails_opt_out`) y **lo había desplegado a Supabase, pero sin commitear a git y sin
+agendar el cron** — quedó inerte. El schema ya estaba aplicado en producción (migraciones
+`20260828001742`, `20260828002914`); el `cron.schedule` de la migración nunca creó el job.
+
+**Rehecho como SECUENCIA FIJA** (decisión del usuario — no ramificar por comportamiento; el
+draft era behavior-based con contenido distinto):
+
+| # | Día mínimo | Paso |
+|---|---|---|
+| 1 | 1 | Configura tu clínica y tus horarios — datos (nombre/dirección/teléfono; **el logo NO está acá, va en Reservas Online**), y la diferencia horario de la clínica vs horario del profesional (Mi Perfil) |
+| 2 | 3 | Suma a tu equipo — hasta 3 usuarios, roles/permisos, por qué cada uno con su cuenta (auditoría, caja por usuario) |
+| 3 | 5 | Carga tus servicios — precio + duración real; **incluye** cómo enlazar servicio↔producto de inventario y la casilla "Reservable en tu página online" |
+| 4 | 7 | Sube tus productos al inventario — precio compra/venta, stock, alerta de mínimo; cierra el loop con el paso 3 |
+| 5 | 9 | Trae tus pacientes — importar desde Excel o a mano + primera cita. **Fijo, NO se salta** aunque ya tenga pacientes (abre reconociendo el caso) |
+| 6 | 12 | Registra tu primer ingreso — cierre de visita o "+ Ingreso"; la caja se abre sola a las 07:00 |
+| 7 | 15 | Activa fidelización y referidos — asistente de 3 preguntas / preset 15/10/5; viene apagado |
+| 8 | 18 | Recordatorios manuales ("Enviar hoy", funcionan sin conectar nada) + aviso de que vienen videos (servicio↔inventario, link de reservas con marca, conectar WhatsApp, plantillas) |
+| 9 | — | `trial_por_terminar` (prueba ≤ 5 días) |
+| 10 | — | `trial_ultimo_aviso` (prueba ≤ 1 día) |
+
+- **Fuera de la secuencia fija (van en "Serie 2 — videos"):** enlazar servicio con inventario,
+  link de reservas con marca, conectar WhatsApp, plantillas de recordatorios automáticos.
+- **NO se agregó correo de upgrade a Starter** — decisión del usuario, esa campaña es para la
+  cohorte que pase del primer mes, "aún no lo veremos".
+- **1 correo/día máx** (`MIN_GAP_HOURS = 24`). Idempotente vía `email_sequence_log`
+  (`UNIQUE(clinic_id, email_key)`). **Botón verde de soporte por WhatsApp en cada correo**
+  (`wa.me/56993089185`, mensaje pre-escrito por paso). Link de baja con token no adivinable.
+- **Sale de la secuencia:** `subscription_plan != 'core'`, `subscriptions.manually_active`,
+  `clinic_settings.lifecycle_emails_opt_out`, o `created_at` > 35 días.
+- **`Veterinaria Los Robles` (`741a3568-…`, clínica de prueba) excluida** con
+  `lifecycle_emails_opt_out = true`.
+- **`?dryRun=1`** en la URL: reporta qué correo tocaría a cada clínica sin enviar ni registrar.
+  Usarlo antes de cualquier cambio grande. Verificado: 10 clínicas reciben el paso 1 en la
+  primera corrida, 4 esperan a cumplir 24h.
+- **Catch-up de las clínicas existentes:** el "día mínimo" nunca expira, así que una clínica de
+  4 días recibe pasos 1→4 en días seguidos (1/día) y después se estira a la cadencia normal.
+  Nadie recibe 2 el mismo día.
+- **Capturas:** cada paso tiene un hueco `SHOTS.pasoN_x` (vacío = correo sin imagen, no rompe
+  nada). Para agregarlas: subir a `public/email-shots/` y llenar la URL en el objeto `SHOTS`,
+  redeployar. **El usuario dijo que enviaría todas las capturas — usar esas, NO las de
+  `public/core-shots/`.**
+- **Cron agendado:** `cron.schedule('lifecycle-emails-daily', '0 14 * * *', ...)` — pg_cron
+  jobid 21, diario 14:00 UTC (mañana en LATAM). Deployado `verify_jwt: false`.
+- **`send-welcome-email`** ya venía modificado (guard de `full_name` null + registra
+  `email_key='welcome'` en `email_sequence_log` al alta). Se commiteó junto con lo demás.
+- Commits `7f6c48d` (backend), `f1e716f` (fix del logo en paso 1).
+- Ver [[project_onboarding_email_sequence]].
+
+### Core — se ocultó "Modelo de Atención" + se desplegó el refactor pendiente de `Settings.tsx`
+
+El usuario pidió que el selector Físico/Móvil/Híbrido no sea elegible en Core (solo "Físico" por
+defecto, sin mostrar las otras opciones). **Ya estaba implementado en el árbol de trabajo sin
+commitear** — el bloque Modelo de Atención / Modo de Agendamiento / Logística Pro envuelto en
+`{meetsPlan('starter') && (...)}` en `src/pages/Settings.tsx`. Estaba dentro de un refactor
+grande (−1159 líneas: limpieza del código de Integraciones y créditos IA que ya vive en
+`/app/integrations` y `/app/ai-settings`), construido y probado en navegador en sesiones 75-77
+pero nunca desplegado.
+
+A pedido explícito del usuario ("sube lo de quitar el modelo de atención que estaba pendiente
+igual") se commiteó y desplegó ese refactor completo. Dependencias (`usePlan`, `PlanGate`,
+`plans.ts`, `PlanGuard`) ya estaban en `HEAD`. Verificado: `tsc --noEmit` limpio, build limpio
+desde un worktree de `origin/main`, y el bundle de producción confirma `yCloudApiKey` ausente +
+`meetsPlan` presente en el chunk de Settings. Core solo ve "Físico"; los valores de DB quedan
+en sus defaults seguros y reaparecen si la clínica sube de plan.
+
+De paso, `DashboardLayout.tsx`: "Integraciones" se movió de la sección "Agente IA" a
+"Configuración" (Core también la necesita para los recordatorios automáticos).
+
+Commit `3b07eb5`.
+
+### Página de Soporte + ítem en el menú lateral
+
+Nueva ruta `/app/support` (`src/pages/Support.tsx`, lazy) + ítem **"Soporte"** (`LifeBuoy`) en la
+sección "Configuración" del sidebar. Contenido: botón de WhatsApp de soporte
+(`wa.me/56993089185`), lista de los tutoriales en video que van a llegar por correo, y
+`hola@vetly.pro` como canal secundario. `PageKey` `'support'` agregado a
+`src/lib/permissions.ts` (type + `ALL_PAGES` + los 3 role defaults, todos `true` — soporte lo ve
+todo el mundo). Sin `SubscriptionGuard` ni `PlanGuard` — una clínica con prueba vencida igual
+tiene que poder llegar a Soporte. Commit `3b07eb5`. Cuando existan los videos, esta página es su
+casa.
+
+### Snapshot de la cohorte Core (2026-08-28)
+
+15 clínicas Core, todas de los últimos 7 días, todas en prueba (vencen 20-27 sep), ninguna
+pagada, todas con 1 usuario. Solo Servando Mendoza (236 pacientes importados) y "Veterinaria
+Los Robles" (prueba, todo configurado) tienen actividad seria. El resto: 0-1 pacientes, 0
+ingresos (salvo Chata con 1). `clinic_settings.country` viene `null` en todas — el selector de
+país del registro no lo está persistiendo (pendiente aparte, no bloqueante).
+
+### Reglas permanentes de esta sesión
+
+- **Antes de reescribir un sistema que ya está desplegado (aunque sea sin commitear), verificar
+  su estado real en producción**: `list_edge_functions`, `list_migrations`, `cron.job`. Acá el
+  sistema de correos estaba 100% deployado a Supabase pero 0% en git y el cron nunca se agendó —
+  la migración `schedule_lifecycle_emails_cron` figuraba "aplicada" pero su `cron.schedule` no
+  había creado el job. Nunca asumir "aplicada = funcionando".
+- **Toda edge function que envíe correos/mensajes a clientes reales debe tener un `?dryRun=1`**
+  que resuelva la lógica completa sin enviar. Es la única forma de revisar a quién le llegaría
+  qué antes de agendar un cron.
+- **Los correos de secuencia usan capturas hospedadas en `public/`** (`public/email-shots/`),
+  referenciadas por URL absoluta `https://www.vetly.pro/email-shots/...`. El helper
+  `screenshot(url, alt)` no renderiza nada si la URL está vacía — el correo sale solo con texto
+  hasta que se llenen.
+- **Un `deploy_edge_function` vía MCP requiere pasar también `_shared/*.ts`** para que resuelva
+  los imports `../_shared/`. El CLI (`supabase functions deploy <name>`) los detecta solo — es
+  la vía más simple para redeploys puntuales.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 91, 2026-08-28)
+
+> Nota de numeración: otra sesión escribió "sesión 90" en paralelo (landing `/core-a-ciegas` y secuencia de correos de onboarding) — se salta a 91 por el mismo motivo ya documentado en sesiones 66/87/89.
+
+### Causa raíz real del bug 6 de la sesión 89 — el propio fix se pisaba a sí mismo
+
+El fix de la sesión anterior (reactivar `requires_human` desde `scheduling-notify-authorized` con `service_role`, en vez de confiar en el `resumeAI()` del navegador) seguía sin funcionar en producción — confirmado con un caso real en **Linares** (tutor "Edver torres", +56948531888, 2026-08-28): la coordinadora autorizó "Viernes 28 a las 6 pm", el tutor respondió "Ok si", y la IA se quedó muda otra vez — mismo síntoma exacto que Ragnar y Gastón en Santiago, pero **después** del deploy que supuestamente ya lo arreglaba.
+
+**Causa real, encontrada revisando los triggers de la tabla `messages`:**
+```sql
+CREATE TRIGGER on_manual_message_pause AFTER INSERT ON public.messages
+    FOR EACH ROW EXECUTE FUNCTION handle_manual_message_pause();
+```
+```sql
+-- handle_manual_message_pause():
+IF (NEW.direction = 'outbound' AND (NEW.ai_generated IS NULL OR NEW.ai_generated = false)) THEN
+    UPDATE public.tutors SET requires_human = true WHERE clinic_id = NEW.clinic_id AND phone_number = NEW.phone_number;
+    UPDATE public.crm_prospects SET requires_human = true WHERE clinic_id = NEW.clinic_id AND phone = NEW.phone_number;
+END IF;
+```
+Este trigger ya existía (pensado para cuando Claudia escribe manualmente desde el dashboard: si un mensaje saliente no viene de la IA, se asume que fue ella y se pausa al tutor). `scheduling-notify-authorized` inserta su aviso con `ai_generated: false` a propósito (para no cobrar créditos IA por un mensaje que nunca pasó por OpenAI) — y mi fix de la sesión 89 hacía la reactivación **antes** de ese insert. El trigger corre sincrónico dentro del mismo `INSERT`, así que pisaba mi `requires_human=false` en la misma transacción, inmediatamente. Confirmado con evidencia dura: en los 3 casos reales (Ragnar, Gastón, Edver), `crm_prospects.updated_at` coincide al milisegundo exacto con `messages.created_at` del aviso — la prueba de que ambas escrituras ocurren en el mismo instante de ejecución.
+
+**Fix** (`supabase/functions/scheduling-notify-authorized/index.ts`): se movió el bloque de reactivación de `tutors`/`crm_prospects` a **después** del `INSERT` a `messages`, no antes:
+```typescript
+await supabase.from("messages").insert({ ...text, ai_generated: false, ... });
+
+// DEBE ir después del insert de arriba: el trigger on_manual_message_pause corre
+// sincrónico dentro de ese INSERT y pone requires_human=true — yendo después,
+// esta es la última escritura y gana.
+await supabase.from("tutors").update({ requires_human: false })...
+await supabase.from("crm_prospects").update({ requires_human: false })...
+```
+
+**Edver quedó reactivado manualmente** (mismo procedimiento que Ragnar/Gastón), pero su cita **no se agendó** — confirmó el horario y no hay fila en `appointments` para su teléfono. Igual que los casos anteriores, la reactivación no es retroactiva: alguien tiene que escribirle o cargar la cita a mano.
+
+**Deploy:** `scheduling-notify-authorized` (nueva versión). Commit `8de88a3`.
+
+### Prequirúrgico de cirugías — Linares/Talca actualizado (PB + Hemograma + Panel de Coagulación, $70.000)
+
+A pedido de Claudia: el examen prequirúrgico recomendado en cirugías debe indicarse siempre completo — Perfil Bioquímico + Hemograma + **Panel de Coagulación** — por **$70.000** todo incluido, como recomendación (nunca como requisito para agendar). El valor anterior ($55.000, solo PB + Hemograma, sin panel de coagulación) estaba desactualizado en dos lugares distintos:
+- `ai_behavior_rules` Sección 7 (CIRUGÍAS), PASO 4.
+- KB `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS`, sección "INFORMACIÓN DE SEGURIDAD Y RECARGOS".
+
+Ambos corregidos vía SQL, con respaldo previo en `prompt_backups` (label `pre_fix_requires_human_y_prequirurgico_2026_08_28`). Santiago no se tocó — el usuario solo pidió el cambio para la sucursal Linares/Talca.
+
+### Reglas permanentes de esta sesión
+
+- **Antes de insertar en una tabla con triggers `AFTER INSERT`, revisar qué hacen esos triggers según los valores que se están escribiendo — no asumir que un insert es "solo guardar datos".** `messages` tiene un trigger que reacciona a la combinación `direction=outbound` + `ai_generated=false` pausando al tutor; cualquier función nueva que inserte ahí con esos mismos valores hereda ese efecto secundario, aunque su intención sea la opuesta (reactivar, no pausar). `SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgrelid = 'tabla'::regclass` antes de escribir código nuevo contra una tabla con lógica de negocio ya establecida.
+- **Cuando dos escrituras a la misma fila deben competir por "quién gana", la que se ejecuta última en la misma función es la que gana** — no la que aparece primero en el código por prolijidad de lectura. Si una de esas escrituras puede disparar un trigger que sobreescribe a la otra, el orden importa más que la claridad del código, y merece un comentario explícito explicando por qué el orden es así.
+- **Un fix que "debería funcionar" según la lógica del código, pero sigue fallando igual en producción, casi siempre tiene una causa que vive fuera del código que se está mirando** — en este caso, un trigger de base de datos preexistente, invisible si solo se audita el edge function. Verificar triggers/RLS/funciones de la tabla involucrada antes de asumir que el bug está en la función que se acaba de escribir.
