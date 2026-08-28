@@ -6419,4 +6419,77 @@ El usuario mostró capturas del panel real de MP. Confirmado con evidencia visua
 
 **El usuario ya subió el e-RUT.** MP no lo procesa al instante — reverificado en vivo tras la subida (`GET /users/me`): `address` sigue en `null` y `billing.allow: false, address_pending` sin cambios. Es esperado, no un fallo — queda pendiente de que MP termine de validar el documento (tiempo de procesamiento desconocido, no hay ETA publicada por MP para esto).
 
+---
+
+## Cambios realizados — agosto 2026 (sesión 89, 2026-08-27)
+
+> Nota de numeración: otra sesión escribió "sesión 88" en paralelo (Paddle/MercadoPago, ver arriba) — se salta a 89 por el mismo motivo ya documentado en sesiones 66/87.
+
+### Continuación de la auditoría del modo coordinadora — 3 bugs más, encontrados con capturas reales del mismo día
+
+Horas después de los 3 fixes de la sesión 87, el usuario mandó 2 capturas nuevas de WhatsApp real: un tutor (Ema Muñoz / Ragnar) recibió **el mismo aviso de horario autorizado 3 veces seguidas**, y otro contacto (+56993019944, Carol Venegas / Gastón) **confirmó el horario y la IA se quedó completamente muda**, sin agendar. Auditado con los mismos datos reales (`messages`, `scheduling_requests`, `crm_prospects`), no supuestos.
+
+#### Bug 4 — el aviso de WhatsApp se reenviaba completo en cada re-guardado
+
+Reconstruido con timestamps exactos: Claudia autorizó el mismo tutor 3 veces en 2 minutos (20:17:50, 20:18:35, 20:19:30) — el texto evolucionó de "Próximo jueves 10.30 am" (sin fecha) a "Próximo jueves 3/09 10.30 am" (con fecha, dos veces seguidas e idéntico). `SchedulingRequestsPanel.authorize()` es la MISMA función que se usa tanto para la primera autorización como para **editar** una fila ya autorizada — y disparaba el `invoke('scheduling-notify-authorized', ...)` en cada guardado, sin comparar si el texto realmente había cambiado.
+
+**Fix** (`src/components/appointments/SchedulingRequestsPanel.tsx`): el aviso solo se dispara si es la primera autorización o si el texto autorizado cambió de verdad respecto al valor previo:
+```tsx
+const isGenuinelyNew = req.status !== 'authorized' || options !== (req.authorized_options ?? '').trim()
+if (isGenuinelyNew) {
+    void supabase.functions.invoke('scheduling-notify-authorized', { body: { clinic_id: clinicId, request_id: req.id } })
+        .catch(() => { /* no crítico */ })
+}
+```
+
+#### Bug 5 — "¿Cuál de esas opciones te acomoda más?" con una sola opción
+
+El texto del aviso (`scheduling-notify-authorized`) tenía la pregunta de cierre hardcodeada en plural, sin importar cuántas alternativas hubiera. Con una sola hora autorizada ("Próximo jueves 10.30 am") la pregunta no tenía sentido gramatical.
+
+**Fix:** heurística simple sobre el propio texto de `authorized_options` (separadores de lista → plural; si no hay ninguno → singular):
+```typescript
+const hasMultipleOptions = /[,;/]| o | ó /i.test(request.authorized_options);
+const closingQuestion = hasMultipleOptions
+    ? "¿Cuál de esas opciones te acomoda más?"
+    : "¿Te acomoda ese horario?";
+```
+
+#### Bug 6 — el más grave: `requires_human` no se limpiaba de verdad, la IA quedaba muda tras la confirmación
+
+**Confirmado en 2 casos reales independientes con la misma firma exacta:** en ambos, `scheduling_requests.round` nunca subió de 1 (descarta que la IA hubiera vuelto a pedir coordinación), pero al consultar `crm_prospects.requires_human` para ambos teléfonos (56923799276 y 56993019944) el valor seguía en **`true`** horas después de que Claudia autorizara desde el panel — pese a que `authorize()` llama a `resumeAI()`, que hace `UPDATE crm_prospects SET requires_human=false ... WHERE phone.eq.X,phone.eq.+X`. Ese `UPDATE` corre desde el navegador de Claudia (cliente autenticado, sujeto a RLS) y, por algún motivo que no se pudo aislar con certeza (¿timing, sesión, algo específico de `crm_prospects` vs. `tutors`?), no dejaba el cambio aplicado de forma confiable.
+
+**Impacto real:** el tutor confirmaba el horario ("Ok, confirmo para viernes 04 Septiembre a las 10.30 hrs") y la IA nunca volvía a responder — el webhook seguía viendo `requires_human=true` y se auto-silenciaba en cada mensaje siguiente, indefinidamente, hasta que alguien lo reactivara a mano desde Mensajes.
+
+**Fix — mover la reactivación al servidor** (`supabase/functions/scheduling-notify-authorized/index.ts`, ya corre con `service_role`, sin sujeción a RLS de cliente):
+```typescript
+// CRÍTICO: reactivar la IA con service_role, no confiar solo en el resumeAI()
+// del frontend. La llamada del frontend queda como camino rápido para la UI,
+// pero esta es la que garantiza el resultado.
+await supabase.from("tutors").update({ requires_human: false })
+    .eq("clinic_id", clinic_id).eq("phone_number", request.tutor_phone);
+await supabase.from("crm_prospects").update({ requires_human: false })
+    .eq("clinic_id", clinic_id).or(`phone.eq.${request.tutor_phone},phone.eq.+${request.tutor_phone}`);
+```
+El `resumeAI()` del frontend se dejó tal cual (camino rápido, redundante pero inofensivo) — la garantía real ahora vive en el server.
+
+**Los 2 tutores reales se reactivaron manualmente** (`UPDATE crm_prospects SET requires_human=false` directo en producción) apenas se confirmó el diagnóstico, para no dejarlos esperando hasta el próximo deploy. Se verificó además si sus citas habían quedado agendadas: **Ragnar sí** (alguien —probablemente Claudia— la cargó a mano, ya le llegó el recordatorio automático); **Gastón no** — Carol confirmó "viernes 04 septiembre a las 10:30" y quedó sin agendar, se le avisó explícitamente al usuario para que la cargue a mano o la IA la procese ahora que ya puede responder.
+
+**Deploy:** `scheduling-notify-authorized` v3. Commit `1667827`.
+
+### Revisión de seguridad del sistema de agendamiento — sin hallazgos
+
+A pedido explícito del usuario, revisión de seguridad completa del sistema de coordinación (no solo de los bugs de comportamiento de arriba). El skill `security-review` compara el diff pendiente de la rama, pero todo este feature ya estaba mergeado a `main` — se hizo la revisión manual directa en su lugar:
+
+- **RLS de `scheduling_requests`** (verificada contra la base viva, no contra la migración original): `SELECT` y `UPDATE` exigen membresía activa en `clinic_members` para el `clinic_id` de la fila, con `WITH CHECK` también en el `UPDATE`. Sin política de `INSERT`/`DELETE` para `authenticated` — solo `service_role` (el webhook) puede crear filas, correcto.
+- **`scheduling-notify-authorized`**: JWT + membresía activa verificados antes de tocar cualquier dato; la solicitud se relee filtrada por `id` **y** `clinic_id` juntos (no se puede pasar el `request_id` de otra clínica). El teléfono que se interpola en el filtro `.or()` viene normalizado (solo dígitos) desde el webhook, no de input libre.
+- **Guard de coordinación en `checkAvail`/`createAppt`**: no se puede saltear vía el contenido del mensaje — el `clinic_id` y el `phone` que determinan qué puede agendarse siempre vienen de la identidad verificada por HMAC del webhook, nunca de los argumentos que el modelo llena a partir del texto del tutor.
+
+**Sin hallazgos de severidad alta o media.** Único punto menor, no reportado como vulnerabilidad real: el `catch` de `scheduling-notify-authorized` devuelve `(e as Error).message` crudo en el 500 — bajo impacto porque solo lo ve alguien que ya pasó el chequeo de membresía de clínica, no es un endpoint público.
+
+### Reglas permanentes de esta sesión
+
+- **Una función que reactiva la IA (`requires_human=false`) tras una acción del dashboard no debe depender únicamente de una llamada desde el navegador del usuario.** Confirmado con 2 casos reales: el `UPDATE` desde el cliente (sujeto a RLS, sesión, timing de red) puede "no aplicarse" en la práctica sin ningún error visible. Cuando existe un edge function con `service_role` en la misma cadena de acciones (aquí, el envío de WhatsApp), es el lugar correcto para garantizar mutaciones de estado críticas — el camino del cliente queda como optimización de UI, nunca como única fuente de verdad.
+- **Una función que puede reusarse tanto para "crear" como para "editar" un registro (aquí, `authorize()` para primera autorización y para reabrir/editar una ya autorizada) debe distinguir ambos casos antes de disparar efectos secundarios como notificaciones externas.** Sin esa distinción, cada guardado —incluso uno que solo corrige un detalle— repite el efecto completo (acá, reenviar un WhatsApp idéntico al cliente).
+- **Un texto de plantilla que asume cantidad (singular/plural) debe verificar la cantidad real antes de fijar la frase**, sobre todo cuando el contenido variable (`authorized_options`) lo escribe una persona a mano y puede tener 1 o varias opciones indistintamente.
+
 **Próximo paso, sin acción de código:** reverificar (mismo método: función de diagnóstico temporal + `GET /users/me`, sin necesidad de que el usuario haga nada) cuando el usuario avise que pasó un tiempo prudente desde la subida del e-RUT, o cuando MP le notifique algún cambio de estado.
