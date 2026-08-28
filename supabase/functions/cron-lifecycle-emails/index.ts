@@ -127,7 +127,7 @@ const RULES: EmailRule[] = [
                 headerSubtitle: "Es la base — si esto queda mal, la agenda ofrece horas equivocadas",
                 bodyHtml:
                     p(`Hola ${firstName}, tu cuenta ya está lista. Antes de cargar pacientes o servicios, conviene dejar dos cosas firmes: los datos de tu clínica y tus horarios. Todo lo demás se apoya en esto.`) +
-                    p(`<strong>1. Datos de la clínica</strong> — <em>Configuración → Clínica</em><br>Nombre, dirección, teléfono y tu logo. El logo y el nombre salen en los comprobantes que le envías al tutor y, más adelante, en tu página de reservas.`) +
+                    p(`<strong>1. Datos de la clínica</strong> — <em>Configuración → Clínica</em><br>Nombre, dirección y teléfono de contacto. El nombre aparece en los comprobantes que le envías al tutor por WhatsApp. (El logo se sube aparte, en Reservas Online — eso va en los videos que te mandaremos.)`) +
                     screenshot(SHOTS.paso1_datos, "Pestaña Clínica en Configuración") +
                     p(`<strong>2. Horarios — y una diferencia que confunde a todos</strong><br>En Vetly hay dos horarios distintos:`) +
                     bullets([
