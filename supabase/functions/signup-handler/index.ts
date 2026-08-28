@@ -5,6 +5,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { limitsForPlan } from "../_shared/planLimits.ts";
+import { resolveCountry } from "../_shared/countries.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -24,6 +25,7 @@ interface SignupRequest {
     full_name: string;
     clinic_name: string;
     phone?: string;
+    country?: string;
     selected_plan?: string;
     card_token?: string;
     payment_provider?: 'mercadopago' | 'paddle';
@@ -133,9 +135,15 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body: SignupRequest = await req.json();
-        const { email, password, full_name, clinic_name, phone, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token, attribution } = body;
+        const { email, password, full_name, clinic_name, phone, country, selected_plan = "starter", card_token, payment_provider = 'mercadopago', referral_code, turnstile_token, attribution } = body;
         // Solo dígitos, mismo criterio que appointments.phone_number en el resto del proyecto.
         const sanitizedPhone = (phone || "").replace(/\D/g, "") || null;
+        // País elegido en el registro → moneda/zona horaria correctas desde el
+        // día 1 (antes ambas quedaban en los DEFAULT de columna: CLP /
+        // America/Mexico_City, sin importar dónde estuviera la clínica real).
+        // `null` si no vino o no se reconoce — nunca bloquea el registro por esto,
+        // cae a los DEFAULT de columna igual que antes.
+        const countryInfo = resolveCountry(country);
 
         // Validate required fields
         if (!email || !password || !full_name || !clinic_name) {
@@ -297,6 +305,8 @@ Deno.serve(async (req: Request) => {
                 services: [
                     { id: "svc-1", name: "Consulta General", duration: 30, price: 500 },
                 ],
+                country: country || null,
+                ...(countryInfo ? { currency: countryInfo.currency, timezone: countryInfo.timezone } : {}),
                 payment_provider: payment_provider,
                 mercadopago_customer_id: mpCustomerId,
                 mercadopago_card_id: mpCardId,
@@ -445,6 +455,10 @@ Deno.serve(async (req: Request) => {
                     // Para prellenar y linkear /agendar a esta clínica específica.
                     clinic_id: clinicData.id,
                     plan: selected_plan,
+                    // Ya viene poblado por el trigger set_lifecycle_email_token
+                    // en el INSERT de arriba — para el link de baja de la
+                    // secuencia de onboarding.
+                    lifecycle_email_token: clinicData.lifecycle_email_token,
                 })
             }).catch(err => console.error("Error triggering welcome email:", err));
         } catch (e) {

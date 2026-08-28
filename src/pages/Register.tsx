@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star } from 'lucide-react'
+import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star, Globe } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { PLANS } from '@/lib/mercadopago'
 import { PADDLE_PLANS } from '@/lib/paddle'
 import { getAttribution, hasPaidAttribution } from '@/lib/attribution'
+import { getCountryGroups, paymentRegionForCountry, type CountryCode } from '@/lib/countries'
 // Payment SDKs removed for free-trial onboarding
 
 const PLAN_ORDER = ['core', 'starter', 'pro', 'enterprise'] as const
@@ -111,6 +112,7 @@ export default function Register() {
     const [password, setPassword] = useState('')
     const [fullName, setFullName] = useState(firstNameParam || '')
     const [phone, setPhone] = useState('')
+    const [country, setCountry] = useState<CountryCode | ''>('')
     const [clinicName, setClinicName] = useState('')
     const [selectedPlan, setSelectedPlan] = useState(initialPlan)
     const [error, setError] = useState('')
@@ -229,6 +231,10 @@ export default function Register() {
                 setError('Ingresa un número de WhatsApp válido')
                 return
             }
+            if (!country) {
+                setError('Selecciona tu país')
+                return
+            }
             if (password.length < 6) {
                 setError('La contraseña debe tener al menos 6 caracteres')
                 return
@@ -262,6 +268,10 @@ export default function Register() {
             // que se une a una ya existente (isJoinMode) no lo necesita.
             if (!isJoinMode && phone.replace(/\D/g, '').length < 8) {
                 setError('Ingresa un número de WhatsApp válido')
+                return
+            }
+            if (!isJoinMode && !country) {
+                setError('Selecciona tu país')
                 return
             }
 
@@ -398,7 +408,7 @@ export default function Register() {
         // offline). Si no hay nada guardado va undefined y el backend lo ignora.
         const attribution = getAttribution()
 
-        const { error }: any = await (signUp as any)(email, password, fullName, effectiveClinicName || clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined, phone)
+        const { error }: any = await (signUp as any)(email, password, fullName, effectiveClinicName || clinicName, selectedPlan, cardToken, paymentRegion === 'international' ? 'paddle' : 'mercadopago', referralCode.trim() || undefined, turnstileToken || undefined, hasPaidAttribution(attribution) ? attribution : undefined, phone, country || undefined)
 
         if (error) {
             setError(error.message || 'Error al crear la cuenta. Intenta con otro email.')
@@ -641,6 +651,40 @@ export default function Register() {
                                         </div>
                                         <p className="text-xs text-charcoal/40 mt-1">
                                             Para invitarte a la sesión de activación y ayudarte a configurar tu cuenta.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {!isJoinMode && (
+                                    <div>
+                                        <label htmlFor="country" className="block text-sm font-medium text-charcoal mb-2">
+                                            País
+                                        </label>
+                                        <div className="relative">
+                                            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-charcoal/40 pointer-events-none" />
+                                            <select
+                                                id="country"
+                                                value={country}
+                                                onChange={(e) => {
+                                                    const code = e.target.value as CountryCode | ''
+                                                    setCountry(code)
+                                                    setPaymentRegion(paymentRegionForCountry(code))
+                                                }}
+                                                className="input-soft pl-12 w-full appearance-none"
+                                                required
+                                            >
+                                                <option value="" disabled>Selecciona tu país</option>
+                                                {getCountryGroups().map(({ region, options }) => (
+                                                    <optgroup key={region} label={region}>
+                                                        {options.map(({ code, info }) => (
+                                                            <option key={code} value={code}>{info.flag} {info.name}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <p className="text-xs text-charcoal/40 mt-1">
+                                            Así configuramos tu moneda y zona horaria correctas desde el inicio.
                                         </p>
                                     </div>
                                 )}

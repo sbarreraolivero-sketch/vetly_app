@@ -9,12 +9,14 @@ export const CURRENCIES_WITHOUT_DECIMALS = new Set(['CLP', 'COP', 'PYG', 'JPY', 
 export const CURRENCY_LOCALES: Record<string, string> = {
     CLP: 'es-CL', ARS: 'es-AR', COP: 'es-CO', PEN: 'es-PE',
     MXN: 'es-MX', UYU: 'es-UY', PYG: 'es-PY', BOB: 'es-BO',
-    USD: 'en-US', EUR: 'es-ES', BRL: 'pt-BR',
+    USD: 'en-US', EUR: 'es-ES', BRL: 'pt-BR', GBP: 'en-GB',
+    CRC: 'es-CR', GTQ: 'es-GT', HNL: 'es-HN', NIO: 'es-NI', DOP: 'es-DO',
 }
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {
     CLP: '$', ARS: '$', COP: '$', MXN: '$', UYU: '$', USD: '$',
-    PEN: 'S/', PYG: '₲', BOB: 'Bs', EUR: '€', BRL: 'R$',
+    PEN: 'S/', PYG: '₲', BOB: 'Bs', EUR: '€', BRL: 'R$', GBP: '£',
+    CRC: '₡', GTQ: 'Q', HNL: 'L', NIO: 'C$', DOP: 'RD$',
 }
 
 export function currencySymbol(currency?: string | null): string {
