@@ -6409,3 +6409,14 @@ La identificación tributaria de empresa está completa (RUT, razón social, tag
 `mercadopago_account_type: "personal"` sigue apareciendo junto a los datos de empresa — probablemente un campo legado de cómo se creó la cuenta, no necesariamente el bloqueante (el código de error que devuelve la API apunta específicamente a `address`, no a `account_type`). Si tras completar la dirección el bloqueo persiste, ese sería el siguiente punto a escalar con soporte de MP.
 
 **Acción pendiente del usuario, sin cambio de código:** completar la dirección postal de la cuenta en el panel de MercadoPago (`nexflow.cl@gmail.com`) — es un formulario de dirección (calle/ciudad/región/código postal) separado del que ya se completó para la verificación de identidad/documentos.
+
+### Continuación — el usuario confirmó capturas del panel, causa real acotada al e-RUT
+
+El usuario mostró capturas del panel real de MP. Confirmado con evidencia visual (no solo la API):
+- **"Datos de tu negocio"** (razón social, nombre para resúmenes, actividad comercial) y **"Direcciones"** ya están completos — hay una dirección cargada ("Alto del Rayo 211, Maule - Linares"), pero categorizada como **"Domicilio residencial"** y vinculada al RUT personal del representante legal (183433784), no al RUT de la empresa (783620634). Esto explica por qué el `address` a nivel de cuenta/empresa que expone `/users/me` sigue vacío pese a que sí existe una dirección en el sistema.
+- **"Datos fiscales" mostraba explícitamente "Sube el e-RUT para agregar tu información fiscal"** (marcado como acción pendiente) — en Chile el e-RUT del SII trae el domicilio fiscal legal de la empresa. Es la hipótesis más fuerte para resolver `address_pending`.
+- **Descartada una segunda hipótesis:** la tarjeta "Consulta tus datos de cuenta para ingresar y recibir dinero" **no** tiene relación con el bloqueo — el usuario confirmó que es solo el visor de datos bancarios (n° de cuenta, RUT, banco, tipo de cuenta).
+
+**El usuario ya subió el e-RUT.** MP no lo procesa al instante — reverificado en vivo tras la subida (`GET /users/me`): `address` sigue en `null` y `billing.allow: false, address_pending` sin cambios. Es esperado, no un fallo — queda pendiente de que MP termine de validar el documento (tiempo de procesamiento desconocido, no hay ETA publicada por MP para esto).
+
+**Próximo paso, sin acción de código:** reverificar (mismo método: función de diagnóstico temporal + `GET /users/me`, sin necesidad de que el usuario haga nada) cuando el usuario avise que pasó un tiempo prudente desde la subida del e-RUT, o cuando MP le notifique algún cambio de estado.
