@@ -74,19 +74,6 @@ Deno.serve(async (req) => {
             return json({ skipped: "not_authorized" });
         }
 
-        // CRÍTICO: reactivar la IA con service_role, no confiar solo en el resumeAI()
-        // del frontend. Confirmado en producción el 2026-08-27 (2 casos reales,
-        // Ragnar/Ema y Gastón/Carol): el tutor confirmaba el horario y la IA se
-        // quedaba completamente muda — crm_prospects.requires_human seguía en
-        // `true` pese a que el panel ya había "autorizado" varias veces. La llamada
-        // del frontend queda como camino rápido para la UI, pero esta es la que
-        // garantiza el resultado (bypassa cualquier problema de RLS/timing del lado
-        // del cliente).
-        await supabase.from("tutors").update({ requires_human: false })
-            .eq("clinic_id", clinic_id).eq("phone_number", request.tutor_phone);
-        await supabase.from("crm_prospects").update({ requires_human: false })
-            .eq("clinic_id", clinic_id).or(`phone.eq.${request.tutor_phone},phone.eq.+${request.tutor_phone}`);
-
         const { data: clinic } = await supabase
             .from("clinic_settings")
             .select("meta_phone_number_id, meta_access_token")
@@ -131,6 +118,21 @@ Deno.serve(async (req) => {
             ai_generated: false,
             message_type: "text",
         });
+
+        // CRÍTICO — DEBE IR DESPUÉS del insert de arriba, no antes: existe un trigger
+        // (`on_manual_message_pause` → `handle_manual_message_pause()`) que, al ver
+        // CUALQUIER mensaje outbound con ai_generated=false, vuelve a poner
+        // requires_human=true (pensado para cuando Claudia escribe manualmente desde
+        // el dashboard). Ese trigger corre sincrónico dentro del mismo INSERT de
+        // arriba, así que si esta reactivación se hacía ANTES (como en el deploy
+        // anterior), el trigger la pisaba de inmediato en la misma transacción —
+        // confirmado con el timestamp idéntico al segundo entre el insert y el
+        // requires_human=true resultante, en 3 casos reales del 2026-08-27/28. Yendo
+        // después, esta es la última escritura y gana.
+        await supabase.from("tutors").update({ requires_human: false })
+            .eq("clinic_id", clinic_id).eq("phone_number", request.tutor_phone);
+        await supabase.from("crm_prospects").update({ requires_human: false })
+            .eq("clinic_id", clinic_id).or(`phone.eq.${request.tutor_phone},phone.eq.+${request.tutor_phone}`);
 
         await supabase.from("debug_logs").insert({
             message: `[SCHEDULING NOTIFY] Aviso de autorización enviado a ${request.tutor_phone}`,
