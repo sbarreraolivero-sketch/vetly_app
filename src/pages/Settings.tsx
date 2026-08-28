@@ -15,17 +15,13 @@ import {
     Zap,
     Copy,
     Check,
-    MessageSquare,
     AlertCircle,
     X,
     Loader2,
     User,
-    Webhook,
     Globe,
-    Info,
     ToggleLeft,
     ToggleRight,
-    Send,
     Tag,
     Users,
     ArrowLeft,
@@ -35,7 +31,6 @@ import {
     History,
     RefreshCw,
     Calendar,
-    Cpu,
     Phone,
     ShieldAlert,
     Settings2,
@@ -47,8 +42,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
-import { PLANS, type PlanId, normalizePlanId, redirectToCheckout, CREDIT_PACKS, redirectToCreditsCheckout } from '@/lib/mercadopago'
-import { PADDLE_PLANS, type PaddlePlanId, type BillingPeriod, PADDLE_CREDIT_PACKS, planSupportsAnnual, openPaddleSubscriptionCheckout, openPaddleCreditsCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
+import { usePlan } from '@/hooks/usePlan'
+import { PLANS, type PlanId, normalizePlanId, redirectToCheckout } from '@/lib/mercadopago'
+import { PADDLE_PLANS, type PaddlePlanId, type BillingPeriod, planSupportsAnnual, openPaddleSubscriptionCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { TagManager } from '@/components/settings/TagManager'
@@ -57,9 +53,6 @@ import Team from './settings/Team'
 import MyProfile from './settings/MyProfile'
 import { TemplateSelector } from '@/components/settings/TemplateSelector'
 import { toast } from 'react-hot-toast'
-
-// Get the Supabase URL for webhook display
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
 const tabs = [
     { id: 'profile', label: 'Mi Perfil', icon: User },
@@ -100,6 +93,7 @@ const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'satur
 
 export default function Settings() {
     const { user, profile, member, refreshClinics } = useAuth()
+    const { meetsPlan } = usePlan()
     // Usar la sucursal activa seleccionada (member.clinic_id) en lugar de la clínica raíz del perfil
     const clinicId = member?.clinic_id || profile?.clinic_id
     const [searchParams] = useSearchParams()
@@ -182,24 +176,6 @@ export default function Settings() {
         'BRL': 'R$',
     }
 
-    // Integration settings
-    const [yCloudApiKey, setYCloudApiKey] = useState('')
-    const [yCloudPhoneNumber, setYCloudPhoneNumber] = useState('')
-    const [yCloudWebhookSecret, setYCloudWebhookSecret] = useState('')
-    const [whatsappProvider, setWhatsappProvider] = useState<'ycloud' | 'meta'>('ycloud')
-    const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('')
-    const [metaAccessToken, setMetaAccessToken] = useState('')
-    const [metaWabaId, setMetaWabaId] = useState('')
-    const [aiCreditsMonthlyLimit, setAiCreditsMonthlyLimit] = useState(500)
-    const [aiCreditsExtraBalance, setAiCreditsExtraBalance] = useState(0)
-    const [aiCreditsExtra4o, setAiCreditsExtra4o] = useState(0)
-    const [aiMessagesUsed, setAiMessagesUsed] = useState(0)
-    const [aiMessagesUsedStandard, setAiMessagesUsedStandard] = useState(0)
-    const [aiMessagesUsedPro, setAiMessagesUsedPro] = useState(0)
-    const [aiMessagesUsedLegacy4o, setAiMessagesUsedLegacy4o] = useState(0)
-    const [aiAutoRespond, setAiAutoRespond] = useState(true)
-    const [aiActiveModel, setAiActiveModel] = useState<'hybrid' | 'mini' | 'pro'>('hybrid')
-    const [selectedAiModel, setSelectedAiModel] = useState<'mini' | '4o'>('mini') // For purchase, keep legacy values for payment backend
     // Default USD/internacional: casi todos los signups son de fuera de Chile
     // (Animalgrace es hoy la única clínica chilena real). Se corrige a 'chile'
     // más abajo solo para quien ya tiene una suscripción real cobrada en CLP.
@@ -208,45 +184,6 @@ export default function Settings() {
     // de moneda para explorar precios — no cambia hasta que el usuario efectivamente
     // paga con el otro proveedor). Usado para decidir si mostrar "Gestionar en Mercado Pago".
     const [currentPaymentProvider, setCurrentPaymentProvider] = useState<string | null>(null)
-    const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
-    const [copiedWebhook, setCopiedWebhook] = useState(false)
-
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
-
-    // Webhook state
-    interface WebhookConfig {
-        id?: string
-        name: string
-        url: string
-        events: string[]
-        is_active: boolean
-        secret: string
-        last_triggered_at?: string | null
-        last_status_code?: number | null
-    }
-    const [webhooks, setWebhooks] = useState<WebhookConfig[]>([])
-    const [showWebhookModal, setShowWebhookModal] = useState(false)
-    const [editingWebhook, setEditingWebhook] = useState<WebhookConfig | null>(null)
-    const [webhookForm, setWebhookForm] = useState<WebhookConfig>({
-        name: '',
-        url: '',
-        events: [],
-        is_active: true,
-        secret: '',
-    })
-    const [savingWebhook, setSavingWebhook] = useState(false)
-    const [testingWebhook, setTestingWebhook] = useState<string | null>(null)
-
-    const WEBHOOK_EVENTS = [
-        { value: 'appointment.created', label: 'Nueva cita creada' },
-        { value: 'appointment.confirmed', label: 'Cita confirmada' },
-        { value: 'appointment.cancelled', label: 'Cita cancelada' },
-        { value: 'appointment.rescheduled', label: 'Cita reagendada' },
-        { value: 'message.received', label: 'Mensaje recibido' },
-        { value: 'message.sent', label: 'Mensaje enviado' },
-        { value: 'patient.created', label: 'Nuevo paciente' },
-        { value: 'patient.updated', label: 'Paciente actualizado' },
-    ]
 
     // Notification preferences state
     const [notifPrefs, setNotifPrefs] = useState({
@@ -269,9 +206,6 @@ export default function Settings() {
     // Schedule settings state
     const [savingSchedule, setSavingSchedule] = useState(false)
     const [scheduleSaved, setScheduleSaved] = useState(false)
-
-    // AI settings state
-    const [savingModel, setSavingModel] = useState(false)
 
     // Blocked dates state
     const [blockedDates, setBlockedDates] = useState<any[]>([])
@@ -396,7 +330,16 @@ export default function Settings() {
             // un usuario Core ve la pantalla de upgrade y no un motor de IA que
             // no puede usar.
             navigate('/app/ai-settings', { replace: true })
-        } else if (tabParam && ['profile', 'clinic', 'team', 'schedule', 'integrations', 'subscription', 'notifications', 'reminders', 'tags'].includes(tabParam)) {
+        } else if (tabParam === 'integrations') {
+            // Mismo criterio que `?tab=ai`: el tab embebido acá era una copia
+            // duplicada (y peor — sin el flujo de Embedded Signup de Meta) de
+            // lo que ya hace bien /app/integrations.
+            navigate('/app/integrations', { replace: true })
+        } else if (tabParam === 'reminders') {
+            // Estaba en la whitelist pero no tiene bloque de render — cualquier
+            // link viejo a esta URL mostraba una pantalla en blanco.
+            navigate('/app/reminders', { replace: true })
+        } else if (tabParam && ['profile', 'clinic', 'team', 'schedule', 'subscription', 'notifications', 'tags'].includes(tabParam)) {
             setActiveTab(tabParam)
             if (window.innerWidth < 768) setShowMobileList(false)
         }
@@ -408,7 +351,6 @@ export default function Settings() {
             if (!clinicId) return
             setLoadingSettings(true)
 
-            const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
             // Los query builders de Supabase son thenables sin .catch(); Promise.resolve los normaliza
             const safe = (p: any) => Promise.resolve(p).then((r: any) => r, () => ({ data: null, error: null }))
 
@@ -420,8 +362,6 @@ export default function Settings() {
                     { data: subData },
                     { data: servicesData, error: servicesError },
                     { data: profData, error: profError },
-                    { data: webhooksData },
-                    { data: poolData },
                     { data: productsData },
                 ] = await Promise.all([
                     safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', clinicId).single()),
@@ -429,8 +369,6 @@ export default function Settings() {
                     safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', clinicId).single()),
                     safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty, is_public_bookable').eq('clinic_id', clinicId)),
                     safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: clinicId })),
-                    safe((supabase as any).from('webhooks').select('*').eq('clinic_id', clinicId).order('created_at', { ascending: true })),
-                    safe((supabase as any).rpc('get_credit_pool_clinic_ids', { p_clinic_id: clinicId })),
                     safe((supabase as any).from('inventory_products').select('id, name, unit, stock_quantity').eq('clinic_id', clinicId).eq('is_active', true).order('name')),
                 ])
 
@@ -468,18 +406,6 @@ export default function Settings() {
                     setTemplateSurvey(clinicData.template_survey || '')
                     setIvaEnabled(clinicData.iva_enabled ?? false)
                     setIvaRate(clinicData.iva_rate ?? 19)
-                    setYCloudApiKey(clinicData.ycloud_api_key || '')
-                    setYCloudPhoneNumber(clinicData.ycloud_phone_number || '')
-                    setYCloudWebhookSecret(clinicData.ycloud_webhook_secret || '')
-                    setWhatsappProvider((clinicData.whatsapp_provider as 'ycloud' | 'meta') || 'ycloud')
-                    setMetaPhoneNumberId(clinicData.meta_phone_number_id || '')
-                    setMetaAccessToken(clinicData.meta_access_token || '')
-                    setMetaWabaId(clinicData.meta_waba_id || '')
-                    setAiCreditsMonthlyLimit(clinicData.ai_credits_monthly_limit || 500)
-                    setAiCreditsExtraBalance(clinicData.ai_credits_extra_balance || 0)
-                    setAiCreditsExtra4o(clinicData.ai_credits_extra_4o || 0)
-                    setAiActiveModel(clinicData.ai_active_model || 'hybrid')
-                    setAiAutoRespond(clinicData.ai_auto_respond !== false)
                     setBusinessModel(clinicData.business_model || 'physical')
                     setSchedulingMode(clinicData.scheduling_mode === 'coordinator_approval' ? 'coordinator_approval' : 'ai_autonomous')
                     setCoordinatorPhone(clinicData.coordinator_phone || '')
@@ -531,55 +457,13 @@ export default function Settings() {
                 // --- Productos de inventario (para vincular a servicios) ---
                 if (productsData) setInventoryProducts(productsData)
 
-                // --- Procesar webhooks ---
-                if (webhooksData) setWebhooks(webhooksData)
-
-                // Pool de créditos IA
-                let poolClinicIds = [clinicId]
-                if (poolData && poolData.length > 0) {
-                    poolClinicIds = poolData.map((r: any) => r)
-                }
-
-                // Wave 2: queries condicionales + 4 conteos IA en paralelo
-                const needsParent = !!(clinicData?.parent_clinic_id)
+                // El plan a veces llega vacío en subData.plan_id recién creada la
+                // cuenta (antes del primer sync del webhook de pago) — se resuelve
+                // aparte, no vale la pena un Promise.all de un solo elemento.
                 const needsPlanFallback = !!(subData && (!subData.plan_id || subData.plan_id === ''))
-
-                const [
-                    { count: countStandard, error: errStd },
-                    { count: countPro, error: errPro },
-                    { count: countLegacy, error: errLeg },
-                    { count: countMini, error: errMini },
-                    { data: parentData },
-                    { data: planFallbackData },
-                ] = await Promise.all([
-                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o_standard').gte('created_at', startOfMonth)),
-                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o_pro').gte('created_at', startOfMonth)),
-                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).eq('ai_model', '4o').gte('created_at', startOfMonth)),
-                    safe((supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolClinicIds).eq('ai_generated', true).or('ai_model.eq.mini,ai_model.is.null').gte('created_at', startOfMonth)),
-                    needsParent
-                        ? safe((supabase as any).from('clinic_settings').select('ai_credits_monthly_limit, ai_credits_extra_balance, ai_credits_extra_4o').eq('id', clinicData.parent_clinic_id).single())
-                        : Promise.resolve({ data: null }),
-                    needsPlanFallback
-                        ? safe((supabase as any).from('clinic_settings').select('subscription_plan').eq('id', clinicId).single())
-                        : Promise.resolve({ data: null }),
-                ])
-
-                // --- Procesar conteos IA ---
-                if (errStd) console.error('Count Standard error:', errStd)
-                setAiMessagesUsedStandard(countStandard || 0)
-                if (errPro) console.error('Count Pro error:', errPro)
-                setAiMessagesUsedPro(countPro || 0)
-                if (errLeg) console.error('Count Legacy error:', errLeg)
-                setAiMessagesUsedLegacy4o(countLegacy || 0)
-                if (errMini) console.error('Count Mini error:', errMini)
-                setAiMessagesUsed(countMini || 0)
-
-                // --- Procesar parent clinic (sucursal) ---
-                if (parentData) {
-                    setAiCreditsMonthlyLimit(parentData.ai_credits_monthly_limit || 500)
-                    setAiCreditsExtraBalance(parentData.ai_credits_extra_balance || 0)
-                    setAiCreditsExtra4o(parentData.ai_credits_extra_4o || 0)
-                }
+                const { data: planFallbackData } = needsPlanFallback
+                    ? await safe((supabase as any).from('clinic_settings').select('subscription_plan').eq('id', clinicId).single())
+                    : { data: null }
 
                 // --- Procesar suscripción ---
                 if (subData) {
@@ -610,216 +494,6 @@ export default function Settings() {
         fetchSettings()
     }, [clinicId])
 
-
-    // Webhook URL for YCloud
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/ycloud-whatsapp-webhook`
-
-    const copyWebhookUrl = async () => {
-        await navigator.clipboard.writeText(webhookUrl)
-        setCopiedWebhook(true)
-        setTimeout(() => setCopiedWebhook(false), 2000)
-    }
-
-    const handleBuyCredits = async (packId: string) => {
-        if (!clinicId || !user?.email) return
-        try {
-            if (paymentRegion === 'international') {
-                // Overlay de Paddle: recargar la página al completar el pago para
-                // refrescar el saldo (mismo efecto neto que el redirect de LS).
-                onPaddleCheckoutEvent((event) => {
-                    if (event.name === 'checkout.completed') window.location.reload()
-                })
-                await openPaddleCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
-            } else {
-                await redirectToCreditsCheckout(clinicId, user.email, packId, selectedAiModel)
-            }
-        } catch (error: any) {
-            console.error('Error buying credits:', error)
-            alert(error.message || 'Error al procesar el pago. Por favor intenta de nuevo.')
-        }
-    }
-
-    const saveIntegrations = async () => {
-        if (!clinicId) return
-        setIsSavingIntegrations(true)
-        setSaveStatus('idle')
-        try {
-            // Use update (not upsert) since the clinic row already exists
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const updatePayload: Record<string, any> = {
-                updated_at: new Date().toISOString(),
-            }
-            // Only include fields that have values to avoid overwriting with null
-            if (yCloudApiKey !== undefined) updatePayload.ycloud_api_key = yCloudApiKey || null
-            if (yCloudPhoneNumber !== undefined) updatePayload.ycloud_phone_number = yCloudPhoneNumber || null
-            if (yCloudWebhookSecret !== undefined) updatePayload.ycloud_webhook_secret = yCloudWebhookSecret || null
-            updatePayload.whatsapp_provider = whatsappProvider
-            updatePayload.meta_phone_number_id = metaPhoneNumberId || null
-            updatePayload.meta_access_token = metaAccessToken || null
-            updatePayload.meta_waba_id = metaWabaId || null
-            if (aiActiveModel) updatePayload.ai_active_model = aiActiveModel
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
-                .from('clinic_settings')
-                .update(updatePayload)
-                .eq('id', clinicId)
-
-            if (error) {
-                console.error('Supabase integration save error:', error)
-                throw error
-            }
-            setSaveStatus('success')
-            toast.success('Integraciones guardadas correctamente')
-            setTimeout(() => setSaveStatus('idle'), 3000)
-        } catch (error: any) {
-            console.error('Error saving integrations:', error)
-            toast.error('Error al guardar: ' + (error?.message || 'Intenta nuevamente'))
-            setSaveStatus('error')
-            setTimeout(() => setSaveStatus('idle'), 3000)
-        } finally {
-            setIsSavingIntegrations(false)
-        }
-    }
-
-    // Webhook CRUD
-    const openWebhookModal = (webhook?: WebhookConfig) => {
-        if (webhook) {
-            setEditingWebhook(webhook)
-            setWebhookForm({ ...webhook })
-        } else {
-            setEditingWebhook(null)
-            setWebhookForm({ name: '', url: '', events: [], is_active: true, secret: '' })
-        }
-        setShowWebhookModal(true)
-    }
-
-    const closeWebhookModal = () => {
-        setShowWebhookModal(false)
-        setEditingWebhook(null)
-        setWebhookForm({ name: '', url: '', events: [], is_active: true, secret: '' })
-    }
-
-    const handleSaveWebhook = async () => {
-        if (!clinicId || !webhookForm.url.trim() || !webhookForm.name.trim()) return
-        setSavingWebhook(true)
-        try {
-            if (editingWebhook?.id) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase as any)
-                    .from('webhooks')
-                    .update({
-                        name: webhookForm.name.trim(),
-                        url: webhookForm.url.trim(),
-                        events: webhookForm.events,
-                        is_active: webhookForm.is_active,
-                        secret: webhookForm.secret || null,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', editingWebhook.id)
-                if (error) throw error
-            } else {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase as any)
-                    .from('webhooks')
-                    .insert({
-                        clinic_id: clinicId,
-                        name: webhookForm.name.trim(),
-                        url: webhookForm.url.trim(),
-                        events: webhookForm.events,
-                        is_active: webhookForm.is_active,
-                        secret: webhookForm.secret || null,
-                    })
-                if (error) throw error
-            }
-            closeWebhookModal()
-            // Refresh webhooks
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data } = await (supabase as any)
-                .from('webhooks')
-                .select('*')
-                .eq('clinic_id', clinicId)
-                .order('created_at', { ascending: true })
-            if (data) setWebhooks(data)
-        } catch (error) {
-            console.error('Error saving webhook:', error)
-            alert('Error al guardar el webhook.')
-        } finally {
-            setSavingWebhook(false)
-        }
-    }
-
-    const handleDeleteWebhook = async (id: string) => {
-        if (!clinicId) return
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any).from('webhooks').delete().eq('id', id)
-            if (error) throw error
-            setWebhooks(prev => prev.filter(w => w.id !== id))
-        } catch (error) {
-            console.error('Error deleting webhook:', error)
-        }
-    }
-
-    const handleToggleWebhook = async (id: string, currentActive: boolean) => {
-        if (!clinicId) return
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
-                .from('webhooks')
-                .update({ is_active: !currentActive, updated_at: new Date().toISOString() })
-                .eq('id', id)
-            if (error) throw error
-            setWebhooks(prev => prev.map(w => w.id === id ? { ...w, is_active: !currentActive } : w))
-        } catch (error) {
-            console.error('Error toggling webhook:', error)
-        }
-    }
-
-    const handleTestWebhook = async (webhook: WebhookConfig) => {
-        if (!webhook.id) return
-        setTestingWebhook(webhook.id)
-        try {
-            const response = await fetch(webhook.url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(webhook.secret ? { 'X-Webhook-Secret': webhook.secret } : {}),
-                },
-                mode: 'no-cors',
-                body: JSON.stringify({
-                    event: 'test.ping',
-                    timestamp: new Date().toISOString(),
-                    data: { message: 'Test webhook from Vetly AI' },
-                }),
-            })
-            // With no-cors we can't read status, so we just mark it as sent
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase as any)
-                .from('webhooks')
-                .update({ last_triggered_at: new Date().toISOString(), last_status_code: response.status || 0 })
-                .eq('id', webhook.id)
-            setWebhooks(prev => prev.map(w => w.id === webhook.id
-                ? { ...w, last_triggered_at: new Date().toISOString(), last_status_code: response.status || 0 }
-                : w
-            ))
-            alert('✅ Webhook de prueba enviado correctamente.')
-        } catch (error) {
-            console.error('Error testing webhook:', error)
-            alert('⚠️ No se pudo verificar la respuesta del webhook (puede ser un problema de CORS). El webhook podría haber sido recibido igualmente.')
-        } finally {
-            setTestingWebhook(null)
-        }
-    }
-
-    const toggleWebhookEvent = (event: string) => {
-        setWebhookForm(prev => ({
-            ...prev,
-            events: prev.events.includes(event)
-                ? prev.events.filter(e => e !== event)
-                : [...prev.events, event]
-        }))
-    }
 
     const handleSaveNotifications = async () => {
         if (!clinicId) return
@@ -1138,59 +812,6 @@ export default function Settings() {
         } catch (error) {
             console.error('Error deleting blocked date:', error)
             toast.error('Error al eliminar bloqueo')
-        }
-    }
-
-
-    const handleSaveAI = async () => {
-        if (!clinicId) {
-            toast.error('No se encontró el ID de la clínica')
-            return
-        }
-        setSavingModel(true)
-        
-        const payload = { 
-            id: clinicId,
-            ai_active_model: aiActiveModel, 
-            ai_auto_respond: aiAutoRespond,
-            updated_at: new Date().toISOString() 
-        }
-        
-        console.log('--- AI PERISTENCE DEBUG ---')
-        console.log('Clinic ID:', clinicId)
-        console.log('Payload:', payload)
-
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error, status } = await (supabase as any)
-                .from('clinic_settings')
-                .upsert(payload, { onConflict: 'id' })
-                .select()
-
-            if (error) {
-                console.error('Supabase Error:', error)
-                toast.error(`Error de Base de Datos (${error.code}): ${error.message}`)
-                return
-            }
-
-            console.log('Response Status:', status)
-            console.log('Updated Data:', data)
-
-            if (!data || data.length === 0) {
-                console.warn('Upsert successful but no rows returned. Possible RLS issue.')
-                toast.error('No se pudo actualizar. Verifica tus permisos de administrador.')
-                return
-            }
-
-            toast.success('Configuración de IA guardada exitosamente')
-            if (aiActiveModel === 'pro') setSelectedAiModel('4o')
-            else setSelectedAiModel('mini')
-            
-        } catch (err: any) {
-            console.error('Unexpected Error:', err)
-            toast.error('Ocurrió un error inesperado: ' + err.message)
-        } finally {
-            setSavingModel(false)
         }
     }
 
@@ -1601,6 +1222,16 @@ export default function Settings() {
                                     </div>
                                 </div>
 
+                                {/* Todo este bloque (Modelo de Atención, Modo de Agendamiento, Logística
+                                    Pro) solo sirve al agente IA conversacional — Core no lo tiene, y
+                                    dejarlo visible solo agrega ruido y sugiere una función que no existe
+                                    en su plan. Se oculta por completo (no candado): el usuario de Core
+                                    no puede comprar esto por separado. Los valores de DB quedan en sus
+                                    defaults seguros (business_model='physical', scheduling_mode=
+                                    'ai_autonomous') y reaparecen listos para configurar si la clínica
+                                    hace upgrade. */}
+                                {meetsPlan('starter') && (
+                                <>
                                 <div className="bg-silk-beige/20 p-4 rounded-soft border border-silk-beige/30 mb-8">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-10 h-10 bg-primary-500/10 rounded-full flex items-center justify-center">
@@ -1775,6 +1406,8 @@ export default function Settings() {
                                             </button>
                                         </div>
                                     </div>
+                                )}
+                                </>
                                 )}
 
                                 <div className="space-y-4">
@@ -2992,7 +2625,7 @@ export default function Settings() {
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-bold text-charcoal">Días de Cierre Especial</h2>
-                                        <p className="text-sm text-charcoal/50">Bloquea días específicos (feriados o vacaciones) para que la IA no agende citas.</p>
+                                        <p className="text-sm text-charcoal/50">Bloquea días específicos (feriados o vacaciones) para que nadie pueda agendar una cita.</p>
                                     </div>
                                 </div>
 
@@ -3083,430 +2716,6 @@ export default function Settings() {
                                 </div>
                             </div>
                         </>
-                    )}
-
-                    {/* Integrations Settings */}
-                    {activeTab === 'integrations' && (
-                        <div className="space-y-6">
-                            {/* YCloud */}
-                            <div className="card-soft p-4 sm:p-6">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-12 h-12 bg-emerald-100 rounded-soft flex items-center justify-center">
-                                        <MessageSquare className="w-6 h-6 text-emerald-600" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-charcoal">YCloud WhatsApp API</h2>
-                                        <p className="text-sm text-charcoal/50">Conecta tu número de WhatsApp Business</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-charcoal mb-2">API Key</label>
-                                        <input
-                                            type="password"
-                                            placeholder="yc_xxxxxxxxxxxxxxxxxxxxxx"
-                                            value={yCloudApiKey}
-                                            onChange={(e) => setYCloudApiKey(e.target.value)}
-                                            className="input-soft"
-                                        />
-                                        <p className="text-xs text-charcoal/40 mt-1">
-                                            Obtén tu API Key desde <a href="https://www.ycloud.com" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">ycloud.com</a>
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-charcoal mb-2">Número de WhatsApp</label>
-                                        <input
-                                            type="text"
-                                            placeholder="+521234567890"
-                                            value={yCloudPhoneNumber}
-                                            onChange={(e) => setYCloudPhoneNumber(e.target.value)}
-                                            className="input-soft"
-                                        />
-                                        <p className="text-xs text-charcoal/40 mt-1">
-                                            El número de WhatsApp Business registrado en YCloud (con código de país)
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-charcoal mb-2">Webhook Secret</label>
-                                        <input
-                                            type="password"
-                                            placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                            value={yCloudWebhookSecret}
-                                            onChange={(e) => setYCloudWebhookSecret(e.target.value)}
-                                            className="input-soft"
-                                        />
-                                        <p className="text-xs text-charcoal/40 mt-1">
-                                            Secret de firma HMAC-SHA256. Encuéntralo en YCloud → Developer → Webhooks → tu webhook → Signing Secret.
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-charcoal mb-2">Webhook URL</label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={webhookUrl}
-                                                disabled
-                                                className="input-soft bg-ivory text-charcoal/60 font-mono text-sm"
-                                            />
-                                            <button
-                                                onClick={copyWebhookUrl}
-                                                className="btn-ghost text-primary-500 flex items-center gap-1"
-                                            >
-                                                {copiedWebhook ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                                {copiedWebhook ? 'Copiado' : 'Copiar'}
-                                            </button>
-                                        </div>
-                                        <p className="text-xs text-charcoal/40 mt-1">
-                                            Configura esta URL como webhook en tu panel de YCloud (Developer → Webhooks)
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Meta Cloud API */}
-                            <div className="card-soft p-4 sm:p-6">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-12 h-12 bg-blue-100 rounded-soft flex items-center justify-center">
-                                        <MessageSquare className="w-6 h-6 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-charcoal">Proveedor de WhatsApp</h2>
-                                        <p className="text-sm text-charcoal/50">Selecciona el canal de envío/recepción de mensajes</p>
-                                    </div>
-                                </div>
-
-                                {/* Provider selector */}
-                                <div className="flex gap-3 mb-6">
-                                    <button
-                                        onClick={() => setWhatsappProvider('ycloud')}
-                                        className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
-                                            whatsappProvider === 'ycloud'
-                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                                : 'border-silk-beige bg-ivory text-charcoal/60 hover:border-charcoal/20'
-                                        }`}
-                                    >
-                                        YCloud
-                                    </button>
-                                    <button
-                                        onClick={() => setWhatsappProvider('meta')}
-                                        className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
-                                            whatsappProvider === 'meta'
-                                                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                : 'border-silk-beige bg-ivory text-charcoal/60 hover:border-charcoal/20'
-                                        }`}
-                                    >
-                                        Meta Cloud API
-                                    </button>
-                                </div>
-
-                                {whatsappProvider === 'meta' && (
-                                    <div className="space-y-4">
-                                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-                                            <strong>Meta Cloud API</strong> — conecta directamente con la API oficial de Meta. Requiere app aprobada como Tech Provider y número registrado en Meta Developers.
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-charcoal mb-2">Phone Number ID</label>
-                                            <input
-                                                type="text"
-                                                placeholder="1199762829882743"
-                                                value={metaPhoneNumberId}
-                                                onChange={(e) => setMetaPhoneNumberId(e.target.value)}
-                                                className="input-soft font-mono text-sm"
-                                            />
-                                            <p className="text-xs text-charcoal/40 mt-1">
-                                                Meta Developers → Vetly Omnicanal → WhatsApp → Configuración → Phone Number ID
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-charcoal mb-2">System User Token</label>
-                                            <input
-                                                type="password"
-                                                placeholder="Token permanente de Meta..."
-                                                value={metaAccessToken}
-                                                onChange={(e) => setMetaAccessToken(e.target.value)}
-                                                className="input-soft font-mono text-sm"
-                                            />
-                                            <p className="text-xs text-charcoal/40 mt-1">
-                                                Events Manager → System Users → generar token con scope <code>whatsapp_business_messaging</code>
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-charcoal mb-2">WABA ID (opcional)</label>
-                                            <input
-                                                type="text"
-                                                placeholder="WhatsApp Business Account ID"
-                                                value={metaWabaId}
-                                                onChange={(e) => setMetaWabaId(e.target.value)}
-                                                className="input-soft font-mono text-sm"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-charcoal mb-2">Webhook URL</label>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={`${import.meta.env.VITE_SUPABASE_URL || 'https://ehmncwawzdciajvuallg.supabase.co'}/functions/v1/meta-whatsapp-webhook`}
-                                                    disabled
-                                                    className="input-soft bg-ivory text-charcoal/60 font-mono text-sm"
-                                                />
-                                                <button
-                                                    onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL || 'https://ehmncwawzdciajvuallg.supabase.co'}/functions/v1/meta-whatsapp-webhook`); toast.success('Copiado'); }}
-                                                    className="btn-ghost text-primary-500 flex items-center gap-1"
-                                                >
-                                                    <Copy className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <p className="text-xs text-charcoal/40 mt-1">
-                                                Configura esta URL en Meta Developers → Webhooks. Verify Token: <code className="font-mono">vetly_meta_2026</code>
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Webhooks / n8n */}
-                            <div className="card-soft p-4 sm:p-6">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-orange-100 rounded-soft flex items-center justify-center">
-                                            <Webhook className="w-6 h-6 text-orange-600" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-lg font-semibold text-charcoal">Webhooks</h2>
-                                            <p className="text-sm text-charcoal/50">Conecta con n8n, Make, Zapier y otras automatizaciones</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => openWebhookModal()}
-                                        className="btn-primary flex items-center gap-2 text-sm"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        Añadir Webhook
-                                    </button>
-                                </div>
-
-                                {webhooks.length === 0 ? (
-                                    <div className="text-center py-8 border-2 border-dashed border-silk-beige rounded-soft">
-                                        <Globe className="w-10 h-10 text-charcoal/20 mx-auto mb-3" />
-                                        <p className="text-charcoal/50 text-sm mb-1">No hay webhooks configurados</p>
-                                        <p className="text-charcoal/40 text-xs">Añade un webhook para enviar eventos a herramientas externas como n8n</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {webhooks.map((wh) => (
-                                            <div
-                                                key={wh.id}
-                                                className={cn(
-                                                    'border rounded-soft p-4 transition-all',
-                                                    wh.is_active
-                                                        ? 'border-silk-beige bg-white hover:shadow-sm'
-                                                        : 'border-silk-beige bg-ivory/50 opacity-60'
-                                                )}
-                                            >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={cn(
-                                                            'w-2.5 h-2.5 rounded-full',
-                                                            wh.is_active ? 'bg-emerald-400' : 'bg-charcoal/20'
-                                                        )} />
-                                                        <h3 className="font-medium text-charcoal text-sm">{wh.name}</h3>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={() => handleTestWebhook(wh)}
-                                                            disabled={!wh.is_active || testingWebhook === wh.id}
-                                                            className="p-1.5 rounded-soft hover:bg-blue-50 transition-colors disabled:opacity-50"
-                                                            title="Enviar prueba"
-                                                        >
-                                                            {testingWebhook === wh.id ? (
-                                                                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
-                                                            ) : (
-                                                                <Send className="w-4 h-4 text-blue-500" />
-                                                            )}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleToggleWebhook(wh.id!, wh.is_active)}
-                                                            className="p-1.5 rounded-soft hover:bg-ivory transition-colors"
-                                                            title={wh.is_active ? 'Desactivar' : 'Activar'}
-                                                        >
-                                                            {wh.is_active ? (
-                                                                <ToggleRight className="w-5 h-5 text-emerald-500" />
-                                                            ) : (
-                                                                <ToggleLeft className="w-5 h-5 text-charcoal/30" />
-                                                            )}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => openWebhookModal(wh)}
-                                                            className="p-1.5 rounded-soft hover:bg-ivory transition-colors"
-                                                            title="Editar"
-                                                        >
-                                                            <ChevronRight className="w-4 h-4 text-charcoal/50" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteWebhook(wh.id!)}
-                                                            className="p-1.5 rounded-soft hover:bg-red-50 transition-colors"
-                                                            title="Eliminar"
-                                                        >
-                                                            <Trash2 className="w-4 h-4 text-red-400" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <p className="text-xs text-charcoal/40 font-mono truncate mb-2 pl-5">{wh.url}</p>
-                                                <div className="flex items-center gap-2 flex-wrap pl-5">
-                                                    {wh.events.length > 0 ? wh.events.map(ev => (
-                                                        <span key={ev} className="text-xs bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full border border-orange-200">
-                                                            {ev}
-                                                        </span>
-                                                    )) : (
-                                                        <span className="text-xs text-charcoal/30">Sin eventos seleccionados</span>
-                                                    )}
-                                                    {wh.last_triggered_at && (
-                                                        <span className="text-xs text-charcoal/30 ml-auto">
-                                                            Último envío: {new Date(wh.last_triggered_at).toLocaleString()}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div className="mt-4 p-3 bg-amber-50/80 rounded-soft border border-amber-200/50">
-                                    <p className="text-xs text-amber-700">
-                                        <strong>💡 Tip:</strong> En n8n, usa el nodo "Webhook" y pega la URL generada por n8n aquí. Selecciona los eventos que deseas recibir y n8n procesará la información automáticamente.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Webhook Create/Edit Modal */}
-                            {showWebhookModal && (
-                                <div className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-soft shadow-premium-lg w-full max-w-lg animate-scale-in">
-                                        <div className="flex items-center justify-between p-6 border-b border-silk-beige">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
-                                                    <Webhook className="w-5 h-5 text-orange-500" />
-                                                </div>
-                                                <h2 className="text-lg font-bold text-charcoal">
-                                                    {editingWebhook ? 'Editar Webhook' : 'Nuevo Webhook'}
-                                                </h2>
-                                            </div>
-                                            <button onClick={closeWebhookModal} className="p-2 hover:bg-ivory rounded-soft transition-colors">
-                                                <X className="w-5 h-5 text-charcoal/50" />
-                                            </button>
-                                        </div>
-
-                                        <div className="p-6 space-y-5">
-                                            <div>
-                                                <label className="block text-sm font-medium text-charcoal mb-2">Nombre</label>
-                                                <input
-                                                    type="text"
-                                                    value={webhookForm.name}
-                                                    onChange={(e) => setWebhookForm(prev => ({ ...prev, name: e.target.value }))}
-                                                    placeholder="Ej: n8n - Notificaciones"
-                                                    className="input-soft w-full"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-charcoal mb-2">URL del Webhook</label>
-                                                <input
-                                                    type="url"
-                                                    value={webhookForm.url}
-                                                    onChange={(e) => setWebhookForm(prev => ({ ...prev, url: e.target.value }))}
-                                                    placeholder="https://tu-n8n-instance.com/webhook/..."
-                                                    className="input-soft w-full font-mono text-sm"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-charcoal mb-2">Secret (opcional)</label>
-                                                <input
-                                                    type="password"
-                                                    value={webhookForm.secret}
-                                                    onChange={(e) => setWebhookForm(prev => ({ ...prev, secret: e.target.value }))}
-                                                    placeholder="Tu clave secreta para verificar webhooks"
-                                                    className="input-soft w-full"
-                                                />
-                                                <p className="text-xs text-charcoal/40 mt-1">Se envía como header <code className="bg-ivory px-1 rounded text-xs">X-Webhook-Secret</code></p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-charcoal mb-2">Eventos a escuchar</label>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {WEBHOOK_EVENTS.map(ev => (
-                                                        <label
-                                                            key={ev.value}
-                                                            className={cn(
-                                                                'flex items-center gap-2 p-2.5 rounded-soft border cursor-pointer transition-all text-sm',
-                                                                webhookForm.events.includes(ev.value)
-                                                                    ? 'bg-orange-50 border-orange-300 text-orange-700'
-                                                                    : 'bg-white border-silk-beige text-charcoal/60 hover:bg-ivory'
-                                                            )}
-                                                        >
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={webhookForm.events.includes(ev.value)}
-                                                                onChange={() => toggleWebhookEvent(ev.value)}
-                                                                className="sr-only"
-                                                            />
-                                                            <div className={cn(
-                                                                'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0',
-                                                                webhookForm.events.includes(ev.value)
-                                                                    ? 'bg-orange-500 border-orange-500'
-                                                                    : 'border-silk-beige'
-                                                            )}>
-                                                                {webhookForm.events.includes(ev.value) && (
-                                                                    <Check className="w-3 h-3 text-white" />
-                                                                )}
-                                                            </div>
-                                                            {ev.label}
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex justify-end gap-3 p-6 border-t border-silk-beige">
-                                            <button onClick={closeWebhookModal} className="btn-ghost">Cancelar</button>
-                                            <button
-                                                onClick={handleSaveWebhook}
-                                                disabled={savingWebhook || !webhookForm.name.trim() || !webhookForm.url.trim()}
-                                                className="btn-primary flex items-center gap-2"
-                                            >
-                                                {savingWebhook ? (
-                                                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                                                ) : (
-                                                    <><Save className="w-4 h-4" /> {editingWebhook ? 'Guardar' : 'Crear Webhook'}</>
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-4 flex-wrap">
-                                <button
-                                    onClick={saveIntegrations}
-                                    disabled={isSavingIntegrations}
-                                    className="btn-primary flex items-center gap-2"
-                                >
-                                    <Save className="w-4 h-4" />
-                                    {isSavingIntegrations ? 'Guardando...' : 'Guardar Integraciones'}
-                                </button>
-
-                                {saveStatus === 'success' && (
-                                    <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft">
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        Integraciones guardadas correctamente
-                                    </div>
-                                )}
-
-                                {saveStatus === 'error' && (
-                                    <div className="flex items-center gap-2 text-red-600 text-sm animate-fade-in bg-red-50 px-4 py-2 rounded-soft">
-                                        <AlertCircle className="w-4 h-4" />
-                                        Error al guardar. Intenta nuevamente.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
                     )}
 
                     {/* Notifications Settings */}
@@ -3655,340 +2864,6 @@ export default function Settings() {
                                         <><Save className="w-4 h-4" /> Guardar Notificaciones</>
                                     )}
                                 </button>
-                            </div>
-                        </div>
-                    )}
-
-
-
-
-
-                    {activeTab === 'ai' && (
-                        <div className="space-y-6 animate-fade-in">
-                            {/* Vetly Hybrid Intelligence Header */}
-                            <div className="card-soft p-8 bg-gradient-to-br from-white to-silk-beige/30 border-2 border-primary-500/10 shadow-premium-lg relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/5 rounded-full -mr-32 -mt-32 blur-3xl" />
-                                
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 relative z-10">
-                                    <div className="flex items-center gap-5">
-                                        <div className="w-16 h-16 bg-charcoal rounded-2xl flex items-center justify-center shadow-xl border-4 border-white transform rotate-3">
-                                            <Sparkles className="w-8 h-8 text-primary-400" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Vetly Hybrid Intelligence</h2>
-                                            <p className="text-sm font-bold text-charcoal/40 uppercase tracking-widest mt-1">Motor de ruteo inteligente de modelos AI</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 bg-white/80 backdrop-blur-md px-6 py-4 rounded-3xl border border-silk-beige shadow-sm">
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">Estado del Motor</p>
-                                            <p className={cn("text-sm font-black uppercase", aiAutoRespond ? "text-emerald-500" : "text-amber-500")}>
-                                                {aiAutoRespond ? 'En Línea • Activo' : 'Desconectado'}
-                                            </p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={aiAutoRespond}
-                                                onChange={(e) => setAiAutoRespond(e.target.checked)}
-                                            />
-                                            <div className="w-14 h-7 bg-charcoal/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-1 after:left-[4px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                {/* Strategy Selection Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
-                                    {/* Saving Strategy */}
-                                    <button
-                                        onClick={() => setAiActiveModel('mini')}
-                                        className={cn(
-                                            "flex flex-col p-6 rounded-[2rem] border-2 transition-all duration-500 text-left group",
-                                            aiActiveModel === 'mini' 
-                                            ? "bg-white border-primary-500 shadow-premium ring-4 ring-primary-500/10" 
-                                            : "bg-white/40 border-silk-beige hover:border-primary-300 hover:bg-white"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-all duration-500 shadow-sm",
-                                            aiActiveModel === 'mini' ? "bg-emerald-500 text-white rotate-6" : "bg-silk-beige text-charcoal/40"
-                                        )}>
-                                            <Zap className="w-6 h-6" />
-                                        </div>
-                                        <h3 className="text-lg font-black text-charcoal mb-1">Ahorro Máximo</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Eficiencia N1 — GPT-4o Mini</p>
-                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Ideal para saludos y agendamientos rápidos usando Flash Mini.</p>
-                                        <div className={cn(
-                                            "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
-                                            aiActiveModel === 'mini' ? "bg-emerald-100 text-emerald-700" : "bg-silk-beige/50 text-charcoal/30"
-                                        )}>
-                                            {aiActiveModel === 'mini' ? '✓ Seleccionado' : 'Activar Estrategia'}
-                                        </div>
-                                    </button>
-
-                                    {/* Hybrid Strategy (Recomended) */}
-                                    <button
-                                        onClick={() => setAiActiveModel('hybrid')}
-                                        className={cn(
-                                            "flex flex-col p-6 rounded-[2.5rem] border-2 transition-all duration-500 text-left relative group",
-                                            aiActiveModel === 'hybrid' 
-                                            ? "bg-white border-primary-500 shadow-premium-lg ring-8 ring-primary-500/5 scale-105 z-10" 
-                                            : "bg-white/40 border-silk-beige hover:border-primary-300 hover:bg-white"
-                                        )}
-                                    >
-                                        {aiActiveModel === 'hybrid' && (
-                                            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary-600 text-white text-[9px] font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-widest whitespace-nowrap animate-bounce-subtle">
-                                                Recomendado
-                                            </div>
-                                        )}
-                                        <div className={cn(
-                                            "w-14 h-14 rounded-2xl mb-4 flex items-center justify-center transition-all duration-500 shadow-xl",
-                                            aiActiveModel === 'hybrid' ? "bg-primary-500 text-white rotate-12 scale-110" : "bg-silk-beige text-charcoal/40"
-                                        )}>
-                                            <RefreshCw className={cn("w-7 h-7", aiActiveModel === 'hybrid' && "animate-spin-slow")} />
-                                        </div>
-                                        <h3 className="text-xl font-black text-charcoal mb-1 text-primary-600">Híbrido Automático</h3>
-                                        <p className="text-xs font-black text-primary-400 uppercase tracking-widest mb-4">IA Router (N1/N2/N3)</p>
-                                        <p className="text-sm font-medium text-charcoal/70 leading-relaxed font-bold">El sistema elige el mejor modelo según la complejidad del mensaje.</p>
-                                        <div className={cn(
-                                            "mt-6 py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
-                                            aiActiveModel === 'hybrid' ? "bg-primary-500 text-white shadow-lg" : "bg-silk-beige/50 text-charcoal/30"
-                                        )}>
-                                            {aiActiveModel === 'hybrid' ? 'Motor Inteligente Activo' : 'Activar IA Router'}
-                                        </div>
-                                    </button>
-
-                                    {/* Power Strategy */}
-                                    <button
-                                        onClick={() => setAiActiveModel('pro')}
-                                        className={cn(
-                                            "flex flex-col p-6 rounded-[2rem] border-2 transition-all duration-500 text-left group",
-                                            aiActiveModel === 'pro' 
-                                            ? "bg-white border-charcoal shadow-premium ring-4 ring-charcoal/10" 
-                                            : "bg-white/40 border-silk-beige hover:border-primary-300 hover:bg-white"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-all duration-500 shadow-sm",
-                                            aiActiveModel === 'pro' ? "bg-charcoal text-white -rotate-6" : "bg-silk-beige text-charcoal/40"
-                                        )}>
-                                            <Cpu className="w-6 h-6" />
-                                        </div>
-                                        <h3 className="text-lg font-black text-charcoal mb-1">Máximo Poder</h3>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-4">Sovereign Pro (N3) — GPT-4o</p>
-                                        <p className="text-sm font-medium text-charcoal/60 leading-relaxed font-bold">Uso exclusivo de inteligencia GPT-4o para casos clínicos complejos.</p>
-                                        <div className={cn(
-                                            "mt-6 py-2 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-center transition-all",
-                                            aiActiveModel === 'pro' ? "bg-charcoal text-white shadow-lg" : "bg-silk-beige/50 text-charcoal/30"
-                                        )}>
-                                            {aiActiveModel === 'pro' ? '✓ Modo Pro Activo' : 'Activar Modo Pro'}
-                                        </div>
-                                    </button>
-                                </div>
-
-                                <div className="mt-8 pt-6 border-t border-silk-beige/50 flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                        <p className="text-sm font-bold text-charcoal/60">Sincronización en tiempo real habilitada con YCloud</p>
-                                    </div>
-                                    <button
-                                        onClick={handleSaveAI}
-                                        disabled={savingModel}
-                                        className="btn-primary px-10 py-4 shadow-xl hover:shadow-2xl transition-all flex items-center gap-3 active:scale-95"
-                                    >
-                                        {savingModel ? (
-                                            <><Loader2 className="w-5 h-5 animate-spin" /> Guardando...</>
-                                        ) : (
-                                            <><Save className="w-5 h-5" /> Confirmar Configuración</>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Vetly Credits Dashboard */}
-                            <div className="card-soft p-8 border-t-8 border-t-charcoal bg-white shadow-premium">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
-                                    <div className="flex items-center gap-5">
-                                        <div className="w-16 h-16 bg-hero-gradient rounded-[1.5rem] flex items-center justify-center shadow-2xl relative">
-                                            <Zap className="w-9 h-9 text-white" />
-                                            <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow-sm">LIVE</div>
-                                        </div>
-                                        <div>
-                                            <h2 className="text-2xl font-black text-charcoal tracking-tight">Vetly Credits</h2>
-                                            <p className="text-sm font-bold text-charcoal/30 uppercase tracking-widest mt-1">Créditos Unificados de Inteligencia</p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-charcoal text-white p-6 rounded-[2rem] shadow-2xl min-w-[240px] text-center transform hover:scale-105 transition-transform duration-500">
-                                        <p className="text-xs font-black uppercase tracking-widest text-primary-400 mb-1">Total Disponibles</p>
-                                        <p className="text-4xl font-black tabular-nums">{(aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
-                                        <p className="text-[10px] font-bold text-white/40 mt-1 uppercase">Créditos Vetly Global</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                                    {/* Plan Credits */}
-                                    <div className="bg-silk-beige/20 p-6 rounded-[2rem] border border-silk-beige/50 relative group overflow-hidden">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-widest">Plan Base</p>
-                                            <div className="p-2 bg-white rounded-xl shadow-sm"><CreditCard className="w-4 h-4 text-charcoal/40" /></div>
-                                        </div>
-                                        <p className="text-3xl font-black text-charcoal">{aiCreditsMonthlyLimit.toLocaleString()}</p>
-                                        <p className="text-xs font-bold text-charcoal/40 mt-1 uppercase">Recarga Mensual</p>
-                                        <div className="absolute bottom-0 left-0 h-1 bg-primary-500 transition-all duration-1000 w-full" />
-                                    </div>
-
-                                    {/* Extra Credits */}
-                                    <div className="bg-emerald-50/30 p-6 rounded-[2rem] border border-emerald-100 relative group overflow-hidden">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <p className="text-xs font-black text-emerald-600/60 uppercase tracking-widest">Cargas Extra</p>
-                                            <div className="p-2 bg-white rounded-xl shadow-sm"><Plus className="w-4 h-4 text-emerald-500" /></div>
-                                        </div>
-                                        <p className="text-3xl font-black text-emerald-600">{(aiCreditsExtraBalance + aiCreditsExtra4o).toLocaleString()}</p>
-                                        <p className="text-xs font-bold text-emerald-400 mt-1 uppercase">Saldo Acumulado</p>
-                                        <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 w-full" />
-                                    </div>
-
-                                    {/* Monthly Consumption */}
-                                    <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100 relative group overflow-hidden">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <p className="text-xs font-black text-red-600/60 uppercase tracking-widest">Consumo Mes</p>
-                                            <div className="p-2 bg-white rounded-xl shadow-sm"><Zap className="w-4 h-4 text-red-500" /></div>
-                                        </div>
-                                        <p className="text-3xl font-black text-red-600">
-                                            {(
-                                                aiMessagesUsed +
-                                                (aiMessagesUsedStandard * 15) +
-                                                (aiMessagesUsedPro * 15) +
-                                                (aiMessagesUsedLegacy4o * 15)
-                                            ).toLocaleString()}
-                                        </p>
-                                        <p className="text-xs font-bold text-red-400 mt-1 uppercase">Créditos Usados</p>
-                                        <div className="absolute bottom-0 left-0 h-1 bg-red-400 transition-all duration-1000" style={{ width: `${Math.min(100, (((aiMessagesUsed + (aiMessagesUsedStandard * 15) + (aiMessagesUsedPro * 15) + (aiMessagesUsedLegacy4o * 15))) / (aiCreditsMonthlyLimit + aiCreditsExtraBalance + aiCreditsExtra4o || 1)) * 100)}%` }} />
-                                    </div>
-                                </div>
-
-                                <div className="mt-8 mb-6 group cursor-pointer" onClick={() => navigate('/app/ai-credits')}>
-                                    <div className="relative overflow-hidden rounded-[2rem] bg-white p-6 border border-silk-beige shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-300">
-                                        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center border border-primary-100 group-hover:bg-primary-500 group-hover:scale-110 transition-all duration-500">
-                                                    <History className="w-7 h-7 text-primary-500 group-hover:text-white transition-colors" />
-                                                </div>
-                                                <div className="text-left">
-                                                    <h3 className="text-lg font-black text-charcoal tracking-tight">Historial de Transacciones IA</h3>
-                                                    <p className="text-[10px] font-black text-charcoal/30 uppercase tracking-widest mt-0.5">
-                                                        Consulta recargas, consumos y bonos extra
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-4">
-                                                <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Ver registro completo</span>
-                                                <div className="w-10 h-10 bg-ivory rounded-xl flex items-center justify-center border border-silk-beige group-hover:border-primary-300 transition-all">
-                                                    <ChevronRight className="w-5 h-5 text-charcoal/40 group-hover:text-primary-500 transition-colors" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Custom Cost Table */}
-                                <div className="bg-ivory/50 rounded-[2.5rem] border border-silk-beige p-8">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <Info className="w-5 h-5 text-charcoal/30" />
-                                        <h3 className="text-sm font-black text-charcoal uppercase tracking-widest">Tabla de Costos Híbridos</h3>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-black shadow-inner">1x</div>
-                                            <div>
-                                                <p className="text-sm font-black text-charcoal">N1: Flash Mini — GPT-4o Mini</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Inteligencia Lite optimizada para velocidad y costo mínimo.</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-10 h-10 rounded-2xl bg-charcoal text-white flex items-center justify-center font-black shadow-xl">15x</div>
-                                            <div>
-                                                <p className="text-sm font-black text-charcoal">N2: GPT-4o</p>
-                                                <p className="text-xs text-charcoal/40 leading-relaxed font-bold mt-1">Razonamiento avanzado para agendamiento, precios, geo y casos clínicos.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Credit Packs */}
-                            <div id="ai-credits-packs" className="card-soft p-8 bg-white border-2 border-primary-500/5 shadow-premium-lg">
-                                <div className="flex items-center gap-5 mb-8">
-                                    <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3">
-                                        <Plus className="w-8 h-8 text-white" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-black text-charcoal tracking-tight">Recarga de Créditos IA</h2>
-                                        <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mt-1">Saldo que nunca vence • Activación inmediata</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {(() => {
-                                        const mpPacks = { ...CREDIT_PACKS };
-                                        const paddlePacks = { ...PADDLE_CREDIT_PACKS };
-                                        const currentPacks = paymentRegion === 'international' ? paddlePacks : mpPacks;
-                                        const currencySymbol = paymentRegion === 'international' ? 'US$' : '$';
-                                        const currencyCode = paymentRegion === 'international' ? 'USD' : 'CLP';
-
-                                        return Object.keys(currentPacks).map((packId) => {
-                                            const pack = (currentPacks as any)[packId]
-
-                                            return (
-                                                <div key={packId} className="p-8 bg-white border border-silk-beige rounded-[2.5rem] hover:shadow-2xl hover:border-primary-500 transition-all duration-500 flex flex-col group relative overflow-hidden">
-                                                    {packId === 'heavy' && (
-                                                        <div className="absolute top-0 right-0 bg-primary-500 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-2xl shadow-md uppercase tracking-widest">Sugerido</div>
-                                                    )}
-                                                    <div className="mb-6">
-                                                        <h3 className="text-xl font-black text-charcoal group-hover:text-primary-600 transition-colors uppercase tracking-tighter">{pack.name}</h3>
-                                                        <div className="flex items-baseline gap-2 mt-2">
-                                                            <span className="text-3xl font-black text-primary-600">
-                                                                {currencySymbol}{pack.price.toLocaleString()}
-                                                            </span>
-                                                            <span className="text-xs font-black text-charcoal/30 uppercase">{currencyCode}</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-4 mb-8 flex-grow">
-                                                        <div className="bg-silk-beige/20 p-4 rounded-2xl border border-silk-beige/30">
-                                                            <p className="text-sm font-black text-charcoal flex items-center gap-2">
-                                                                <Zap className="w-4 h-4 text-primary-500" />
-                                                                {pack.credits.toLocaleString()} Créditos
-                                                            </p>
-                                                        </div>
-                                                        <ul className="space-y-2.5">
-                                                            <li className="flex items-center gap-3 text-xs font-bold text-charcoal/50">
-                                                                <Check className="w-4 h-4 text-emerald-500" />
-                                                                Uso Universal (N1/N2/N3)
-                                                            </li>
-                                                            <li className="flex items-center gap-3 text-xs font-bold text-charcoal/50">
-                                                                <Check className="w-4 h-4 text-emerald-500" />
-                                                                Sin fecha de vencimiento
-                                                            </li>
-                                                        </ul>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleBuyCredits(packId)}
-                                                        className="w-full py-4 bg-charcoal text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary-600 shadow-lg hover:shadow-primary-500/20 transition-all active:scale-95"
-                                                    >
-                                                        Comprar Pack
-                                                    </button>
-                                                </div>
-                                            )
-                                        })
-                                    })()}
-                                </div>
-                                <div className="mt-8 p-4 bg-charcoal/5 rounded-2xl border border-dashed border-silk-beige">
-                                    <p className="text-[11px] text-charcoal/40 font-bold italic text-center leading-relaxed">
-                                        * Los créditos de recarga actúan como un monedero virtual. Se consumen únicamente si agotas los créditos gratuitos de tu plan mensual y permanecen activos para siempre.
-                                    </p>
-                                </div>
                             </div>
                         </div>
                     )}

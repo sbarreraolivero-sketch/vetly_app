@@ -31,6 +31,7 @@ import {
     SlidersHorizontal,
     Package,
     Gift,
+    LifeBuoy,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -89,7 +90,6 @@ const navigationSections = [
         accent: { label: 'text-sky-400/70', active: 'bg-sky-500/[0.18]', dot: 'bg-sky-400', icon: 'text-sky-300' },
         items: [
             { name: 'Conocimiento', href: '/app/knowledge-base', icon: BookOpen, pageKey: 'knowledge_base' as PageKey },
-            { name: 'Integraciones', href: '/app/integrations', icon: Plug, pageKey: 'integrations' as PageKey },
             { name: 'Ajustes IA', href: '/app/ai-settings', icon: SlidersHorizontal, pageKey: 'ai_settings' as PageKey },
         ]
     },
@@ -97,7 +97,13 @@ const navigationSections = [
         label: 'Configuración',
         accent: { label: 'text-amber-400/70', active: 'bg-amber-500/[0.18]', dot: 'bg-amber-400', icon: 'text-amber-300' },
         items: [
+            // Vive acá y no en "Agente IA" a propósito: es la conexión del
+            // canal de WhatsApp (YCloud/Meta), no una función exclusiva del
+            // agente conversacional — Core también la necesita para activar
+            // sus recordatorios automáticos.
+            { name: 'Integraciones', href: '/app/integrations', icon: Plug, pageKey: 'integrations' as PageKey },
             { name: 'Configuración', href: '/app/settings', icon: Settings, pageKey: 'settings' as PageKey },
+            { name: 'Soporte', href: '/app/support', icon: LifeBuoy, pageKey: 'support' as PageKey },
         ]
     },
 ]

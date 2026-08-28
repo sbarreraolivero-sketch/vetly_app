@@ -46,6 +46,7 @@ const Inventory = lazy(() => import('./pages/Inventory'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Loyalty = lazy(() => import('./pages/Loyalty'))
 const PartnerReferral = lazy(() => import('./pages/PartnerReferral'))
+const Support = lazy(() => import('./pages/Support'))
 const ReferralRedirect = lazy(() => import('./pages/ReferralRedirect'))
 const PetOwnerPortal = lazy(() => import('./pages/PetOwnerPortal'))
 const BookOnboardingCall = lazy(() => import('./pages/BookOnboardingCall'))
@@ -292,6 +293,7 @@ function MainRoutes() {
                             </SubscriptionGuard>
                         } />
                         <Route path="settings" element={<Settings />} />
+                        <Route path="support" element={<Support />} />
                     </Route>
 
                     {/* Legacy redirects */}
