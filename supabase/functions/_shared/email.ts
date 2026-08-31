@@ -25,6 +25,12 @@ export interface SendEmailParams {
     to: string;
     subject: string;
     html: string;
+    /** Override del remitente — default "Vetly AI <hola@vetly.pro>". Usado por
+     * cron-hq-prospecting-campaign para mostrar un nombre más personal
+     * ("Sebastián · Vetly") sin tocar el dominio verificado. Un remitente
+     * dedicado a outreach frío (subdominio propio) requiere configurar
+     * SPF/DKIM nuevos en Resend — fuera de alcance hasta que se decida. */
+    from?: string;
 }
 
 export interface SendEmailResult {
@@ -42,7 +48,7 @@ export interface SendEmailResult {
  * en la próxima corrida del cron, etc.) — un fallo de correo nunca debe tumbar
  * el flujo que lo dispara.
  */
-export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<SendEmailResult> {
+export async function sendEmail({ to, subject, html, from }: SendEmailParams): Promise<SendEmailResult> {
     if (!RESEND_API_KEY) {
         return { ok: false, error: "RESEND_API_KEY no configurado" };
     }
@@ -53,7 +59,7 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${RESEND_API_KEY}`,
             },
-            body: JSON.stringify({ from: "Vetly AI <hola@vetly.pro>", to, subject, html }),
+            body: JSON.stringify({ from: from || "Vetly AI <hola@vetly.pro>", to, subject, html }),
         });
         if (!res.ok) {
             const text = await res.text().catch(() => "");

@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.resend-webhook]
 verify_jwt = false
+
+[functions.cron-hq-prospecting-campaign]
+verify_jwt = false

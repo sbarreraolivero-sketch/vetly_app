@@ -102,6 +102,14 @@ Deno.serve(async (req: Request) => {
                         open_count: (existing.open_count ?? 0) + 1,
                     })
                     .eq("id", existing.id);
+            } else {
+                // No es un correo de la secuencia de onboarding — probar si es
+                // un correo de la campaña de prospección (prospecting_leads).
+                await supabase
+                    .from("prospecting_leads")
+                    .update({ email_opened_at: new Date().toISOString() })
+                    .eq("resend_id", resendId)
+                    .is("email_opened_at", null);
             }
         } else if (eventType === "email.delivered") {
             await supabase
