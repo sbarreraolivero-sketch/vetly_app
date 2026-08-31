@@ -110,25 +110,39 @@ Deno.serve(async (req) => {
         // un mensaje real no registrado aquí deja a la IA sin saber que ya le
         // ofreció esas horas al tutor. Confirmado como causa raíz de contradicciones
         // reales en producción el 2026-08-27 (ver auditoría de esa fecha).
+        //
+        // ai_generated: true — a propósito, aunque este texto es un template fijo y
+        // no una respuesta de OpenAI. El cobro de créditos IA vive DENTRO de saveMsg()
+        // en el webhook (bloque "Credit tracking for outbound AI messages"), función
+        // que este insert NUNCA llama — así que ai_generated:true aquí no cobra nada.
+        // Antes se usaba `false`, pensando que evitaba un cobro que en realidad nunca
+        // podía ocurrir — y ese `false` sí tenía un costo real: existe un trigger
+        // (`on_manual_message_pause`) que, al ver CUALQUIER mensaje outbound con
+        // ai_generated=false, vuelve a poner requires_human=true (pensado para cuando
+        // Claudia escribe manualmente desde el dashboard). Reordenar la reactivación
+        // después del insert (fix de sesión 91) solo protegía la carrera DENTRO de
+        // esta misma función — no contra una invocación CONCURRENTE del webhook
+        // procesando en paralelo un mensaje real del tutor, que podía leer
+        // requires_human=true en la ventana transitoria entre el INSERT (dispara el
+        // trigger) y el UPDATE de reactivación de más abajo. Confirmado real en
+        // producción el 2026-08-29 (Pilar Muñoz / Felix, Linares): dos confirmaciones
+        // seguidas del tutor ("Ya, si, agendemos para ese día" y luego "14 pm") se
+        // perdieron sin ningún error — el "punto de control 1 de 3" de
+        // isPausedForHuman() las descartó de forma permanente al verlas en esa
+        // ventana. Con ai_generated:true el trigger nunca se dispara, así que esa
+        // ventana deja de existir por completo.
         await supabase.from("messages").insert({
             clinic_id,
             phone_number: request.tutor_phone,
             content: text,
             direction: "outbound",
-            ai_generated: false,
+            ai_generated: true,
             message_type: "text",
         });
 
-        // CRÍTICO — DEBE IR DESPUÉS del insert de arriba, no antes: existe un trigger
-        // (`on_manual_message_pause` → `handle_manual_message_pause()`) que, al ver
-        // CUALQUIER mensaje outbound con ai_generated=false, vuelve a poner
-        // requires_human=true (pensado para cuando Claudia escribe manualmente desde
-        // el dashboard). Ese trigger corre sincrónico dentro del mismo INSERT de
-        // arriba, así que si esta reactivación se hacía ANTES (como en el deploy
-        // anterior), el trigger la pisaba de inmediato en la misma transacción —
-        // confirmado con el timestamp idéntico al segundo entre el insert y el
-        // requires_human=true resultante, en 3 casos reales del 2026-08-27/28. Yendo
-        // después, esta es la última escritura y gana.
+        // Camino rápido igual (sin esto ya no depende de él, pero no está de más):
+        // reactiva explícitamente por si el tutor tenía requires_human=true por otro
+        // motivo (ej: quedó pausado manualmente antes de esta autorización).
         await supabase.from("tutors").update({ requires_human: false })
             .eq("clinic_id", clinic_id).eq("phone_number", request.tutor_phone);
         await supabase.from("crm_prospects").update({ requires_human: false })
