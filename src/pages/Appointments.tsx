@@ -2306,12 +2306,12 @@ export default function Appointments() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-charcoal mb-2">
-                                        Notas (opcional)
+                                        Motivo de la cita o notas (opcional)
                                     </label>
                                     <textarea
                                         value={newAppointment.notes}
                                         onChange={(e) => setNewAppointment({ ...newAppointment, notes: e.target.value })}
-                                        placeholder="Notas adicionales..."
+                                        placeholder="Ej: control anual, vacunación, cojera hace 2 días..."
                                         rows={3}
                                         className="input-soft w-full resize-none"
                                     />
