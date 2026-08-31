@@ -5,6 +5,7 @@ import {
     Loader2, RefreshCw, CreditCard,
     Sparkles, Plus, GitBranch, Phone, Mail,
     Users, MessageCircle, Link2, DollarSign, CalendarClock, Mails, MailOpen, User,
+    ClipboardList, Package, CalendarCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { normalizePlanId, PLAN_LIMITS, type PlanId } from '@/lib/plans'
@@ -46,6 +47,8 @@ interface ClinicActivity {
     incomes_count: number
     incomes_total: number
     appointments_count: number
+    services_count: number
+    products_count: number
     emails_sent_count: number
     emails_opened_count: number
     last_email_key: string | null
@@ -96,6 +99,8 @@ interface ClinicGroup {
     incomesCount: number
     incomesTotal: number
     appointmentsCount: number
+    servicesCount: number
+    productsCount: number
     emailsSentCount: number
     emailsOpenedCount: number
     lastEmailKey: string | null
@@ -268,6 +273,8 @@ export default function AdminClinics() {
                         incomesCount: 0,
                         incomesTotal: 0,
                         appointmentsCount: 0,
+                        servicesCount: 0,
+                        productsCount: 0,
                         emailsSentCount: 0,
                         emailsOpenedCount: 0,
                         lastEmailKey: null,
@@ -291,6 +298,8 @@ export default function AdminClinics() {
                     g.incomesCount += act.incomes_count || 0
                     g.incomesTotal += act.incomes_total || 0
                     g.appointmentsCount += act.appointments_count || 0
+                    g.servicesCount += act.services_count || 0
+                    g.productsCount += act.products_count || 0
                     g.emailsSentCount += act.emails_sent_count || 0
                     g.emailsOpenedCount += act.emails_opened_count || 0
                     if (act.last_email_sent_at && (!g.lastEmailSentAt || act.last_email_sent_at > g.lastEmailSentAt)) {
@@ -517,12 +526,19 @@ export default function AdminClinics() {
                                     <CalendarClock className="w-4 h-4 text-primary-500" />
                                     Actividad en Vetly
                                 </h4>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                                         <Users className="w-4 h-4 text-gray-400 shrink-0" />
                                         <div>
                                             <p className="text-sm font-black text-gray-900 leading-none">{group.patientsCount}</p>
                                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Pacientes</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                                        <CalendarCheck className={cn("w-4 h-4 shrink-0", group.appointmentsCount > 0 ? "text-primary-500" : "text-gray-300")} />
+                                        <div>
+                                            <p className="text-sm font-black text-gray-900 leading-none">{group.appointmentsCount}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Citas agendadas</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
@@ -535,6 +551,20 @@ export default function AdminClinics() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                                        <ClipboardList className={cn("w-4 h-4 shrink-0", group.servicesCount > 0 ? "text-violet-500" : "text-gray-300")} />
+                                        <div>
+                                            <p className="text-sm font-black text-gray-900 leading-none">{group.servicesCount}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Servicios cargados</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                                        <Package className={cn("w-4 h-4 shrink-0", group.productsCount > 0 ? "text-violet-500" : "text-gray-300")} />
+                                        <div>
+                                            <p className="text-sm font-black text-gray-900 leading-none">{group.productsCount}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Productos inventario</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                                         <Link2 className={cn("w-4 h-4 shrink-0", group.hasBookingPage ? "text-emerald-500" : "text-gray-300")} />
                                         <div>
                                             <p className={cn("text-sm font-black leading-none", group.hasBookingPage ? "text-emerald-600" : "text-gray-400")}>
@@ -543,7 +573,7 @@ export default function AdminClinics() {
                                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Reservas online</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100 col-span-2 sm:col-span-1">
                                         <DollarSign className="w-4 h-4 text-gray-400 shrink-0" />
                                         <div>
                                             <p className="text-sm font-black text-gray-900 leading-none">{group.incomesCount}</p>
