@@ -135,10 +135,11 @@ Deno.serve(async (req: Request) => {
           to: lead.email,
           subject: lead.email_subject,
           html: renderProspectingHtml(lead.email_body),
-          // Nombre personal, mismo dominio verificado — un remitente propio
-          // para outreach frío (subdominio dedicado) requiere SPF/DKIM
-          // nuevos en Resend, fuera de alcance hasta que se configure.
-          from: "Sebastián · Vetly <hola@vetly.pro>",
+          // Subdominio dedicado (mail.vetly.pro, verificado en Resend
+          // 2026-08-31 — SPF+DKIM propios vía Cloudflare Domain Connect)
+          // para aislar la reputación del correo en frío del transaccional
+          // que sigue mandando hola@vetly.pro (bienvenida, secuencia, etc.).
+          from: "Sebastián · Vetly <sebastian@mail.vetly.pro>",
         });
         if (!result.ok) {
           errors.push(`${lead.id}: ${result.error}`);
