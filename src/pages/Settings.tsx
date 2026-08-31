@@ -57,7 +57,7 @@ import { toast } from 'react-hot-toast'
 const tabs = [
     { id: 'profile', label: 'Mi Perfil', icon: User },
     { id: 'clinic', label: 'Clínica', icon: Building2 },
-    { id: 'booking', label: 'Reservas Online', icon: Link2 },
+    { id: 'branding', label: 'Diseño de marca', icon: Palette },
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'subscription', label: 'Plan', icon: CreditCard },
     { id: 'schedule', label: 'Horarios', icon: Clock },
@@ -129,12 +129,16 @@ export default function Settings() {
     const [logisticsConfigRaw, setLogisticsConfigRaw] = useState<Record<string, any>>({})
     const [showMobileList, setShowMobileList] = useState(true)
 
-    // Reservas online — página pública vetly.pro/reservar/:slug (plan Core,
-    // reemplaza al agente de IA para agendar).
+    // Diseño de marca (tab "branding", antes "Reservas Online"). El logo y los
+    // dos colores alimentan tanto la página pública vetly.pro/reservar/:slug
+    // como los documentos descargables (recetas). El toggle/slug de la página
+    // de reservas conviven en el mismo tab pero en su propia card.
+    // Nota: el prefijo `booking_` de las columnas es histórico.
     const [publicBookingEnabled, setPublicBookingEnabled] = useState(false)
     const [publicBookingSlug, setPublicBookingSlug] = useState('')
     const [bookingLogoUrl, setBookingLogoUrl] = useState('')
     const [bookingBrandColor, setBookingBrandColor] = useState('#0d9488')
+    const [bookingBrandColorSecondary, setBookingBrandColorSecondary] = useState('')
     const [savingBooking, setSavingBooking] = useState(false)
     const [uploadingLogo, setUploadingLogo] = useState(false)
     const [bookingLinkCopied, setBookingLinkCopied] = useState(false)
@@ -339,7 +343,7 @@ export default function Settings() {
             // Estaba en la whitelist pero no tiene bloque de render — cualquier
             // link viejo a esta URL mostraba una pantalla en blanco.
             navigate('/app/reminders', { replace: true })
-        } else if (tabParam && ['profile', 'clinic', 'team', 'schedule', 'subscription', 'notifications', 'tags'].includes(tabParam)) {
+        } else if (tabParam && ['profile', 'clinic', 'branding', 'team', 'schedule', 'subscription', 'notifications', 'tags'].includes(tabParam)) {
             setActiveTab(tabParam)
             if (window.innerWidth < 768) setShowMobileList(false)
         }
@@ -433,6 +437,7 @@ export default function Settings() {
                     setPublicBookingSlug(clinicData.public_booking_slug || '')
                     setBookingLogoUrl(clinicData.booking_logo_url || '')
                     setBookingBrandColor(clinicData.booking_brand_color || '#0d9488')
+                    setBookingBrandColorSecondary(clinicData.booking_brand_color_secondary || '')
                 }
 
                 // --- Procesar servicios ---
@@ -654,7 +659,10 @@ export default function Settings() {
 
     const handleSaveBooking = async () => {
         if (!clinicId) return
-        const cleanSlug = slugify(publicBookingSlug || clinicName)
+        // Con las reservas apagadas NO se deriva slug del nombre de la clínica:
+        // dos clínicas homónimas colisionaban en el UNIQUE de public_booking_slug
+        // al guardar solo el branding (error 23505).
+        const cleanSlug = slugify(publicBookingSlug || (publicBookingEnabled ? clinicName : ''))
         if (publicBookingEnabled && !cleanSlug) {
             toast.error('Elige un nombre para tu enlace antes de activar la página.')
             return
@@ -668,6 +676,7 @@ export default function Settings() {
                     public_booking_slug: cleanSlug || null,
                     booking_logo_url: bookingLogoUrl || null,
                     booking_brand_color: bookingBrandColor,
+                    booking_brand_color_secondary: bookingBrandColorSecondary || null,
                     updated_at: new Date().toISOString(),
                 })
                 .eq('id', clinicId)
@@ -681,7 +690,7 @@ export default function Settings() {
                 throw error
             }
             setPublicBookingSlug(cleanSlug)
-            toast.success('Reservas online guardadas correctamente')
+            toast.success('Diseño de marca guardado correctamente')
         } catch (error: any) {
             toast.error('Error al guardar: ' + (error.message || 'Error desconocido'))
         } finally {
@@ -1969,15 +1978,110 @@ export default function Settings() {
                         </div>
                     )}
 
-                    {/* Public Booking Settings */}
-                    {activeTab === 'booking' && (
+                    {/* Diseño de marca (logo + colores) y Página de Reservas Online */}
+                    {activeTab === 'branding' && (
                         <div className="space-y-6">
+                            {/* Card 1 — Diseño de marca: siempre visible */}
+                            <div className="card-soft p-4 sm:p-6">
+                                <div className="mb-4">
+                                    <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
+                                        <Palette className="w-5 h-5 text-primary-500" />
+                                        Diseño de marca
+                                    </h2>
+                                    <p className="text-sm text-charcoal/50 mt-1">
+                                        Se usa en tu página de reservas online y en los documentos que descargues (recetas, informes).
+                                    </p>
+                                </div>
+
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
+                                            <ImageIcon className="w-4 h-4 text-charcoal/40" /> Logo
+                                        </label>
+                                        <div className="flex items-center gap-4">
+                                            {bookingLogoUrl && (
+                                                <img src={bookingLogoUrl} alt="Logo" className="h-12 w-12 object-contain rounded-lg border border-silk-beige bg-ivory" />
+                                            )}
+                                            <label className="btn-ghost cursor-pointer flex items-center gap-2 text-sm">
+                                                {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                                                {bookingLogoUrl ? 'Cambiar logo' : 'Subir logo'}
+                                                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoUpload} disabled={uploadingLogo} className="hidden" />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
+                                                <Palette className="w-4 h-4 text-charcoal/40" /> Color principal
+                                            </label>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="color"
+                                                    value={bookingBrandColor}
+                                                    onChange={(e) => setBookingBrandColor(e.target.value)}
+                                                    className="w-12 h-10 rounded-lg border border-silk-beige cursor-pointer"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={bookingBrandColor}
+                                                    onChange={(e) => setBookingBrandColor(e.target.value)}
+                                                    className="input-soft w-28 font-mono text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
+                                                <Palette className="w-4 h-4 text-charcoal/40" /> Color secundario <span className="text-charcoal/40 font-normal">(opcional)</span>
+                                            </label>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="color"
+                                                    value={bookingBrandColorSecondary || bookingBrandColor}
+                                                    onChange={(e) => setBookingBrandColorSecondary(e.target.value)}
+                                                    className="w-12 h-10 rounded-lg border border-silk-beige cursor-pointer"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={bookingBrandColorSecondary}
+                                                    onChange={(e) => setBookingBrandColorSecondary(e.target.value)}
+                                                    placeholder="Sin definir"
+                                                    className="input-soft w-28 font-mono text-sm"
+                                                />
+                                                {bookingBrandColorSecondary && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setBookingBrandColorSecondary('')}
+                                                        className="text-xs font-bold text-charcoal/40 hover:text-red-500"
+                                                    >
+                                                        Quitar
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs font-medium text-charcoal/40 uppercase tracking-widest mb-2">Vista previa</p>
+                                        <div
+                                            className="h-20 rounded-xl flex items-center justify-center"
+                                            style={{ background: `linear-gradient(135deg, ${bookingBrandColor}, ${bookingBrandColorSecondary || bookingBrandColor})` }}
+                                        >
+                                            {bookingLogoUrl
+                                                ? <img src={bookingLogoUrl} alt="Logo" className="h-12 object-contain" />
+                                                : <span className="text-white font-black tracking-tight">{clinicName || 'Tu clínica'}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 2 — Página de reservas online */}
                             <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-2">
                                     <div>
                                         <h2 className="text-lg font-semibold text-charcoal flex items-center gap-2">
                                             <Link2 className="w-5 h-5 text-primary-500" />
-                                            Página de Reservas Online
+                                            Página de reservas online
                                         </h2>
                                         <p className="text-sm text-charcoal/50 mt-1">
                                             Un enlace propio para que tus clientes agenden sus citas directamente, sin necesidad de un agente de IA.
@@ -2022,54 +2126,18 @@ export default function Settings() {
                                             )}
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
-                                                <ImageIcon className="w-4 h-4 text-charcoal/40" /> Logo
-                                            </label>
-                                            <div className="flex items-center gap-4">
-                                                {bookingLogoUrl && (
-                                                    <img src={bookingLogoUrl} alt="Logo" className="h-12 w-12 object-contain rounded-lg border border-silk-beige bg-ivory" />
-                                                )}
-                                                <label className="btn-ghost cursor-pointer flex items-center gap-2 text-sm">
-                                                    {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                                                    {bookingLogoUrl ? 'Cambiar logo' : 'Subir logo'}
-                                                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoUpload} disabled={uploadingLogo} className="hidden" />
-                                                </label>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-charcoal mb-2 flex items-center gap-2">
-                                                <Palette className="w-4 h-4 text-charcoal/40" /> Color de marca
-                                            </label>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="color"
-                                                    value={bookingBrandColor}
-                                                    onChange={(e) => setBookingBrandColor(e.target.value)}
-                                                    className="w-12 h-10 rounded-lg border border-silk-beige cursor-pointer"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    value={bookingBrandColor}
-                                                    onChange={(e) => setBookingBrandColor(e.target.value)}
-                                                    className="input-soft w-32 font-mono text-sm"
-                                                />
-                                            </div>
-                                        </div>
-
                                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                                             Marca qué servicios son reservables desde la pestaña <strong>Clínica → Servicios</strong> (checkbox "Reservable en tu página online" al editar cada uno).
                                         </div>
                                     </div>
                                 )}
+                            </div>
 
-                                <div className="flex justify-end mt-6">
-                                    <button onClick={handleSaveBooking} disabled={savingBooking} className="btn-primary flex items-center gap-2">
-                                        {savingBooking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                        Guardar
-                                    </button>
-                                </div>
+                            <div className="flex justify-end">
+                                <button onClick={handleSaveBooking} disabled={savingBooking} className="btn-primary flex items-center gap-2">
+                                    {savingBooking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                    Guardar
+                                </button>
                             </div>
                         </div>
                     )}

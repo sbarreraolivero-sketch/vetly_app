@@ -4,8 +4,10 @@ import {
     Dog,
     Syringe, ShieldAlert, FileText,
     Plus, Edit2, Trash2, Heart,
-    Activity, ClipboardList, Save, X, Bell
+    Activity, ClipboardList, Save, X, Bell,
+    Pill, Printer, MessageCircle, Mail
 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 import { Patient, Tutor, ClinicalRecord } from '@/types/database'
 import { cn } from '@/lib/utils'
@@ -13,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { MedicalEventForm, MedicalHistoryEvent } from '@/components/patients/MedicalEventForm'
 import { VaccineForm, VaccineEvent } from '@/components/patients/VaccineForm'
 import { DewormingForm, DewormingEvent } from '@/components/patients/DewormingForm'
+import { PrescriptionForm, Prescription } from '@/components/patients/PrescriptionForm'
 import { PatientFiles } from '@/components/patients/PatientFiles'
 import { PatientReminders } from '@/components/patients/PatientReminders'
 
@@ -24,7 +27,7 @@ export default function PatientProfile() {
     const [patient, setPatient] = useState<Patient | null>(null)
     const [tutor, setTutor] = useState<Tutor | null>(null)
     const [clinicalInfo, setClinicalInfo] = useState<ClinicalRecord | null>(null)
-    const [activeTab, setActiveTab] = useState<'history' | 'medical' | 'vaccines' | 'deworming' | 'files' | 'reminders'>('history')
+    const [activeTab, setActiveTab] = useState<'history' | 'medical' | 'vaccines' | 'deworming' | 'prescriptions' | 'files' | 'reminders'>('history')
     
     // Records state (Timeline)
     const [historyEvents, setHistoryEvents] = useState<MedicalHistoryEvent[]>([])
@@ -38,6 +41,11 @@ export default function PatientProfile() {
     const [editingVaccine, setEditingVaccine] = useState<VaccineEvent | null>(null)
     const [showDewormingForm, setShowDewormingForm] = useState(false)
     const [editingDeworming, setEditingDeworming] = useState<DewormingEvent | null>(null)
+
+    // Recetas médicas
+    const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+    const [showPrescriptionForm, setShowPrescriptionForm] = useState(false)
+    const [sendingRx, setSendingRx] = useState<string | null>(null)
 
     // Clinical Info editing state
     const [isEditingClinical, setIsEditingClinical] = useState(false)
@@ -90,6 +98,7 @@ export default function PatientProfile() {
             fetchTimeline()
             fetchVaccines()
             fetchDewormings()
+            fetchPrescriptions()
         } catch (error) {
             console.error('Error fetching pet profile:', error)
             navigate('/app/tutors')
@@ -130,6 +139,47 @@ export default function PatientProfile() {
             if (error) throw error
             setDewormings(data as any || [])
         } catch (error) { console.error('Error fetching dewormings:', error) }
+    }
+
+    const fetchPrescriptions = async () => {
+        if (!id) return
+        try {
+            const { data, error } = await (supabase as any)
+                .from('prescriptions')
+                .select('*')
+                .eq('patient_id', id)
+                .order('issued_date', { ascending: false })
+            if (error) throw error
+            setPrescriptions((data as any) || [])
+        } catch (error) { console.error('Error fetching prescriptions:', error) }
+    }
+
+    const handleDeletePrescription = async (rxId: string) => {
+        if (!confirm('¿Eliminar esta receta?')) return
+        try {
+            const { error } = await (supabase as any).from('prescriptions').delete().eq('id', rxId)
+            if (error) throw error
+            fetchPrescriptions()
+        } catch (error: any) {
+            console.error(error)
+            toast.error('No se pudo eliminar la receta')
+        }
+    }
+
+    const handleSendPrescription = async (rxId: string, channel: 'whatsapp' | 'email') => {
+        setSendingRx(`${rxId}:${channel}`)
+        try {
+            const { data, error } = await supabase.functions.invoke('send-prescription', {
+                body: { prescription_id: rxId, channel },
+            })
+            if (error) throw error
+            if (!(data as any)?.success) throw new Error((data as any)?.error || 'No se pudo enviar la receta')
+            toast.success(channel === 'whatsapp' ? 'Receta enviada por WhatsApp' : 'Receta enviada por correo')
+        } catch (err: any) {
+            toast.error(err?.message || 'No se pudo enviar la receta')
+        } finally {
+            setSendingRx(null)
+        }
     }
 
     const handleDeleteVaccine = async (vid: string) => {
@@ -485,6 +535,19 @@ export default function PatientProfile() {
                         {activeTab === 'deworming' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-600" />}
                     </button>
                     <button
+                        onClick={() => setActiveTab('prescriptions')}
+                        className={cn(
+                            "px-8 h-full text-xs font-bold uppercase tracking-widest transition-all relative border-l border-silk-beige whitespace-nowrap",
+                            activeTab === 'prescriptions' ? "text-primary-700 bg-primary-50/30" : "text-charcoal/40 hover:text-charcoal/60 hover:bg-ivory"
+                        )}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Pill className="w-4 h-4" />
+                            <span>Recetas</span>
+                        </div>
+                        {activeTab === 'prescriptions' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-600" />}
+                    </button>
+                    <button
                         onClick={() => setActiveTab('files')}
                         className={cn(
                             "px-8 h-full text-xs font-bold uppercase tracking-widest transition-all relative border-r border-silk-beige whitespace-nowrap",
@@ -787,6 +850,84 @@ export default function PatientProfile() {
                         </div>
                     )}
 
+                    {activeTab === 'prescriptions' && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="flex justify-between items-center bg-white p-4 rounded-soft border border-silk-beige shadow-sm">
+                                <div>
+                                    <h3 className="font-bold text-charcoal uppercase tracking-tighter">Recetas Médicas</h3>
+                                    <p className="text-xs text-charcoal/50">Descargables en PDF y enviables al tutor</p>
+                                </div>
+                                <button onClick={() => setShowPrescriptionForm(true)} className="btn-primary py-2 px-4 flex items-center gap-2 text-sm shadow-premium">
+                                    <Plus className="w-4 h-4" /> Nueva Receta
+                                </button>
+                            </div>
+
+                            {prescriptions.length === 0 ? (
+                                <div className="text-center py-16 bg-white rounded-soft border border-dashed border-silk-beige shadow-sm">
+                                    <Pill className="w-12 h-12 text-primary-200 mx-auto mb-3" />
+                                    <h3 className="text-charcoal font-black uppercase tracking-tighter text-lg">Sin Recetas</h3>
+                                    <p className="text-charcoal/40 text-sm mt-1 max-w-sm mx-auto font-medium">Aún no se ha emitido ninguna receta para este paciente.</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {prescriptions.map((rx: any) => {
+                                        const itemCount = Array.isArray(rx.items) ? rx.items.length : 0
+                                        return (
+                                            <div key={rx.id} className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm transition-all hover:border-primary-200 hover:shadow-soft-md">
+                                                <div className="flex justify-between items-start gap-4">
+                                                    <div className="flex items-start gap-4 min-w-0">
+                                                        <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
+                                                            <Pill className="w-5 h-5 text-primary-500" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <h4 className="font-bold text-charcoal">
+                                                                {new Date(rx.issued_date + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                            </h4>
+                                                            <p className="text-xs text-charcoal/60 mt-1">
+                                                                {itemCount} {itemCount === 1 ? 'medicamento' : 'medicamentos'}
+                                                                {rx.prescriber_name ? ` · ${rx.prescriber_name}` : ''}
+                                                            </p>
+                                                            {rx.diagnosis && <p className="text-xs text-charcoal/40 mt-1 line-clamp-1">{rx.diagnosis}</p>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-silk-beige">
+                                                    <button
+                                                        onClick={() => window.open(`/receta/${rx.public_token}?print=1`, '_blank', 'noopener')}
+                                                        className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50"
+                                                    >
+                                                        <Printer className="w-3.5 h-3.5" /> Ver / Imprimir
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSendPrescription(rx.id, 'whatsapp')}
+                                                        disabled={sendingRx === `${rx.id}:whatsapp`}
+                                                        className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-emerald-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-emerald-50 disabled:opacity-40"
+                                                    >
+                                                        <MessageCircle className="w-3.5 h-3.5" /> {sendingRx === `${rx.id}:whatsapp` ? 'Enviando...' : 'WhatsApp'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSendPrescription(rx.id, 'email')}
+                                                        disabled={sendingRx === `${rx.id}:email` || !tutor?.email}
+                                                        title={tutor?.email ? '' : 'El tutor no tiene correo registrado'}
+                                                        className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50 disabled:opacity-40"
+                                                    >
+                                                        <Mail className="w-3.5 h-3.5" /> {sendingRx === `${rx.id}:email` ? 'Enviando...' : 'Correo'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeletePrescription(rx.id)}
+                                                        className="text-xs font-bold uppercase tracking-widest text-charcoal/40 hover:text-red-500 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-red-50 ml-auto"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {activeTab === 'files' && (
                         <div className="space-y-6 animate-fade-in">
                             <PatientFiles patientId={id!} />
@@ -840,6 +981,15 @@ export default function PatientProfile() {
                     onSave={() => {
                         fetchDewormings()
                     }}
+                />
+            )}
+
+            {showPrescriptionForm && (
+                <PrescriptionForm
+                    patient={patient}
+                    tutorName={tutor?.name}
+                    onClose={() => setShowPrescriptionForm(false)}
+                    onSave={() => fetchPrescriptions()}
                 />
             )}
         </div>

@@ -17,6 +17,8 @@ export interface ClinicMember {
     specialty?: string
     color?: string
     job_title?: string
+    professional_license?: string
+    professional_title?: string
     working_hours?: Record<string, { enabled: boolean; start: string; end: string }>
     permissions?: MemberPermissions | null
     created_at: string
@@ -174,6 +176,8 @@ export const teamService = {
         job_title?: string
         specialty?: string
         color?: string
+        professional_license?: string
+        professional_title?: string
         working_hours?: Record<string, { enabled: boolean; start: string; end: string }>
     }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

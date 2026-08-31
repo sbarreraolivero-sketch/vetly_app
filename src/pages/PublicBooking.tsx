@@ -21,6 +21,7 @@ interface ClinicInfo {
     clinic_name: string
     logo_url: string | null
     brand_color: string
+    brand_color_secondary: string | null
     currency: string
     timezone: string
 }
@@ -59,6 +60,7 @@ export default function PublicBooking() {
     const [submitting, setSubmitting] = useState(false)
 
     const brandColor = clinic?.brand_color || '#0d9488'
+    const brandColorTo = clinic?.brand_color_secondary || `${brandColor}cc`
 
     useEffect(() => {
         if (!slug) { setLoading(false); return }
@@ -184,7 +186,7 @@ export default function PublicBooking() {
 
     return (
         <div className="min-h-screen bg-ivory">
-            <div className="p-6 sm:p-8 text-center text-white" style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }}>
+            <div className="p-6 sm:p-8 text-center text-white" style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorTo})` }}>
                 {clinic.logo_url && (
                     <img src={clinic.logo_url} alt={clinic.clinic_name} className="h-14 mx-auto mb-3 object-contain" />
                 )}

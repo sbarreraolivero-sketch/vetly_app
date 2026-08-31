@@ -40,6 +40,8 @@ export default function MyProfile() {
     const [lastName, setLastName] = useState('')
     // const [jobTitle, setJobTitle] = useState('') // Removed redundant state
     const [specialty, setSpecialty] = useState('')
+    const [professionalLicense, setProfessionalLicense] = useState('')
+    const [professionalTitle, setProfessionalTitle] = useState('')
     const [color, setColor] = useState('#8B5CF6')
     const [workingHours, setWorkingHours] = useState<Record<string, { enabled: boolean; start: string; end: string; lunch_break?: { enabled: boolean; start: string; end: string } }>>(DEFAULT_HOURS)
 
@@ -59,6 +61,8 @@ export default function MyProfile() {
             setFirstName(member.first_name || '')
             setLastName(member.last_name || '')
             setSpecialty(member.specialty || '')
+            setProfessionalLicense((member as any).professional_license || '')
+            setProfessionalTitle((member as any).professional_title || '')
             setColor(member.color || '#8B5CF6')
             setWorkingHours((member as any).working_hours || DEFAULT_HOURS)
         } else if (profile) {
@@ -142,6 +146,8 @@ export default function MyProfile() {
                 last_name: lastName,
                 job_title: systemRoleString, // Send the derived role string to DB
                 specialty,
+                professional_license: professionalLicense,
+                professional_title: professionalTitle,
                 color,
                 working_hours: workingHours,
             })
@@ -158,6 +164,8 @@ export default function MyProfile() {
                         last_name: lastName,
                         job_title: systemRoleString,
                         specialty,
+                        professional_license: professionalLicense,
+                        professional_title: professionalTitle,
                     })
                     toast.success('Perfil guardado (sin horarios ni color)')
                     toast('Dato: Tu base de datos necesita una actualización de esquema.', { icon: '⚠️' })
@@ -306,6 +314,30 @@ export default function MyProfile() {
                             autoComplete="new-password"
                             name={`specialty_field_${Math.random().toString(36).substring(7)}`} // Dynamic name to confuse autofill
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Título profesional</label>
+                        <input
+                            type="text"
+                            value={professionalTitle}
+                            onChange={(e) => setProfessionalTitle(e.target.value)}
+                            className="input-soft w-full"
+                            placeholder="Ej: Médico Veterinario"
+                            autoComplete="off"
+                        />
+                        <p className="text-[10px] text-charcoal/40 mt-1 italic">Aparece en las recetas que emitas. Opcional.</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-charcoal/70 mb-1.5">Nº de colegiatura / matrícula / cédula profesional</label>
+                        <input
+                            type="text"
+                            value={professionalLicense}
+                            onChange={(e) => setProfessionalLicense(e.target.value)}
+                            className="input-soft w-full"
+                            placeholder="Ej: 12345"
+                            autoComplete="off"
+                        />
+                        <p className="text-[10px] text-charcoal/40 mt-1 italic">Requerido en la receta en varios países. Opcional.</p>
                     </div>
                 </div>
             </div>
