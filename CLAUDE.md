@@ -6691,3 +6691,35 @@ Ambos corregidos vía SQL, con respaldo previo en `prompt_backups` (label `pre_f
 - **Antes de insertar en una tabla con triggers `AFTER INSERT`, revisar qué hacen esos triggers según los valores que se están escribiendo — no asumir que un insert es "solo guardar datos".** `messages` tiene un trigger que reacciona a la combinación `direction=outbound` + `ai_generated=false` pausando al tutor; cualquier función nueva que inserte ahí con esos mismos valores hereda ese efecto secundario, aunque su intención sea la opuesta (reactivar, no pausar). `SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgrelid = 'tabla'::regclass` antes de escribir código nuevo contra una tabla con lógica de negocio ya establecida.
 - **Cuando dos escrituras a la misma fila deben competir por "quién gana", la que se ejecuta última en la misma función es la que gana** — no la que aparece primero en el código por prolijidad de lectura. Si una de esas escrituras puede disparar un trigger que sobreescribe a la otra, el orden importa más que la claridad del código, y merece un comentario explícito explicando por qué el orden es así.
 - **Un fix que "debería funcionar" según la lógica del código, pero sigue fallando igual en producción, casi siempre tiene una causa que vive fuera del código que se está mirando** — en este caso, un trigger de base de datos preexistente, invisible si solo se audita el edge function. Verificar triggers/RLS/funciones de la tabla involucrada antes de asumir que el bug está en la función que se acaba de escribir.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 92, 2026-08-31)
+
+### Causa raíz DEFINITIVA del bug `requires_human` — el reordenamiento de la sesión 91 no alcanzaba
+
+El usuario reportó que Claudia seguía viendo tutores confirmar horario y la IA quedarse muda, **después** del fix de reordenamiento de la sesión 91. Antes de asumir que el fix anterior había fallado por completo, se auditaron **todas** las `scheduling_requests` de los últimos 3 días en ambas sucursales (15 filas: `fulfilled`, `dismissed`, `authorized`) para separar bugs reales de casos legítimamente sin agendar.
+
+**Hallazgo clave por comparación:** los casos con **una sola autorización** funcionaron perfecto (Emma/Lucas y Mirtha/Mateo, ambos con la IA respondiendo o agendando correctamente tras la confirmación del tutor). El patrón roto aparecía específicamente cuando **Claudia autorizaba dos veces seguidas en una ventana corta** — caso real confirmado: Pilar Muñoz / Felix (Linares, 29-ago). El tutor escribió "Ya, si, agendemos para ese día" y, 8 segundos después, Claudia agregó dos opciones más al mismo request (retriggeando un segundo aviso) — la IA nunca respondió a ninguna de las dos confirmaciones posteriores del tutor. Reconstruido el resultado real vía `appointments`: la cita terminó creada manualmente por Claudia **1.5 días después**.
+
+**Por qué el fix de la sesión 91 no bastaba:** reordenar la reactivación (después del `INSERT` a `messages`, no antes) solo protege la carrera **dentro de la misma invocación** de `scheduling-notify-authorized`. No protege contra una invocación **concurrente** del webhook procesando en paralelo el mensaje real del tutor — ese webhook puede leer `requires_human=true` en la ventana transitoria entre el `INSERT` (dispara el trigger `on_manual_message_pause`) y el `UPDATE` de reactivación que va después. El webhook tiene 3 "puntos de control" de `isPausedForHuman()` (`meta-whatsapp-webhook/index.ts`, líneas ~2034/2053/2464); el primero corre **antes del debounce**, y si encuentra `true` en ese instante, **descarta el mensaje de forma permanente** — no lo reintenta cuando el flag vuelve a `false` milisegundos después.
+
+**El fix real:** cambiar `ai_generated: false` → `ai_generated: true` en el insert de `scheduling-notify-authorized`. La razón original para usar `false` (evitar el cobro de créditos IA por un mensaje que nunca pasó por OpenAI) era un malentendido — ese cobro vive **dentro de `saveMsg()`** en el webhook (bloque "Credit tracking for outbound AI messages"), función que esta edge function **nunca llama** (hace su propio `.insert()` directo). O sea: `false` nunca evitó ningún cobro real, pero sí disparaba el trigger de pausa innecesariamente. Con `ai_generated: true` el trigger no se dispara jamás — la ventana de la carrera no se achica, **deja de existir**.
+
+**Verificación mecánica, no solo teórica:** se probó el mecanismo exacto en una transacción aislada (`BEGIN...ROLLBACK`, teléfono ficticio `56900000001`, sin dejar rastro en datos reales):
+```sql
+-- Control (comportamiento viejo): ai_generated=false → requires_human pasa a true (el bug)
+-- Fix (comportamiento nuevo):      ai_generated=true  → requires_human se mantiene false
+```
+Ambos casos confirmados exactamente como se esperaba — no es una corrección basada en razonamiento, es la prueba directa del mecanismo.
+
+**Casos "dismissed" NO todos son bugs:** al auditar, se encontró que algunos rechazos son legítimos — ej. Rosa Hernández/Muñeca (Santiago): el tutor escribió "Gracias ya salí de la Urgencia" tras la autorización — la gata terminó atendida en otro lugar por una emergencia, nada que ver con el sistema. Antes de tratar cada `dismissed` como evidencia de bug, revisar el transcript real.
+
+**Deploy:** `scheduling-notify-authorized`. Commit `6aa5745`.
+
+### Reglas permanentes de esta sesión
+
+- **Elegir un valor de bandera (`ai_generated: false`) "para evitar un efecto secundario" sin verificar dónde vive realmente ese efecto secundario puede disparar un efecto secundario completamente distinto y no relacionado.** Acá el temor a cobrar créditos IA (que ni siquiera podía ocurrir, porque el cobro vive en una función que nunca se llama) llevó a activar sin querer un trigger de pausa manual pensado para un caso de uso totalmente distinto. Antes de elegir un valor "por las dudas", confirmar con grep dónde exactamente se usa ese valor en el resto del sistema.
+- **Un fix de "orden de escritura" (última escritura gana) solo protege contra la carrera dentro de la misma función — no contra una invocación concurrente de OTRO proceso leyendo el estado intermedio.** Si un chequeo de estado (`isPausedForHuman`) descarta de forma permanente ante un "falso positivo" transitorio, sin reintentar, la solución robusta es eliminar la fuente del estado transitorio, no solo achicar la ventana en que puede observarse.
+- **Antes de concluir que un patrón de bug "sigue igual", separar los casos reales de los casos que solo lo parecen.** No todo `dismissed`/no-agendado es una falla del sistema — verificar el transcript de cada caso antes de sumarlo como evidencia.
+- **Una prueba mecánica y aislada (`BEGIN...ROLLBACK` con datos ficticios) da más certeza que solo razonar sobre el código** — permite confirmar en segundos, sin esperar tráfico real ni arriesgar datos de producción, que el mecanismo exacto del fix hace lo que se espera.
