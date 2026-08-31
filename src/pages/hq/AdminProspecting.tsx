@@ -47,6 +47,23 @@ interface CampaignConfig {
     is_paused: boolean
 }
 
+// Mismo bloque que agrega cron-hq-prospecting-campaign al enviar de verdad
+// (renderProspectingHtml/SIGNATURE_HTML) — se duplica acá solo para que el
+// preview de revisión muestre exactamente lo que va a salir. Si se cambia
+// uno, cambiar el otro.
+const SIGNATURE_PREVIEW_HTML = `
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+  <tr>
+    <td style="padding-right:10px;vertical-align:middle;">
+      <img src="https://vetly.pro/logo.png" width="32" height="32" alt="Vetly" style="display:block;border-radius:50%;width:32px;height:32px;" />
+    </td>
+    <td style="vertical-align:middle;">
+      <p style="margin:0;font-size:14px;font-weight:bold;color:#27272a;font-family:Arial,sans-serif;">Sebastián Barrera</p>
+      <p style="margin:0;font-size:12px;color:#71717a;font-family:Arial,sans-serif;">Fundador · Vetly</p>
+    </td>
+  </tr>
+</table>`
+
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
     sin_contactar: { label: 'Sin contactar', className: 'bg-gray-100 text-gray-600 border-gray-200' },
     en_revision: { label: 'En revisión', className: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -386,7 +403,7 @@ export default function AdminProspecting() {
                                         className="w-full bg-white rounded-xl px-4 py-3 text-sm font-bold outline-none border border-gray-200 focus:ring-2 focus:ring-primary-500/20" />
                                     <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={10} placeholder="Cuerpo (HTML)"
                                         className="w-full bg-white rounded-xl px-4 py-3 text-xs font-mono outline-none border border-gray-200 focus:ring-2 focus:ring-primary-500/20" />
-                                    <div dangerouslySetInnerHTML={{ __html: editBody }} className="bg-white rounded-xl p-4 border border-gray-200 text-sm" />
+                                    <div dangerouslySetInnerHTML={{ __html: editBody + SIGNATURE_PREVIEW_HTML }} className="bg-white rounded-xl p-4 border border-gray-200 text-sm" />
                                     <div className="flex items-center gap-3 justify-end">
                                         <button onClick={() => setExpandedId(null)} className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-600">
                                             Cancelar

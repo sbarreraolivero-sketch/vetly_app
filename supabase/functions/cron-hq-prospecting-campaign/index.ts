@@ -35,14 +35,36 @@ function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
+// Firma con logo chico — decisión explícita del usuario (AskUserQuestion):
+// un header grande con el logo arriba se vería como campaña de marketing,
+// justo lo que se pidió evitar. Un logo chico junto al nombre, al final,
+// se lee como una firma de correo profesional normal. El HTML generado por
+// IA nunca escribe su propia firma (instrucción en hq-generate-prospect-
+// email) — esta es la única, siempre igual, agregada acá.
+const SIGNATURE_HTML = `
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+  <tr>
+    <td style="padding-right:10px;vertical-align:middle;">
+      <img src="https://vetly.pro/logo.png" width="32" height="32" alt="Vetly"
+           style="display:block;border-radius:50%;width:32px;height:32px;" />
+    </td>
+    <td style="vertical-align:middle;">
+      <p style="margin:0;font-size:14px;font-weight:bold;color:#27272a;font-family:Arial,sans-serif;">Sebastián Barrera</p>
+      <p style="margin:0;font-size:12px;color:#71717a;font-family:Arial,sans-serif;">Fundador · Vetly</p>
+    </td>
+  </tr>
+</table>`;
+
 function renderProspectingHtml(bodyHtml: string): string {
   // Plantilla deliberadamente distinta de renderEmailLayout (esa tiene
   // gradiente morado y card de marca, apropiada para lifecycle — acá el
   // pedido explícito es que se vea como un correo personal, no una campaña
-  // de marketing). Sin logo, sin header de color, sin botones.
+  // de marketing). Sin header de color, sin botones — la única marca es el
+  // logo chico de la firma.
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;">
 <div style="max-width:560px;margin:0 auto;padding:32px 20px;font-family:Arial,sans-serif;">
 ${bodyHtml}
+${SIGNATURE_HTML}
 </div>
 </body></html>`;
 }

@@ -42,7 +42,7 @@ PROHIBIDO (igual de estricto que si fuera legal):
 - Asunto tipo clickbait (mayúsculas, "urgente", signos de exclamación, promesas vagas).
 
 PERSONALIZACIÓN OBLIGATORIA — usa los "Problemas detectados" que te paso abajo (vienen de un análisis REAL del sitio del prospecto, nunca son inventados). Si hay al menos uno, la parte 2 y 3 del correo deben construirse alrededor de ESE hallazgo específico, no de un problema genérico. Mapeo de hallazgo → qué destacar:
-- "Vende varios productos... sin sistema de inventario/stock online" → destaca el módulo de **inventario inteligente**: alertas de stock bajo, análisis de qué productos generan más ingresos (para decidir qué reponer con datos, no a ojo), reportes de ventas por producto. Menciona TAMBIÉN, como complemento opcional (no como algo incluido gratis en el plan base): pueden subir una foto o PDF de la factura de su proveedor y el sistema carga los productos automáticamente, sin tipear uno por uno — déjalo claro como un extra disponible, nunca como "incluido sin costo".
+- "Vende varios productos... sin sistema de inventario/stock online" → destaca el módulo de **inventario inteligente**: alertas de stock bajo, análisis de qué productos generan más ingresos (para decidir qué reponer con datos, no a ojo), reportes de ventas por producto. Destaca TAMBIÉN, como función incluida (no como complemento pago, esta sí es gratis en el plan base): pueden enlazar un servicio a un producto del inventario, así que al vender por ejemplo una vacuna o un procedimiento que usa un insumo específico, el sistema descuenta automáticamente ese producto del stock sin que nadie tenga que anotarlo a mano — más control, menos insumos que "desaparecen" sin que se sepa por qué. Menciona ADEMÁS, como complemento opcional (no como algo incluido gratis en el plan base): pueden subir una foto o PDF de la factura de su proveedor y el sistema carga los productos automáticamente, sin tipear uno por uno — déjalo claro como un extra disponible, nunca como "incluido sin costo".
 - "Agendamiento... 100% manual por WhatsApp" → destaca la **página de reservas online con marca propia** y los recordatorios automáticos de citas.
 - "Ofrece varios servicios distintos" → destaca la **agenda organizada por tipo de servicio** y la ficha clínica digital por paciente.
 Si no hay ningún hallazgo (lista vacía), usa el problema genérico de gestión sin sistema (agenda en WhatsApp/papel, fichas dispersas, stock sin control) — nunca inventes un hallazgo puntual sobre el negocio que no venga en la lista.
@@ -56,7 +56,7 @@ QUÉ SÍ DEBE INCLUIR EL CORREO (las 4 partes, en este orden, con tus propias pa
 CIERRE — exactamente este patrón, como texto plano (nunca como botón):
 - Invita a escribir directo por WhatsApp al ${HQ_WHATSAPP} (como link de texto normal, wa.me) si prefiere conversar antes de decidir.
 - Menciona el link vetly.pro/core (como texto normal, no botón) para que puedan ver el plan y registrarse cuando quieran.
-- Firma como "Sebastián · Vetly".
+- NO agregues ninguna firma ni despedida al final ("Saludos", "Sebastián · Vetly", etc.) — el HTML termina justo después del párrafo del WhatsApp/vetly.pro. La firma con el logo se agrega aparte, automáticamente, después de tu HTML.
 
 FORMATO DE SALIDA: responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después:
 {"subject": "...", "html": "..."}
