@@ -120,7 +120,8 @@ export default function AdminProspecting() {
                     `${data.inserted} clínicas nuevas cargadas de ${data.found} encontradas` +
                     (data.skipped_existing ? ` · ${data.skipped_existing} ya existían` : '') +
                     (data.skipped_hospital ? ` · ${data.skipped_hospital} excluidas (hospital)` : '') +
-                    (data.skipped_no_contact ? ` · ${data.skipped_no_contact} sin email` : '')
+                    (data.skipped_no_contact ? ` · ${data.skipped_no_contact} sin email` : '') +
+                    (data.skipped_low_score ? ` · ${data.skipped_low_score} descartadas (score <40)` : '')
                 )
             }
             load()

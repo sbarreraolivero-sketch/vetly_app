@@ -116,6 +116,7 @@ Deno.serve(async (req: Request) => {
     let skippedExisting = 0;
     let skippedHospital = 0;
     let skippedNoContact = 0;
+    let skippedLowScore = 0;
     const errors: string[] = [];
 
     // Dedup contra la campaña manual de mayo 2026 (crm_prospects, HQ_ID) —
@@ -164,6 +165,14 @@ Deno.serve(async (req: Request) => {
 
         const score = scoreFromPlacesSignals(details.rating, details.user_ratings_total, true, !!phoneNorm);
 
+        // Filtro de calidad — mismo criterio que el kit de prospección de
+        // Nexflow (ahí corta en >50, con semántica invertida). Acá <40 sale
+        // casi siempre del castigo por <5 reseñas: negocio muy nuevo, sin
+        // trayectoria verificable — justo el perfil que NO es el ICP real
+        // de Vetly (clínica ya establecida con clientela). Mismo umbral que
+        // separa gris de ámbar en el badge de score del panel.
+        if (score < 40) { skippedLowScore++; continue; }
+
         const { error: insertError } = await supabase.from("prospecting_leads").insert({
           name: details.name || place.name,
           website,
@@ -197,6 +206,7 @@ Deno.serve(async (req: Request) => {
       skipped_existing: skippedExisting,
       skipped_hospital: skippedHospital,
       skipped_no_contact: skippedNoContact,
+      skipped_low_score: skippedLowScore,
       errors,
     });
   } catch (e) {
