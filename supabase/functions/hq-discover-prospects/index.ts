@@ -87,7 +87,14 @@ function analyzeWebsiteContent(html: string, plainText: string): string[] {
   const shopWords = ["producto", "tienda", "catálogo", "catalogo", "comprar", "carro de compra", "agregar al carro", "envío a domicilio", "envio a domicilio"];
   const shopWordHits = shopWords.filter(w => lower.includes(w)).length;
   if (priceMatches.length >= 5 || shopWordHits >= 2) {
-    findings.push("Vende varios productos con precio visible en su web — no se detecta un sistema de inventario/stock online.");
+    // OJO: solo afirmamos lo que el scrape realmente ve (precios/catálogo
+    // visibles). NO afirmar "no tiene sistema de inventario" — eso nunca se
+    // verificó, y si venden por ejemplo con WooCommerce/Shopify lo más
+    // probable es que sí tengan algún control de stock detrás. Bug real
+    // señalado por el usuario (caso "Posta veterinaria") — el ángulo de venta
+    // pasa a ser integración (inventario+agenda+ventas en un solo lugar),
+    // no una carencia que nunca comprobamos.
+    findings.push("Vende varios productos con precio visible en su web (tienda online activa).");
   }
 
   // Señal de agendamiento manual — WhatsApp como canal, sin widget de
