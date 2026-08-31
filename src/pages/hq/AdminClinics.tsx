@@ -456,10 +456,10 @@ export default function AdminClinics() {
                         : group.emailsSentCount // fallback si la clave no matchea ninguna conocida
 
                     return (
-                        <div key={groupKey} className="group bg-white rounded-[2.5rem] border border-gray-100 p-8 flex flex-col gap-6 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
+                        <div key={groupKey} className="group bg-white rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 p-5 sm:p-8 flex flex-col gap-6 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
                             {/* Header */}
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-5">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                                <div className="flex items-center gap-5 min-w-0">
                                     <div className="w-16 h-16 rounded-[1.5rem] bg-gray-900 flex items-center justify-center text-white font-black text-2xl shadow-xl border-4 border-white">
                                         {primaryClinic.clinic_name?.[0].toUpperCase()}
                                     </div>
@@ -493,11 +493,11 @@ export default function AdminClinics() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-right shrink-0">
+                                <div className="text-left sm:text-right shrink-0">
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Registrada</p>
                                     <p className="text-xs font-bold text-gray-500">hace {daysAgo(primaryClinic.created_at)}d</p>
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última actividad</p>
-                                    <p className={cn("text-[11px] font-bold", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt, primaryClinic.created_at)}</p>
+                                    <p className={cn("text-[11px] font-bold break-words", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt, primaryClinic.created_at)}</p>
                                 </div>
                             </div>
 
@@ -694,12 +694,12 @@ export default function AdminClinics() {
                                     {/* Credit injection */}
                                     <div className="pt-4 border-t border-gray-50 space-y-3">
                                         <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Inyección de Créditos IA</h5>
-                                        <div className="flex gap-3">
+                                        <div className="flex flex-col sm:flex-row gap-3">
                                             {isMultiBranch && (
                                                 <select
                                                     value={chargeTarget}
                                                     onChange={(e) => setChargeTargets(prev => ({ ...prev, [groupKey]: e.target.value }))}
-                                                    className="bg-gray-50 rounded-xl px-3 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-primary-500/20 border-none"
+                                                    className="w-full sm:w-auto bg-gray-50 rounded-xl px-3 py-3 sm:py-0 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-primary-500/20 border-none"
                                                 >
                                                     {branches.map(b => (
                                                         <option key={b.id} value={b.id}>
@@ -712,12 +712,12 @@ export default function AdminClinics() {
                                                 type="number"
                                                 value={chargeAmount}
                                                 onChange={(e) => setChargeAmounts(prev => ({ ...prev, [groupKey]: Number(e.target.value) }))}
-                                                className="flex-1 bg-gray-50 rounded-xl px-4 py-3 text-sm font-bold outline-none border-none focus:bg-white shadow-inner transition-all"
+                                                className="w-full sm:flex-1 min-w-0 bg-gray-50 rounded-xl px-4 py-3 text-sm font-bold outline-none border-none focus:bg-white shadow-inner transition-all"
                                             />
                                             <button
                                                 onClick={() => handleManualCharge(groupKey, chargeTarget)}
                                                 disabled={charging === groupKey}
-                                                className="bg-gray-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary-600 transition-all disabled:bg-gray-200 flex items-center gap-2"
+                                                className="w-full sm:w-auto justify-center bg-gray-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary-600 transition-all disabled:bg-gray-200 flex items-center gap-2"
                                             >
                                                 {charging === groupKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                                                 Cargar

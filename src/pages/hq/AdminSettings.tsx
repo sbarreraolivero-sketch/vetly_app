@@ -259,22 +259,25 @@ export default function AdminSettings() {
     }
 
     return (
-        <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Configuración</h1>
                 <p className="text-gray-500 mt-1">Administra la configuración global de la plataforma Vetly AI.</p>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
+            {/* Tabs — overflow-x-auto en vez de w-fit: en mobile los 3 tabs no
+                entran en el ancho disponible, y w-fit los recortaba en el
+                borde del viewport sin ninguna forma de llegar a "Integraciones".
+                Ahora scrollea horizontal en vez de cortarse. */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 max-w-full overflow-x-auto">
                 {tabs.map((tab) => {
                     const Icon = tab.icon
                     return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all shrink-0 ${activeTab === tab.id
                                 ? 'bg-white text-gray-900 shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                                 }`}
