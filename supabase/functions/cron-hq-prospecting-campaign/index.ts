@@ -86,17 +86,24 @@ const SIGNATURE_HTML = `
   </tr>
 </table>`;
 
-function renderProspectingHtml(bodyHtml: string): string {
+function renderProspectingHtml(bodyHtml: string, leadId: string): string {
   // Plantilla deliberadamente distinta de renderEmailLayout (esa tiene
   // gradiente morado y card de marca, apropiada para lifecycle — acá el
   // pedido explícito es que se vea como un correo personal, no una campaña
   // de marketing). Sin header de color, sin botones — la única marca es el
   // logo chico de la firma.
+  //
+  // Píxel de tracking PROPIO al final (track-prospect-open) — el
+  // open_tracking nativo de Resend no aplica para mail.vetly.pro (ver
+  // comentario en ese edge function). Es la única forma real de que
+  // "Abiertos" en el panel de prospección refleje algo cierto.
+  const trackingPixel = `<img src="${SUPABASE_URL}/functions/v1/track-prospect-open?id=${leadId}" width="1" height="1" style="display:none;border:0;" alt="" />`;
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;">
 <div style="max-width:560px;margin:0 auto;padding:32px 20px;font-family:Arial,sans-serif;">
 ${bodyHtml}
 ${SIGNATURE_HTML}
 </div>
+${trackingPixel}
 </body></html>`;
 }
 
@@ -187,7 +194,7 @@ Deno.serve(async (req: Request) => {
         const result = await sendEmail({
           to: lead.email,
           subject: lead.email_subject,
-          html: renderProspectingHtml(lead.email_body),
+          html: renderProspectingHtml(lead.email_body, lead.id),
           // Subdominio dedicado (mail.vetly.pro, verificado en Resend
           // 2026-08-31 — SPF+DKIM propios vía Cloudflare Domain Connect)
           // para aislar la reputación del correo en frío del transaccional
