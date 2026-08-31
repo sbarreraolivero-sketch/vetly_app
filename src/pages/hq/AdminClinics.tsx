@@ -127,18 +127,21 @@ function daysAgo(dateStr: string): number {
     return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
 }
 
-// Supabase marca `last_sign_in_at` en el mismo instante del registro (login
-// automático post-signup) — para casi todo Core recién creado y nunca vuelto
-// a abrir, ese campo queda a 3-6 segundos de `created_at`, no a la fecha real
-// de vuelta. Mostrarlo como "última conexión hace Nd" es engañoso: parece
-// que volvieron cuando solo se registraron una vez. Si la brecha es menor a
-// 5 minutos, se trata como "nunca volvió" en vez de una conexión real.
-function formatLastSeen(lastSignInAt: string | null, createdAt: string): string {
-    if (!lastSignInAt) return 'Nunca se conectó'
-    const signInMs = new Date(lastSignInAt).getTime()
+// "Última actividad" — deliberadamente NO es solo auth.users.last_sign_in_at.
+// Ese campo únicamente se actualiza en un login NUEVO; si alguien nunca
+// cierra sesión (caso normal, deja la pestaña abierta) queda congelado en la
+// fecha de registro para siempre aunque trabaje activamente todos los días
+// — caso real detectado por el usuario: una clínica registrada el 27-ago
+// seguía cargando pacientes el 31-ago con last_sign_in_at sin cambiar. El
+// backend (get_hq_clinic_activity) ya resuelve esto: el valor que llega acá
+// es el más reciente entre login real Y cualquier paciente/ingreso/cita/
+// servicio/producto creado — actividad real, no solo estado de sesión.
+function formatLastSeen(lastActivityAt: string | null, createdAt: string): string {
+    if (!lastActivityAt) return 'Nunca se conectó'
+    const activityMs = new Date(lastActivityAt).getTime()
     const createdMs = new Date(createdAt).getTime()
-    if (signInMs - createdMs < 5 * 60_000) return 'Solo se registró — nunca volvió'
-    const date = new Date(lastSignInAt)
+    if (activityMs - createdMs < 5 * 60_000) return 'Solo se registró — nunca volvió'
+    const date = new Date(lastActivityAt)
     const diffH = Math.floor((Date.now() - date.getTime()) / 3_600_000)
     const relative = diffH < 1 ? 'hace <1h' : diffH < 24 ? `hace ${diffH}h` : `hace ${Math.floor(diffH / 24)}d`
     const exact = date.toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -493,7 +496,7 @@ export default function AdminClinics() {
                                 <div className="text-right shrink-0">
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Registrada</p>
                                     <p className="text-xs font-bold text-gray-500">hace {daysAgo(primaryClinic.created_at)}d</p>
-                                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última conexión</p>
+                                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última actividad</p>
                                     <p className={cn("text-[11px] font-bold", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt, primaryClinic.created_at)}</p>
                                 </div>
                             </div>
