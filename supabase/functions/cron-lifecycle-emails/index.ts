@@ -59,8 +59,10 @@ const SHOTS: Record<string, string> = {
     paso6_ingreso: "",
     paso7_fidelizacion: "",
     paso8_recordatorios: "",
-    paso9_firma: "",
-    paso9_marca: "",
+    paso9_firma: "https://www.vetly.pro/email-shots/receta-firma.png",
+    paso10_documento: "https://www.vetly.pro/email-shots/receta-documento.png",
+    paso10_formulario: "https://www.vetly.pro/email-shots/receta-formulario.png",
+    paso10_lista: "https://www.vetly.pro/email-shots/receta-lista.png",
 };
 
 interface ClinicSignals {
@@ -345,16 +347,18 @@ const RULES: EmailRule[] = [
                 headerTitle: "Recetas, órdenes y derivaciones",
                 headerSubtitle: "Con tu marca, en PDF, y enviables al tutor",
                 bodyHtml:
-                    p(`Hola ${firstName}, ya con tu firma lista, esto es lo que Vetly hace con cada documento que emites desde la ficha del paciente.`) +
-                    p(`<strong>Tu marca en el encabezado</strong> — <em>Configuración → Diseño de marca</em><br>Subes tu <strong>logo</strong> y eliges <strong>dos colores</strong>. Vetly arma el encabezado de cada receta con el logo, el nombre y la dirección de tu clínica sobre un degradado con tus colores. Se configura una vez y sirve también para tu página de reservas online.`) +
-                    screenshot(SHOTS.paso9_marca, "Sección Diseño de marca en Configuración") +
-                    p(`<strong>No todo lleva medicamentos.</strong> Al crear el documento eliges el tipo:`) +
+                    p(`Hola ${firstName}, ya con tu firma lista, esto es lo que Vetly hace con cada documento que emites desde la ficha del paciente. Empieza así — <em>ficha del paciente → pestaña Recetas → Nueva Receta</em>:`) +
+                    screenshot(SHOTS.paso10_formulario, "Modal de nueva receta con el selector de tipo de documento") +
+                    p(`<strong>No todo lleva medicamentos.</strong> Arriba eliges el tipo de documento:`) +
                     bullets([
                         `<strong>Receta médica</strong> — con la lista de medicamentos (dosis, vía, frecuencia, duración).`,
                         `<strong>Orden médica</strong> — para pedir una radiografía, ecografía o exámenes de laboratorio. Sin medicamentos: escribes la indicación.`,
                         `<strong>Derivación / interconsulta</strong> — para derivar a otro profesional, con el motivo y los antecedentes.`,
                     ]) +
-                    p(`<strong>Cada documento se puede:</strong> descargar en PDF, imprimir, o enviar al tutor por <strong>WhatsApp</strong> (desde el número de tu clínica) o por <strong>correo</strong> — le llega un enlace a la receta con tu marca, que él mismo puede guardar en PDF.`) +
+                    p(`<strong>El documento sale con tu marca.</strong> El <strong>logo</strong> y los <strong>dos colores</strong> que configuras en <em>Configuración → Diseño de marca</em> arman el encabezado — logo, nombre y dirección de tu clínica sobre un degradado con tus colores. Se configura una vez y sirve también para tu página de reservas online.`) +
+                    screenshot(SHOTS.paso10_documento, "Receta médica en PDF con el encabezado de marca y la firma") +
+                    p(`<strong>Cada documento se puede</strong> descargar en PDF, imprimir, o enviar al tutor por <strong>WhatsApp</strong> (desde el número de tu clínica) o por <strong>correo</strong> — le llega un enlace a la receta con tu marca, que él mismo guarda en PDF.`) +
+                    screenshot(SHOTS.paso10_lista, "Lista de recetas del paciente con los botones Ver, WhatsApp y Correo") +
                     ctaBox("Configura tu marca", "Logo y dos colores para todos tus documentos.", "Ir a Diseño de marca", `${APP_URL}/app/settings?tab=branding`) +
                     supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda con las recetas y el diseño de marca en Vetly.`),
             }),
@@ -411,6 +415,9 @@ Deno.serve(async (req: Request) => {
     // para anunciar una función nueva a la cohorte actual sin esperar a que
     // cada clínica llegue al día del paso en la secuencia.
     const blastKey = params.get("blast");
+    // ?force=1 (solo con blast) — reenvía aunque la clínica ya lo haya recibido.
+    // Para corregir un envío defectuoso (ej. un correo que salió sin imágenes).
+    const blastForce = params.get("force") === "1";
     const blastRule = blastKey ? RULES.find((r) => r.key === blastKey) : null;
     if (blastKey && !blastRule) {
         return new Response(JSON.stringify({ error: `blast key desconocida: ${blastKey}` }), {
@@ -504,7 +511,7 @@ Deno.serve(async (req: Request) => {
                 // pero sí respeta la idempotencia. Modo normal: primer paso no
                 // enviado cuya condición se cumple.
                 const rule = blastRule
-                    ? (alreadySent.has(blastRule.key) ? null : blastRule)
+                    ? ((alreadySent.has(blastRule.key) && !blastForce) ? null : blastRule)
                     : RULES.find((r) => !alreadySent.has(r.key) && r.condition(signals));
                 if (!rule) {
                     skipped++;
@@ -537,12 +544,16 @@ Deno.serve(async (req: Request) => {
                     continue;
                 }
 
-                const { error: logInsertError } = await supabase
-                    .from("email_sequence_log")
-                    .insert({ clinic_id: clinic.id, email_key: rule.key, resend_id: result.id || null });
-
-                if (logInsertError) {
-                    log.push(`${clinic.id} (${rule.key}): enviado pero no se pudo registrar — ${logInsertError.message}`);
+                // En un reenvío forzado la fila ya existe (UNIQUE clinic_id+key):
+                // el envío igual salió y la dedup para la secuencia futura sigue
+                // valiendo por esa fila previa, así que no es un fallo.
+                if (!(blastForce && alreadySent.has(rule.key))) {
+                    const { error: logInsertError } = await supabase
+                        .from("email_sequence_log")
+                        .insert({ clinic_id: clinic.id, email_key: rule.key, resend_id: result.id || null });
+                    if (logInsertError) {
+                        log.push(`${clinic.id} (${rule.key}): enviado pero no se pudo registrar — ${logInsertError.message}`);
+                    }
                 }
 
                 sent++;
