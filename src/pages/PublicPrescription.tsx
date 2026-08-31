@@ -19,6 +19,7 @@ interface Item {
 
 interface PrescriptionData {
     prescription: {
+        document_type: string | null
         issued_date: string
         diagnosis: string | null
         items: Item[]
@@ -164,6 +165,12 @@ export default function PublicPrescription() {
     const c = data.clinic
     const snap = p.patient_snapshot || {}
     const weight = p.patient_weight ?? snap.weight
+    const items = Array.isArray(p.items) ? p.items : []
+    const docTitle = p.document_type === 'orden'
+        ? 'Orden médica'
+        : p.document_type === 'derivacion'
+            ? 'Derivación / interconsulta'
+            : 'Receta médica'
 
     return (
         <div className="min-h-screen bg-ivory print:bg-white">
@@ -213,7 +220,7 @@ export default function PublicPrescription() {
 
                     <div className="p-6 sm:p-8 space-y-6">
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                            <h2 className="text-lg font-black uppercase tracking-widest" style={{ color: brand }}>Receta médica</h2>
+                            <h2 className="text-lg font-black uppercase tracking-widest" style={{ color: brand }}>{docTitle}</h2>
                             <div className="text-right text-xs text-charcoal/50">
                                 <p>Fecha: <span className="font-bold text-charcoal">{fmtDate(p.issued_date)}</span></p>
                                 <p>N.º {p.folio || p.short_id}</p>
@@ -253,11 +260,12 @@ export default function PublicPrescription() {
                             </div>
                         )}
 
-                        {/* Medicamentos */}
+                        {/* Medicamentos — solo si los hay */}
+                        {items.length > 0 && (
                         <div>
                             <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-2">Prescripción</p>
                             <div className="rx-color-adjust rounded-xl border-2 divide-y" style={{ borderColor: brand }}>
-                                {(p.items || []).map((it, i) => (
+                                {items.map((it, i) => (
                                     <div key={i} className="p-4">
                                         <p className="font-black text-charcoal">
                                             {i + 1}. {it.drug}{it.presentation ? ` — ${it.presentation}` : ''}
@@ -278,10 +286,11 @@ export default function PublicPrescription() {
                                 ))}
                             </div>
                         </div>
+                        )}
 
                         {p.general_instructions && (
                             <div>
-                                <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-1">Indicaciones generales</p>
+                                <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-1">{p.document_type === 'receta' ? 'Indicaciones generales' : 'Indicaciones'}</p>
                                 <p className="text-sm text-charcoal/80 whitespace-pre-wrap">{p.general_instructions}</p>
                             </div>
                         )}

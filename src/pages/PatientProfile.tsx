@@ -872,6 +872,8 @@ export default function PatientProfile() {
                                 <div className="grid gap-4">
                                     {prescriptions.map((rx: any) => {
                                         const itemCount = Array.isArray(rx.items) ? rx.items.length : 0
+                                        const docLabel = rx.document_type === 'orden' ? 'Orden médica'
+                                            : rx.document_type === 'derivacion' ? 'Derivación' : 'Receta'
                                         return (
                                             <div key={rx.id} className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm transition-all hover:border-primary-200 hover:shadow-soft-md">
                                                 <div className="flex justify-between items-start gap-4">
@@ -880,11 +882,18 @@ export default function PatientProfile() {
                                                             <Pill className="w-5 h-5 text-primary-500" />
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <h4 className="font-bold text-charcoal">
-                                                                {new Date(rx.issued_date + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                                            </h4>
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <h4 className="font-bold text-charcoal">
+                                                                    {new Date(rx.issued_date + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                                </h4>
+                                                                {rx.document_type && rx.document_type !== 'receta' && (
+                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wide">{docLabel}</span>
+                                                                )}
+                                                            </div>
                                                             <p className="text-xs text-charcoal/60 mt-1">
-                                                                {itemCount} {itemCount === 1 ? 'medicamento' : 'medicamentos'}
+                                                                {itemCount > 0
+                                                                    ? `${itemCount} ${itemCount === 1 ? 'medicamento' : 'medicamentos'}`
+                                                                    : 'Sin medicamentos'}
                                                                 {rx.prescriber_name ? ` · ${rx.prescriber_name}` : ''}
                                                             </p>
                                                             {rx.diagnosis && <p className="text-xs text-charcoal/40 mt-1 line-clamp-1">{rx.diagnosis}</p>}

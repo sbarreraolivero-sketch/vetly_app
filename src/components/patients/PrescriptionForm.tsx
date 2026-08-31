@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Patient } from '@/types/database'
+import { cn } from '@/lib/utils'
 
 export interface PrescriptionItem {
     drug: string
@@ -53,12 +54,15 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    const [documentType, setDocumentType] = useState<'receta' | 'orden' | 'derivacion'>('receta')
     const [issuedDate, setIssuedDate] = useState(new Date().toISOString().split('T')[0])
     const [diagnosis, setDiagnosis] = useState('')
     const [weight, setWeight] = useState<string>(patient.weight ? String(patient.weight) : '')
     const [items, setItems] = useState<PrescriptionItem[]>([emptyItem()])
     const [generalInstructions, setGeneralInstructions] = useState('')
     const [notes, setNotes] = useState('')
+
+    const DOC_LABELS: Record<string, string> = { receta: 'Receta médica', orden: 'Orden médica', derivacion: 'Derivación / interconsulta' }
 
     const memberAny = member as any
     const prescriberTitle: string = memberAny?.professional_title || ''
@@ -77,8 +81,12 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
             .map(it => ({ ...it, drug: it.drug.trim() }))
             .filter(it => it.drug.length > 0)
 
-        if (cleanItems.length === 0) {
-            setError('Agrega al menos un medicamento con nombre.')
+        // Los medicamentos son opcionales: una orden de exámenes o una
+        // derivación no lleva tratamiento. Pero el documento no puede quedar
+        // vacío — debe tener al menos un medicamento, un diagnóstico o el
+        // texto de la indicación / orden.
+        if (cleanItems.length === 0 && !diagnosis.trim() && !generalInstructions.trim()) {
+            setError('Agrega al menos un medicamento, un diagnóstico o el texto de la indicación.')
             return
         }
 
@@ -95,6 +103,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                 prescriber_license: prescriberLicense || null,
                 prescriber_title: prescriberTitle || null,
                 prescriber_signature_url: prescriberSignatureUrl || null,
+                document_type: documentType,
                 issued_date: issuedDate,
                 patient_snapshot: {
                     name: patient.name,
@@ -146,7 +155,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                             <Pill className="w-5 h-5 text-primary-600" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-charcoal uppercase tracking-tight">Nueva Receta</h2>
+                            <h2 className="text-lg font-bold text-charcoal uppercase tracking-tight">Nueva {DOC_LABELS[documentType]}</h2>
                             <p className="text-[10px] text-charcoal/60 uppercase tracking-widest font-bold">
                                 {patient.name} {tutorName ? `· ${tutorName}` : ''}
                             </p>
@@ -171,6 +180,30 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                         </div>
                     )}
 
+                    <div>
+                        <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1.5 ml-1">Tipo de documento</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['receta', 'orden', 'derivacion'] as const).map(t => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setDocumentType(t)}
+                                    className={cn(
+                                        'py-2 px-2 rounded-lg text-xs font-bold uppercase tracking-wide border-2 transition-colors',
+                                        documentType === t ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-silk-beige text-charcoal/50 hover:border-primary-200'
+                                    )}
+                                >
+                                    {DOC_LABELS[t]}
+                                </button>
+                            ))}
+                        </div>
+                        {documentType !== 'receta' && (
+                            <p className="text-[11px] text-charcoal/50 mt-1.5 ml-1">
+                                Los medicamentos son opcionales. Usa "Indicaciones / contenido" para escribir la orden (ej: "Solicito radiografía de tórax") o la derivación.
+                            </p>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1.5 ml-1">Fecha de emisión <span className="text-red-500">*</span></label>
@@ -188,7 +221,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
 
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-charcoal/60 uppercase tracking-widest ml-1">Medicamentos <span className="text-red-500">*</span></label>
+                            <label className="text-xs font-bold text-charcoal/60 uppercase tracking-widest ml-1">Medicamentos <span className="text-charcoal/40 font-normal normal-case tracking-normal">(opcional)</span></label>
                             <button type="button" onClick={() => setItems(prev => [...prev, emptyItem()])} className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1">
                                 <Plus className="w-3.5 h-3.5" /> Agregar
                             </button>
@@ -242,8 +275,20 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1.5 ml-1">Instrucciones generales <span className="text-charcoal/40 font-normal">(las ve el tutor)</span></label>
-                        <textarea value={generalInstructions} onChange={e => setGeneralInstructions(e.target.value)} className="input-soft w-full min-h-[70px] text-sm" placeholder="Recomendaciones adicionales, cuidados, controles..." />
+                        <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1.5 ml-1">
+                            {documentType === 'receta' ? 'Instrucciones generales' : 'Indicaciones / contenido'}
+                            <span className="text-charcoal/40 font-normal"> (las ve el tutor)</span>
+                        </label>
+                        <textarea
+                            value={generalInstructions}
+                            onChange={e => setGeneralInstructions(e.target.value)}
+                            className="input-soft w-full min-h-[70px] text-sm"
+                            placeholder={documentType === 'receta'
+                                ? 'Recomendaciones adicionales, cuidados, controles...'
+                                : documentType === 'orden'
+                                    ? 'Ej: Solicito radiografía de tórax en 2 proyecciones. Ecografía abdominal completa...'
+                                    : 'Ej: Se deriva a especialista en oftalmología por sospecha de glaucoma. Adjunto historia y exámenes...'}
+                        />
                     </div>
 
                     <div>
@@ -255,7 +300,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                         <button type="button" onClick={onClose} className="btn-ghost text-sm uppercase font-bold tracking-widest" disabled={loading}>Cancelar</button>
                         <button type="submit" className="btn-primary py-2 px-6 flex items-center gap-2 text-sm shadow-premium uppercase font-bold tracking-widest" disabled={loading}>
                             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            {loading ? 'Guardando...' : 'Guardar Receta'}
+                            {loading ? 'Guardando...' : `Guardar ${DOC_LABELS[documentType]}`}
                         </button>
                     </div>
                 </form>

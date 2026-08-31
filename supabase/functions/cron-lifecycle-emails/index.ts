@@ -59,6 +59,8 @@ const SHOTS: Record<string, string> = {
     paso6_ingreso: "",
     paso7_fidelizacion: "",
     paso8_recordatorios: "",
+    paso9_firma: "",
+    paso9_marca: "",
 };
 
 interface ClinicSignals {
@@ -310,6 +312,29 @@ const RULES: EmailRule[] = [
                     ]) +
                     ctaBox("Ver mis recordatorios", "La pestaña Enviar hoy ya está lista para usar.", "Ir a Recordatorios", `${APP_URL}/app/reminders`) +
                     supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda con los recordatorios en Vetly.`),
+            }),
+        }),
+    },
+    {
+        key: "paso9_recetas",
+        minDay: 21,
+        condition: (s) => s.ageDays >= 21,
+        build: (clinic, firstName) => ({
+            subject: `${firstName}, deja lista tu firma antes de emitir tu primera receta`,
+            html: renderEmailLayout({
+                headerTitle: "Recetas y órdenes médicas",
+                headerSubtitle: "Tu firma, tus datos profesionales y tu marca — configúralos una vez",
+                bodyHtml:
+                    p(`Hola ${firstName}, Vetly emite <strong>recetas, órdenes médicas y derivaciones</strong> desde la ficha del paciente, descargables en PDF y enviables al tutor por WhatsApp o correo. Antes de la primera, tres cosas se configuran una sola vez y quedan para siempre.`) +
+                    p(`<strong>1. Tu firma</strong> — <em>Configuración → Mi Perfil → Firma para documentos</em><br>La dibujas ahí mismo con el mouse o el dedo, o subes una foto de tu firma en papel. Se estampa sobre la línea de firma de cada documento que emitas. Cada profesional del equipo configura la suya.`) +
+                    screenshot(SHOTS.paso9_firma, "Sección Firma para documentos en Mi Perfil") +
+                    p(`<strong>2. Tus datos profesionales</strong> — <em>misma pantalla</em><br>Tu <strong>título</strong> (ej. Médico Veterinario) y tu <strong>número de colegiatura / matrícula / cédula profesional</strong>. Aparecen bajo tu nombre en el documento — en varios países son obligatorios para que la receta tenga validez. Son opcionales en Vetly: si los dejas en blanco, simplemente no se imprimen.`) +
+                    p(`<strong>Cómo se usan estos datos:</strong> solo se muestran en los documentos que tú emites, y se guardan <em>congelados</em> en cada receta al momento de crearla. Si más adelante cambias tu matrícula o tu firma, las recetas antiguas conservan la información que tenían — no se reescriben.`) +
+                    p(`<strong>3. Tu marca</strong> — <em>Configuración → Diseño de marca</em><br>El <strong>logo</strong> y <strong>dos colores</strong> de tu clínica. Con eso Vetly arma el encabezado de cada documento (logo + nombre + dirección + un degradado con tus colores) y también tu página de reservas online. Se configura una vez para todo.`) +
+                    screenshot(SHOTS.paso9_marca, "Sección Diseño de marca en Configuración") +
+                    p(`<strong>Sobre las recetas:</strong> los medicamentos son <strong>opcionales</strong>. Si es una orden para una radiografía o ecografía, o una derivación a otro profesional, eliges el tipo de documento y escribes la indicación — sin lista de medicamentos.`) +
+                    ctaBox("Configura tu firma", "Firma + datos profesionales, en la misma pantalla.", "Ir a Mi Perfil", `${APP_URL}/app/settings?tab=profile`) +
+                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para configurar mi firma y mi marca para las recetas en Vetly.`),
             }),
         }),
     },
