@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Save, Loader2, Palette, Briefcase, Clock } from 'lucide-react'
+import { Save, Loader2, Palette, Briefcase, Clock, PenTool, Upload, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { teamService } from '@/services/teamService'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
 import { cn } from '@/lib/utils'
+import { SignaturePad } from '@/components/settings/SignaturePad'
 
 const DAYS = [
     { key: 'monday', label: 'Lunes' },
@@ -42,6 +43,8 @@ export default function MyProfile() {
     const [specialty, setSpecialty] = useState('')
     const [professionalLicense, setProfessionalLicense] = useState('')
     const [professionalTitle, setProfessionalTitle] = useState('')
+    const [signatureUrl, setSignatureUrl] = useState('')
+    const [uploadingSignature, setUploadingSignature] = useState(false)
     const [color, setColor] = useState('#8B5CF6')
     const [workingHours, setWorkingHours] = useState<Record<string, { enabled: boolean; start: string; end: string; lunch_break?: { enabled: boolean; start: string; end: string } }>>(DEFAULT_HOURS)
 
@@ -63,6 +66,7 @@ export default function MyProfile() {
             setSpecialty(member.specialty || '')
             setProfessionalLicense((member as any).professional_license || '')
             setProfessionalTitle((member as any).professional_title || '')
+            setSignatureUrl((member as any).signature_url || '')
             setColor(member.color || '#8B5CF6')
             setWorkingHours((member as any).working_hours || DEFAULT_HOURS)
         } else if (profile) {
@@ -148,6 +152,7 @@ export default function MyProfile() {
                 specialty,
                 professional_license: professionalLicense,
                 professional_title: professionalTitle,
+                signature_url: signatureUrl,
                 color,
                 working_hours: workingHours,
             })
@@ -166,6 +171,7 @@ export default function MyProfile() {
                         specialty,
                         professional_license: professionalLicense,
                         professional_title: professionalTitle,
+                        signature_url: signatureUrl,
                     })
                     toast.success('Perfil guardado (sin horarios ni color)')
                     toast('Dato: Tu base de datos necesita una actualización de esquema.', { icon: '⚠️' })
@@ -180,6 +186,53 @@ export default function MyProfile() {
         } finally {
             setSaving(false)
         }
+    }
+
+    // Sube la firma (dibujada o subida como imagen) al bucket público
+    // `clinic-branding`, path `{clinic_id}/signatures/{member_id}.png`. La
+    // política del bucket exige que el primer segmento sea un clinic_id del
+    // que el usuario es miembro activo.
+    const EXT_BY_TYPE: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
+
+    const uploadSignature = async (data: Blob) => {
+        const clinicId = profile?.clinic_id
+        const memberId = member?.id
+        if (!clinicId || !memberId) {
+            toast.error('No se pudo identificar tu perfil. Recarga la página.')
+            return
+        }
+        if (data.size > 2 * 1024 * 1024) {
+            toast.error('La firma debe pesar menos de 2 MB.')
+            return
+        }
+        const type = data.type || 'image/png'
+        const ext = EXT_BY_TYPE[type] || 'png'
+        setUploadingSignature(true)
+        try {
+            const path = `${clinicId}/signatures/${memberId}.${ext}`
+            const { error } = await supabase.storage
+                .from('clinic-branding')
+                .upload(path, data, { upsert: true, contentType: type })
+            if (error) throw error
+            const { data: { publicUrl } } = supabase.storage.from('clinic-branding').getPublicUrl(path)
+            setSignatureUrl(`${publicUrl}?t=${Date.now()}`)
+            toast.success('Firma lista. No olvides guardar los cambios.')
+        } catch (err: any) {
+            toast.error('Error al subir la firma: ' + (err?.message || 'Error desconocido'))
+        } finally {
+            setUploadingSignature(false)
+        }
+    }
+
+    const handleSignatureFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        e.target.value = ''
+        if (!file) return
+        if (!EXT_BY_TYPE[file.type]) {
+            toast.error('Sube una imagen PNG, JPG o WEBP.')
+            return
+        }
+        await uploadSignature(file)
     }
 
     const updateDay = (dayKey: string, field: string, value: any) => {
@@ -342,6 +395,46 @@ export default function MyProfile() {
                 </div>
             </div>
         </div>
+
+            {/* Firma para documentos */}
+            <div className="card-soft p-6">
+                <h2 className="text-base font-semibold text-charcoal mb-1 flex items-center gap-2">
+                    <PenTool className="w-4 h-4 text-primary-500" />
+                    Firma para documentos
+                </h2>
+                <p className="text-sm text-charcoal/50 mb-4">
+                    Se estampa en las recetas y en los documentos que emitas. Dibújala aquí o sube una imagen (fondo transparente o blanco).
+                </p>
+
+                {signatureUrl && (
+                    <div className="mb-4 flex items-center gap-4">
+                        <div className="bg-white border border-silk-beige rounded-xl p-2">
+                            <img src={signatureUrl} alt="Firma" className="h-16 max-w-[240px] object-contain" />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setSignatureUrl('')}
+                            className="text-xs font-bold uppercase tracking-widest text-charcoal/40 hover:text-red-500 flex items-center gap-1.5"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" /> Quitar
+                        </button>
+                    </div>
+                )}
+
+                <div className="bg-white rounded-xl border border-charcoal/10 p-4 space-y-4">
+                    <div>
+                        <p className="text-xs font-medium text-charcoal/40 uppercase tracking-widest mb-2">Dibujar firma</p>
+                        <SignaturePad onSave={uploadSignature} saving={uploadingSignature} />
+                    </div>
+                    <div className="border-t border-silk-beige pt-4">
+                        <label className="btn-ghost cursor-pointer inline-flex items-center gap-2 text-sm">
+                            {uploadingSignature ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                            Subir imagen de firma
+                            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleSignatureFile} disabled={uploadingSignature} className="hidden" />
+                        </label>
+                    </div>
+                </div>
+            </div>
 
             {/* Color del Calendario */}
             <div className="card-soft p-6">

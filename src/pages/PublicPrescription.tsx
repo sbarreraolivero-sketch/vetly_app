@@ -29,6 +29,7 @@ interface PrescriptionData {
         prescriber_name: string | null
         prescriber_license: string | null
         prescriber_title: string | null
+        prescriber_signature_url: string | null
         folio: string | null
         short_id: string
     }
@@ -104,24 +105,31 @@ export default function PublicPrescription() {
     const wantsPrint = searchParams.get('print') === '1'
 
     const logoUrl = data?.clinic.logo_url || ''
+    const sigUrl = data?.prescription.prescriber_signature_url || ''
 
-    // Auto-print para el acceso desde el dashboard. Espera a que el logo cargue
-    // (si hay) para que salga en el PDF; si no hay logo o tarda, imprime igual.
+    // Auto-print para el acceso desde el dashboard. Espera a que carguen las
+    // imágenes (logo + firma) para que salgan en el PDF; si no hay o tardan,
+    // imprime igual con un tope de 2.5 s.
     useEffect(() => {
         if (!wantsPrint || loading || !data) return
         let done = false
         const go = () => { if (done) return; done = true; window.print() }
-        if (logoUrl) {
-            const img = new Image()
-            img.onload = go
-            img.onerror = go
-            img.src = logoUrl
-            const t = setTimeout(go, 2500)
+        const urls = [logoUrl, sigUrl].filter(Boolean)
+        if (urls.length === 0) {
+            const t = setTimeout(go, 400)
             return () => clearTimeout(t)
         }
-        const t = setTimeout(go, 400)
+        let pending = urls.length
+        const one = () => { pending -= 1; if (pending <= 0) go() }
+        urls.forEach(u => {
+            const img = new Image()
+            img.onload = one
+            img.onerror = one
+            img.src = u
+        })
+        const t = setTimeout(go, 2500)
         return () => clearTimeout(t)
-    }, [wantsPrint, loading, data, logoUrl])
+    }, [wantsPrint, loading, data, logoUrl, sigUrl])
 
     const socials = useMemo(() => {
         if (!data) return [] as string[]
@@ -280,10 +288,19 @@ export default function PublicPrescription() {
 
                         {/* Firma del prescriptor */}
                         <div className="pt-10 mt-4 border-t border-silk-beige flex flex-col items-end">
-                            <div className="w-56 border-t border-charcoal/40 pt-2 text-center">
-                                <p className="text-sm font-bold text-charcoal">{p.prescriber_name || '—'}</p>
-                                {p.prescriber_title && <p className="text-xs text-charcoal/60">{p.prescriber_title}</p>}
-                                {p.prescriber_license && <p className="text-xs text-charcoal/60">Reg. N.º {p.prescriber_license}</p>}
+                            <div className="w-56 text-center">
+                                {p.prescriber_signature_url && (
+                                    <img
+                                        src={p.prescriber_signature_url}
+                                        alt="Firma"
+                                        className="h-16 max-w-full object-contain mx-auto mb-1"
+                                    />
+                                )}
+                                <div className="border-t border-charcoal/40 pt-2">
+                                    <p className="text-sm font-bold text-charcoal">{p.prescriber_name || '—'}</p>
+                                    {p.prescriber_title && <p className="text-xs text-charcoal/60">{p.prescriber_title}</p>}
+                                    {p.prescriber_license && <p className="text-xs text-charcoal/60">Reg. N.º {p.prescriber_license}</p>}
+                                </div>
                             </div>
                         </div>
 
