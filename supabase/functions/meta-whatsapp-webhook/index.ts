@@ -1446,13 +1446,25 @@ const requestSchedulingCoordination = async (
   const coordinatorPhone = clinic?.coordinator_phone;
   if (coordinatorPhone && clinic?.meta_phone_number_id && clinic?.meta_access_token) {
     try {
-      await sendMetaMessage(
+      // sendMetaMessage NUNCA lanza por un status no-2xx de Meta (solo por fallo de
+      // red) — un catch solo no detecta un rechazo real de la API. Se registra el
+      // resultado siempre, igual que scheduling-notify-authorized, porque este envío
+      // no tenía NINGÚN rastro en producción hasta ahora (confirmado real 2026-08-31:
+      // la solicitud de Leonardo/Benji se guardó bien en scheduling_requests y en
+      // notifications, pero no hay evidencia de que el WhatsApp a la coordinadora
+      // haya llegado ni de que haya fallado — no quedaba registrado ninguno de los
+      // dos casos).
+      const coordResult = await sendMetaMessage(
         clinic.meta_phone_number_id,
         clinic.meta_access_token,
         normalizePhone(coordinatorPhone),
         `🐾 Nueva solicitud de agenda — revisar ruta\n\n${resumen}\n\nTeléfono: +${normalizedPhone}\n\nAutoriza los horarios en Citas Médicas.`,
       );
-    } catch (e) { console.error("[requestSchedulingCoordination] WhatsApp a coordinadora falló:", e); }
+      await debugLog(sb, "[COORDINATOR ALERT] Aviso de solicitud nueva", { to: coordinatorPhone, result: coordResult });
+    } catch (e) {
+      console.error("[requestSchedulingCoordination] WhatsApp a coordinadora falló:", e);
+      await debugLog(sb, "[COORDINATOR ALERT] Excepción al enviar aviso", { to: coordinatorPhone, error: String(e) });
+    }
   }
 
   return {
