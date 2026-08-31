@@ -6723,3 +6723,48 @@ Ambos casos confirmados exactamente como se esperaba — no es una corrección b
 - **Un fix de "orden de escritura" (última escritura gana) solo protege contra la carrera dentro de la misma función — no contra una invocación concurrente de OTRO proceso leyendo el estado intermedio.** Si un chequeo de estado (`isPausedForHuman`) descarta de forma permanente ante un "falso positivo" transitorio, sin reintentar, la solución robusta es eliminar la fuente del estado transitorio, no solo achicar la ventana en que puede observarse.
 - **Antes de concluir que un patrón de bug "sigue igual", separar los casos reales de los casos que solo lo parecen.** No todo `dismissed`/no-agendado es una falla del sistema — verificar el transcript de cada caso antes de sumarlo como evidencia.
 - **Una prueba mecánica y aislada (`BEGIN...ROLLBACK` con datos ficticios) da más certeza que solo razonar sobre el código** — permite confirmar en segundos, sin esperar tráfico real ni arriesgar datos de producción, que el mecanismo exacto del fix hace lo que se espera.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 93, 2026-08-31)
+
+> Nota de numeración: otra sesión ya había usado "sesión 92" en paralelo (causa raíz definitiva del bug `requires_human`) — se salta a 93 por el mismo motivo ya documentado en sesiones 66/87/89/91.
+
+### HQ → Clínicas reconfigurado: de "todo créditos IA" a actividad real
+
+**Motivación:** la sección `/hq/clinics` mostraba cada clínica enfocada en consumo/límites de créditos IA, aunque la mayoría de las cuentas nuevas son plan **Core** (sin agente de IA, `PLAN_LIMITS.core.aiCredits === 0`) — el bloque no tenía ningún sentido para ellas y no mostraba nada de lo que sí importa para monitorear activación.
+
+**Rediseño de `src/pages/hq/AdminClinics.tsx`:**
+- El bloque **"Créditos IA — Mes Actual"** + el formulario **"Inyección de Créditos IA"** ahora solo se renderizan si `PLAN_LIMITS[normalizePlanId(plan)].aiCredits > 0` — invisibles para Core, intactos para Starter/Pro/Enterprise (verificado sin regresión con Animalgrace: 208% de uso, formulario de inyección funcionando).
+- Nuevo bloque **"Actividad en Vetly"**, visible siempre, grid de 3 columnas: pacientes cargados, **citas agendadas**, WhatsApp conectado sí/no, **servicios cargados**, **productos de inventario**, reservas online activas sí/no, ingresos (cantidad + monto).
+- Nuevo bloque **"Secuencia de bienvenida"**: correos enviados/abiertos de la secuencia de onboarding (`cron-lifecycle-emails`, sesión 90), con barra de progreso "N/11" y el último paso alcanzado.
+- Badge de plan legible (`PLAN_LABEL`, mismo mapeo que `PlanGate.tsx`) en vez del string crudo de `subscription_plan`.
+- País con bandera (`COUNTRY_INFO` de `src/lib/countries.ts`), fecha de registro/antigüedad, y **nombre del admin** — dato que ya se calculaba en el agrupamiento por dueño pero nunca se renderizaba.
+
+### Bug de seguridad encontrado y corregido en el camino: HQ no podía leer el dueño real de una clínica ajena
+
+**Diagnóstico con evidencia, no supuesto:** al verificar el panel con una sesión real de admin (magic link + `verify`, sin password, inyectada por Playwright), el campo "Admin" mostraba **el UUID de la clínica como si fuera el email del dueño** en varias tarjetas. Causa: ninguna policy `SELECT` de `clinic_members` contempla `is_platform_admin()` — solo `is_clinic_admin()`/`is_admin_of_clinic()`, ambas scoped a la propia clínica del usuario (`SELECT ... FROM clinic_members WHERE user_id = auth.uid() AND clinic_id = p_clinic_id`). El embed REST `clinic_settings?select=*,clinic_members(...)` devolvía **0 filas** de `clinic_members` para casi toda clínica ajena al admin de HQ, y el *fallback* `owner?.email || clinic.id` mostraba el UUID crudo.
+
+**Fix — RPC `get_hq_clinic_owners()`** (migración `20260831140000`), mismo patrón ya establecido (`SECURITY DEFINER`, gated por `is_platform_admin()`, `REVOKE FROM PUBLIC, anon` + `GRANT TO authenticated, service_role`) que `get_all_clinics_usage`/`get_hq_clinic_activity` — **no se tocó la RLS de `clinic_members`** (tabla sensible, usada en toda la app) en vez de eso se expone solo lo necesario para HQ vía un join lateral que prioriza `role='owner'` y cae a `user_profiles` para nombre/teléfono. Efecto colateral correcto: el agrupamiento por dueño (`ClinicGroup`) pasó de 25 "grupos" (cada clínica sin acceso a sus propios `clinic_members` quedaba como grupo propio, keyed por su UUID) a **24 clientes reales** — el propio bug estaba fragmentando el conteo de clientes del HQ.
+
+### Tracking de apertura/entrega de correos — `resend-webhook`
+
+- Migración `20260831130000`: columnas `email_sequence_log.delivered_at`/`opened_at`/`open_count` + RPC `get_hq_clinic_activity()` (patients/whatsapp/booking/incomes/appointments/secuencia de correos en un solo round-trip, `LEFT JOIN LATERAL` por tabla).
+- `supabase/functions/resend-webhook/index.ts` (nuevo, `verify_jwt=false`): recibe `email.delivered`/`email.opened` de Resend. Verificación Svix real (a diferencia del falso-Svix de YCloud ya documentado en otra parte del proyecto — acá el formato base64 estándar sí aplica): HMAC-SHA256 sobre `{svix-id}.{svix-timestamp}.{rawBody}`, secret `whsec_<base64>`. Falla abierto si `RESEND_WEBHOOK_SECRET` no está configurado (mismo criterio que Turnstile en `signup-handler`).
+- **Verificado end-to-end con evidencia real, dos veces** (no solo con la palabra del usuario de "ya lo hice"): la primera vez, tras que el usuario dijera haber agregado el secret a Supabase, se encontró que `function_edge_logs` no tenía **ninguna** invocación real de Resend en 48 correos ya enviados — solo faltaba el paso del lado de Resend (crear el endpoint en su dashboard). Tras que el usuario lo configurara, se disparó un correo de prueba real (`send-welcome-email` sin `clinic_id`, para no ensuciar `email_sequence_log` de ninguna clínica) y a los pocos segundos apareció `POST 200 resend-webhook` en los logs — firma verificada, evento procesado.
+- **Regla permanente (refuerzo):** cuando un usuario dice "ya lo hice" sobre una integración externa de dos pasos, verificar con una acción real que produzca una señal medible (acá: `function_edge_logs`) en vez de asumir que ambos pasos quedaron completos — la primera vez solo se había completado el paso de Supabase, no el de Resend, y sin la verificación con logs habría quedado como "resuelto" sin estarlo.
+
+### Extensión — servicios, productos e citas visibles en Actividad
+
+A pedido explícito del usuario (*"agrega como actividad si es que agregaron algún servicio o producto del inventario"* + *"también las citas agendadas"*): migración `20260831180000` (`DROP + CREATE` de `get_hq_clinic_activity` por cambio de tipo de retorno — un `CREATE OR REPLACE` con firma de salida distinta falla con `42P13`) agrega `services_count` (`clinic_services`) y `products_count` (`inventory_products`), mismo criterio simple que `patients_count` (`count(*)` sin filtro de estado). `appointments_count` ya se traía desde el fetch original de esta sesión pero nunca se renderizaba en el JSX — se agregó junto a los dos campos nuevos. Verificado con datos reales: Animalgrace 554 citas / 103 servicios / 88 productos; una clínica Core recién creada, 0/0/1.
+
+### Metodología de verificación usada en toda la sesión
+
+Sesión real de admin de HQ obtenida sin password: `admin/generate_link` (tipo `magiclink`) + `auth/v1/verify` con el `hashed_token` resultante → `access_token`/`refresh_token` reales, inyectados en `localStorage` bajo la clave `sb-<project-ref>-auth-token` **con el formato de sesión de supabase-js v2** (el objeto de sesión directo, no el `{currentSession, expiresAt}` de v1 — error cometido y corregido en el primer intento) vía Playwright (`playwright-core`, apuntando al Chrome del sistema por la limitación ya documentada de macOS Monterey). Permite ver exactamente lo mismo que vería un admin real, con datos reales, antes de dar cualquier cambio de UI por terminado. El token de Management API se extrajo del Keychain de la CLI de Supabase (`security find-generic-password -s "Supabase CLI" -w`) y las credenciales temporales (service role key, sesión) se borraron de `/tmp` al cerrar cada verificación.
+
+### Reglas permanentes de esta sesión
+
+- **Un *fallback* de agrupamiento (`owner?.email || clinic.id`) puede ocultar un bug de RLS durante meses** — el valor "funciona" (no rompe nada, no tira error) pero es sutilmente incorrecto, y solo se nota mirando la pantalla con datos reales. `tsc`/`build` nunca lo iban a detectar.
+- **Antes de abrir la RLS de una tabla sensible para que HQ pueda leer todo, preferir una RPC `SECURITY DEFINER` acotada** (mismo patrón ya establecido en `get_all_clinics_usage`/`get_hq_clinic_activity`) — expone solo los campos necesarios, no la tabla completa, y no toca las policies que protegen el resto de la app.
+- **"Ya lo hice" sobre una integración externa de dos pasos (secret en Supabase + endpoint en el dashboard del proveedor) requiere verificación con una señal medible real**, no solo la confirmación del usuario — los logs de invocación (`function_edge_logs`) son la fuente de verdad, no la ausencia de errores.
+- **El formato de sesión que espera `localStorage` para supabase-js v2 es el objeto de sesión directo** (`{access_token, refresh_token, expires_at, user, ...}`), no el `{currentSession, expiresAt}` de v1 — usar el formato equivocado hace que la app redirija a login sin ningún error visible en consola.
