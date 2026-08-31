@@ -35,22 +35,40 @@ function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
-// Firma con logo chico — decisión explícita del usuario (AskUserQuestion):
-// un header grande con el logo arriba se vería como campaña de marketing,
-// justo lo que se pidió evitar. Un logo chico junto al nombre, al final,
-// se lee como una firma de correo profesional normal. El HTML generado por
-// IA nunca escribe su propia firma (instrucción en hq-generate-prospect-
-// email) — esta es la única, siempre igual, agregada acá.
+// Firma tipo tarjeta de presentación — pedido explícito del usuario tras ver
+// que Gmail no mostraba ninguna foto junto al remitente. El logo de Vetly
+// se saca de acá: va como avatar del remitente en Gmail vía Gravatar
+// (gravatar.com, cuenta a nombre de sebastian@mail.vetly.pro — requiere que
+// esa dirección pueda recibir el correo de verificación de Gravatar, ver
+// Cloudflare Email Routing) — un header grande con el logo adentro del
+// correo se vería como campaña de marketing, justo lo que se pidió evitar.
+// Acá adentro va la FOTO real (public/foto-sebastian-firma.png, recortada
+// cuadrada 240px) — la marca sigue presente como texto ("Fundador · Vetly").
+// El HTML generado por IA nunca escribe su propia firma (instrucción en
+// hq-generate-prospect-email) — esta es la única, siempre igual, agregada acá.
 const SIGNATURE_HTML = `
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:28px;border:1px solid #E4E4E7;border-radius:12px;">
   <tr>
-    <td style="padding-right:10px;vertical-align:middle;">
-      <img src="https://vetly.pro/logo.png" width="32" height="32" alt="Vetly"
-           style="display:block;border-radius:50%;width:32px;height:32px;" />
-    </td>
-    <td style="vertical-align:middle;">
-      <p style="margin:0;font-size:14px;font-weight:bold;color:#27272a;font-family:Arial,sans-serif;">Sebastián Barrera</p>
-      <p style="margin:0;font-size:12px;color:#71717a;font-family:Arial,sans-serif;">Fundador · Vetly</p>
+    <td style="padding:16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding-right:14px;vertical-align:middle;">
+            <img src="https://vetly.pro/foto-sebastian-firma.png" width="56" height="56" alt="Sebastián Barrera"
+                 style="display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;" />
+          </td>
+          <td style="vertical-align:middle;">
+            <p style="margin:0 0 2px 0;font-size:15px;font-weight:bold;color:#18181b;font-family:Arial,sans-serif;">Sebastián Barrera</p>
+            <p style="margin:0 0 8px 0;font-size:12px;color:#71717a;font-family:Arial,sans-serif;">Fundador · Vetly</p>
+            <p style="margin:0;font-size:12px;color:#3f3f46;font-family:Arial,sans-serif;line-height:1.7;">
+              <a href="https://wa.me/56993089185" style="color:#2563eb;text-decoration:none;">WhatsApp</a>
+              &nbsp;·&nbsp;
+              <a href="mailto:sebastian@mail.vetly.pro" style="color:#2563eb;text-decoration:none;">sebastian@mail.vetly.pro</a>
+              &nbsp;·&nbsp;
+              <a href="https://vetly.pro" style="color:#2563eb;text-decoration:none;">vetly.pro</a>
+            </p>
+          </td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>`;

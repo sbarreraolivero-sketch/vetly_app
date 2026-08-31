@@ -47,19 +47,33 @@ interface CampaignConfig {
     is_paused: boolean
 }
 
-// Mismo bloque que agrega cron-hq-prospecting-campaign al enviar de verdad
+// Mismo bloque (tarjeta de presentación: foto + nombre + WhatsApp/email/web)
+// que agrega cron-hq-prospecting-campaign al enviar de verdad
 // (renderProspectingHtml/SIGNATURE_HTML) — se duplica acá solo para que el
 // preview de revisión muestre exactamente lo que va a salir. Si se cambia
 // uno, cambiar el otro.
 const SIGNATURE_PREVIEW_HTML = `
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:28px;border:1px solid #E4E4E7;border-radius:12px;">
   <tr>
-    <td style="padding-right:10px;vertical-align:middle;">
-      <img src="https://vetly.pro/logo.png" width="32" height="32" alt="Vetly" style="display:block;border-radius:50%;width:32px;height:32px;" />
-    </td>
-    <td style="vertical-align:middle;">
-      <p style="margin:0;font-size:14px;font-weight:bold;color:#27272a;font-family:Arial,sans-serif;">Sebastián Barrera</p>
-      <p style="margin:0;font-size:12px;color:#71717a;font-family:Arial,sans-serif;">Fundador · Vetly</p>
+    <td style="padding:16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding-right:14px;vertical-align:middle;">
+            <img src="https://vetly.pro/foto-sebastian-firma.png" width="56" height="56" alt="Sebastián Barrera" style="display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;" />
+          </td>
+          <td style="vertical-align:middle;">
+            <p style="margin:0 0 2px 0;font-size:15px;font-weight:bold;color:#18181b;font-family:Arial,sans-serif;">Sebastián Barrera</p>
+            <p style="margin:0 0 8px 0;font-size:12px;color:#71717a;font-family:Arial,sans-serif;">Fundador · Vetly</p>
+            <p style="margin:0;font-size:12px;color:#3f3f46;font-family:Arial,sans-serif;line-height:1.7;">
+              <a href="https://wa.me/56993089185" style="color:#2563eb;text-decoration:none;">WhatsApp</a>
+              &nbsp;·&nbsp;
+              <a href="mailto:sebastian@mail.vetly.pro" style="color:#2563eb;text-decoration:none;">sebastian@mail.vetly.pro</a>
+              &nbsp;·&nbsp;
+              <a href="https://vetly.pro" style="color:#2563eb;text-decoration:none;">vetly.pro</a>
+            </p>
+          </td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>`
