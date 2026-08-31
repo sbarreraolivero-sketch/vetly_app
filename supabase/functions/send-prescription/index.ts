@@ -98,6 +98,18 @@ Deno.serve(async (req) => {
             .eq("id", rx.clinic_id)
             .maybeSingle();
 
+        // reply_to del correo: el correo del dueño de la clínica (mismo patrón
+        // que public-booking-notify) — así, si el tutor responde el correo, le
+        // llega a la clínica y no a hola@vetly.pro.
+        const { data: owner } = await supabase
+            .from("clinic_members")
+            .select("email")
+            .eq("clinic_id", rx.clinic_id)
+            .eq("role", "owner")
+            .eq("status", "active")
+            .limit(1)
+            .maybeSingle();
+
         const clinicName = clinic?.clinic_name || clinic?.name || "tu veterinaria";
         const patientName = patient?.name || "tu mascota";
         const itemCount = Array.isArray(rx.items) ? rx.items.length : 0;
@@ -164,10 +176,19 @@ Deno.serve(async (req) => {
             </div>
         `;
 
+        const emailPayload: Record<string, unknown> = {
+            from: "Vetly AI <hola@vetly.pro>",
+            to: email,
+            subject: `Tu receta de ${clinicName}`,
+            html,
+        };
+        const replyTo = String(owner?.email || "").trim();
+        if (replyTo) emailPayload.reply_to = replyTo;
+
         const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
-            body: JSON.stringify({ from: "Vetly AI <hola@vetly.pro>", to: email, subject: `Tu receta de ${clinicName}`, html }),
+            body: JSON.stringify(emailPayload),
         });
 
         await supabase.from("debug_logs").insert({
