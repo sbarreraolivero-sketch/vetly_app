@@ -69,6 +69,47 @@ function inferProspectType(name: string): string {
   return "Física Pequeña"; // default seguro, editable en revisión
 }
 
+// Análisis del sitio para personalizar el correo — pedido explícito del
+// usuario tras ver "Posta veterinaria" (vende bastantes productos, se nota
+// en su web) y querer que el correo lo mencione. Cada hallazgo debe salir
+// de texto REAL detectado en la propia página — misma regla del resto del
+// proyecto: nada de inventar. Se guarda en `problems` (columna ya existía,
+// nunca se poblaba) y hq-generate-prospect-email la usa para personalizar
+// sin alucinar. Máximo 3 hallazgos, mismo criterio que el kit de Nexflow.
+function analyzeWebsiteContent(html: string, plainText: string): string[] {
+  const findings: string[] = [];
+  const lower = plainText.toLowerCase();
+
+  // Señal de venta de productos — precios visibles + vocabulario de tienda.
+  // Esto es lo que dispara el pitch de "inventario inteligente" cuando
+  // aplica (ver hq-generate-prospect-email).
+  const priceMatches = plainText.match(/\$\s?\d{1,3}(\.\d{3})*/g) || [];
+  const shopWords = ["producto", "tienda", "catálogo", "catalogo", "comprar", "carro de compra", "agregar al carro", "envío a domicilio", "envio a domicilio"];
+  const shopWordHits = shopWords.filter(w => lower.includes(w)).length;
+  if (priceMatches.length >= 5 || shopWordHits >= 2) {
+    findings.push("Vende varios productos con precio visible en su web — no se detecta un sistema de inventario/stock online.");
+  }
+
+  // Señal de agendamiento manual — WhatsApp como canal, sin widget de
+  // reservas online detectable.
+  const bookingWords = ["agenda tu hora", "reserva online", "agendar cita", "reservar hora"];
+  const hasBookingWidget = bookingWords.some(w => lower.includes(w)) || /calendly\.com|wix\.com\/bookings|booksy\.com/.test(html);
+  const mentionsWhatsapp = lower.includes("whatsapp");
+  if (!hasBookingWidget && mentionsWhatsapp) {
+    findings.push("El agendamiento parece ser 100% manual por WhatsApp — no se detecta un sistema de reservas online en la web.");
+  }
+
+  // Señal de múltiples servicios — candidato a agenda organizada por tipo
+  // de atención, en vez de todo mezclado en un solo chat.
+  const serviceWords = ["peluquería", "peluqueria", "baño y corte", "bano y corte", "vacun", "cirug", "urgencia", "domicilio", "estética", "estetica", "grooming", "pensión", "pension"];
+  const serviceHits = serviceWords.filter(w => lower.includes(w));
+  if (serviceHits.length >= 3) {
+    findings.push(`Ofrece varios servicios distintos (${serviceHits.slice(0, 3).join(", ")}...) — se beneficiaría de una agenda organizada por tipo de servicio.`);
+  }
+
+  return findings.slice(0, 3);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -146,19 +187,30 @@ Deno.serve(async (req: Request) => {
         if (!website) { skippedNoContact++; continue; } // sin web no hay de dónde sacar email — canal es 100% correo
         if (phoneNorm && existingPhones.has(phoneNorm)) { skippedExisting++; continue; }
 
-        // Intento liviano de extraer email de la portada (mismo criterio que
-        // el kit de prospección: portada primero, /contacto como fallback).
+        // Portada primero; si no aparece email ahí, prueba rutas de
+        // contacto comunes antes de rendirse (mismo criterio del kit de
+        // prospección — muchos negocios no ponen el email en el home).
         let email: string | null = null;
         let hasHttps = false;
-        try {
-          const siteRes = await fetch(website, { signal: AbortSignal.timeout(6000), headers: { "User-Agent": "Mozilla/5.0 (compatible; VetlyProspectBot/1.0)" } });
-          hasHttps = website.startsWith("https://");
-          const html = await siteRes.text();
-          const emailMatch = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-          const generic = ["info@", "contacto@", "admin@", "support@", "noreply@", "hola@", "ventas@"];
-          email = (emailMatch || []).find(e => !generic.some(g => e.toLowerCase().startsWith(g))) || emailMatch?.[0] || null;
-        } catch {
-          // sitio no responde — igual se inserta (queda para revisión manual, puede tener email en otro lado)
+        let problems: string[] = [];
+        const generic = ["info@", "contacto@", "admin@", "support@", "noreply@", "hola@", "ventas@"];
+        const candidatePages = [website, ...["contacto", "contacto/", "contact", "contactenos", "nosotros"].map(p => new URL(p, website).toString())];
+
+        for (const pageUrl of candidatePages) {
+          try {
+            const siteRes = await fetch(pageUrl, { signal: AbortSignal.timeout(6000), headers: { "User-Agent": "Mozilla/5.0 (compatible; VetlyProspectBot/1.0)" } });
+            const html = await siteRes.text();
+            if (pageUrl === website) {
+              hasHttps = website.startsWith("https://");
+              const plainText = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+              problems = analyzeWebsiteContent(html, plainText);
+            }
+            const emailMatch = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+            const found = (emailMatch || []).find(e => !generic.some(g => e.toLowerCase().startsWith(g))) || emailMatch?.[0] || null;
+            if (found) { email = found; break; }
+          } catch {
+            // esta página puntual no respondió — sigue con la siguiente candidata
+          }
         }
 
         if (!email) { skippedNoContact++; continue; }
@@ -184,6 +236,7 @@ Deno.serve(async (req: Request) => {
           prospect_type: inferProspectType(details.name || place.name || ""),
           score,
           has_https: hasHttps,
+          problems: problems.length > 0 ? problems : null,
           google_place_id: place.place_id,
           contact_status: "sin_contactar",
         });

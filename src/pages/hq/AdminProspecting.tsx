@@ -341,6 +341,15 @@ export default function AdminProspecting() {
                                         {lead.website && <a href={lead.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sky-600 hover:underline"><Globe className="w-3 h-3" /> Web</a>}
                                         {lead.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {lead.phone}</span>}
                                     </div>
+                                    {lead.problems && lead.problems.length > 0 && (
+                                        <ul className="mt-2 space-y-0.5">
+                                            {lead.problems.map((p, i) => (
+                                                <li key={i} className="text-[11px] text-violet-700 flex items-start gap-1.5">
+                                                    <span className="text-violet-300 mt-0.5">•</span> {p}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     {lead.contact_status === 'sin_contactar' && (
