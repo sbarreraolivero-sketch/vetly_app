@@ -2069,7 +2069,7 @@ export default function Settings() {
                                         >
                                             {bookingLogoUrl
                                                 ? <img src={bookingLogoUrl} alt="Logo" className="h-12 object-contain" />
-                                                : <span className="text-white font-black tracking-tight">{clinicName || 'Tu clínica'}</span>}
+                                                : <span className="text-white font-black tracking-tight" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>{clinicName || 'Tu clínica'}</span>}
                                         </div>
                                     </div>
                                 </div>

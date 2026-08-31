@@ -186,11 +186,19 @@ export default function PublicPrescription() {
                         <div className="flex items-center gap-4">
                             {logoUrl && <img id="clinic-logo" src={logoUrl} alt="" className="h-14 w-14 object-contain rounded-lg bg-white/95 p-1" />}
                             <div>
-                                <h1 className="text-xl sm:text-2xl font-black leading-tight">{c.clinic_name || 'Clínica veterinaria'}</h1>
-                                <p className="text-white/85 text-xs sm:text-sm mt-1">
+                                {/* text-white explícito: la regla base `h1 { text-charcoal }` de index.css
+                                    gana sobre el text-white heredado del contenedor. Sombra para que
+                                    resalte sobre cualquier tramo del gradiente de marca. */}
+                                <h1
+                                    className="text-xl sm:text-2xl font-black leading-tight text-white"
+                                    style={{ textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}
+                                >
+                                    {c.clinic_name || 'Clínica veterinaria'}
+                                </h1>
+                                <p className="text-white/90 text-xs sm:text-sm mt-1" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}>
                                     {[c.clinic_address, c.address_references, c.country].filter(Boolean).join(' · ')}
                                 </p>
-                                {c.contact_phone && <p className="text-white/85 text-xs sm:text-sm">Tel: {c.contact_phone}</p>}
+                                {c.contact_phone && <p className="text-white/90 text-xs sm:text-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}>Tel: {c.contact_phone}</p>}
                             </div>
                         </div>
                     </div>

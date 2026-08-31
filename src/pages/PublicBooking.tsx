@@ -190,8 +190,10 @@ export default function PublicBooking() {
                 {clinic.logo_url && (
                     <img src={clinic.logo_url} alt={clinic.clinic_name} className="h-14 mx-auto mb-3 object-contain" />
                 )}
-                <h1 className="text-2xl font-black">{clinic.clinic_name}</h1>
-                <p className="text-white/80 text-sm mt-1">Agenda tu cita online</p>
+                {/* text-white explícito + sombra: la regla base h1{text-charcoal} de index.css
+                    gana sobre el text-white heredado del contenedor con gradiente. */}
+                <h1 className="text-2xl font-black text-white" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>{clinic.clinic_name}</h1>
+                <p className="text-white/90 text-sm mt-1" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}>Agenda tu cita online</p>
             </div>
 
             <div className="max-w-2xl mx-auto p-4 sm:p-6 -mt-4">
