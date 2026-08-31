@@ -316,25 +316,47 @@ const RULES: EmailRule[] = [
         }),
     },
     {
-        key: "paso9_recetas",
+        key: "paso9_firma",
         minDay: 21,
         condition: (s) => s.ageDays >= 21,
         build: (clinic, firstName) => ({
             subject: `${firstName}, deja lista tu firma antes de emitir tu primera receta`,
             html: renderEmailLayout({
-                headerTitle: "Recetas y órdenes médicas",
-                headerSubtitle: "Tu firma, tus datos profesionales y tu marca — configúralos una vez",
+                headerTitle: "Tu firma y tus datos profesionales",
+                headerSubtitle: "Se configuran una sola vez y quedan para siempre",
                 bodyHtml:
-                    p(`Hola ${firstName}, Vetly emite <strong>recetas, órdenes médicas y derivaciones</strong> desde la ficha del paciente, descargables en PDF y enviables al tutor por WhatsApp o correo. Antes de la primera, tres cosas se configuran una sola vez y quedan para siempre.`) +
+                    p(`Hola ${firstName}, Vetly emite <strong>recetas, órdenes médicas y derivaciones</strong> desde la ficha del paciente — descargables en PDF y enviables al tutor por WhatsApp o correo. Antes de la primera, hay dos cosas que dejar listas en tu perfil.`) +
                     p(`<strong>1. Tu firma</strong> — <em>Configuración → Mi Perfil → Firma para documentos</em><br>La dibujas ahí mismo con el mouse o el dedo, o subes una foto de tu firma en papel. Se estampa sobre la línea de firma de cada documento que emitas. Cada profesional del equipo configura la suya.`) +
                     screenshot(SHOTS.paso9_firma, "Sección Firma para documentos en Mi Perfil") +
-                    p(`<strong>2. Tus datos profesionales</strong> — <em>misma pantalla</em><br>Tu <strong>título</strong> (ej. Médico Veterinario) y tu <strong>número de colegiatura / matrícula / cédula profesional</strong>. Aparecen bajo tu nombre en el documento — en varios países son obligatorios para que la receta tenga validez. Son opcionales en Vetly: si los dejas en blanco, simplemente no se imprimen.`) +
-                    p(`<strong>Cómo se usan estos datos:</strong> solo se muestran en los documentos que tú emites, y se guardan <em>congelados</em> en cada receta al momento de crearla. Si más adelante cambias tu matrícula o tu firma, las recetas antiguas conservan la información que tenían — no se reescriben.`) +
-                    p(`<strong>3. Tu marca</strong> — <em>Configuración → Diseño de marca</em><br>El <strong>logo</strong> y <strong>dos colores</strong> de tu clínica. Con eso Vetly arma el encabezado de cada documento (logo + nombre + dirección + un degradado con tus colores) y también tu página de reservas online. Se configura una vez para todo.`) +
+                    p(`<strong>2. Tus datos profesionales</strong> — <em>misma pantalla</em><br>Tu <strong>título</strong> (ej. Médico Veterinario) y tu <strong>número de colegiatura / matrícula / cédula profesional</strong>. Aparecen bajo tu nombre en el documento — en varios países son obligatorios para que la receta tenga validez. Son opcionales: si los dejas en blanco, no se imprimen.`) +
+                    p(`<strong>Cómo se usan estos datos:</strong> solo se muestran en los documentos que tú emites. Se guardan <em>congelados</em> en cada receta al momento de crearla — si más adelante cambias tu matrícula o tu firma, las recetas antiguas conservan lo que tenían, no se reescriben. No se comparten con nadie ni se usan para otra cosa.`) +
+                    ctaBox("Configura tu firma", "Firma + título + matrícula, en la misma pantalla.", "Ir a Mi Perfil", `${APP_URL}/app/settings?tab=profile`) +
+                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para configurar mi firma y mis datos profesionales en Vetly.`),
+            }),
+        }),
+    },
+    {
+        key: "paso10_recetas_marca",
+        minDay: 24,
+        condition: (s) => s.ageDays >= 24,
+        build: (clinic, firstName) => ({
+            subject: `${firstName}, así se ven tus recetas y órdenes médicas en Vetly`,
+            html: renderEmailLayout({
+                headerTitle: "Recetas, órdenes y derivaciones",
+                headerSubtitle: "Con tu marca, en PDF, y enviables al tutor",
+                bodyHtml:
+                    p(`Hola ${firstName}, ya con tu firma lista, esto es lo que Vetly hace con cada documento que emites desde la ficha del paciente.`) +
+                    p(`<strong>Tu marca en el encabezado</strong> — <em>Configuración → Diseño de marca</em><br>Subes tu <strong>logo</strong> y eliges <strong>dos colores</strong>. Vetly arma el encabezado de cada receta con el logo, el nombre y la dirección de tu clínica sobre un degradado con tus colores. Se configura una vez y sirve también para tu página de reservas online.`) +
                     screenshot(SHOTS.paso9_marca, "Sección Diseño de marca en Configuración") +
-                    p(`<strong>Sobre las recetas:</strong> los medicamentos son <strong>opcionales</strong>. Si es una orden para una radiografía o ecografía, o una derivación a otro profesional, eliges el tipo de documento y escribes la indicación — sin lista de medicamentos.`) +
-                    ctaBox("Configura tu firma", "Firma + datos profesionales, en la misma pantalla.", "Ir a Mi Perfil", `${APP_URL}/app/settings?tab=profile`) +
-                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para configurar mi firma y mi marca para las recetas en Vetly.`),
+                    p(`<strong>No todo lleva medicamentos.</strong> Al crear el documento eliges el tipo:`) +
+                    bullets([
+                        `<strong>Receta médica</strong> — con la lista de medicamentos (dosis, vía, frecuencia, duración).`,
+                        `<strong>Orden médica</strong> — para pedir una radiografía, ecografía o exámenes de laboratorio. Sin medicamentos: escribes la indicación.`,
+                        `<strong>Derivación / interconsulta</strong> — para derivar a otro profesional, con el motivo y los antecedentes.`,
+                    ]) +
+                    p(`<strong>Cada documento se puede:</strong> descargar en PDF, imprimir, o enviar al tutor por <strong>WhatsApp</strong> (desde el número de tu clínica) o por <strong>correo</strong> — le llega un enlace a la receta con tu marca, que él mismo puede guardar en PDF.`) +
+                    ctaBox("Configura tu marca", "Logo y dos colores para todos tus documentos.", "Ir a Diseño de marca", `${APP_URL}/app/settings?tab=branding`) +
+                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda con las recetas y el diseño de marca en Vetly.`),
             }),
         }),
     },
@@ -377,10 +399,24 @@ Deno.serve(async (req: Request) => {
         return new Response("ok", { headers: corsHeaders });
     }
 
+    const params = new URL(req.url).searchParams;
     // ?dryRun=1 — resuelve qué correo le tocaría a cada clínica y lo reporta,
     // pero NO envía nada ni escribe en email_sequence_log. Para verificar la
     // secuencia antes de dejar el cron activo.
-    const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
+    const dryRun = params.get("dryRun") === "1";
+    // ?blast=<email_key> — envío puntual de UN paso concreto a todas las
+    // clínicas Core elegibles, ignorando su minDay/condición y el gap de 24h.
+    // Respeta igual: Core, opt-out, ventana de 35 días, owner con email, y la
+    // idempotencia de email_sequence_log (no reenvía si ya lo recibió). Se usa
+    // para anunciar una función nueva a la cohorte actual sin esperar a que
+    // cada clínica llegue al día del paso en la secuencia.
+    const blastKey = params.get("blast");
+    const blastRule = blastKey ? RULES.find((r) => r.key === blastKey) : null;
+    if (blastKey && !blastRule) {
+        return new Response(JSON.stringify({ error: `blast key desconocida: ${blastKey}` }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+    }
 
     const log: string[] = [];
     let sent = 0;
@@ -431,20 +467,22 @@ Deno.serve(async (req: Request) => {
                     continue;
                 }
 
-                // Gap mínimo entre correos.
-                const { data: lastSent } = await supabase
-                    .from("email_sequence_log")
-                    .select("sent_at")
-                    .eq("clinic_id", clinic.id)
-                    .order("sent_at", { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                // Gap mínimo entre correos — no aplica en modo blast (envío puntual).
+                if (!blastRule) {
+                    const { data: lastSent } = await supabase
+                        .from("email_sequence_log")
+                        .select("sent_at")
+                        .eq("clinic_id", clinic.id)
+                        .order("sent_at", { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
 
-                if (lastSent?.sent_at) {
-                    const hoursSince = (Date.now() - new Date(lastSent.sent_at).getTime()) / 3_600_000;
-                    if (hoursSince < MIN_GAP_HOURS) {
-                        skipped++;
-                        continue;
+                    if (lastSent?.sent_at) {
+                        const hoursSince = (Date.now() - new Date(lastSent.sent_at).getTime()) / 3_600_000;
+                        if (hoursSince < MIN_GAP_HOURS) {
+                            skipped++;
+                            continue;
+                        }
                     }
                 }
 
@@ -462,7 +500,12 @@ Deno.serve(async (req: Request) => {
 
                 const signals: ClinicSignals = { ageDays, trialDaysLeft };
 
-                const rule = RULES.find((r) => !alreadySent.has(r.key) && r.condition(signals));
+                // Modo blast: se fuerza el paso pedido (ignora minDay/condición),
+                // pero sí respeta la idempotencia. Modo normal: primer paso no
+                // enviado cuya condición se cumple.
+                const rule = blastRule
+                    ? (alreadySent.has(blastRule.key) ? null : blastRule)
+                    : RULES.find((r) => !alreadySent.has(r.key) && r.condition(signals));
                 if (!rule) {
                     skipped++;
                     continue;
