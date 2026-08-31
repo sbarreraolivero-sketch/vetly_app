@@ -53,6 +53,7 @@ interface ClinicActivity {
     emails_opened_count: number
     last_email_key: string | null
     last_email_sent_at: string | null
+    last_sign_in_at: string | null
 }
 
 interface ClinicData {
@@ -105,6 +106,7 @@ interface ClinicGroup {
     emailsOpenedCount: number
     lastEmailKey: string | null
     lastEmailSentAt: string | null
+    lastSignInAt: string | null
 }
 
 const statusColors: Record<string, { bg: string; text: string; border: string; label: string }> = {
@@ -123,6 +125,15 @@ function formatMoney(amount: number, currency: string): string {
 
 function daysAgo(dateStr: string): number {
     return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
+}
+
+function formatLastSeen(dateStr: string | null): string {
+    if (!dateStr) return 'Nunca se conectó'
+    const date = new Date(dateStr)
+    const diffH = Math.floor((Date.now() - date.getTime()) / 3_600_000)
+    const relative = diffH < 1 ? 'hace <1h' : diffH < 24 ? `hace ${diffH}h` : `hace ${Math.floor(diffH / 24)}d`
+    const exact = date.toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    return `${relative} · ${exact}`
 }
 
 export default function AdminClinics() {
@@ -279,6 +290,7 @@ export default function AdminClinics() {
                         emailsOpenedCount: 0,
                         lastEmailKey: null,
                         lastEmailSentAt: null,
+                        lastSignInAt: null,
                     }
                 }
                 const g = acc[key]
@@ -305,6 +317,9 @@ export default function AdminClinics() {
                     if (act.last_email_sent_at && (!g.lastEmailSentAt || act.last_email_sent_at > g.lastEmailSentAt)) {
                         g.lastEmailSentAt = act.last_email_sent_at
                         g.lastEmailKey = act.last_email_key
+                    }
+                    if (act.last_sign_in_at && (!g.lastSignInAt || act.last_sign_in_at > g.lastSignInAt)) {
+                        g.lastSignInAt = act.last_sign_in_at
                     }
                 }
                 return acc
@@ -469,6 +484,8 @@ export default function AdminClinics() {
                                 <div className="text-right shrink-0">
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Registrada</p>
                                     <p className="text-xs font-bold text-gray-500">hace {daysAgo(primaryClinic.created_at)}d</p>
+                                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última conexión</p>
+                                    <p className={cn("text-[11px] font-bold", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt)}</p>
                                 </div>
                             </div>
 
@@ -573,12 +590,21 @@ export default function AdminClinics() {
                                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Reservas online</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100 col-span-2 sm:col-span-1">
+                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                                         <DollarSign className="w-4 h-4 text-gray-400 shrink-0" />
                                         <div>
                                             <p className="text-sm font-black text-gray-900 leading-none">{group.incomesCount}</p>
                                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">
                                                 Ingresos{group.incomesTotal > 0 ? ` · ${formatMoney(group.incomesTotal, primaryClinic.currency || 'CLP')}` : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                                        <MailOpen className={cn("w-4 h-4 shrink-0", group.emailsOpenedCount > 0 ? "text-violet-500" : "text-gray-300")} />
+                                        <div>
+                                            <p className="text-sm font-black text-gray-900 leading-none">{group.emailsOpenedCount}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">
+                                                Correos abiertos{group.emailsSentCount > 0 ? ` / ${group.emailsSentCount}` : ''}
                                             </p>
                                         </div>
                                     </div>
