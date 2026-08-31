@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.unsubscribe-lifecycle-emails]
 verify_jwt = false
+
+[functions.resend-webhook]
+verify_jwt = false
