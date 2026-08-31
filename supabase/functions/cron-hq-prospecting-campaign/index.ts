@@ -67,12 +67,14 @@ const SIGNATURE_HTML = `
                 <td style="vertical-align:middle;">
                   <p style="margin:0 0 3px 0;font-size:18px;font-weight:800;color:#134e4a;font-family:Arial,sans-serif;letter-spacing:-0.2px;">Sebastián Barrera</p>
                   <p style="margin:0 0 12px 0;font-size:12px;font-weight:700;color:#0d9488;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.6px;">Fundador · Vetly</p>
-                  <p style="margin:0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;line-height:2;">
-                    <a href="https://wa.me/56993089185" style="color:#0d9488;text-decoration:none;font-weight:600;">WhatsApp</a>
-                    <span style="color:#99f6e4;">&nbsp; | &nbsp;</span>
-                    <a href="mailto:sebastian@mail.vetly.pro" style="color:#0d9488;text-decoration:none;font-weight:600;">sebastian@mail.vetly.pro</a>
-                    <span style="color:#99f6e4;">&nbsp; | &nbsp;</span>
-                    <a href="https://vetly.pro" style="color:#0d9488;text-decoration:none;font-weight:600;">vetly.pro</a>
+                  <p style="margin:0 0 5px 0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;">
+                    <a href="https://wa.me/56993089185" style="color:#0d9488;text-decoration:none;font-weight:600;">📱 +56 9 9308 9185</a>
+                  </p>
+                  <p style="margin:0 0 5px 0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;">
+                    <a href="mailto:sebastian@mail.vetly.pro" style="color:#0d9488;text-decoration:none;font-weight:600;">✉️ sebastian@mail.vetly.pro</a>
+                  </p>
+                  <p style="margin:0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;">
+                    <a href="https://vetly.pro" style="color:#0d9488;text-decoration:none;font-weight:600;">🌐 vetly.pro</a>
                   </p>
                 </td>
               </tr>

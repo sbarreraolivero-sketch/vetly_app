@@ -127,9 +127,18 @@ function daysAgo(dateStr: string): number {
     return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
 }
 
-function formatLastSeen(dateStr: string | null): string {
-    if (!dateStr) return 'Nunca se conectó'
-    const date = new Date(dateStr)
+// Supabase marca `last_sign_in_at` en el mismo instante del registro (login
+// automático post-signup) — para casi todo Core recién creado y nunca vuelto
+// a abrir, ese campo queda a 3-6 segundos de `created_at`, no a la fecha real
+// de vuelta. Mostrarlo como "última conexión hace Nd" es engañoso: parece
+// que volvieron cuando solo se registraron una vez. Si la brecha es menor a
+// 5 minutos, se trata como "nunca volvió" en vez de una conexión real.
+function formatLastSeen(lastSignInAt: string | null, createdAt: string): string {
+    if (!lastSignInAt) return 'Nunca se conectó'
+    const signInMs = new Date(lastSignInAt).getTime()
+    const createdMs = new Date(createdAt).getTime()
+    if (signInMs - createdMs < 5 * 60_000) return 'Solo se registró — nunca volvió'
+    const date = new Date(lastSignInAt)
     const diffH = Math.floor((Date.now() - date.getTime()) / 3_600_000)
     const relative = diffH < 1 ? 'hace <1h' : diffH < 24 ? `hace ${diffH}h` : `hace ${Math.floor(diffH / 24)}d`
     const exact = date.toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -485,7 +494,7 @@ export default function AdminClinics() {
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Registrada</p>
                                     <p className="text-xs font-bold text-gray-500">hace {daysAgo(primaryClinic.created_at)}d</p>
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última conexión</p>
-                                    <p className={cn("text-[11px] font-bold", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt)}</p>
+                                    <p className={cn("text-[11px] font-bold", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt, primaryClinic.created_at)}</p>
                                 </div>
                             </div>
 
