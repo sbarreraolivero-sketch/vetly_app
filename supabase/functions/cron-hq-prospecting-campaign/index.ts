@@ -41,9 +41,8 @@ function json(data: unknown, status = 200) {
 // (ícono en círculo degradado + texto), y el logo de Vetly como insignia
 // circular en la esquina superior derecha del panel blanco — igual que la
 // referencia, adaptado a los colores reales de marca (#0d9488→#0ea5e9, no
-// azul/morado genérico) y a los datos reales (sin inventar una cuenta de
-// Instagram — @vetly.pro todavía no existe, ver .agents/product-marketing.md
-// pendientes — se dejan 3 filas: WhatsApp, correo, web).
+// azul/morado genérico) y a los datos reales — WhatsApp, correo, Instagram
+// (@vetly.pro, verificado real y activo el 2026-09-01) y web.
 //
 // El logo de Vetly TAMBIÉN va como avatar del remitente en Gmail vía
 // Gravatar (cuenta a nombre de sebastian@mail.vetly.pro, verificado
@@ -93,6 +92,16 @@ const SIGNATURE_HTML = `
           </td>
           <td style="padding:5px 0 5px 10px;vertical-align:middle;">
             <a href="mailto:sebastian@mail.vetly.pro" style="font-size:13px;color:#27272a;font-family:Arial,sans-serif;text-decoration:none;">sebastian@mail.vetly.pro</a>
+          </td>
+        </tr>
+        <tr>
+          <td width="30" style="padding:5px 0;vertical-align:middle;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="26" height="26" style="border-radius:50%;background-color:#0d9488;background-image:linear-gradient(135deg,#0d9488,#0ea5e9);">
+              <tr><td align="center" valign="middle" style="font-size:13px;line-height:26px;">📷</td></tr>
+            </table>
+          </td>
+          <td style="padding:5px 0 5px 10px;vertical-align:middle;">
+            <a href="https://instagram.com/vetly.pro" style="font-size:13px;color:#27272a;font-family:Arial,sans-serif;text-decoration:none;">@vetly.pro</a>
           </td>
         </tr>
         <tr>

@@ -762,7 +762,7 @@ Agendar una reunión demo con el equipo Vetly (→ `/demo`)
 - [ ] Confirmar con Claudia uso de foto/nombre en LinkedIn
 - [ ] Post 2 LinkedIn — jueves (el del dato que duele)
 - [ ] Primer post en Colmevet Chile (Facebook)
-- [ ] Crear cuenta TikTok/Instagram @vetly.pro
+- [x] Crear cuenta Instagram @vetly.pro — creada, activa (108 seguidores al 2026-09-01), contenido de memes/reels veterinarios + capturas del producto. TikTok sigue pendiente.
 - [ ] Product Hunt — cuando haya 3–5 clientes pagos
 
 ### Pipeline de outreach directo — 15 prospectos identificados (2026-05-31)

@@ -93,6 +93,16 @@ const SIGNATURE_PREVIEW_HTML = `
         <tr>
           <td width="30" style="padding:5px 0;vertical-align:middle;">
             <table role="presentation" cellpadding="0" cellspacing="0" width="26" height="26" style="border-radius:50%;background-color:#0d9488;background-image:linear-gradient(135deg,#0d9488,#0ea5e9);">
+              <tr><td align="center" valign="middle" style="font-size:13px;line-height:26px;">📷</td></tr>
+            </table>
+          </td>
+          <td style="padding:5px 0 5px 10px;vertical-align:middle;">
+            <a href="https://instagram.com/vetly.pro" style="font-size:13px;color:#27272a;font-family:Arial,sans-serif;text-decoration:none;">@vetly.pro</a>
+          </td>
+        </tr>
+        <tr>
+          <td width="30" style="padding:5px 0;vertical-align:middle;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="26" height="26" style="border-radius:50%;background-color:#0d9488;background-image:linear-gradient(135deg,#0d9488,#0ea5e9);">
               <tr><td align="center" valign="middle" style="font-size:13px;line-height:26px;">🌐</td></tr>
             </table>
           </td>
