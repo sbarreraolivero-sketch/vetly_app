@@ -15,6 +15,8 @@ const HQ_ID = "00000000-0000-0000-0000-000000000000";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // Misma sala fija que hq-booking-notify -- mantener sincronizado si cambia.
 const MEET_LINK = "https://meet.google.com/crh-jujw-fch";
+// Mismo número que hq-booking-notify -- vía concreta para reagendar/cancelar.
+const HQ_WHATSAPP_LINK = "https://wa.me/56993089185";
 // Mismo mapeo que BookOnboardingCall.tsx / hq-booking-notify -- mantener
 // sincronizado si se agrega un país nuevo.
 const COUNTRY_TIMEZONES: Record<string, string> = {
@@ -53,8 +55,11 @@ async function remindPart(
         label: "1día" | "2h";
         windowHours: [number, number];
         sentAtColumn: "reminder_sent_at" | "reminder_2h_sent_at";
-        timeLabel: string; // "mañana" | "en 2 horas"
-        subjectPrefix: string; // "es mañana" | "es en 2 horas"
+        founderTag: string; // "mañana" | "en 2 horas" -- solo para el correo/WA interno del founder
+        clientSubject: (firstName: string, dateTimeStr: string) => string;
+        clientIntroHtml: (firstName: string) => string;
+        clientClosingHtml: string;
+        clientWhatsApp: (firstName: string, whenLine: string) => string;
     },
 ): Promise<{ checked: number; reminded: number }> {
     const now = Date.now();
@@ -107,13 +112,13 @@ async function remindPart(
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
                     body: JSON.stringify({
-                        from: "Vetly AI <hola@vetly.pro>",
+                        from: "Sebastián · Vetly <hola@vetly.pro>",
                         to: appt.contact_email,
-                        subject: `Recordatorio: tu videollamada ${opts.subjectPrefix} (${dateTimeStr})`,
+                        subject: opts.clientSubject(firstName, dateTimeStr),
                         html: `
                             <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2E2E2E;">
-                                <h2 style="color: #7C3AED;">¡Nos vemos ${opts.timeLabel}, ${firstName}!</h2>
-                                <p>Este es un recordatorio de tu videollamada de activación con el equipo de Vetly.</p>
+                                <p style="font-size:15px; line-height:1.6;">¡Hola ${firstName}!</p>
+                                ${opts.clientIntroHtml(firstName)}
                                 <div style="background:#F5F3FF; border:1px solid #DDD6FE; border-radius:12px; padding:20px; margin:24px 0;">
                                     <p style="margin:0; font-size:15px;"><strong>📅 Cuándo:</strong> ${whenLine}</p>
                                 </div>
@@ -123,7 +128,8 @@ async function remindPart(
                                     </a>
                                     <p style="margin:10px 0 0; font-size:13px; color:#888;">${MEET_LINK}</p>
                                 </div>
-                                <p style="color:#888; font-size:13px; margin-top:32px;">— El equipo de Vetly</p>
+                                ${opts.clientClosingHtml}
+                                <p style="color:#888; font-size:13px; margin-top:24px;">— Sebastián</p>
                             </div>
                         `,
                     }),
@@ -143,10 +149,10 @@ async function remindPart(
                     body: JSON.stringify({
                         from: "Vetly AI <hola@vetly.pro>",
                         to: hq.hq_escalation_email,
-                        subject: `Recordatorio: videollamada ${opts.subjectPrefix} — ${appt.contact_name}`,
+                        subject: `Recordatorio: videollamada ${opts.founderTag} — ${appt.contact_name}`,
                         html: `
                             <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2E2E2E;">
-                                <h2 style="color: #7C3AED;">⏰ Videollamada ${opts.subjectPrefix}</h2>
+                                <h2 style="color: #7C3AED;">⏰ Videollamada ${opts.founderTag}</h2>
                                 <div style="background:#F5F3FF; border:1px solid #DDD6FE; border-radius:12px; padding:20px; margin:24px 0;">
                                     <p style="margin:0 0 6px; font-size:15px;"><strong>👤 Nombre:</strong> ${appt.contact_name}</p>
                                     <p style="margin:0 0 6px; font-size:15px;"><strong>📱 Teléfono:</strong> ${appt.contact_phone || "sin teléfono"}</p>
@@ -174,7 +180,7 @@ async function remindPart(
                 try {
                     await sendWhatsApp(
                         hq.ycloud_api_key, hq.ycloud_phone_number, appt.contact_phone,
-                        `¡Hola ${firstName}! 👋 Te recuerdo que ${opts.timeLabel} tenemos nuestra videollamada de activación, *${whenLine}*.\n\n📹 Link: ${MEET_LINK}\n\n¡Nos vemos!`,
+                        opts.clientWhatsApp(firstName, whenLine),
                     );
                 } catch (e) {
                     console.error(`[hq-appointment-reminders/${opts.label}] client WA failed for ${appt.id}:`, e);
@@ -184,7 +190,7 @@ async function remindPart(
                 try {
                     await sendWhatsApp(
                         hq.ycloud_api_key, hq.ycloud_phone_number, hq.hq_escalation_phone,
-                        `⏰ *Recordatorio: videollamada ${opts.subjectPrefix}*\n\n👤 ${appt.contact_name}\n📱 ${appt.contact_phone || "sin teléfono"}\n✉️ ${appt.contact_email}\n🗓️ ${dateTimeStr} hrs`,
+                        `⏰ *Recordatorio: videollamada ${opts.founderTag}*\n\n👤 ${appt.contact_name}\n📱 ${appt.contact_phone || "sin teléfono"}\n✉️ ${appt.contact_email}\n🗓️ ${dateTimeStr} hrs`,
                     );
                 } catch (e) {
                     console.error(`[hq-appointment-reminders/${opts.label}] founder WA failed for ${appt.id}:`, e);
@@ -224,8 +230,15 @@ Deno.serve(async () => {
         label: "1día",
         windowHours: [23, 25],
         sentAtColumn: "reminder_sent_at",
-        timeLabel: "mañana",
-        subjectPrefix: "es mañana",
+        founderTag: "mañana",
+        clientSubject: (firstName) => `Nos vemos mañana, ${firstName} 👋`,
+        clientIntroHtml: () =>
+            `<p style="font-size:15px; line-height:1.6;">Quise tomarme el atrevimiento de escribirte para recordarte nuestra llamada de mañana, en la que vamos a conversar sobre cómo podemos mejorar la gestión de tu clínica por medio de nuestro software.</p>`,
+        clientClosingHtml:
+            `<p style="font-size:15px; line-height:1.6;">Si por algún motivo no vas a poder asistir o prefieres cambiar el horario, solo respóndeme este correo o escríbeme por <a href="${HQ_WHATSAPP_LINK}" style="color:#7C3AED;">WhatsApp</a> y lo reagendamos sin problema.</p>` +
+            `<p style="font-size:15px; line-height:1.6;">¡Nos vemos mañana!</p>`,
+        clientWhatsApp: (firstName, whenLine) =>
+            `¡Hola ${firstName}! 👋 Te recuerdo que mañana tenemos nuestra videollamada de activación, *${whenLine}*.\n\n📹 Link: ${MEET_LINK}\n\n¡Nos vemos!`,
     });
 
     // PART 2: 2 horas antes — ventana 1.5h-2.5h (1h de ancho = el intervalo
@@ -234,8 +247,15 @@ Deno.serve(async () => {
         label: "2h",
         windowHours: [1.5, 2.5],
         sentAtColumn: "reminder_2h_sent_at",
-        timeLabel: "en 2 horas",
-        subjectPrefix: "es en 2 horas",
+        founderTag: "en 2 horas",
+        clientSubject: (firstName) => `En un par de horas nos conectamos, ${firstName}`,
+        clientIntroHtml: () =>
+            `<p style="font-size:15px; line-height:1.6;">Ya casi es hora de nuestra videollamada — te dejo el link a mano para que lo tengas listo cuando nos conectemos.</p>`,
+        clientClosingHtml:
+            `<p style="font-size:15px; line-height:1.6;">Si algo surgió de último momento y no vas a poder conectarte, avísame por este correo o por <a href="${HQ_WHATSAPP_LINK}" style="color:#7C3AED;">WhatsApp</a> y buscamos otro horario sin problema.</p>` +
+            `<p style="font-size:15px; line-height:1.6;">¡Nos vemos en un rato!</p>`,
+        clientWhatsApp: (firstName, whenLine) =>
+            `¡Hola ${firstName}! 👋 Ya casi es hora de nuestra videollamada de activación, *${whenLine}*.\n\n📹 Link: ${MEET_LINK}\n\n¡Nos vemos en un rato!`,
     });
 
     return new Response(JSON.stringify({ part1, part2 }), {

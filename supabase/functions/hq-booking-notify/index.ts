@@ -20,6 +20,9 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // necesita ni siquiera está creada en producción. Un link fijo cubre la
 // necesidad real (videollamadas de activación, una a la vez) sin ese riesgo.
 const MEET_LINK = "https://meet.google.com/crh-jujw-fch";
+// WhatsApp del HQ (Andrés) -- mismo número que hq-generate-prospect-email,
+// se ofrece como vía concreta para reagendar/cancelar (no solo "escríbeme").
+const HQ_WHATSAPP_LINK = "https://wa.me/56993089185";
 // Mismo mapeo que BookOnboardingCall.tsx / cron-hq-appointment-reminders --
 // mantener sincronizado si se agrega un país nuevo.
 const COUNTRY_TIMEZONES: Record<string, string> = {
@@ -115,13 +118,13 @@ Deno.serve(async (req) => {
                         Authorization: `Bearer ${RESEND_API_KEY}`,
                     },
                     body: JSON.stringify({
-                        from: "Vetly AI <hola@vetly.pro>",
+                        from: "Sebastián · Vetly <hola@vetly.pro>",
                         to: appt.contact_email,
-                        subject: `Videollamada confirmada: ${dateTimeStr}`,
+                        subject: `¡Listo, ${firstName}! Quedó agendada nuestra videollamada`,
                         html: `
                             <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2E2E2E;">
-                                <h2 style="color: #7C3AED;">¡Listo, ${firstName}! Tu videollamada quedó agendada</h2>
-                                <p>Nuestro equipo te va a acompañar para configurar Vetly de punta a punta y sacarle el máximo provecho desde el primer día.</p>
+                                <p style="font-size:15px; line-height:1.6;">¡Hola ${firstName}!</p>
+                                <p style="font-size:15px; line-height:1.6;">Soy Sebastián, fundador de Vetly. Te escribo para confirmarte que quedó agendada nuestra videollamada — vamos a conversar sobre cómo podemos mejorar la gestión de tu clínica con Vetly.</p>
                                 <div style="background:#F5F3FF; border:1px solid #DDD6FE; border-radius:12px; padding:20px; margin:24px 0;">
                                     <p style="margin:0; font-size:15px;"><strong>📅 Cuándo:</strong> ${whenLine}</p>
                                     <p style="margin:8px 0 0; font-size:15px;"><strong>⏱️ Duración:</strong> ~${appt.duration_minutes} minutos</p>
@@ -132,8 +135,10 @@ Deno.serve(async (req) => {
                                     </a>
                                     <p style="margin:10px 0 0; font-size:13px; color:#888;">${MEET_LINK}</p>
                                 </div>
-                                <p>Guarda este link — es el mismo que vas a usar el día de la reunión. Si necesitas reagendar, solo responde este correo o escríbenos por WhatsApp.</p>
-                                <p style="color:#888; font-size:13px; margin-top:32px;">— El equipo de Vetly</p>
+                                <p style="font-size:15px; line-height:1.6;">Guarda este link, es el mismo que vamos a usar el día de la reunión.</p>
+                                <p style="font-size:15px; line-height:1.6;">Si algo cambia, puedes responder este correo o escribirme directo por <a href="${HQ_WHATSAPP_LINK}" style="color:#7C3AED;">WhatsApp</a> para reagendar o avisarme que no vas a poder asistir — sin ningún problema.</p>
+                                <p style="font-size:15px; line-height:1.6;">¡Nos vemos pronto!</p>
+                                <p style="color:#888; font-size:13px; margin-top:24px;">— Sebastián</p>
                             </div>
                         `,
                     }),
