@@ -5,22 +5,29 @@
  * analyze-invoice (GPT-4o-mini, JSON forzado, revisión humana obligatoria
  * después) pero para datos tabulares, no imágenes.
  *
- * Se llama UNA VEZ POR LOTE (hasta 50 filas) — el cliente (modal HQ) hace
- * el chunking y llama esta función en loop, acumulando resultados.
+ * Se llama UNA VEZ POR LOTE (hasta 50 filas) — el cliente (modal, en HQ o
+ * en el portal del cliente) hace el chunking y llama esta función en loop,
+ * acumulando resultados.
  *
  * NUNCA toca clinic_settings/ai_credit_transactions del cliente — el costo
  * de OpenAI lo paga la cuenta de Vetly directamente (mismo OPENAI_API_KEY
  * que usan chat-agent/ycloud-whatsapp-webhook/hq-generate-prospect-email).
  * Decisión de diseño: el plan Core tiene 0 créditos IA (plan_limits), y la
- * promesa al cliente es "te ayudamos" (el equipo, no self-serve) — cobrar
- * créditos acá contradiría ambas cosas.
+ * promesa al cliente es "te ayudamos a migrar sin costo" — cobrar créditos
+ * acá contradiría eso, sin importar si lo dispara el equipo o el propio
+ * cliente desde su portal.
  *
- * Esta función NUNCA escribe en ninguna tabla — solo devuelve JSON. El
- * insert real ocurre en hq-commit-medical-history, después de que un
- * humano revisó y confirmó cada evento.
+ * Esta función NUNCA escribe en ninguna tabla de negocio — solo devuelve
+ * JSON (no toca datos de la clínica en absoluto, por eso el chequeo de
+ * acceso es solo "algún miembro activo de esa clínica o un admin de HQ",
+ * más para evitar que cualquier cuenta ajena use el endpoint como proxy
+ * gratuito a OpenAI que por riesgo de fuga de datos). El insert real ocurre
+ * en hq-commit-medical-history, después de que un humano revisó y confirmó
+ * cada evento.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireClinicAccess } from "../_shared/clinicOrAdminAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -67,21 +74,17 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "No autorizado" }, 401);
+    const { clinic_id, sheet_name, rows } = await req.json();
+    if (!clinic_id) return json({ error: "Falta clinic_id" }, 400);
+    if (!Array.isArray(rows) || rows.length === 0) return json({ error: "Falta rows (array no vacío)" }, 400);
+    if (rows.length > 50) return json({ error: "Máximo 50 filas por lote" }, 400);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) return json({ error: "No autorizado" }, 401);
-
-    const { data: admin } = await supabase.from("platform_admins").select("id").eq("id", user.id).maybeSingle();
-    if (!admin) return json({ error: "Solo administradores de plataforma" }, 403);
-
-    const { sheet_name, rows } = await req.json();
-    if (!Array.isArray(rows) || rows.length === 0) return json({ error: "Falta rows (array no vacío)" }, 400);
-    if (rows.length > 50) return json({ error: "Máximo 50 filas por lote" }, 400);
+    const access = await requireClinicAccess(supabase, authHeader, clinic_id);
+    if (!access.ok) return json({ error: access.error }, access.status);
 
     if (!OPENAI_API_KEY) return json({ error: "OPENAI_API_KEY no configurada" }, 500);
 

@@ -10,6 +10,7 @@ import {
     Trash2,
     X,
     Filter,
+    Stethoscope,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -19,6 +20,7 @@ import { TutorDetails } from '@/components/patients/TutorDetails'
 import { SubscriptionGuard } from '@/components/auth/SubscriptionGuard'
 import { TutorRowSkeleton, TutorCardSkeleton } from '@/components/ui/Skeleton'
 import { CSVUploader } from '@/components/patients/CSVUploader'
+import { MedicalHistoryImportModal } from '@/components/patients/MedicalHistoryImportModal'
 import { cn } from '@/lib/utils'
 
 type Contact = {
@@ -41,7 +43,8 @@ interface TagSummary {
 }
 
 export default function Tutors() {
-    const { profile } = useAuth()
+    const { profile, clinics } = useAuth()
+    const [showHistoryImport, setShowHistoryImport] = useState(false)
     const navigate = useNavigate()
     const location = useLocation()
     const [loading, setLoading] = useState(true)
@@ -193,6 +196,13 @@ export default function Tutors() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <CSVUploader onSuccess={fetchContacts} />
+                                    <button
+                                        onClick={() => setShowHistoryImport(true)}
+                                        title="¿Vienes de otro sistema? Importa el historial médico de tus pacientes con ayuda de IA"
+                                        className="btn-ghost flex items-center gap-2 self-start sm:self-auto bg-white border border-silk-beige"
+                                    >
+                                        <Stethoscope className="w-4 h-4" /> Importar historial
+                                    </button>
                                     <button
                                         onClick={() => {
                                             setEditingTutor(null)
@@ -508,6 +518,15 @@ export default function Tutors() {
                     tutor={editingTutor}
                     onClose={() => setIsFormOpen(false)}
                     onSave={() => fetchContacts()}
+                />
+            )}
+
+            {showHistoryImport && profile?.clinic_id && (
+                <MedicalHistoryImportModal
+                    clinicId={profile.clinic_id}
+                    clinicName={clinics.find(c => c.clinic_id === profile.clinic_id)?.clinic_name ?? 'tu clínica'}
+                    onClose={() => setShowHistoryImport(false)}
+                    onSuccess={() => {}}
                 />
             )}
         </SubscriptionGuard>

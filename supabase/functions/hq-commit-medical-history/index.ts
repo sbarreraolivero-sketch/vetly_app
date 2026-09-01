@@ -15,9 +15,14 @@
  * - Valida application_date/name (vaccines) y application_date/type
  *   (deworming) NOT NULL antes de insertar — si falta alguno, esa fila se
  *   reporta como error en vez de abortar todo el lote.
+ *
+ * Acceso: operador de HQ (platform_admins) O miembro activo de la propia
+ * clínica (clinic_members) — el modal se usa tanto desde HQ como desde el
+ * portal del cliente (self-serve).
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireClinicAccess } from "../_shared/clinicOrAdminAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -61,21 +66,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "No autorizado" }, 401);
+    const { clinic_id, events } = await req.json();
+    if (!clinic_id) return json({ error: "Falta clinic_id" }, 400);
+    if (!Array.isArray(events) || events.length === 0) return json({ error: "Falta events (array no vacío)" }, 400);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) return json({ error: "No autorizado" }, 401);
-
-    const { data: admin } = await supabase.from("platform_admins").select("id").eq("id", user.id).maybeSingle();
-    if (!admin) return json({ error: "Solo administradores de plataforma" }, 403);
-
-    const { clinic_id, events } = await req.json();
-    if (!clinic_id) return json({ error: "Falta clinic_id" }, 400);
-    if (!Array.isArray(events) || events.length === 0) return json({ error: "Falta events (array no vacío)" }, 400);
+    const access = await requireClinicAccess(supabase, authHeader, clinic_id);
+    if (!access.ok) return json({ error: access.error }, access.status);
 
     const vaccineRows: Record<string, unknown>[] = [];
     const dewormingRows: Record<string, unknown>[] = [];

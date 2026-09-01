@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import { normalizePlanId, PLAN_LIMITS, type PlanId } from '@/lib/plans'
 import { COUNTRY_INFO, type CountryCode } from '@/lib/countries'
-import { MedicalHistoryImportModal } from '@/components/hq/MedicalHistoryImportModal'
+import { MedicalHistoryImportModal } from '@/components/patients/MedicalHistoryImportModal'
 
 const HQ_ID = '00000000-0000-0000-0000-000000000000'
 

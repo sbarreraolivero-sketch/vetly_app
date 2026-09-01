@@ -61,7 +61,7 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
 
     const analyzeBatch = async (sheetName: string, rows: Record<string, string>[]): Promise<ExtractedEvent[]> => {
         const { data, error } = await supabase.functions.invoke('hq-analyze-medical-history', {
-            body: { sheet_name: sheetName, rows },
+            body: { clinic_id: clinicId, sheet_name: sheetName, rows },
         })
         if (error) throw new Error(error.message)
         if (data?.error) throw new Error(data.error)

@@ -1,20 +1,22 @@
 /**
  * hq-clinic-patient-roster — lee pacientes+tutores de UNA clínica puntual
- * para que el importador de historial médico (HQ) pueda hacer el matching
- * de cada evento extraído contra un paciente real. Sin IA, sin costo.
+ * para que el importador de historial médico pueda hacer el matching de
+ * cada evento extraído contra un paciente real. Sin IA, sin costo.
  *
  * Se llama UNA sola vez al abrir el modal (no por lote) — a diferencia de
  * hq-analyze-medical-history, que se llama una vez por lote de filas.
  *
- * Mismo patrón de auth que hq-discover-prospects/hq-generate-prospect-email:
- * JWT del operador → auth.getUser() → check platform_admins. La lectura de
- * datos del cliente usa el service role client (nunca la sesión del
- * operador), porque un admin de HQ no es necesariamente clinic_members de
+ * Acceso: operador de HQ (platform_admins) O miembro activo de la propia
+ * clínica (clinic_members) — el modal se usa tanto desde HQ como desde el
+ * portal del cliente (self-serve). Ver _shared/clinicOrAdminAuth.ts. La
+ * lectura de datos SIEMPRE usa el service role client (nunca la sesión del
+ * caller), porque un operador de HQ no es necesariamente clinic_members de
  * la clínica del cliente — la RLS de vaccines/deworming (patrón viejo) no
  * lo contemplaría.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireClinicAccess } from "../_shared/clinicOrAdminAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -34,20 +36,15 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "No autorizado" }, 401);
+    const { clinic_id } = await req.json();
+    if (!clinic_id) return json({ error: "Falta clinic_id" }, 400);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) return json({ error: "No autorizado" }, 401);
-
-    const { data: admin } = await supabase.from("platform_admins").select("id").eq("id", user.id).maybeSingle();
-    if (!admin) return json({ error: "Solo administradores de plataforma" }, 403);
-
-    const { clinic_id } = await req.json();
-    if (!clinic_id) return json({ error: "Falta clinic_id" }, 400);
+    const access = await requireClinicAccess(supabase, authHeader, clinic_id);
+    if (!access.ok) return json({ error: access.error }, access.status);
 
     const { data: patients, error: patientsErr } = await supabase
       .from("patients")
