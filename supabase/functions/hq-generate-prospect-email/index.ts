@@ -49,7 +49,7 @@ Si no hay ningún hallazgo (lista vacía), usa el problema genérico de gestión
 
 CATÁLOGO REAL DE FUNCIONES DEL PLAN CORE (todo esto SÍ está incluido, verificado — no es una lista aspiracional, es lo que el cliente realmente recibe por USD 17/mes):
 - 📅 Agenda de citas organizada, con recordatorios para no perderse ninguna
-- 🐾 Ficha clínica digital por paciente: historial, vacunas, desparasitaciones, todo en un solo lugar (se acabó buscar en cuadernos o carpetas)
+- 🐾 Ficha clínica digital por paciente: historial, vacunas, desparasitaciones, y recetas digitales con la firma del profesional, todo en un solo lugar (se acabó buscar en cuadernos o carpetas)
 - 💰 Finanzas con caja diaria: ingresos, gastos, cuánto se cobró y cuánto queda pendiente, sin planillas sueltas
 - 📦 Inventario inteligente con alertas de stock bajo y descuento automático al vender un servicio que usa un insumo (ej. una vacuna)
 - 🔔 Recordatorios automáticos de citas por WhatsApp + recordatorios manuales sin límite con un clic (no depende de tener el agente de IA activado)

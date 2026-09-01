@@ -35,50 +35,74 @@ function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
-// Firma tipo tarjeta de presentación — pedido explícito del usuario tras ver
-// que Gmail no mostraba ninguna foto junto al remitente. El logo de Vetly
-// se saca de acá: va como avatar del remitente en Gmail vía Gravatar
-// (gravatar.com, cuenta a nombre de sebastian@mail.vetly.pro — requiere que
-// esa dirección pueda recibir el correo de verificación de Gravatar, ver
-// Cloudflare Email Routing) — un header grande con el logo ANTES del cuerpo
-// del correo se vería como campaña de marketing, justo lo que se pidió
-// evitar. Esta firma va al FINAL, no al principio — puede ser vistosa sin
-// romper esa regla. Acá adentro va la FOTO real (public/foto-sebastian-
-// firma.png, recortada cuadrada 240px). Colores de marca reales
-// (#0d9488→#0ea5e9, el mismo gradiente hero de vetly.pro/landing.html) —
-// "más premium / tipo SaaS", pedido explícito del usuario tras ver la
-// primera versión (borde gris plano) demasiado básica.
+// Firma tipo "tarjeta de presentación" (v2) — rediseño pedido por el usuario
+// sobre una referencia visual concreta: panel izquierdo de color con foto
+// circular + nombre + cargo, panel derecho blanco con filas de contacto
+// (ícono en círculo degradado + texto), y el logo de Vetly como insignia
+// circular en la esquina superior derecha del panel blanco — igual que la
+// referencia, adaptado a los colores reales de marca (#0d9488→#0ea5e9, no
+// azul/morado genérico) y a los datos reales (sin inventar una cuenta de
+// Instagram — @vetly.pro todavía no existe, ver .agents/product-marketing.md
+// pendientes — se dejan 3 filas: WhatsApp, correo, web).
+//
+// El logo de Vetly TAMBIÉN va como avatar del remitente en Gmail vía
+// Gravatar (cuenta a nombre de sebastian@mail.vetly.pro, verificado
+// 2026-08-31: el hash SHA256 de ese correo devuelve el logo real de Vetly).
+// Que Gmail lo pinte en el inbox no depende de este HTML — es best-effort de
+// Gravatar, sin garantía total porque mail.vetly.pro no tiene DMARC/BIMI
+// (el mecanismo que Gmail sí respeta siempre). Confirmar viendo un correo
+// real en Gmail.
+//
+// Esta firma va al FINAL del correo, no al principio — un header de color
+// grande antes del cuerpo se vería como campaña de marketing.
 // El HTML generado por IA nunca escribe su propia firma (instrucción en
 // hq-generate-prospect-email) — esta es la única, siempre igual, agregada acá.
 const SIGNATURE_HTML = `
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:32px;width:100%;max-width:520px;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:32px;width:100%;max-width:540px;border-radius:18px;overflow:hidden;border:1px solid #e4e4e7;">
   <tr>
-    <td style="border-radius:16px;overflow:hidden;">
+    <td width="180" valign="top" style="background-color:#0d9488;background-image:linear-gradient(160deg,#0d9488,#0ea5e9);padding:30px 18px;text-align:center;">
+      <img src="https://vetly.pro/foto-sebastian-firma.png" width="88" height="88" alt="Sebastián Barrera"
+           style="display:block;width:88px;height:88px;margin:0 auto 14px auto;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,0.55);" />
+      <p style="margin:0 0 4px 0;font-size:16px;font-weight:800;color:#ffffff;font-family:Arial,sans-serif;letter-spacing:-0.2px;">Sebastián Barrera</p>
+      <p style="margin:0;font-size:11px;font-weight:700;color:#d1fae5;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.6px;">Fundador · Vetly</p>
+    </td>
+    <td valign="top" style="background-color:#ffffff;padding:18px 20px 20px 20px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr>
-          <td width="6" style="background-color:#0d9488;background-image:linear-gradient(180deg,#0d9488,#0ea5e9);"></td>
-          <td style="padding:22px 24px;background-color:#F0FDFA;">
-            <table role="presentation" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="padding-right:18px;vertical-align:middle;">
-                  <img src="https://vetly.pro/foto-sebastian-firma.png" width="76" height="76" alt="Sebastián Barrera"
-                       style="display:block;width:76px;height:76px;border-radius:50%;object-fit:cover;border:3px solid #ffffff;" />
-                </td>
-                <td style="vertical-align:middle;">
-                  <p style="margin:0 0 3px 0;font-size:18px;font-weight:800;color:#134e4a;font-family:Arial,sans-serif;letter-spacing:-0.2px;">Sebastián Barrera</p>
-                  <p style="margin:0 0 12px 0;font-size:12px;font-weight:700;color:#0d9488;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.6px;">Fundador · Vetly</p>
-                  <p style="margin:0 0 5px 0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;">
-                    <a href="https://wa.me/56993089185" style="color:#0d9488;text-decoration:none;font-weight:600;">📱 +56 9 9308 9185</a>
-                  </p>
-                  <p style="margin:0 0 5px 0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;">
-                    <a href="mailto:sebastian@mail.vetly.pro" style="color:#0d9488;text-decoration:none;font-weight:600;">✉️ sebastian@mail.vetly.pro</a>
-                  </p>
-                  <p style="margin:0;font-size:13px;color:#134e4a;font-family:Arial,sans-serif;">
-                    <a href="https://vetly.pro" style="color:#0d9488;text-decoration:none;font-weight:600;">🌐 vetly.pro</a>
-                  </p>
-                </td>
-              </tr>
+          <td align="right" style="padding-bottom:4px;">
+            <img src="https://vetly.pro/logo.png" width="38" height="38" alt="Vetly" style="display:inline-block;width:38px;height:38px;border-radius:50%;" />
+          </td>
+        </tr>
+      </table>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+          <td width="30" style="padding:5px 0;vertical-align:middle;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="26" height="26" style="border-radius:50%;background-color:#0d9488;background-image:linear-gradient(135deg,#0d9488,#0ea5e9);">
+              <tr><td align="center" valign="middle" style="font-size:13px;line-height:26px;">📱</td></tr>
             </table>
+          </td>
+          <td style="padding:5px 0 5px 10px;vertical-align:middle;">
+            <a href="https://wa.me/56993089185" style="font-size:13px;color:#27272a;font-family:Arial,sans-serif;text-decoration:none;">+56 9 9308 9185</a>
+          </td>
+        </tr>
+        <tr>
+          <td width="30" style="padding:5px 0;vertical-align:middle;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="26" height="26" style="border-radius:50%;background-color:#0d9488;background-image:linear-gradient(135deg,#0d9488,#0ea5e9);">
+              <tr><td align="center" valign="middle" style="font-size:13px;line-height:26px;">✉️</td></tr>
+            </table>
+          </td>
+          <td style="padding:5px 0 5px 10px;vertical-align:middle;">
+            <a href="mailto:sebastian@mail.vetly.pro" style="font-size:13px;color:#27272a;font-family:Arial,sans-serif;text-decoration:none;">sebastian@mail.vetly.pro</a>
+          </td>
+        </tr>
+        <tr>
+          <td width="30" style="padding:5px 0;vertical-align:middle;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="26" height="26" style="border-radius:50%;background-color:#0d9488;background-image:linear-gradient(135deg,#0d9488,#0ea5e9);">
+              <tr><td align="center" valign="middle" style="font-size:13px;line-height:26px;">🌐</td></tr>
+            </table>
+          </td>
+          <td style="padding:5px 0 5px 10px;vertical-align:middle;">
+            <a href="https://vetly.pro" style="font-size:13px;color:#27272a;font-family:Arial,sans-serif;text-decoration:none;">vetly.pro</a>
           </td>
         </tr>
       </table>
