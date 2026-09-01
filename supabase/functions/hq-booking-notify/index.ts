@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
 
         const { data: hq } = await sb
             .from("clinic_settings")
-            .select("ycloud_api_key, ycloud_phone_number, hq_escalation_phone")
+            .select("ycloud_api_key, ycloud_phone_number, hq_escalation_phone, hq_escalation_email")
             .eq("id", HQ_ID)
             .maybeSingle();
 
@@ -147,6 +147,48 @@ Deno.serve(async (req) => {
                 }
             } catch (e) {
                 await logIssue(sb, "[hq-booking-notify] Email send threw", { appointment_id, error: String(e) });
+            }
+
+            // --- Email de confirmación al founder (antes solo llegaba por WhatsApp) ---
+            if (hq?.hq_escalation_email) {
+                try {
+                    const founderEmailRes = await fetch("https://api.resend.com/emails", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+                        body: JSON.stringify({
+                            from: "Vetly AI <hola@vetly.pro>",
+                            to: hq.hq_escalation_email,
+                            subject: `Nueva videollamada agendada: ${appt.contact_name} — ${dateTimeStr}`,
+                            html: `
+                                <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2E2E2E;">
+                                    <h2 style="color: #7C3AED;">📅 Nueva videollamada agendada</h2>
+                                    <div style="background:#F5F3FF; border:1px solid #DDD6FE; border-radius:12px; padding:20px; margin:24px 0;">
+                                        <p style="margin:0 0 6px; font-size:15px;"><strong>👤 Nombre:</strong> ${appt.contact_name}</p>
+                                        <p style="margin:0 0 6px; font-size:15px;"><strong>📱 Teléfono:</strong> ${appt.contact_phone || "sin teléfono"}</p>
+                                        <p style="margin:0 0 6px; font-size:15px;"><strong>✉️ Correo:</strong> ${appt.contact_email}</p>
+                                        <p style="margin:0 0 6px; font-size:15px;"><strong>💳 Plan:</strong> ${appt.plan || "sin especificar"}</p>
+                                        <p style="margin:0 0 6px; font-size:15px;"><strong>🌎 País:</strong> ${appt.contact_country || "sin especificar"}</p>
+                                        <p style="margin:0; font-size:15px;"><strong>🗓️ Cuándo:</strong> ${whenLine}</p>
+                                    </div>
+                                    <div style="text-align:center; margin:28px 0;">
+                                        <a href="${MEET_LINK}" style="display:inline-block; background-color:#7C3AED; color:#ffffff; font-size:16px; font-weight:700; text-decoration:none; padding:14px 32px; border-radius:10px;">
+                                            📹 Unirme a la videollamada
+                                        </a>
+                                    </div>
+                                </div>
+                            `,
+                        }),
+                    });
+                    if (!founderEmailRes.ok) {
+                        await logIssue(sb, "[hq-booking-notify] Founder email send failed", {
+                            appointment_id,
+                            status: founderEmailRes.status,
+                            body: await founderEmailRes.text(),
+                        });
+                    }
+                } catch (e) {
+                    await logIssue(sb, "[hq-booking-notify] Founder email send threw", { appointment_id, error: String(e) });
+                }
             }
         }
 
