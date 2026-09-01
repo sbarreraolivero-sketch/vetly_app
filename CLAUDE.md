@@ -6833,3 +6833,117 @@ Mismo método ya establecido en sesión 93: `admin/generate_link` (magiclink) + 
 - **Cuando el usuario menciona "creo que tenemos X configurado" sobre infraestructura, verificar con una llamada real antes de descartarlo o de asumir que hay que agregarlo** — en este caso cambió el diseño completo de la parte de descubrimiento, de "Claude corre búsquedas a mano" a una función real y repetible.
 - **La regla de negocio "agotar antes de avanzar" no siempre necesita una tabla de cola dedicada** — a veces un `ORDER BY created_at ASC` combinado con que la inserción de datos nuevos sea una acción deliberada y espaciada en el tiempo (no automática) ya implementa la regla sin estructura extra.
 - **Un sistema de envío automatizado nuevo debe nacer pausado por defecto**, con un toggle explícito y `confirm()` antes de activarlo — mismo criterio ya aplicado a `loyalty_enabled` (sesión 84/85) y ahora a `prospecting_campaign_config.is_paused`.
+
+---
+
+## Cambios realizados — agosto 2026 (sesión 95, 2026-08-31)
+
+### Recetas / fórmulas médicas descargables + sección "Diseño de marca" unificada
+
+Vetly se expande a otros países y las clínicas necesitan **emitir recetas, órdenes médicas y derivaciones**. Hasta ahora no existía ninguna función de prescripción (lo más cercano: el textarea libre `medical_history.procedure_notes`). Feature grande, en varias partes.
+
+Decisiones tomadas con el usuario (`AskUserQuestion`): formato **estructurado** (filas de medicamento) · **guardar** cada receta · matrícula + título en Mi Perfil · **plantilla única genérica** (no por país) · envío por **enlace a una página pública** (no PDF adjunto) · el gradiente de 2 colores aplica a documentos **y** a `/reservar`.
+
+**⚠️ No hay Supabase MCP en esta sesión.** Las 5 migraciones se aplicaron con `supabase db query --linked` (Management API, equivalente a `execute_sql` del MCP), verificando cada paso, y se marcaron en la historia con `supabase migration repair --status applied`. **NO se usó `supabase db push`** — `supabase migration list` muestra el drift habitual del repo (decenas de migraciones locales aplicadas vía MCP con otro timestamp; un `db push` intentaría re-aplicarlas y `20260826000004` fallaría en el `CREATE POLICY` sin `IF NOT EXISTS`).
+
+#### Migraciones (todas aplicadas + verificadas en producción)
+
+| Migración | Contenido |
+|---|---|
+| `20260831120000` | `clinic_members.professional_license` + `professional_title` (TEXT, opcionales) |
+| `20260831120001` | tabla `prescriptions` (ver abajo) |
+| `20260831120002` | `clinic_settings.booking_brand_color_secondary` + `get_public_booking_clinic` recreada + `get_prescription_public` nueva |
+| `20260831140000` | `clinic_members.signature_url` + `prescriptions.prescriber_signature_url` (snapshot) + `get_prescription_public` con la firma |
+| `20260831160000` | `prescriptions.document_type` (`receta`\|`orden`\|`derivacion`, default `receta`) + `get_prescription_public` con el tipo |
+
+#### Tabla `prescriptions`
+
+`id, clinic_id (FK clinic_settings ON DELETE CASCADE), patient_id (FK patients CASCADE), medical_history_id (FK ON DELETE SET NULL, opcional), prescriber_member_id (FK clinic_members SET NULL), prescriber_name/license/title/signature_url (SNAPSHOT al emitir), document_type, issued_date, patient_snapshot JSONB, patient_weight, tutor_name, diagnosis, items JSONB (`[{drug,presentation,dose,route,frequency,duration,quantity,instructions}]`), general_instructions (lo ve el tutor, se imprime), notes (INTERNO, nunca se imprime ni sale en la RPC pública), folio (nullable, sin correlativo en v1), public_token TEXT UNIQUE NOT NULL DEFAULT encode(extensions.gen_random_bytes(16),'hex'), created_by, created_at, updated_at`.
+
+- **Snapshots**: `prescriber_*`, `patient_snapshot`, `patient_weight`, `tutor_name`, `diagnosis` se congelan al emitir — un documento médico-legal no muta si el vet edita su perfil o el paciente cambia después. El encabezado de la clínica (nombre/logo/colores/redes) se resuelve **en vivo** al ver la receta.
+- **RLS**: `prescriptions_members` FOR ALL TO authenticated USING/WITH CHECK `is_clinic_member(clinic_id)` + `prescriptions_service_role`. Mismo helper que `medical_history`/`reminders` (SECURITY DEFINER, TRUE también para platform admins).
+- **`public_token`** en hex (32 chars, URL-safe, 128 bits) como DEFAULT de columna → sin trigger. `extensions.gen_random_bytes` con schema explícito (bug de search_path, sesión 78). Verificado: `authenticated` y `anon` tienen EXECUTE sobre esa función.
+- Trigger `tr_prescriptions_updated_at` con `public.set_updated_at()` (ya existía).
+
+#### `get_prescription_public(p_token)` — RPC pública para `/receta/:token`
+
+`SECURITY DEFINER STABLE`, `RETURNS JSONB` (patrón `get_pet_owner_portal`). Token sensible a mayúsculas, comparación exacta (no dictable, no se normaliza). Devuelve `{ prescription: {..., NUNCA notes}, clinic: {...encabezado en vivo...} }`. `REVOKE ALL FROM PUBLIC, anon` + `GRANT EXECUTE TO anon, authenticated` (cierre igual que las 3 RPCs whitelisted en `20260817170215` — si esa migración de revoke-loop se re-ejecuta, agregar `get_prescription_public` a su `proname NOT IN (...)`). Verificado E2E: insert real → RPC devuelve el JSON correcto, `notes` ausente, luego cleanup.
+
+#### ⚠️ `get_public_booking_clinic` — la versión en vivo ya devolvía `timezone`
+
+Al recrearla (para agregar `brand_color_secondary`, que exige DROP+CREATE por cambio de `RETURNS TABLE`), se descubrió que **la versión en producción devolvía 7 columnas incluyendo `timezone`** — agregada por otra sesión vía MCP, **no está en el archivo `20260826000004`**. `PublicBooking.tsx` usa `clinic?.timezone` para calcular los horarios en la zona real de la clínica. La migración se corrigió para **preservar `timezone`** (`COALESCE(timezone, 'America/Santiago')`). Verificado llamando la RPC con una clínica real de México → `timezone: America/Mexico_City`.
+**Regla permanente:** antes de `DROP FUNCTION` + recrear una RPC, traer su definición exacta en vivo (`pg_get_functiondef`), no confiar en el archivo de migración — el repo tiene drift entre archivos y DB.
+
+#### "Diseño de marca" (antes "Reservas Online") — `src/pages/Settings.tsx`
+
+- Tab renombrada: `{ id: 'branding', label: 'Diseño de marca', icon: Palette }` (antes `'booking'` / `'Reservas Online'` / `Link2`). Grep confirmó 0 referencias externas a `'booking'` y `activeTab` no es union type → rename seguro. `'branding'` agregado al whitelist de deep-link `?tab=`.
+- JSX reestructurado en **2 cards**: (1) **"Diseño de marca" — siempre visible** (antes logo+color solo aparecían con reservas activadas): logo + **color principal + color secundario opcional** + preview del gradiente `linear-gradient(135deg, c1, c2 || c1)`. (2) "Página de reservas online": toggle + slug + link.
+- Un solo `handleSaveBooking` guarda las 5 columnas. **Bug corregido**: `slugify(publicBookingSlug || clinicName)` con reservas apagadas derivaba un slug UNIQUE del nombre → 2 clínicas homónimas colisionaban (23505). Fix: `slugify(publicBookingSlug || (publicBookingEnabled ? clinicName : ''))`.
+- **Columnas `booking_logo_url`/`booking_brand_color` NO se renombran** — la RPC ya las aliasa (`AS logo_url` etc.), el prefijo `booking_` es histórico.
+- **`PublicBooking.tsx`**: el header usa `linear-gradient(135deg, ${brandColor}, ${brandColorSecondary || brandColor+'cc'})` (antes solo `${brandColor}cc`).
+
+#### Identidad profesional + firma — `src/pages/settings/MyProfile.tsx`
+
+- 2 inputs opcionales tras "Especialidad": **"Título profesional"** (ej. Médico Veterinario) y **"Nº de colegiatura / matrícula / cédula profesional"**. Se imprimen en la receta bajo el nombre si están completos. Incluidos en `handleSave` **y en el payload del retry PGRST204** (el retry mínimo descartaba campos nuevos).
+- **`src/components/settings/SignaturePad.tsx`** (nuevo): pad de canvas para dibujar la firma (pointer events → mouse/dedo/lápiz, ajuste por `devicePixelRatio`), "Limpiar" + "Usar esta firma" (exporta PNG transparente vía `toBlob`). Card "Firma para documentos" en Mi Perfil: preview + pad + "Subir imagen de firma" (PNG/JPG/WEBP). Sube al bucket público `clinic-branding`, path `{clinic_id}/signatures/{member_id}.{ext}` (la política scoped por primer segmento = clinic_id ya cubre esto). **Por profesional** — cada vet configura la suya.
+- **`teamService.ts`**: `ClinicMember` interface + firma de `updateMemberProfile` ganan `professional_license?`, `professional_title?`, `signature_url?`. `AuthContext` carga `member` con `.select('*')` → los campos nuevos se propagan solos.
+
+#### Formulario de receta — `src/components/patients/PrescriptionForm.tsx` (nuevo)
+
+Clon estructural de `VaccineForm` (createPortal, `useAuth`). Selector **"Tipo de documento"** (Receta médica / Orden médica / Derivación / interconsulta) → define el título del documento y el placeholder del campo de indicaciones. **Medicamentos OPCIONALES** (antes exigía ≥1) — validación nueva: al menos un medicamento, un diagnóstico **o** el texto de la indicación (el documento no puede quedar vacío). Al guardar: insert en `prescriptions` con todos los snapshots (`prescriber_name = ${first} ${last}`, license, title, `signature_url`, `patient_snapshot`, `document_type`, `clinic_id = patient.clinic_id` — la clínica del **paciente**, no la sucursal activa). Sincroniza `patients.weight` si cambió. Aviso suave si falta el título profesional.
+
+#### Página pública — `src/pages/PublicPrescription.tsx` (nuevo) — ruta `/receta/:token`
+
+Patrón `PetOwnerPortal`: `publicClient` propio (sin persistSession, evita el conflicto de Web Locks), `<meta name="robots" content="noindex">`, **sin** `SubscriptionGuard`/`PlanGuard`. Encabezado con el gradiente de marca + logo + nombre/dirección/país/teléfono. Cuerpo: paciente/tutor/fecha/folio/diagnóstico + tabla de medicamentos (**se oculta si `items` vacío**) + indicaciones. Pie: **imagen de la firma** (si hay) sobre la línea + nombre + título + "Reg. N.º {license}" + redes/web de la clínica. Botón "Descargar PDF" → `window.print()` + `@media print`. `?print=1` auto-dispara la impresión esperando que carguen logo + firma (tope 2.5 s). Título del documento según `document_type` ("RECETA MÉDICA" / "ORDEN MÉDICA" / "DERIVACIÓN / INTERCONSULTA"). Sin riesgo XSS (JSX auto-escapa, a diferencia del patrón `printCajaReport` con `esc()`).
+
+`src/App.tsx`: `<Route path="/receta/:token" element={<PublicPrescription />} />` (lazy, junto a `/p/:code` y `/reservar/:slug`). Sin entrada en `vercel.json` (rutas SPA no la necesitan).
+
+#### `src/pages/PatientProfile.tsx`
+
+Nueva pestaña **"Recetas"** (icono `Pill`, entre Parasitología y Archivos). Lista: fecha · nº de medicamentos ("Sin medicamentos" si 0) · badge del tipo si no es receta · prescriptor · diagnóstico. Acciones por fila: **Ver / Imprimir** (abre `/receta/{token}?print=1`), **WhatsApp**, **Correo** (deshabilitado si el tutor no tiene email), **Eliminar** (`confirm()`). Modal `PrescriptionForm`.
+
+#### `supabase/functions/send-prescription/index.ts` (nuevo, deployada, `verify_jwt=true` default — NO en config.toml, igual que `send-visit-receipt`)
+
+Body `{ prescription_id, channel: 'whatsapp' | 'email' }`. Auth JWT → `auth.getUser()` → check `clinic_members` activo. Envía un **enlace** a `https://www.vetly.pro/receta/{public_token}`, no un PDF adjunto.
+- **WhatsApp**: texto plano con el link, rama Meta (`meta_phone_number_id`/`meta_access_token`) vs YCloud según `whatsapp_provider`. ⚠️ Fuera de la ventana de 24h Meta/YCloud rechazan free-form → devuelve mensaje claro sugiriendo el correo. Plantilla aprobada `receta_disponible` por WABA queda como fast-follow.
+- **Correo**: Resend (`RESEND_API_KEY` ya existe), `from: hola@vetly.pro`, **`reply_to` = email del owner activo de la clínica** (mismo patrón que `public-booking-notify`) — si el tutor responde, le llega a la clínica, no a Vetly.
+- Errores de negocio (sin teléfono/email, ventana 24h, etc.) devuelven **200 con `{success:false, error}`** para que `supabase.functions.invoke` pueda leer el mensaje (los 4xx opacos rompen eso — patrón de sesión 86). Auth 401/403 y catch-all 500 siguen siendo HTTP reales.
+
+#### Fixes menores
+
+- **Nombre de la clínica ilegible sobre el gradiente** (receta pública y `/reservar`): la regla base `h1..h6 { @apply text-charcoal }` de `src/index.css` ganaba sobre el `text-white` heredado del contenedor. Fix: `text-white` explícito en el `<h1>` + `style={{ textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}`. Aplicado en `PublicPrescription.tsx`, `PublicBooking.tsx` y el preview de Settings.
+- **`src/pages/Appointments.tsx`**: campo "Notas (opcional)" del modal de nueva/editar cita → **"Motivo de la cita o notas (opcional)"** + placeholder con ejemplos. Mismo modal para crear y editar.
+
+#### Correos de onboarding — `supabase/functions/cron-lifecycle-emails/index.ts`
+
+- **`paso9_firma`** (día 21): firma + datos profesionales + cómo se usan (solo en tus documentos, congelados por receta, no se comparten). CTA a Mi Perfil.
+- **`paso10_recetas_marca`** (día 24): tipos de documento (receta / orden / derivación), medicamentos opcionales, marca en el encabezado, envío por WhatsApp/correo. CTA a Diseño de marca.
+- Capturas en `public/email-shots/` (`receta-firma.png`, `receta-formulario.png`, `receta-documento.png`, `receta-lista.png`) — servidas en `https://www.vetly.pro/email-shots/*`, referenciadas por `SHOTS`.
+- **`?blast=<email_key>`** — envío puntual de UN paso a toda la cohorte Core elegible, ignorando `minDay`/condición y el gap de 24h, pero respetando opt-out, ventana de 35 días e idempotencia de `email_sequence_log`. Para anunciar una función nueva sin esperar a que cada clínica llegue al día del paso.
+- **`?blast=<key>&force=1`** — además ignora la idempotencia (reenvío para corregir un envío defectuoso). El insert duplicado a `email_sequence_log` (UNIQUE `clinic_id+key`) se saltea; la dedup futura sigue valiendo por la fila previa.
+
+#### Errores de esta sesión (registrados para no repetirlos)
+
+- **Envié `paso9_firma` a las 20 clínicas Core SIN las capturas.** Corrí `curl` sobre el endpoint de blast para "ver la respuesta" y esa llamada disparó el envío real, antes de que el usuario me pasara las imágenes (me había dicho "debes esperarme"). La idempotencia evitó el doble envío en la segunda llamada, pero salieron 20 correos sin imagen. **Corregido**: se reenvió con `?blast=paso9_firma&force=1` una vez que las capturas estuvieron live en Vercel. **Regla: nunca invocar un endpoint que envía correos/WhatsApp reales "para ver qué devuelve" — usar siempre `?dryRun=1` primero, y confirmar el contenido final (imágenes incluidas) con el usuario antes del envío real.**
+
+#### Estado al cierre
+
+- `paso9_firma`: enviado (2 veces por el error, la 2ª con imagen) a 20 clínicas Core.
+- `paso10_recetas_marca`: **agendado** para 2026-09-01 16:00 UTC (12:00 Chile) — pg_cron one-off `blast-paso10-oneoff` (jobid 23, `0 16 1 9 *`) que llama `?blast=paso10_recetas_marca` y se auto-`unschedule`. Respeta idempotencia (no `force`). Si el auto-unschedule falla, reintenta el 1-sep del próximo año (inofensivo).
+- Las clínicas futuras reciben paso9/paso10 por la secuencia normal a día 21/24, con imágenes.
+- Feature de recetas 100% en producción (confirmado con capturas reales del usuario: selector de tipo, medicamentos opcionales, firma estampada en el PDF, nombre de clínica legible, envío WhatsApp/correo).
+
+### Pendientes
+
+- [ ] Plantilla aprobada de WhatsApp (`receta_disponible`) por WABA para enviar la receta fuera de la ventana de 24h — hoy el envío WhatsApp solo funciona con conversación abierta reciente.
+- [ ] Confirmar que `blast-paso10-oneoff` (jobid 23) se auto-eliminó tras correr el 1-sep; si no, `SELECT cron.unschedule('blast-paso10-oneoff')`.
+- [ ] "Otros documentos" que anticipó el usuario (certificados de salud, informes) — reusar `clinic_members.signature_url` + el patrón de `PublicPrescription`.
+
+### Reglas permanentes de esta sesión
+
+- **Antes de `DROP FUNCTION` + recrear una RPC, traer su definición en vivo con `pg_get_functiondef`, no el archivo de migración.** El repo tiene drift documentado entre archivos locales y la DB (migraciones aplicadas vía MCP con otro timestamp). `get_public_booking_clinic` en vivo tenía `timezone` que el archivo no; recrearla desde el archivo habría roto el cálculo de horarios de `/reservar` para clínicas fuera de Chile.
+- **Nunca invocar un endpoint que envía correos/WhatsApp reales "para ver qué devuelve".** Usar `?dryRun=1` primero. Confirmar el contenido final (imágenes, copy) con el usuario antes del envío real. Un `curl` de inspección puede ser el envío.
+- **`get_prescription_public` y cualquier RPC pública de un documento nunca debe devolver el campo interno (`notes`).** Verificado con `pg_get_functiondef ... LIKE '%''notes''%'` = false y con un insert real.
+- **La firma / logo / colores de marca deben poder mostrarse en una página pública sin login** (bucket `clinic-branding` es público a propósito) — pero el `public_token` de la receta es hex de 128 bits, no enumerable, mismo criterio que `tutors.portal_token` (sesión 74).
+- **Un documento clínico estructurado no siempre lleva medicamentos** (orden de imagen, derivación) — el `document_type` define el título y hace la lista opcional; la validación exige que el documento no quede completamente vacío.
+- **`window.open`/`curl` de un blast: idempotencia por `email_sequence_log` (UNIQUE clinic+key) es la red que evita el doble envío**, pero no sustituye confirmar antes de disparar.
