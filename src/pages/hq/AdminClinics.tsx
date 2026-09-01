@@ -5,11 +5,12 @@ import {
     Loader2, RefreshCw, CreditCard,
     Sparkles, Plus, GitBranch, Phone, Mail,
     Users, MessageCircle, Link2, DollarSign, CalendarClock, Mails, MailOpen, User,
-    ClipboardList, Package, CalendarCheck,
+    ClipboardList, Package, CalendarCheck, Stethoscope,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { normalizePlanId, PLAN_LIMITS, type PlanId } from '@/lib/plans'
 import { COUNTRY_INFO, type CountryCode } from '@/lib/countries'
+import { MedicalHistoryImportModal } from '@/components/hq/MedicalHistoryImportModal'
 
 const HQ_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -158,6 +159,9 @@ export default function AdminClinics() {
     const [charging, setCharging] = useState<string | null>(null)
     const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
     const [chargeTargets, setChargeTargets] = useState<Record<string, string>>({})
+
+    const [importTargets, setImportTargets] = useState<Record<string, string>>({})
+    const [openImportModal, setOpenImportModal] = useState<{ groupKey: string; clinicId: string; clinicName: string } | null>(null)
 
     const [usageMap, setUsageMap] = useState<Record<string, number>>({})
     const [activityMap, setActivityMap] = useState<Record<string, ClinicActivity>>({})
@@ -493,11 +497,36 @@ export default function AdminClinics() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-left sm:text-right shrink-0">
-                                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Registrada</p>
-                                    <p className="text-xs font-bold text-gray-500">hace {daysAgo(primaryClinic.created_at)}d</p>
-                                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última actividad</p>
-                                    <p className={cn("text-[11px] font-bold break-words", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt, primaryClinic.created_at)}</p>
+                                <div className="text-left sm:text-right shrink-0 flex flex-col items-start sm:items-end gap-2">
+                                    <div>
+                                        <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Registrada</p>
+                                        <p className="text-xs font-bold text-gray-500">hace {daysAgo(primaryClinic.created_at)}d</p>
+                                        <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1.5">Última actividad</p>
+                                        <p className={cn("text-[11px] font-bold break-words", group.lastSignInAt ? "text-gray-500" : "text-gray-300")}>{formatLastSeen(group.lastSignInAt, primaryClinic.created_at)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {isMultiBranch && (
+                                            <select
+                                                value={importTargets[groupKey] ?? primaryClinic.id}
+                                                onChange={(e) => setImportTargets(prev => ({ ...prev, [groupKey]: e.target.value }))}
+                                                className="text-[9px] font-black uppercase bg-gray-50 rounded-full px-2 py-1.5 border-none outline-none"
+                                            >
+                                                {branches.map(b => (
+                                                    <option key={b.id} value={b.id}>{branchLabel(b)}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                const targetId = importTargets[groupKey] ?? primaryClinic.id
+                                                const targetBranch = branches.find(b => b.id === targetId) ?? primaryClinic
+                                                setOpenImportModal({ groupKey, clinicId: targetId, clinicName: targetBranch.clinic_name })
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 rounded-full text-[10px] font-black uppercase tracking-widest border border-violet-100 hover:bg-violet-100 transition-colors"
+                                        >
+                                            <Stethoscope className="w-3 h-3" /> Importar historial
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -730,6 +759,15 @@ export default function AdminClinics() {
                     )
                 })}
             </div>
+
+            {openImportModal && (
+                <MedicalHistoryImportModal
+                    clinicId={openImportModal.clinicId}
+                    clinicName={openImportModal.clinicName}
+                    onClose={() => setOpenImportModal(null)}
+                    onSuccess={() => {}}
+                />
+            )}
         </div>
     )
 }

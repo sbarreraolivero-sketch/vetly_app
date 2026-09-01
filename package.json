@@ -41,7 +41,8 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^6.21.0",
     "recharts": "^3.8.1",
-    "tailwind-merge": "^2.2.0"
+    "tailwind-merge": "^2.2.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/papaparse": "^5.5.2",
