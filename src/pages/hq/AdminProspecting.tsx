@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
     Search, Loader2, RefreshCw, Sparkles, Mail, MailOpen, Check, X,
-    ChevronDown, ChevronUp, Pause, Play, Globe, MapPin, Phone, ArrowUpRight,
+    ChevronDown, ChevronUp, Pause, Play, Globe, MapPin, Phone, ArrowUpRight, AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -140,6 +140,7 @@ export default function AdminProspecting() {
     const [stats, setStats] = useState<ProspectingStats | null>(null)
     const [config, setConfig] = useState<CampaignConfig | null>(null)
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState<string | null>(null)
 
     const [countryFilter, setCountryFilter] = useState('todos')
     const [statusFilter, setStatusFilter] = useState('todos')
@@ -164,9 +165,18 @@ export default function AdminProspecting() {
             (supabase as any).rpc('get_prospecting_stats'),
             (supabase as any).rpc('get_prospecting_campaign_config'),
         ])
-        setLeads(leadsRes.data || [])
-        setStats(statsRes.data?.[0] || null)
-        setConfig(configRes.data || null)
+        // Si alguna de las 3 falla (ej. una carrera de Web Locks entre pestañas),
+        // NUNCA pisamos el estado ya cargado con vacío/null — eso hacía que la
+        // lista pareciera "sin prospectos" y, peor, que el badge de la campaña
+        // (config === null) se mostrara como "Campaña activa" en rojo aunque el
+        // dato real en la DB fuera is_paused=true. Mostramos un error explícito
+        // con reintento en vez de fallar en silencio hacia el estado más
+        // alarmante posible.
+        const firstError = leadsRes.error || statsRes.error || configRes.error
+        setLoadError(firstError ? (firstError.message || 'No se pudo cargar la información. Intenta de nuevo.') : null)
+        if (!leadsRes.error) setLeads(leadsRes.data || [])
+        if (!statsRes.error) setStats(statsRes.data?.[0] || null)
+        if (!configRes.error) setConfig(configRes.data || null)
         setLoading(false)
     }, [])
 
@@ -307,14 +317,19 @@ export default function AdminProspecting() {
                         )}
                         <button
                             onClick={handleTogglePause}
-                            disabled={togglingPause}
+                            disabled={togglingPause || !config}
+                            title={!config ? 'No se pudo confirmar el estado real de la campaña — recarga antes de asumir nada' : undefined}
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                config?.is_paused ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-red-500/90 text-white hover:bg-red-600"
+                                !config
+                                    ? "bg-white/10 text-white/50 cursor-not-allowed"
+                                    : config.is_paused ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-red-500/90 text-white hover:bg-red-600"
                             )}
                         >
-                            {togglingPause ? <Loader2 className="w-4 h-4 animate-spin" /> : config?.is_paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-                            {config?.is_paused ? 'Campaña pausada' : 'Campaña activa'}
+                            {togglingPause
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : !config ? <AlertCircle className="w-4 h-4" /> : config.is_paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                            {!config ? 'Estado no confirmado' : config.is_paused ? 'Campaña pausada' : 'Campaña activa'}
                         </button>
                         <button onClick={load} className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-white/60 hover:text-white">
                             <RefreshCw className="w-4 h-4" />
@@ -322,6 +337,17 @@ export default function AdminProspecting() {
                     </div>
                 </div>
             </div>
+
+            {loadError && (
+                <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black text-red-700 uppercase leading-none mb-1">No se pudo cargar la información</p>
+                        <p className="text-[11px] text-red-600 font-bold leading-tight">{loadError} — lo que ves abajo puede estar incompleto o desactualizado, no asumas que la campaña está pausada o activa hasta recargar.</p>
+                    </div>
+                    <button onClick={load} className="p-2 bg-red-100 text-red-700 rounded-lg shrink-0"><RefreshCw className="w-3.5 h-3.5" /></button>
+                </div>
+            )}
 
             {/* KPIs */}
             {stats && (
@@ -384,7 +410,9 @@ export default function AdminProspecting() {
             <div className="space-y-3">
                 {visible.length === 0 && (
                     <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400 font-bold text-sm">
-                        Sin prospectos {statusFilter !== 'todos' || countryFilter !== 'todos' ? 'con estos filtros' : 'todavía — busca la primera ciudad arriba'}
+                        {loadError
+                            ? 'No se pudo confirmar si hay prospectos — la carga falló, recarga antes de asumir que la lista está vacía.'
+                            : `Sin prospectos ${statusFilter !== 'todos' || countryFilter !== 'todos' ? 'con estos filtros' : 'todavía — busca la primera ciudad arriba'}`}
                     </div>
                 )}
                 {visible.map(lead => {
