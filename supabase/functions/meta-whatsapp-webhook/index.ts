@@ -1276,6 +1276,23 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   // de uso puntual) para bajar el tamaño del prompt sin perder la reinstrucción — solo se
   // inyecta completo cuando el tema realmente aparece en la conversación.
   { title: "PROTOCOLO_EXAMEN_FELV_FIV_LEUCEMIA_FELINA", keywords: ["felv", "fiv", "leucemia felina", "sida felino", "sida felina"] },
+  // Sesión 94: la IA cotizó "$20.000 por 4 gatos" — inventó que una consulta cubre a
+  // todas las mascotas del hogar (sobre-generalizó la regla del traslado "una vez por
+  // visita"). Ni el prompt ni el KB tenían la tabla de consulta multi-mascota. Se fuerza
+  // completo cuando el mensaje menciona varias mascotas / camada, para que la tabla real
+  // (camada ≤3 meses = precio total; varios en el hogar desde 4 meses = precio por
+  // mascota) siempre esté disponible sin depender de get_knowledge.
+  { title: "PROTOCOLO_CONSULTA_MULTIPLES_MASCOTAS", keywords: [
+    "camada", "camadita", "camaditas",
+    "gatitos", "perritos", "cachorros", "cachorritos", "gaticos", "michis",
+    "varios gatos", "varios perros", "varias mascotas", "varios michis", "varios cachorros",
+    "mis gatos", "mis perros", "mis michis", "mis mascotas", "mis cachorros", "mis 2", "mis 3", "mis 4",
+    "2 gatos", "3 gatos", "4 gatos", "5 gatos", "6 gatos",
+    "2 perros", "3 perros", "4 perros", "5 perros", "6 perros",
+    "2 gatitos", "3 gatitos", "4 gatitos", "2 perritos", "3 perritos", "4 perritos",
+    "dos gatos", "tres gatos", "cuatro gatos", "cinco gatos",
+    "dos perros", "tres perros", "cuatro perros", "cinco perros",
+  ] },
   // Sesión 71: el resumen top-5/500-chars corta este doc justo antes de la tabla real
   // de comunas Tramo A/B/C/D — la IA solo veía la intro y alucinaba recargos (ej: San
   // Bernardo, que es Tramo A/$0, cotizado como $6.000). Se fuerza completo cuando el
@@ -1461,6 +1478,28 @@ const requestSchedulingCoordination = async (
         `🐾 Nueva solicitud de agenda — revisar ruta\n\n${resumen}\n\nTeléfono: +${normalizedPhone}\n\nAutoriza los horarios en Citas Médicas.`,
       );
       await debugLog(sb, "[COORDINATOR ALERT] Aviso de solicitud nueva", { to: coordinatorPhone, result: coordResult });
+
+      // Persistir con el WAMID para que el handler de whatsapp.message.updated
+      // (más abajo en este archivo) pueda correlacionar delivered/failed — Meta
+      // acepta el envío (200 + message.id) pero puede rechazarlo asíncronamente
+      // después (ej. ventana de 24h vencida). Sin esto, ese rechazo queda
+      // invisible para siempre — mismo bug de "ENVIADO que nunca llegaba" ya
+      // resuelto para recordatorios (ver reminder_logs.ycloud_message_id).
+      // Insert DIRECTO (no vía saveMsg): saveMsg cobra créditos IA cuando
+      // ai_generated=true, y este texto fijo no es una respuesta de OpenAI.
+      const coordWamid = (coordResult as any)?.messages?.[0]?.id;
+      if (coordWamid) {
+        await sb.from("messages").insert({
+          clinic_id: clinicId,
+          phone_number: normalizePhone(coordinatorPhone),
+          content: `[Aviso a coordinadora] ${resumen}`,
+          direction: "outbound",
+          ai_generated: true,
+          message_type: "text",
+          status: "sent",
+          ycloud_message_id: coordWamid,
+        });
+      }
     } catch (e) {
       console.error("[requestSchedulingCoordination] WhatsApp a coordinadora falló:", e);
       await debugLog(sb, "[COORDINATOR ALERT] Excepción al enviar aviso", { to: coordinatorPhone, error: String(e) });
