@@ -19,7 +19,7 @@
  *
  * ⚠️ MESSAGING: nunca los ángulos "WhatsApp sin parar" / "el domingo en la
  * noche" — son la promesa del agente IA conversacional, que Core no tiene. El
- * ángulo de Core es orden, 3 usuarios, y recordatorios que salen desde el
+ * ángulo de Core es orden, 10 usuarios, y recordatorios que salen desde el
  * día 1 sin instalar nada.
  *
  * Salida de la secuencia (todo en el WHERE de la query inicial): plan != core,
@@ -150,12 +150,12 @@ const RULES: EmailRule[] = [
         minDay: 3,
         condition: (s) => s.ageDays >= 3,
         build: (clinic, firstName) => ({
-            subject: `${firstName}, tu plan incluye 3 usuarios — así se suman`,
+            subject: `${firstName}, tu plan incluye 10 usuarios — así se suman`,
             html: renderEmailLayout({
                 headerTitle: "Suma a tu equipo",
-                headerSubtitle: "Hasta 3 usuarios sin costo extra",
+                headerSubtitle: "Hasta 10 usuarios sin costo extra",
                 bodyHtml:
-                    p(`Hola ${firstName}, tu plan Core incluye <strong>hasta 3 usuarios sin costo adicional</strong>. Si trabajas con alguien — otro veterinario, un asistente, quien lleva la recepción — dale su propia cuenta.`) +
+                    p(`Hola ${firstName}, tu plan Core incluye <strong>hasta 10 usuarios sin costo adicional</strong>. Si trabajas con alguien — otro veterinario, un asistente, quien lleva la recepción — dale su propia cuenta.`) +
                     p(`<strong>Cómo se suma alguien</strong> — <em>Configuración → Equipo</em><br>Escribes su correo, eliges su rol y le llega una invitación. Cuando la acepta, entra con su propia clave.`) +
                     screenshot(SHOTS.paso2_equipo, "Pestaña Equipo en Configuración") +
                     p(`<strong>Por qué cada uno con su cuenta (y no compartir la tuya):</strong>`) +

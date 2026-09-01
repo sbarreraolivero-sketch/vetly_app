@@ -419,7 +419,7 @@ US$17 vive hoy como el descuento `LANZAMIENTO17` en Paddle (US$22 off, recurrent
 
 Core deja de ser "gestión sin IA" y pasa a tener un gancho propio:
 
-- **3 usuarios** (antes 1) — ahora sirve a una clínica con recepcionista, no solo al veterinario solo. Sami Essentials da 5 por US$29; Core da 3 por US$17.
+- **10 usuarios** (antes 1, subido a 3 el 2026-08-16, subido a 10 el 2026-09-01 — decisión explícita del usuario, para no dejar afuera a ningún prospecto de la campaña con más de 3 en su equipo) — sirve a clínicas con equipo real, no solo al veterinario solo. Sami Essentials da 5 por US$29; Core da **10** por US$17.
 - **Recordatorios por WhatsApp sin límite en modalidad manual**, más 25 automáticos al mes. Es el único competidor que entrega valor de recordatorios **el día 1**, sin conectar WhatsApp ni esperar aprobación de plantillas de Meta.
 - El esfuerzo manual queda medido y se devuelve como argumento: *"Enviaste N recordatorios a mano este mes. Automatizarlos toma 3 minutos."*
 

@@ -100,7 +100,7 @@ export const PADDLE_PLANS = {
         launchAnnualTotal: 170,
         currency: 'USD',
         features: [
-            '3 usuarios · 1 agenda',
+            '10 usuarios · 1 agenda',
             'Dashboard + métricas',
             'Calendario de citas (manual)',
             'Fichas médicas e historial',

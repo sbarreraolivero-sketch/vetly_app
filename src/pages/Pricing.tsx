@@ -101,7 +101,7 @@ const plans = [
         highlight: false,
         icon: LayoutDashboard,
         features: [
-            '3 usuarios · 1 agenda',
+            '10 usuarios · 1 agenda',
             'Dashboard + métricas',
             'Calendario de citas (manual)',
             'Fichas médicas e historial',

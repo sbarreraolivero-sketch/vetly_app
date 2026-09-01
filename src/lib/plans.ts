@@ -34,7 +34,7 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     core: {
         rank: 0,
-        maxUsers: 3,
+        maxUsers: 10,
         maxAgendas: 1,
         monthlyReminders: 25,
         aiCredits: 0,

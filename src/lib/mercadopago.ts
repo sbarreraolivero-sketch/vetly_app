@@ -176,7 +176,7 @@ export const PLANS = {
         launchPrice: 17000,
         currency: 'CLP',
         features: [
-            '3 usuarios · 1 agenda',
+            '10 usuarios · 1 agenda',
             'Dashboard + métricas',
             'Calendario de citas (manual)',
             'Fichas médicas e historial',
