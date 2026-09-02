@@ -38,6 +38,14 @@ const KB_CACHE_TTL_MS = 5 * 60 * 1000;
 const HQ_ID = "00000000-0000-0000-0000-000000000000";
 // Kept for reference; logic now reads from logistics_config in DB
 const CLINIC_ANIMALGRACE_ID = "fd11b7e4-7d96-461c-a292-2caa5e2592ce";
+const CLINIC_ANIMALGRACE_SANTIAGO_ID = "13472ea4-4da6-461c-9a80-a5c970d9ec73";
+
+// Ruteo optimizado (sesión 95): en modo coordinadora la IA solo llena datos y llama
+// request_scheduling_coordination — el "agendamiento" ya no necesita GPT-4o. Solo PRECIO,
+// triaje médico, imágenes y la vuelta del pin (donde se arma recargo + servicio + mínimo
+// $15.000 + excepciones) van al modelo caro. Rollout controlado: Santiago primero, después
+// se agrega Linares y finalmente se simplifica a un chequeo de scheduling_mode.
+const LEAN_ROUTING_CLINICS = [CLINIC_ANIMALGRACE_SANTIAGO_ID];
 
 const surgeryPrompt = `
 [NORMATIVA NUCLEAR - BLACKOUT QUIRÚRGICO]:
@@ -2447,28 +2455,55 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           if (clinic.ai_active_model === "hybrid") {
             const lastUserText = userContentBlocks.map((b: any) => b.text || "").join(" ");
             const hasImageInBurst = userContentBlocks.some((b: any) => b.type === "image_url");
-            const recentOutbound = history.filter(m => m.direction === "outbound").slice(-3).map(m => (m.content || "").toLowerCase());
-            const schedulingSignals = ["cita", "agend", "disponib", "horario", "slot", "hora disponible", "reserv", "sector", "direcci", "ubicaci", "traslado", "zona", "comuna", "cobertura", "recargo", "castr", "cirug", "esteril", "vacun", "antirrabi", "octuple", "sextuple", "triple felina"];
-            const activeSchedulingFlow = recentOutbound.some(msg => schedulingSignals.some(s => msg.includes(s)));
 
-            // Mensajes triviales ("sí", "gracias", "ok"...) no necesitan razonamiento, pero
-            // costaban igual que cualquier otro mensaje del modelo caro por la ventana
-            // "pegajosa" de 3 mensajes de arriba. Verificado con datos reales (sesión 85):
-            // el 56% de estos mensajes respondían a un mensaje de la IA que NO ofrecía
-            // ninguna hora/fecha concreta — ahí no hay nada que confirmar, se puede bajar
-            // a mini sin riesgo real. Si el mensaje previo SÍ ofreció hora/fecha, se
-            // mantiene en el modelo caro a propósito: podría ser la confirmación de un
-            // horario real, y ese es justo el escenario donde mini ya falló antes.
-            const trivialAckPattern = /^(si|sí|ok|okay|oka|dale|listo|gracias|muchas gracias|perfecto|genial|bueno|vale|ya|de acuerdo|entendido)[\s!.,¡🙏😊👍✨]*$/i;
-            const lastOutboundText = recentOutbound[recentOutbound.length - 1] || "";
-            const lastOutboundOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOutboundText);
-            const trimmedUserText = lastUserText.trim();
-            const isSafeTrivialAck = !hasImageInBurst && trimmedUserText.length > 0 && trimmedUserText.length <= 20
-              && trivialAckPattern.test(trimmedUserText) && !lastOutboundOfferedTime;
+            const leanRouting = LEAN_ROUTING_CLINICS.includes(clinic.id)
+              && clinic.scheduling_mode === "coordinator_approval";
 
-            const route = isSafeTrivialAck
-              ? { model: "gpt-4o-mini", tier: 1 }
-              : selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
+            let route: { model: string; tier: number };
+            if (leanRouting) {
+              // Ruteo optimizado para modo coordinadora (sesión 95). Van a GPT-4o SOLO:
+              // imagen · vuelta del pin (contexto de logística) · precio/servicio con
+              // costo variable · matices médicos · seguimiento a un mensaje de la IA que
+              // tocó precio/médico o que ofreció una hora concreta. Todo lo demás (nombre,
+              // dirección escrita, "sí", especie, edad, "¿qué días?") va a mini: en modo
+              // coordinadora la IA solo llena datos y llama request_scheduling_coordination.
+              const t = lastUserText.toLowerCase();
+              const lastOut = history.filter(m => m.direction === "outbound").slice(-1).map(m => (m.content || "").toLowerCase())[0] || "";
+              const pinContext = t.includes("[logística") || t.includes("[logistica")
+                || t.includes("recargo traslado") || t.includes("ubicación compartida") || t.includes("ubicacion compartida");
+              const pricingSignals = ["precio", "valor", "cuánto", "cuanto", "cuesta", "costo", "recargo", "tarifa", "cotiz",
+                "traslado", "comuna", "cobertura", "promoci", "descuent", "pack", "presupuesto",
+                "uña", "parasit", "desparasit", "camada", "gatitos", "perritos", "cachorros",
+                "varios", "varias", "mis gatos", "mis perros",
+                "2 gatos", "3 gatos", "4 gatos", "2 perros", "3 perros", "4 perros",
+                "dos gatos", "tres gatos", "cuatro gatos", "dos perros", "tres perros", "cuatro perros",
+                "alizin", "preñ", "monta"];
+              const medicalSignals = ["cirug", "esteril", "castra", "vacun", "antirrabi", "octuple", "sextuple", "triple felina",
+                "puppy", "leucemia felina", "perrera", "destartraje", "sedaci", "ecograf", "radiograf", "eutan"];
+              const currentBig = hasImageInBurst || pinContext
+                || pricingSignals.some(s => t.includes(s))
+                || medicalSignals.some(s => t.includes(s));
+              const lastOutOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOut);
+              const stickyBig = lastOutOfferedTime
+                || pricingSignals.some(s => lastOut.includes(s))
+                || medicalSignals.some(s => lastOut.includes(s));
+              route = (currentBig || stickyBig) ? { model: "gpt-4o", tier: 3 } : { model: "gpt-4o-mini", tier: 1 };
+            } else {
+              // Ruteo actual — Linares y cualquier clínica fuera de la lista o sin
+              // modo coordinadora. SIN CAMBIOS respecto a lo que corre hoy.
+              const recentOutbound = history.filter(m => m.direction === "outbound").slice(-3).map(m => (m.content || "").toLowerCase());
+              const schedulingSignals = ["cita", "agend", "disponib", "horario", "slot", "hora disponible", "reserv", "sector", "direcci", "ubicaci", "traslado", "zona", "comuna", "cobertura", "recargo", "castr", "cirug", "esteril", "vacun", "antirrabi", "octuple", "sextuple", "triple felina"];
+              const activeSchedulingFlow = recentOutbound.some(msg => schedulingSignals.some(s => msg.includes(s)));
+              const trivialAckPattern = /^(si|sí|ok|okay|oka|dale|listo|gracias|muchas gracias|perfecto|genial|bueno|vale|ya|de acuerdo|entendido)[\s!.,¡🙏😊👍✨]*$/i;
+              const lastOutboundText = recentOutbound[recentOutbound.length - 1] || "";
+              const lastOutboundOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOutboundText);
+              const trimmedUserText = lastUserText.trim();
+              const isSafeTrivialAck = !hasImageInBurst && trimmedUserText.length > 0 && trimmedUserText.length <= 20
+                && trivialAckPattern.test(trimmedUserText) && !lastOutboundOfferedTime;
+              route = isSafeTrivialAck
+                ? { model: "gpt-4o-mini", tier: 1 }
+                : selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
+            }
             targetModel = route.model;
             tierUsed = route.tier;
           } else if (clinic.ai_active_model === "pro") {
@@ -2552,6 +2587,39 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
 
           await sendMetaMessage(clinic.meta_phone_number_id, clinic.meta_access_token, from, reply);
           await debugLog(sb, "Meta AI Response Sent", { to: from, msgId });
+
+          // Red de seguridad: el modelo a veces anuncia "voy a enviar esto a la
+          // coordinadora" en su respuesta final SIN haber llamado realmente al
+          // tool — promesa sin acción. Confirmado real en producción (Vanesa
+          // Torres/Cuki, Linares, 2026-09-02): ai_function_called quedó NULL,
+          // nunca se creó la fila en scheduling_requests, y nadie se enteró
+          // hasta que la tutora reclamó no haber recibido respuesta. La regla
+          // del prompt ("TERMINANTEMENTE PROHIBIDO decir 'un momento' sin
+          // ejecutar la función") ya prohibía esto explícitamente y el modelo
+          // la violó igual — un ajuste de prompt solo no es confiable acá.
+          // Va DESPUÉS de enviar la respuesta real (nunca antes: pausar aquí
+          // arriba dejaría al tutor sin ninguna respuesta, peor que hoy).
+          if (clinic.scheduling_mode === "coordinator_approval") {
+            const promisedCoordination = /coordinador|revisar[áa] la ruta|voy a enviar (esta )?informaci[oó]n/i.test(reply);
+            const actuallyDispatched = allFuncResults.some(r =>
+              ["request_scheduling_coordination", "create_appointment", "reschedule_appointment", "escalate_to_human"].includes(r.name),
+            );
+            if (promisedCoordination && !actuallyDispatched) {
+              await debugLog(sb, "[COORDINATION PROMISE GAP] La IA prometió coordinar pero no ejecutó ningún tool", {
+                phone: from, clinicId: clinic.id, reply,
+              });
+              await sb.from("tutors").update({ requires_human: true }).eq("clinic_id", clinic.id).eq("phone_number", from);
+              await sb.from("crm_prospects").update({ requires_human: true }).eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${from}`);
+              await sb.from("notifications").insert({
+                clinic_id: clinic.id,
+                type: "human_handoff",
+                title: "⚠️ Revisar: posible solicitud de agenda no enviada",
+                message: `La IA le dijo a +${from} que enviaría sus datos a la coordinadora, pero no se registró ninguna solicitud real. Revisa la conversación en Mensajes y coordina manualmente si corresponde.`,
+                link: "/app/messages",
+                is_read: false,
+              });
+            }
+          }
 
         } catch (err) {
           console.error("Meta Async Process Error:", err);
