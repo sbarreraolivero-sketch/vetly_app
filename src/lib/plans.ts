@@ -42,8 +42,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     },
     starter: {
         rank: 1,
-        maxUsers: 5,
-        maxAgendas: 3,
+        maxUsers: 3,
+        maxAgendas: 2,
         monthlyReminders: 100,
         aiCredits: 5000,
         allows2hReminder: true,

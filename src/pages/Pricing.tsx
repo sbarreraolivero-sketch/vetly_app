@@ -72,7 +72,7 @@ const plans = [
         highlight: false,
         icon: Sparkles,
         features: [
-            '5 usuarios · 3 agendas',
+            '3 usuarios · 2 agendas',
             'Todo lo de Core',
             'Agente IA WhatsApp (Lía)',
             '5.000 créditos IA/mes · ~200 conversaciones',
