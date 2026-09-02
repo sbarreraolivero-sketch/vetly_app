@@ -29,9 +29,9 @@ export interface PlanLimits {
 
 /** Fallback local — solo se usa si la consulta a `plan_limits` falla. */
 const FALLBACK: Record<string, PlanLimits> = {
-    core:       { plan_id: "core",       rank: 0, max_users: 3,      max_agendas: 1,      monthly_reminders: 25,   ai_credits: 0,     allows_2h_reminder: false },
+    core:       { plan_id: "core",       rank: 0, max_users: 10,     max_agendas: 1,      monthly_reminders: 25,   ai_credits: 0,     allows_2h_reminder: false },
     starter:    { plan_id: "starter",    rank: 1, max_users: 5,      max_agendas: 3,      monthly_reminders: 100,  ai_credits: 5000,  allows_2h_reminder: true  },
-    pro:        { plan_id: "pro",        rank: 2, max_users: 10,     max_agendas: 5,      monthly_reminders: 250,  ai_credits: 10000, allows_2h_reminder: true  },
+    pro:        { plan_id: "pro",        rank: 2, max_users: 10,     max_agendas: 5,      monthly_reminders: null, ai_credits: 20000, allows_2h_reminder: true  },
     enterprise: { plan_id: "enterprise", rank: 3, max_users: 999999, max_agendas: 999999, monthly_reminders: null, ai_credits: 30000, allows_2h_reminder: true  },
 };
 

@@ -693,7 +693,7 @@ El CORS de `_shared/cors.ts` usa `Access-Control-Allow-Origin: '*'` por diseño.
 - **RPC `get_credit_history_summary(p_clinic_ids, p_month_start, p_month_end)`** — agrega totales server-side. Usar siempre para calcular resúmenes de historial; nunca fetchear filas individuales en el cliente y sumar (PostgREST limita a 1.000 filas en silencio).
 
 ### Límites de plan y sucursales — reglas permanentes
-- Los **créditos mensuales** por plan son: Core=0, Starter=5.000, Pro=10.000, Enterprise=30.000
+- Los **créditos mensuales** por plan son: Core=0, Starter=5.000, Pro=20.000, Enterprise=30.000
 - El plan **Enterprise** permite hasta **3 sucursales totales** (raíz + 2 adicionales). El RPC `create_clinic_branch` bloquea con excepción si `count(owner clinics) >= 3`
 - Para cambiar precios o créditos, actualizar en **5 lugares**: `lemonsqueezy.ts`, `mercadopago.ts`, `lemonsqueezy-webhook` (subscription_created), `mercadopago-webhook` (subscription sync), `public/landing.html`
 - Las cuentas `manually_active = true` se rigen por `clinic_settings.max_users` (no por el plan derivado de `subscriptions.plan`). El RPC `invite_member_v2` respeta este flag.
@@ -703,7 +703,7 @@ El CORS de `_shared/cors.ts` usa `Access-Control-Allow-Origin: '*'` por diseño.
 - **El pack se descuenta a medida que el consumo del ciclo supera el plan mensual.** El único punto que lo descuenta son los RPC `increment_clinic_mini_usage` / `increment_clinic_4o_usage` (los llama `saveMsg` en ambos webhooks): calculan el excedente de cada mensaje por encima de `ai_credits_monthly_limit` y lo restan de `ai_credits_extra_balance` (y luego de `ai_credits_extra_4o`). Nunca hacer UPDATE directo de esos campos por consumo.
 - **Lo que sobra del pack se arrastra al mes siguiente automáticamente.** `reset_monthly_ai_usage()` (pg_cron jobid 3, día 1 de cada mes) pone en 0 solo los contadores `ai_credits_monthly_*_used` — **no toca `ai_credits_monthly_limit` (queda fijo en el valor del plan) ni `ai_credits_extra_balance`**. Así, cada mes: plan fresco + saldo del pack que quedó sin usar.
 - **`process_monthly_recharge()` NO se usa y NO está agendada.** Arrastra remanente del *plan* (`v_new_limit := v_remanente + v_allowance`), lo cual no es el comportamiento deseado (el plan es use-it-or-lose-it) — además calcula el remanente con el multiplicador viejo `× 8`. Si algún día se agenda, hay que reescribirla primero.
-- **`ai_credits_monthly_limit` = valor plano del plan** (Core=0, Starter=5.000, Pro=10.000, Enterprise=30.000). Solo lo cambian los webhooks de pago al cambiar de plan (vía `limitsForPlan`). Nada más lo toca.
+- **`ai_credits_monthly_limit` = valor plano del plan** (Core=0, Starter=5.000, Pro=20.000, Enterprise=30.000). Solo lo cambian los webhooks de pago al cambiar de plan (vía `limitsForPlan`). Nada más lo toca.
 - **Agotamiento** (`getCreditStatus.exhausted` en `_shared/aiCredits.ts`): es "plan agotado (`totalUsed >= limit`) **Y** `extraBalance <= 0`". NO usar `totalUsed >= limit + extraBalance` — como `totalUsed` sube y `extraBalance` baja al mismo ritmo, ese umbral se cruzaría al doble de velocidad.
 - Al comprar pack: sumar a `ai_credits_extra_balance`, dejar `ai_credits_extra_expires_at = NULL`, insertar transacción `type: 'purchase'`.
 
@@ -7117,7 +7117,7 @@ Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LAT
 
 **Modelo de DOS ETAPAS (definido 2026-09-02):**
 - **Etapa 1 — piloto (45 días):** la clínica **NO paga la suscripción**. Paga: (a) **US$45 fijos de créditos de IA por adelantado a Vetly** (monto fijo dimensionado para uso típico — no cambia con el uso real), y (b) la **mensajería de WhatsApp directo a Meta** según su país. Nota interna: uso alto real de 45 días puede llegar a ~US$40-50 en OpenAI (clínica muy activa o ad-driven); los US$45 tienen holgura para uso típico y quedan justos para uso alto. El riesgo de que el agente quede mudo a mitad del piloto arruina la validación — si una clínica se pasa, Vetly cubre el exceso y reconcilia.
-- **Etapa 2 — si la clínica decide continuar:** pasa a la suscripción **Pro (US$169/mes)** que **ya incluye el procesamiento de OpenAI** (los ~7.600 créditos/mes de una clínica física típica caben en los 10.000 del Pro). El **único costo que se suma al plan es la mensajería de Meta**, que la clínica paga directo a Meta con su método de pago en el Business Manager.
+- **Etapa 2 — si la clínica decide continuar:** pasa a la suscripción **Pro (US$169/mes)** que **ya incluye el procesamiento de OpenAI** (los ~7.600 créditos/mes de una clínica física típica caben de sobra en los 20.000 del Pro). El **único costo que se suma al plan es la mensajería de Meta**, que la clínica paga directo a Meta con su método de pago en el Business Manager.
 
 Regla general (fuera del piloto): **el costo adicional a cualquier plan de Vetly es solo Meta.** OpenAI siempre va absorbido en el plan.
 
@@ -7144,11 +7144,15 @@ Regla general (fuera del piloto): **el costo adicional a cualquier plan de Vetly
 
 Crear una **plantilla de `ai_behavior_rules` para clínica física** — sin sectores/GPS/ruta/coordinadora/hubs quirúrgicos. El prompt actual de Animalgrace (40k+ caracteres) es ~90% lógica de clínica móvil. Es prerrequisito del piloto, no opcional: mejora la calidad de las respuestas y ordena el flujo (además de bajar el costo OpenAI que ahora absorbe Vetly).
 
-### Plan Pro — cambios de comunicación (2026-09-02)
+### Plan Pro — cambios (2026-09-02)
 
 - Copy de recordatorios: `"250 recordatorios/mes"` → **`"Automatización de recordatorios vía WhatsApp"`** en `paddle.ts`, `mercadopago.ts`, `Pricing.tsx`, `public/landing.html`.
-- `plan_limits`: `monthly_reminders` de **`pro`/`radiance`** pasó de `250` a **`NULL` (ilimitado)** para que la copia sin número no mienta. `cron-process-reminders` ya trata NULL como ilimitado (igual que Enterprise).
-- `public/landing.html` bloque Pro: decía `"Hasta 5 usuarios"` — corregido a `"Hasta 10 usuarios"` (el enforcement en `plan_limits` ya era 10). El bloque Starter de landing.html sigue desincronizado (dice "2 usuarios · 1 agenda" cuando `plan_limits` es 5·3) — **pendiente**, no tocado en esta sesión.
+- `plan_limits`: `monthly_reminders` de **`pro`/`radiance`** pasó de `250` a **`NULL` (ilimitado)**. `cron-process-reminders` ya trata NULL como ilimitado (igual que Enterprise).
+- **`plan_limits.ai_credits` de `pro`/`radiance`: `10.000` → `20.000`** (migración `pro_plan_ai_credits_10k_to_20k`). 20.000 créditos ≈ 2.300 mensajes del agente/mes — techo de seguridad contra abuso, muy por encima de lo que consume una clínica física real (~1.050/mes típico), así que la copia "Conversaciones IA ilimitadas" sigue siendo cierta en la práctica. La única clínica Pro real (Clínica Huellitas, de prueba) se bumpeó a 20.000 a mano (los webhooks solo resincronizan `ai_credits_monthly_limit` en el próximo pago).
+- Mirrors actualizados: `_shared/planLimits.ts` FALLBACK (pro `ai_credits` 20.000 + `monthly_reminders` null; de paso core `max_users` 3→10 que estaba desincronizado), `src/lib/plans.ts` PLAN_LIMITS (pro `aiCredits` 20.000 + `monthlyReminders` null).
+- `public/landing.html` bloque Pro: decía `"Hasta 5 usuarios"` — corregido a `"Hasta 10 usuarios"`. El bloque Starter de landing.html sigue desincronizado (dice "2 usuarios · 1 agenda" cuando `plan_limits` es 5·3) — **pendiente**.
+
+**Pendiente de decisión del usuario:** Enterprise sigue en 30.000 (marketing dice "ilimitadas"). Animalgrace consume ~43.000/mes en el pool compartido → se les acaba y compran packs. Evaluar Enterprise → `ai_credits_unlimited` real.
 
 ### Palancas para bajar el costo de mensajería (aplican a todas las clínicas desde 1-oct)
 
