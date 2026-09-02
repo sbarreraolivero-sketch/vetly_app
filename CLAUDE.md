@@ -698,11 +698,14 @@ El CORS de `_shared/cors.ts` usa `Access-Control-Allow-Origin: '*'` por diseño.
 - Para cambiar precios o créditos, actualizar en **5 lugares**: `lemonsqueezy.ts`, `mercadopago.ts`, `lemonsqueezy-webhook` (subscription_created), `mercadopago-webhook` (subscription sync), `public/landing.html`
 - Las cuentas `manually_active = true` se rigen por `clinic_settings.max_users` (no por el plan derivado de `subscriptions.plan`). El RPC `invite_member_v2` respeta este flag.
 
-### Packs de créditos extra — reglas permanentes
-- Los packs expiran a los **30 días** de la compra (`ai_credits_extra_expires_at`)
-- El cron `cron-expire-extra-credits` corre diariamente a las 02:00 UTC y zeroes los balances vencidos
-- Los créditos del plan base (`ai_credits_monthly_limit`) se renuevan mensualmente en la fecha de creación de la clínica (función `process_monthly_recharge`)
-- Al comprar pack: siempre setear `ai_credits_extra_expires_at = NOW() + 30 días` e insertar transacción `type: 'purchase'`
+### Packs de créditos extra — reglas permanentes (reescritas sesión 2026-09-01)
+- **Los packs comprados NO expiran.** `ai_credits_extra_expires_at` siempre queda en `NULL`. Todas las rutas de compra (`mercadopago-webhook`, `paddle-webhook`, `AdminClinics.tsx handleManualCharge`) fijan `null`. El cron `expire-extra-credits` (pg_cron jobid 17) quedó **desactivado** (`cron.unschedule('expire-extra-credits')`); la edge function sigue existiendo pero no la llama nadie.
+- **El pack se descuenta a medida que el consumo del ciclo supera el plan mensual.** El único punto que lo descuenta son los RPC `increment_clinic_mini_usage` / `increment_clinic_4o_usage` (los llama `saveMsg` en ambos webhooks): calculan el excedente de cada mensaje por encima de `ai_credits_monthly_limit` y lo restan de `ai_credits_extra_balance` (y luego de `ai_credits_extra_4o`). Nunca hacer UPDATE directo de esos campos por consumo.
+- **Lo que sobra del pack se arrastra al mes siguiente automáticamente.** `reset_monthly_ai_usage()` (pg_cron jobid 3, día 1 de cada mes) pone en 0 solo los contadores `ai_credits_monthly_*_used` — **no toca `ai_credits_monthly_limit` (queda fijo en el valor del plan) ni `ai_credits_extra_balance`**. Así, cada mes: plan fresco + saldo del pack que quedó sin usar.
+- **`process_monthly_recharge()` NO se usa y NO está agendada.** Arrastra remanente del *plan* (`v_new_limit := v_remanente + v_allowance`), lo cual no es el comportamiento deseado (el plan es use-it-or-lose-it) — además calcula el remanente con el multiplicador viejo `× 8`. Si algún día se agenda, hay que reescribirla primero.
+- **`ai_credits_monthly_limit` = valor plano del plan** (Core=0, Starter=5.000, Pro=10.000, Enterprise=30.000). Solo lo cambian los webhooks de pago al cambiar de plan (vía `limitsForPlan`). Nada más lo toca.
+- **Agotamiento** (`getCreditStatus.exhausted` en `_shared/aiCredits.ts`): es "plan agotado (`totalUsed >= limit`) **Y** `extraBalance <= 0`". NO usar `totalUsed >= limit + extraBalance` — como `totalUsed` sube y `extraBalance` baja al mismo ritmo, ese umbral se cruzaría al doble de velocidad.
+- Al comprar pack: sumar a `ai_credits_extra_balance`, dejar `ai_credits_extra_expires_at = NULL`, insertar transacción `type: 'purchase'`.
 
 ---
 
@@ -6947,3 +6950,132 @@ Body `{ prescription_id, channel: 'whatsapp' | 'email' }`. Auth JWT → `auth.ge
 - **La firma / logo / colores de marca deben poder mostrarse en una página pública sin login** (bucket `clinic-branding` es público a propósito) — pero el `public_token` de la receta es hex de 128 bits, no enumerable, mismo criterio que `tutors.portal_token` (sesión 74).
 - **Un documento clínico estructurado no siempre lleva medicamentos** (orden de imagen, derivación) — el `document_type` define el título y hace la lista opcional; la validación exige que el documento no quede completamente vacío.
 - **`window.open`/`curl` de un blast: idempotencia por `email_sequence_log` (UNIQUE clinic+key) es la red que evita el doble envío**, pero no sustituye confirmar antes de disparar.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 95, 2026-09-01)
+
+> Nota de numeración: la sesión 94 fue ocupada en paralelo por el trabajo de prospección — se salta a 95, mismo patrón ya documentado en sesiones 66/87/89/91.
+
+### Bug real: la IA cotizó "$20.000 por 4 gatos" — consulta médica multi-mascota
+
+**Reporte de Claudia (captura de WhatsApp, Linares/Talca, canal Meta, modelo `4o_pro`):** un cliente con **4 gatos resfriados de 3 meses** preguntó el valor de la visita. La IA respondió *"El valor de la consulta médica para tus gatitos es de $20.000"* y, al preguntarle el cliente *"20 por gato cierto?"*, dobló la apuesta: *"No... es por la consulta médica en total, no por cada gato. Esto incluye la revisión de todos tus gatitos durante la misma visita."*
+
+**Causa raíz (verificada contra `messages` + las 3 fuentes):** la IA **inventó una política** (viola su REGLA 2). Ni `ai_behavior_rules` ni el KB decían nada sobre si la consulta ($20.000) es por mascota o por visita. La única regla de "una sola vez por visita" que existe es **exclusivamente sobre el recargo de traslado** (`PROTOCOLO_SERVICIOS_Y_VACUNACION`: *"costo de transporte o logística que se cobra UNA SOLA VEZ POR VIAJE"*; `PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES`: *"El recargo de traslado se cobra UNA SOLA VEZ por visita"*). El modelo tomó esa regla del traslado y la extendió sola a la consulta. Afectaba a **ambas sucursales** — vacío idéntico.
+
+**Regla de negocio confirmada con el usuario (aplica a Linares Y Santiago, igual):**
+
+| Caso | Precio |
+|---|---|
+| Revisión médica de **camada** (todas las crías ≤ 3 meses) — 2 a 4 crías | **$38.000 total** (por la camada, no por mascota) |
+| Camada — 5 a 8 crías | **$45.000 total** |
+| Camada — 9+ crías | La coordinadora confirma el valor |
+| Consulta **varias mascotas mismo hogar** (desde 4 meses) — x2 | $18.000 c/u |
+| x3 | $17.000 c/u |
+| x4 | $16.000 c/u |
+| x5 | $15.000 c/u |
+| x6+ | $15.000 c/u (piso, no baja más) |
+| **1 sola mascota** | $20.000 (sin cambios) |
+| **Controles ($10.000)** | $10.000 c/u siempre, sin descuento por cantidad |
+
+El traslado se sigue cobrando **una sola vez** por visita (esto no cambia — solo el traslado se comparte, la consulta no). Edades mixtas → cotizar cada grupo con su tabla y sumar.
+
+**Fix aplicado (solo DB + código de webhook — nada en migraciones del repo, patrón ya establecido para fixes de prompt/KB):**
+- **KB nuevo `PROTOCOLO_CONSULTA_MULTIPLES_MASCOTAS`** creado para ambas sucursales (`knowledge_base`, `status='active'`, `category='servicios'`) con las tablas completas + reglas de edades mixtas + corte camada/hogar por edad.
+- **`ai_behavior_rules` de ambas** (respaldo previo en `prompt_backups`, label `pre_consulta_multi_mascotas_2026_09_01`): nuevo bullet crítico después de `CASO ENFERMEDAD` — *"CONSULTA CON 2 O MÁS MASCOTAS — NUNCA COTICES $20.000 POR TODAS"* con el flujo obligatorio (preguntar edad → aplicar tabla → cotizar).
+- **`PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE` (ambas)**: puntero en la sección 1 hacia el doc nuevo.
+- **Código** (`meta-whatsapp-webhook` v59 + `ycloud-whatsapp-webhook` v284 por paridad, ambos deployados, `verify_jwt:false` preservado): nueva entrada en `FORCED_KB_TOPICS` — el doc se inyecta completo cuando el cliente menciona varias mascotas / camada (`camada`, `gatitos`, `perritos`, `cachorros`, `mis gatos`, `2/3/4 gatos`, `dos/tres/cuatro perros`, etc.), sin depender de que el modelo llame `get_knowledge`. Mismo mecanismo de sesión 62/71/72/85.
+
+**Nota:** ambas sucursales están en `coordinator_approval` + `ai_auto_respond=true` (canal Meta). El fix es de prompt/KB, no un bloqueo duro — conviene revisar las primeras conversaciones reales con multi-mascota para confirmar que aplica la tabla correcta.
+
+### Regla permanente
+
+- **Toda regla del prompt/KB que empiece con "se cobra una sola vez por visita" debe decir EXPLÍCITAMENTE a qué concepto aplica** (traslado, recargo, consulta, etc.). Un "una sola vez por visita" sin sujeto claro es una invitación a que el modelo lo generalice al concepto equivocado — aquí extendió la regla del traslado a la consulta y cotizó 4 gatos por el precio de 1.
+
+### Dos bugs más de la IA (misma sesión, mismos screenshots de Claudia)
+
+**Bug A — Alizin cotizado en $40.000 para perra de 4-5 kg (Linares, `4o_pro`).** El tarifario real del KB `PROTOCOLO_ALIZIN_INTERRUPCION_GESTACION` arranca en **$75.000 hasta 5 kg**. El $40.000 no aparece en ninguna parte — invento puro (≈mitad del precio real). Verificado con la conversación en `messages`: la clienta dio el peso (4-5 kg) y la IA igual inventó el número.
+- **Causa:** el doc no está en el top-5 del resumen de KB (rank 4 de 12) y `get_knowledge` casi nunca se llama. Además `#PROTOCOLO_ALIZIN_INTERRUPCION_GESTACION` no estaba en la lista de "docs verificados" de la REGLA 1 anti-alucinación.
+- **Fix (ambas sucursales, ambos webhooks):** (1) nueva entrada en `FORCED_KB_TOPICS` — se inyecta el tarifario completo cuando el mensaje toca "monta no deseada" / interrupción de gestación (`alizin`, `monta`, `preñ`, `gestaci`, `aborto`, `tomó un perro`, `se cruzó`, etc.); (2) `#PROTOCOLO_ALIZIN_INTERRUPCION_GESTACION` agregado a la lista de docs de la REGLA 1 en `ai_behavior_rules` de Linares y Santiago (respaldo `pre_alizin_y_ultima_hora_2026_09_01`).
+
+**Bug B — la IA prometía citas a las 19:00 cuando la última hora agendable es 18:00 (Linares).** Le dijo a un cliente *"nuestro horario de atención es hasta las 19:00 horas... puedo coordinar para que la visita sea lo más cercana posible a las 19:00"* y hasta mandó una `request_scheduling_coordination` pidiéndole a Claudia confirmar una visita "a las 19:00". Claudia tuvo que borrar el mensaje y corregir a mano ("la última hora que se da es a las 18 pm").
+- **Causa raíz:** el prompt arma `Horarios: ${hoursSummary}` desde `clinic.working_hours`, que cierra a las **19:00**. Pero el último slot **agendable** lo topa `logistics_config.last_slot_time` (default **'18:00'** — para Linares está en `null` → usa el default). El `hoursSummary` no reflejaba ese tope, así que la IA leía "cierre 19:00" y lo ofrecía verbalmente. La generación de slots (`checkAvail` con `p_last_slot_cap`) sí topa bien en 18:00 — el bug era solo el texto del prompt.
+- **Fix (`meta-whatsapp-webhook` v61 + `ycloud-whatsapp-webhook` v285):** nueva línea `lastSlotNote` inyectada justo después de `Horarios:` en el `staticSysPrompt`, calculada con la misma validación regex de `last_slot_time` que ya usa `checkAvail` (default '18:00'): *"ÚLTIMA CITA AGENDABLE DEL DÍA: comienza a las {cap} hrs... la hora de cierre de arriba NO es la última hora agendable... PROHIBIDO ofrecer/prometer/coordinar cualquier horario posterior."* Configurable por clínica sin deploy vía `logistics_config.last_slot_time`.
+
+### Regla permanente (bug B)
+
+- **La hora de cierre de `working_hours` NO es la última hora agendable.** Cualquier texto del prompt sobre "horario de atención" debe distinguir el cierre (cuándo termina el equipo) de la última cita agendable (`logistics_config.last_slot_time`, default 18:00). Mostrarle a la IA solo el cierre la lleva a prometer horas que la generación de slots nunca va a ofrecer.
+
+### Limpieza de información obsoleta de agendamiento (a pedido del usuario)
+
+Ambas sucursales están en `coordinator_approval` desde sesiones 85/87, pero el prompt/KB todavía tenían instrucciones del flujo autónomo viejo. Auditoría completa de `ai_behavior_rules` + KB de ambas.
+
+**Contradicción activa corregida (la más grave) — `ai_behavior_rules` REGLA 3, ambas sucursales:**
+- *"Puedes **consultar disponibilidad** con su dirección escrita..."* / *"puedes proceder a consultar disponibilidad"* → contradecía directamente la Sección 10 (*"TERMINANTEMENTE PROHIBIDO ofrecer... DEBES usar `request_scheduling_coordination`"*). Reescrito: sin pin, igual se reúne disponibilidad amplia y se usa `request_scheduling_coordination`.
+- `check_availability` eliminado de la regla CONCATENACIÓN OBLIGATORIA (la IA ya no llama esa tool — el guard de `checkAvail` devuelve `COORDINACION_REQUERIDA`). Se dejó `create_appointment` (sí se usa post-autorización).
+
+**KB — referencia rota (Santiago):** `#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES` apuntaba a `#PROTOCOLO_LOGISTICA_CIRUGIAS_SANTIAGO`, un doc **que no existe**. Repuntado a `#MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS`.
+
+**KB — inconsistencia de ventana de espera (Linares):** `POLITICAS_GENERALES` §2 decía *"1 hora antes y 1 hora después"* mientras su propio `ai_behavior_rules` dice *"2 horas después"* y Santiago dice *"1 a 2 horas"*. Alineado Linares a *"1 a 2 horas antes y después"*.
+
+**Código (`meta-whatsapp-webhook`, deployado):** la descripción de la tool `create_appointment` decía *"SIEMPRE usar check_availability antes"* — contradice el modo coordinadora (donde `schedulingContext` PROHÍBE llamar `check_availability` post-autorización). Reescrita para distinguir clínicas con/sin flujo de coordinadora. `ycloud-whatsapp-webhook` ya tenía la descripción neutral, no se tocó.
+
+Respaldos: `prompt_backups` label `pre_limpieza_agendamiento_obsoleto_2026_09_01`.
+
+**NO tocado (fuera de alcance / requiere confirmación del usuario):**
+- Títulos cosméticos que nombran el modo viejo (*"RUTA INTELIGENTE"*, *"INTELIGENCIA DE RUTA"*) — el contenido debajo ya está actualizado, la IA no cita títulos.
+- Posible inconsistencia de precio prequirúrgico entre sucursales (Linares $70.000 con Panel de Coagulación tras sesión 91, Santiago $50.000) — pueden ser precios distintos legítimos por sucursal, confirmar antes de unificar.
+- Linares no tiene doc `PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA` (solo Santiago, sesión 70) — la entrada de `FORCED_KB_TOPICS` para ese doc simplemente no matchea nada en Linares (inofensivo).
+
+### Ventana de espera unificada a "1 a 2 horas antes y después" (decisión del usuario)
+
+Había 3 versiones distintas del rango de disponibilidad que se le pide al tutor:
+- `ai_behavior_rules` (ambas) + mensajes de confirmación del código: *"al menos 2 horas después"*
+- `POLITICAS_GENERALES` KB Linares: *"1 hora antes y 1 hora después"*
+- `POLITICAS_GENERALES` KB Santiago + logística Santiago §4.2: *"1 a 2 horas antes y después"*
+
+El usuario eligió **"1 a 2 horas antes y 1 a 2 horas después"** como texto único. Aplicado en:
+- `ai_behavior_rules` AVISO DE RANGO HORARIO (Linares + Santiago) — la frase obligatoria que la IA pega al confirmar cada cita.
+- `meta-whatsapp-webhook` v63 + `ycloud-whatsapp-webhook` v286 — los 2 mensajes de confirmación hardcodeados en `confirmAppt` (fallback "cita ya confirmada" + éxito).
+- `POLITICAS_GENERALES` KB Linares (ya alineado en el paso anterior de esta sesión).
+
+Respaldo: `prompt_backups` label `pre_unificar_ventana_espera_2026_09_01`.
+
+**Confirmado por el usuario, sin cambios:** prequirúrgico Santiago = $50.000 (Linares $70.000 es un precio legítimamente distinto por sucursal). Linares NO hace ecografía ni radiografía (solo Santiago) — no falta ningún documento.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 96, 2026-09-01)
+
+### Diagnóstico: OpenAI sin saldo (recurrente) + auditoría de consumo IA
+
+`debug_logs` confirmó **saldo de OpenAI en cero** (`insufficient_quota` / "You have no credits remaining"), último error 1-sep 19:31 Chile, con tandas grandes el 25, 29 y 30-ago. Patrón crónico (abr, may ×3, jun, 25/28-jul, 15/19/25/29/30-ago, 1-sep). No hay acceso al dashboard de OpenAI (`platform.openai.com/usage`) para el monto USD.
+
+**Qué consume:** todo es el agente de WhatsApp. GPT-4o (`4o_pro`) = 79% de los mensajes pero ~98% del costo (15× el mini). Agosto: 2.876 msgs 4o + 728 mini ≈ **43.900 créditos equiv** vs ~9.500-10.100 en jun/jul — **×4,5** porque desde fines de julio/agosto ambas sucursales quedaron con `ai_auto_respond=true` sobre Meta a la vez. Santiago consume ~40% más que Linares. Causa estructural ya documentada (sesión 83): `activeSchedulingFlow` mantiene 4o "pegado" 3 mensajes tras cualquier tema de agenda/precio → 79-87% al modelo caro. Decisión del usuario (sesión 83): dejarlo así.
+
+### Bug de facturación: el pack de créditos extra de Animalgrace se re-sumaba cada mes
+
+**Reportado por el usuario.** El pack de **20.000 créditos** (comprado 25-ago vía MercadoPago, único en `ai_credit_transactions`) figuraba **intacto en 20.000** y reaparecía cada mes junto a los 30.000 del plan.
+
+**3 bugs encadenados:**
+1. **Nada descontaba de `ai_credits_extra_balance`.** Los RPC `increment_clinic_*_usage` solo subían los contadores; el webhook leía el pack como techo adicional pero nunca lo gastaba. Ciclo 23-jul→22-ago: consumió 40.122 (plan 30.000 → +10.122 sobre el plan) y el pack seguía en 20.000.
+2. **El pack nunca venció.** La compra guardó `ai_credits_extra_expires_at = null`. El cron `expire-extra-credits` (jobid 17) filtra `WHERE expires_at < NOW()` → NULL nunca cumple.
+3. **`process_monthly_recharge()` no está agendada** (nunca corrió desde abril — no hay `monthly_refill` en el historial). El único cron mensual (jobid 3) corre `reset_monthly_ai_usage()`, que pone contadores en 0 y **no toca ni el límite ni el pack**. Resultado: cada 1° de mes → 30.000 + 20.000 frescos.
+
+**Modelo acordado con el usuario:**
+- Plan (30.000): fijo, use-it-or-lose-it. El reset del día 1 no lo toca.
+- Pack comprado: **nunca expira**. Se descuenta solo cuando el consumo del ciclo supera el plan. Lo que sobra se arrastra al mes siguiente (el reset no lo toca).
+- Se guarda en **dos campos separados** (`ai_credits_monthly_limit` = 30.000 fijo + `ai_credits_extra_balance` = pack). La UI ya suma ambos (`totalAvailable = limit + extraBalance`), así muestra el número que el usuario espera (30.000 + 7.579 = 37.579) y se arrastra solo cada mes. Meterlo todo al límite habría repetido el bug en octubre.
+
+**Cambios aplicados:**
+- **Migración `20260902000000_ai_extra_credits_deplete_and_never_expire.sql`**: reescribe `increment_clinic_mini_usage` / `increment_clinic_4o_usage` para descontar de `ai_credits_extra_balance` (luego `ai_credits_extra_4o`) el excedente de cada mensaje por encima de `ai_credits_monthly_limit` (con `FOR UPDATE`, salta si `ai_credits_unlimited`). Incluye la corrección retroactiva del pack de Animalgrace: **20.000 → 7.579** (20.000 − 12.421 consumidos sobre el plan entre 25-ago y 31-ago, según el ledger) + transacción `adjustment` de auditoría. Ambos bloques son idempotentes.
+- **`_shared/aiCredits.ts`**: `exhausted` = `totalUsed >= limit` **Y** `extraBalance <= 0` (antes `totalUsed >= limit + extraBalance`, que con el pack depletando cruzaba el umbral al doble de velocidad). Redeploy de `meta-whatsapp-webhook` y `ycloud-whatsapp-webhook`.
+- **Ambos webhooks (`saveMsg`)**: `balanceAfter` del historial recalculado a mano (plan primero, excedente del pack) porque `getCreditStatus` se lee antes de incrementar.
+- **`AdminClinics.tsx handleManualCharge`**: ya no fija expiración (`ai_credits_extra_expires_at = null`), alert actualizado. `mercadopago-webhook` y `paddle-webhook` ya fijaban `null` desde antes.
+- **Cron `expire-extra-credits` (jobid 17) desactivado** con `cron.unschedule`.
+- CLAUDE.md: sección "Packs de créditos extra — reglas permanentes" reescrita.
+
+**⚠️ Aplicación parcial:** la base de datos de Supabase tuvo un corte de conexión (`Connection terminated due to connection timeout` por MCP y CLI) durante esta sesión. Los cambios de **código y migración quedaron escritos en local**; **falta aplicar en producción**: la migración `20260902000000`, `cron.unschedule('expire-extra-credits')`, y el redeploy de los 2 webhooks. Verificar al reconectar que `ai_credits_extra_balance` de Linares (`fd11b7e4-…`) quedó en 7.579 y `ai_credits_monthly_limit` en 30.000.
+
+### Regla permanente
+- **El multiplicador de créditos reprecia retroactivamente todo el consumo del ciclo en curso** (el saldo se recalcula en vivo desde `mini_used + 4o_used × CREDIT_COST_4O`). Cambiarlo a mitad de mes puede agotar de golpe a una clínica que venía bajo el número viejo. El momento seguro para subirlo es justo después del reset del día 1. (Aprendido en sesión 83: se subió a 20 y se revirtió a 15 el mismo día tras dejar a Animalgrace muda 3 h.)

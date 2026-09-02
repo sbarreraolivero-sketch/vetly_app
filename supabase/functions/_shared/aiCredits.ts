@@ -101,13 +101,20 @@ export async function getCreditStatus(sb: any, clinicId: string): Promise<Credit
                 .eq("id", poolId);
         }
 
+        // El pack extra (`extraBalance`) se descuenta a medida que el consumo
+        // supera el plan mensual (ver increment_clinic_*_usage). Por eso el
+        // agotamiento NO es `totalUsed >= limit + extraBalance`: ahí `totalUsed`
+        // sube y `extraBalance` baja al mismo ritmo, y el umbral se cruzaría al
+        // doble de velocidad. Es "plan agotado Y pack en cero".
+        const planExhausted = totalUsed >= limit;
+
         return {
             poolId,
             unlimited: false,
             totalUsed,
             limit,
             extraBalance,
-            exhausted: totalUsed >= limit + extraBalance,
+            exhausted: planExhausted && extraBalance <= 0,
         };
     } catch (e) {
         console.error("[aiCredits] No se pudo calcular el saldo, se deja pasar:", e);

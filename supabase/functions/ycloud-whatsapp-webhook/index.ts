@@ -736,9 +736,14 @@ const saveMsg = async (
         }
 
         // Saldo tras registrar este mensaje, para el historial de transacciones.
-        const balanceAfter = credits.unlimited
-          ? 0
-          : Math.max(0, credits.limit + credits.extraBalance - (credits.totalUsed + creditCost));
+        // `credits` se leyó ANTES de incrementar/descontar, así que calculamos a
+        // mano el estado posterior: primero se consume el plan, el excedente
+        // sale del pack extra (mismo criterio que increment_clinic_*_usage).
+        const newTotalUsed = credits.totalUsed + creditCost;
+        const overage = Math.max(0, newTotalUsed - Math.max(credits.totalUsed, credits.limit));
+        const planLeft = Math.max(0, credits.limit - newTotalUsed);
+        const extraLeft = Math.max(0, credits.extraBalance - overage);
+        const balanceAfter = credits.unlimited ? 0 : planLeft + extraLeft;
 
         // Register consumption transaction
         await sb.from("ai_credit_transactions").insert({
@@ -2105,7 +2110,7 @@ const confirmAppt = async (
         .gte("appointment_date", new Date().toISOString())
         .order("appointment_date", { ascending: true })
         .limit(1).maybeSingle();
-      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda estar disponible al menos 2 horas después de la hora asignada, ya que el móvil trabaja por rangos horarios." };
+      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible entre 1 y 2 horas antes y 1 a 2 horas después de la hora asignada." };
     }
     return { message: "No hay citas pendientes." };
   }
@@ -2117,7 +2122,7 @@ const confirmAppt = async (
     confirmation_response: response,
   }).eq("id", appt.id);
   return status === "confirmed"
-    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible al menos 2 horas después de la hora asignada, por si hay algún retraso en la ruta." }
+    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible entre 1 y 2 horas antes y 1 a 2 horas después de la hora asignada, por si el móvil se adelanta o hay algún retraso en la ruta." }
     : { message: "Cita cancelada. ¿Reagendar?" };
 };
 
@@ -2574,10 +2579,39 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
   { title: "PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE", keywords: ["eutan", "sacrific", "dormir a mi", "dormirlo", "dormirla", "dormir al", "dormir a la", "que no sufra", "no siga sufriendo", "no sufra mas", "no sufra más", "descanse en paz", "quitarle el sufrimiento", "dejarla ir", "dejarlo ir", "ponerle fin"] },
   { title: "PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA_ANIMALGRACE", keywords: ["ecograf", "radiograf", "rayos x", "eco abdominal", "eco de abdomen", "imagenolog"] },
+  // Sesión 95: la IA cotizó Alizin en $40.000 para una perra de 4-5 kg (el tarifario real
+  // parte en $75.000 hasta 5 kg). Puro invento — el doc no está en el top-5 del resumen y
+  // get_knowledge casi nunca se llama. Se fuerza completo cuando el mensaje toca "monta no
+  // deseada" / interrupción de gestación.
+  { title: "PROTOCOLO_ALIZIN_INTERRUPCION_GESTACION", keywords: [
+    "alizin", "alicin", "monta", "montó", "monto un perro", "la montó", "lo montó",
+    "preñ", "preña", "prenada", "gestaci", "gestacion", "interrupci", "aborto", "abortar",
+    "no quede embaraz", "no quiero que quede", "que no quede", "no quiero cachorros",
+    "pastilla del dia despues", "pastilla del día después", "pastilla post",
+    "tomó un perro", "tomo un perro", "la tomó", "la agarró un perro", "se cruzó", "se cruzo",
+    "cruza no deseada", "método post", "metodo post", "no deseada",
+  ] },
   // Sesión 85: sacado de ai_behavior_rules (se reenviaba en TODOS los mensajes pese a ser
   // de uso puntual) para bajar el tamaño del prompt sin perder la reinstrucción — solo se
   // inyecta completo cuando el tema realmente aparece en la conversación.
   { title: "PROTOCOLO_EXAMEN_FELV_FIV_LEUCEMIA_FELINA", keywords: ["felv", "fiv", "leucemia felina", "sida felino", "sida felina"] },
+  // Sesión 94: la IA cotizó "$20.000 por 4 gatos" — inventó que una consulta cubre a
+  // todas las mascotas del hogar (sobre-generalizó la regla del traslado "una vez por
+  // visita"). Ni el prompt ni el KB tenían la tabla de consulta multi-mascota. Se fuerza
+  // completo cuando el mensaje menciona varias mascotas / camada, para que la tabla real
+  // (camada ≤3 meses = precio total; varios en el hogar desde 4 meses = precio por
+  // mascota) siempre esté disponible sin depender de get_knowledge.
+  { title: "PROTOCOLO_CONSULTA_MULTIPLES_MASCOTAS", keywords: [
+    "camada", "camadita", "camaditas",
+    "gatitos", "perritos", "cachorros", "cachorritos", "gaticos", "michis",
+    "varios gatos", "varios perros", "varias mascotas", "varios michis", "varios cachorros",
+    "mis gatos", "mis perros", "mis michis", "mis mascotas", "mis cachorros", "mis 2", "mis 3", "mis 4",
+    "2 gatos", "3 gatos", "4 gatos", "5 gatos", "6 gatos",
+    "2 perros", "3 perros", "4 perros", "5 perros", "6 perros",
+    "2 gatitos", "3 gatitos", "4 gatitos", "2 perritos", "3 perritos", "4 perritos",
+    "dos gatos", "tres gatos", "cuatro gatos", "cinco gatos",
+    "dos perros", "tres perros", "cuatro perros", "cinco perros",
+  ] },
   // Sesión 71: el resumen top-5/500-chars corta este doc justo antes de la tabla real
   // de comunas Tramo A/B/C/D — la IA solo veía la intro y alucinaba recargos (ej: San
   // Bernardo, que es Tramo A/$0, cotizado como $6.000). Se fuerza completo cuando el
@@ -4233,6 +4267,15 @@ Cómo aplicarlo:
               lunch?.enabled ? ` (Colación: ${lunch.start}-${lunch.end})` : ""
             }`;
           }).join(", ");
+        // La hora de cierre de arriba NO es la última hora agendable: el último slot
+        // COMIENZA en logistics_config.last_slot_time (18:00 por defecto). Sin esta nota
+        // la IA promete citas a las 19:00 que no existen (bug real, sesión 95).
+        const rawPromptSlotCap = (clinic?.logistics_config as any)?.last_slot_time;
+        const promptSlotCap = typeof rawPromptSlotCap === "string" &&
+            /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(rawPromptSlotCap.trim())
+          ? rawPromptSlotCap.trim().slice(0, 5)
+          : "18:00";
+        const lastSlotNote = `\n⚠️ ÚLTIMA CITA AGENDABLE DEL DÍA: la última visita que se puede agendar COMIENZA a las ${promptSlotCap} hrs. El equipo puede terminar de atender más tarde, pero NO se agenda ninguna visita que empiece después de esa hora. La hora de "cierre" de arriba NO es la última hora agendable. TERMINANTEMENTE PROHIBIDO ofrecer, prometer, "coordinar con la coordinadora" o enviar en la solicitud de agenda cualquier horario posterior a las ${promptSlotCap}. Si el tutor solo puede después de las ${promptSlotCap}, dile con claridad: "La última visita que agendamos comienza a las ${promptSlotCap} hrs" y ofrece esa hora o un día alternativo — nunca insinúes que se puede más tarde.`;
 
         // --- SURVEY FEEDBACK CONTEXT ---
         // Check if this client has a recent survey pending feedback (score=1, status=responded, no feedback_context yet)
@@ -4297,7 +4340,7 @@ ${clinic.ai_personality || "Eres un asistente veterinario profesional."}
 
 Clínica: ${clinic.clinic_name}
 Dirección: ${clinic.clinic_address || clinic.address || "No especificada."}
-Horarios: ${hoursSummary}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone} (Entrégalo si el cliente pide llamar o hablar con un humano)` : ""}${clinic.transfer_details ? `\nDatos de Pago/Transferencia: ${clinic.transfer_details}` : ""}
+Horarios: ${hoursSummary}${lastSlotNote}${clinic.contact_phone ? `\nTeléfono de Contacto Clínico: ${clinic.contact_phone} (Entrégalo si el cliente pide llamar o hablar con un humano)` : ""}${clinic.transfer_details ? `\nDatos de Pago/Transferencia: ${clinic.transfer_details}` : ""}
 
 ⚠️ PROTOCOLOS DE ATENCIÓN Y REGLAS DE COMPORTAMIENTO ⚠️
 ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
