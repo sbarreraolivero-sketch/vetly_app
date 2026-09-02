@@ -7176,6 +7176,13 @@ Crear una **plantilla de `ai_behavior_rules` para clínica física** — sin sec
 - Mirrors actualizados: `_shared/planLimits.ts` FALLBACK (pro `ai_credits` 20.000 + `monthly_reminders` null; de paso core `max_users` 3→10 que estaba desincronizado), `src/lib/plans.ts` PLAN_LIMITS (pro `aiCredits` 20.000 + `monthlyReminders` null).
 - `public/landing.html` bloque Pro: decía `"Hasta 5 usuarios"` — corregido a `"Hasta 10 usuarios"`. El bloque Starter de landing.html sigue desincronizado (dice "2 usuarios · 1 agenda" cuando `plan_limits` es 5·3) — **pendiente**.
 
+### Visualización de planes — créditos IA + nota de Meta (2026-09-02, decisiones del usuario)
+
+- **Cada plan pago muestra su cupo de créditos IA con equivalente en conversaciones** en vez de "Conversaciones IA ilimitadas": Starter `5.000 créditos IA/mes · ~200 conversaciones`, Pro `20.000 · ~900`, Enterprise `30.000 · ~1.350` (~22-25 créditos/conversación, ~3 respuestas del agente c/u). Enterprise se dejó en 30.000 (no `ai_credits_unlimited`) — decisión "mostrar el número por ahora".
+- **El copy de features de los planes vive en 4 lugares** (además de los precios): `src/lib/paddle.ts` (`PADDLE_PLANS[x].features`), `src/lib/mercadopago.ts` (`PLANS[x].features`), `src/pages/Pricing.tsx` (array `plans` propio + array `faqs` propio), `public/landing.html`. **`Settings.tsx` renderiza la grilla in-app desde `PLANS`/`PADDLE_PLANS`.features** — no tiene copy propio.
+- **Nota de costo de Meta** — Vetly es Tech Provider, la clínica paga el envío de WhatsApp directo a Meta (~US$0.001-0.03/msg según país). Comunicado en: nota bajo la grilla de `landing.html`, nota bajo la grilla en `Settings.tsx` (subscription tab), 2 items nuevos en el FAQ de `Pricing.tsx` (créditos IA + "¿hay costos aparte?"), y nota en `core.html` "Sin letra chica" (recordatorios automáticos = API facturada por Meta; manuales = WhatsApp propio, sin costo).
+- `Pricing.tsx` FAQ: referencia a "YCloud" → "Meta"; item viejo "¿supero las 50 citas en Starter?" sigue diciendo 50 (los cards dicen 100) — **inconsistencia pendiente**, no tocada.
+
 ### Palancas para bajar el costo de mensajería (aplican a todas las clínicas desde 1-oct)
 
 1. **Reducir mensajes salientes** — unir respuestas multi-burbuja en una, eliminar acuses de bajo valor, resolver el "4o pegado" de sesión 83. Baja Meta *y* OpenAI.
