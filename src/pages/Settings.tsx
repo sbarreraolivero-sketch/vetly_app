@@ -39,6 +39,7 @@ import {
     Link2,
     Image as ImageIcon,
     Palette,
+    Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
@@ -2518,6 +2519,11 @@ export default function Settings() {
                                         )
                                     })}
                                 </div>
+
+                                <p className="mt-5 flex items-start gap-2 text-xs text-charcoal/50 leading-relaxed max-w-2xl">
+                                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                    <span>El envío de mensajes por WhatsApp (respuestas del agente y recordatorios) lo factura Meta directamente a tu clínica según tu país, aproximadamente entre US$0.001 y US$0.03 por mensaje. En la mayoría de los mercados es un costo menor.</span>
+                                </p>
                             </div>
                         </div>
                     )}

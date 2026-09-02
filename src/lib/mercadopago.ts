@@ -112,7 +112,7 @@ export const PLANS = {
         features: [
             'Usuarios y agendas ilimitados',
             'Todo lo de Pro',
-            'Conversaciones IA ilimitadas',
+            '30.000 créditos IA/mes · ~1.350 conversaciones',
             'Recordatorios ilimitados',
             'Hasta 3 sucursales',
             'IA personalizada por especialidad',
@@ -133,7 +133,7 @@ export const PLANS = {
         features: [
             '10 usuarios · 5 agendas',
             'Todo lo de Starter',
-            'Conversaciones IA ilimitadas',
+            '20.000 créditos IA/mes · ~900 conversaciones',
             'Citas con IA ilimitadas',
             'Automatización de recordatorios vía WhatsApp',
             'Encuestas de satisfacción',
@@ -153,7 +153,7 @@ export const PLANS = {
             '5 usuarios · 3 agendas',
             'Todo lo de Core',
             'Agente IA WhatsApp (Lía)',
-            '5.000 créditos IA incluidos/mes',
+            '5.000 créditos IA/mes · ~200 conversaciones',
             '100 citas con IA/mes',
             '100 recordatorios automáticos/mes',
             'Logística móvil (Goldi)',

@@ -20,7 +20,7 @@ const plans = [
         features: [
             'Usuarios y agendas ilimitados',
             'Todo lo de Pro',
-            'Conversaciones IA ilimitadas',
+            '30.000 créditos IA/mes · ~1.350 conversaciones',
             'Recordatorios ilimitados',
             'Hasta 3 sucursales',
             'IA personalizada por especialidad',
@@ -47,7 +47,7 @@ const plans = [
         features: [
             '10 usuarios · 5 agendas',
             'Todo lo de Starter',
-            'Conversaciones IA ilimitadas',
+            '20.000 créditos IA/mes · ~900 conversaciones',
             'Citas con IA ilimitadas',
             'Automatización de recordatorios vía WhatsApp',
             'Encuestas de satisfacción',
@@ -75,7 +75,7 @@ const plans = [
             '5 usuarios · 3 agendas',
             'Todo lo de Core',
             'Agente IA WhatsApp (Lía)',
-            '5.000 créditos IA incluidos/mes',
+            '5.000 créditos IA/mes · ~200 conversaciones',
             '100 citas con IA/mes',
             '100 recordatorios automáticos/mes',
             'Logística móvil (Goldi)',
@@ -130,12 +130,16 @@ const faqs = [
         answer: 'El plan Core incluye funciones de gestión sin el agente IA de WhatsApp. Puedes agregar packs de recordatorios (50, 200 o ilimitados/mes) o activar el cobro por consumo de mensajes de plantilla de WhatsApp.',
     },
     {
-        question: '¿Qué pasa si supero las 50 citas en el plan Starter?',
-        answer: 'Te notificaremos cuando te acerques al límite. Puedes comprar un pack adicional o subir al plan Pro para citas ilimitadas.',
+        question: '¿Qué son los créditos de IA y qué pasa si los supero?',
+        answer: 'Cada mensaje que responde el agente consume créditos según el modelo usado. Los créditos de tu plan se recargan cada ciclo mensual (Starter 5.000 ≈ 200 conversaciones, Pro 20.000 ≈ 900, Enterprise 30.000 ≈ 1.350). Si los agotas, puedes comprar un pack adicional desde US$9 sin interrumpir el servicio, o subir de plan.',
+    },
+    {
+        question: '¿Hay costos aparte de la suscripción?',
+        answer: 'La suscripción cubre el sistema completo y el procesamiento del agente de IA. El envío de cada mensaje por WhatsApp lo factura Meta directamente a tu clínica según tu país (aproximadamente entre US$0.001 y US$0.03 por mensaje) — en la mayoría de los mercados es un costo menor. Te guiamos en la configuración de tu cuenta de WhatsApp Business con Meta.',
     },
     {
         question: '¿Necesito tener WhatsApp Business?',
-        answer: 'Para usar el agente IA (planes Starter, Pro y Enterprise), sí necesitas WhatsApp Business API. El plan Core funciona sin ella. Te guiamos en todo el proceso de configuración con YCloud.',
+        answer: 'Para usar el agente IA (planes Starter, Pro y Enterprise), sí necesitas una cuenta de WhatsApp Business conectada a Meta. El plan Core funciona sin ella. Te guiamos en todo el proceso de configuración.',
     },
     {
         question: '¿Ofrecen descuento por pago anual?',
