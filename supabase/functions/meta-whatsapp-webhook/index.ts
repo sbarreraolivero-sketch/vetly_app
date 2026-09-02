@@ -2517,22 +2517,65 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           const allFuncResults: any[] = [];
           let maxCalls = 5;
 
-          while (assistant && (assistant.function_call || (assistant.tool_calls && assistant.tool_calls.length > 0)) && maxCalls > 0) {
-            msgs.push({ ...assistant, role: "assistant" });
-            if (assistant.tool_calls?.length > 0) {
-              for (const toolCall of assistant.tool_calls) {
-                const fnName = toolCall.function.name;
-                const fnArgs = JSON.parse(toolCall.function.arguments);
+          // Tools que representan un cierre real del flujo de coordinación —
+          // usadas tanto para forzar un reintento dentro del loop como para el
+          // aviso post-envío de más abajo. Una sola definición, sin duplicar.
+          const dispatchTools = ["request_scheduling_coordination", "create_appointment", "reschedule_appointment", "escalate_to_human"];
+          const promisePattern = /coordinador|revisar[áa] la ruta|voy a enviar (esta )?informaci[oó]n/i;
+          const isCoordinatorClinic = clinic.scheduling_mode === "coordinator_approval";
+          let correctionAttempts = 0;
+
+          // El modelo a veces anuncia "voy a enviar esto a la coordinadora" sin
+          // haber llamado realmente al tool — promesa sin acción, confirmada real
+          // en producción (Vanesa Torres/Cuki, Linares, 2026-09-02). La misma
+          // prohibición ya existía en el prompt casi palabra por palabra y el
+          // modelo la violó igual, así que reforzarlo solo en el prompt no bastaba
+          // — esto FUERZA en código un reintento con corrección antes de aceptar
+          // esa respuesta como final, en vez de solo detectarlo después de enviarla.
+          const needsCoordinationCorrection = () =>
+            isCoordinatorClinic && !!assistant?.content
+            && !(assistant.tool_calls?.length > 0) && !assistant.function_call
+            && promisePattern.test(assistant.content)
+            && !allFuncResults.some(r => dispatchTools.includes(r.name))
+            && correctionAttempts < 1;
+
+          while (
+            assistant && maxCalls > 0 &&
+            (assistant.function_call || (assistant.tool_calls && assistant.tool_calls.length > 0) || needsCoordinationCorrection())
+          ) {
+            if (assistant.tool_calls?.length > 0 || assistant.function_call) {
+              msgs.push({ ...assistant, role: "assistant" });
+              if (assistant.tool_calls?.length > 0) {
+                for (const toolCall of assistant.tool_calls) {
+                  const fnName = toolCall.function.name;
+                  const fnArgs = JSON.parse(toolCall.function.arguments);
+                  const result = await processFunc(sb, clinic.id, from, fnName, fnArgs, clinicTz, clinic, msgs);
+                  allFuncResults.push({ name: fnName, result });
+                  msgs.push({ role: "tool", tool_call_id: toolCall.id, name: fnName, content: JSON.stringify(result) });
+                }
+              } else if (assistant.function_call) {
+                const fnName = assistant.function_call.name;
+                const fnArgs = JSON.parse(assistant.function_call.arguments);
                 const result = await processFunc(sb, clinic.id, from, fnName, fnArgs, clinicTz, clinic, msgs);
                 allFuncResults.push({ name: fnName, result });
-                msgs.push({ role: "tool", tool_call_id: toolCall.id, name: fnName, content: JSON.stringify(result) });
+                msgs.push({ role: "function", name: fnName, content: JSON.stringify(result) });
               }
-            } else if (assistant.function_call) {
-              const fnName = assistant.function_call.name;
-              const fnArgs = JSON.parse(assistant.function_call.arguments);
-              const result = await processFunc(sb, clinic.id, from, fnName, fnArgs, clinicTz, clinic, msgs);
-              allFuncResults.push({ name: fnName, result });
-              msgs.push({ role: "function", name: fnName, content: JSON.stringify(result) });
+            } else {
+              // needsCoordinationCorrection() fue lo que nos trajo aquí: el
+              // modelo respondió solo texto con la promesa rota. Se empuja su
+              // propia respuesta + una corrección directa, y se fuerza un
+              // reintento — el modelo puede llamar al tool si ya tiene todos
+              // los datos, o preguntar por lo que falte, pero nunca repetir la
+              // misma frase sin ejecutar nada.
+              correctionAttempts++;
+              msgs.push({ role: "assistant", content: assistant.content });
+              msgs.push({
+                role: "system",
+                content: "Tu respuesta anterior dijo que ibas a enviar la información a la coordinadora o a coordinar la visita, pero no ejecutaste ninguna función — el tutor se habría quedado sin ninguna solicitud real. Si tienes TODOS los datos requeridos (nombre del tutor, mascota, especie/sexo, dirección, motivo, urgencia y disponibilidad amplia), llama AHORA MISMO a request_scheduling_coordination con esos datos exactos. Si te falta alguno, NO repitas esa frase: pregúntaselo directamente al tutor en tu respuesta.",
+              });
+              await debugLog(sb, "[COORDINATION PROMISE GAP] Forzando reintento con corrección", {
+                phone: from, clinicId: clinic.id, originalReply: assistant.content,
+              });
             }
             res = await callAI(targetModel, msgs, true);
             assistant = res.choices?.[0]?.message;
@@ -2588,25 +2631,18 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           await sendMetaMessage(clinic.meta_phone_number_id, clinic.meta_access_token, from, reply);
           await debugLog(sb, "Meta AI Response Sent", { to: from, msgId });
 
-          // Red de seguridad: el modelo a veces anuncia "voy a enviar esto a la
-          // coordinadora" en su respuesta final SIN haber llamado realmente al
-          // tool — promesa sin acción. Confirmado real en producción (Vanesa
-          // Torres/Cuki, Linares, 2026-09-02): ai_function_called quedó NULL,
-          // nunca se creó la fila en scheduling_requests, y nadie se enteró
-          // hasta que la tutora reclamó no haber recibido respuesta. La regla
-          // del prompt ("TERMINANTEMENTE PROHIBIDO decir 'un momento' sin
-          // ejecutar la función") ya prohibía esto explícitamente y el modelo
-          // la violó igual — un ajuste de prompt solo no es confiable acá.
-          // Va DESPUÉS de enviar la respuesta real (nunca antes: pausar aquí
+          // Última barrera: el loop de arriba ya fuerza un reintento con
+          // corrección cuando detecta la promesa-sin-acción DURANTE la
+          // conversación (correctionAttempts). Este chequeo es el respaldo
+          // para el caso raro en que ni siquiera ese reintento lo corrigió —
+          // va DESPUÉS de enviar la respuesta real (nunca antes: pausar aquí
           // arriba dejaría al tutor sin ninguna respuesta, peor que hoy).
-          if (clinic.scheduling_mode === "coordinator_approval") {
-            const promisedCoordination = /coordinador|revisar[áa] la ruta|voy a enviar (esta )?informaci[oó]n/i.test(reply);
-            const actuallyDispatched = allFuncResults.some(r =>
-              ["request_scheduling_coordination", "create_appointment", "reschedule_appointment", "escalate_to_human"].includes(r.name),
-            );
+          if (isCoordinatorClinic) {
+            const promisedCoordination = promisePattern.test(reply);
+            const actuallyDispatched = allFuncResults.some(r => dispatchTools.includes(r.name));
             if (promisedCoordination && !actuallyDispatched) {
-              await debugLog(sb, "[COORDINATION PROMISE GAP] La IA prometió coordinar pero no ejecutó ningún tool", {
-                phone: from, clinicId: clinic.id, reply,
+              await debugLog(sb, "[COORDINATION PROMISE GAP] Persistió incluso después del reintento forzado", {
+                phone: from, clinicId: clinic.id, reply, correctionAttempts,
               });
               await sb.from("tutors").update({ requires_human: true }).eq("clinic_id", clinic.id).eq("phone_number", from);
               await sb.from("crm_prospects").update({ requires_human: true }).eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${from}`);
