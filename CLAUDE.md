@@ -7116,29 +7116,29 @@ Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LAT
 ### Modelo de costo para una clínica FÍSICA típica (piloto Yares)
 
 **Modelo de DOS ETAPAS (definido 2026-09-02):**
-- **Etapa 1 — piloto (45 días):** la clínica **NO paga la suscripción**. Paga solo el costo real de operar el agente: **OpenAI + Meta**. Nada más.
+- **Etapa 1 — piloto (45 días):** la clínica **NO paga la suscripción**. Paga: (a) **US$35 fijos de créditos de IA por adelantado a Vetly** (monto fijo, calculado como si fuera uso alto del agente — no cambia con el uso real), y (b) la **mensajería de WhatsApp directo a Meta** según su país.
 - **Etapa 2 — si la clínica decide continuar:** pasa a la suscripción **Pro (US$169/mes)** que **ya incluye el procesamiento de OpenAI** (los ~7.600 créditos/mes de una clínica física típica caben en los 10.000 del Pro). El **único costo que se suma al plan es la mensajería de Meta**, que la clínica paga directo a Meta con su método de pago en el Business Manager.
 
 Regla general (fuera del piloto): **el costo adicional a cualquier plan de Vetly es solo Meta.** OpenAI siempre va absorbido en el plan.
 
-**⚠️ Modelo calibrado sobre Animalgrace (móvil, alto volumen) ajustado hacia abajo — no hay ninguna clínica física real con el agente todavía.** Los primeros 7-10 días de un piloto dan el número real.
+**⚠️ Volumen calibrado sobre Animalgrace (móvil, alto volumen) ajustado hacia abajo — no hay ninguna clínica física real con el agente todavía.**
 
-- **Volumen clínica física típica:** ~300 conversaciones/mes × ~3.5 salientes = ~1.050 salientes IA/mes + ~100-150 recordatorios. Rango: baja ~360/mes, alta ~1.750/mes.
-- **OpenAI ≈ US$0.013/mensaje saliente** para clínica física (~55% 4o / 45% mini, prompt recortado). ~US$7 (bajo) / ~US$20 (típico) / ~US$34 (alto) para 45 días.
+- **Volumen clínica física típica:** ~300 conversaciones/mes × ~3.5 salientes = ~1.050 salientes IA/mes + ~100-150 recordatorios.
+- Referencia interna: OpenAI ≈ US$0.013/mensaje saliente; uso alto 45 días ≈ US$34 → de ahí sale el cargo fijo de US$35.
 
-**Costo del PILOTO (OpenAI + Meta, sin suscripción), 45 días** (tarifas Meta post 1-oct; antes de esa fecha los mensajes del agente son gratis y el total baja):
+**Costo del PILOTO por clínica, 45 días** (US$35 fijo a Vetly + Meta directo a Meta, uso típico; tarifas Meta post 1-oct):
 
-| País | Bajo | Típico | Alto |
+| País | Créditos IA (a Vetly) | Meta (directo) | Total piloto |
 |---|---|---|---|
-| Colombia | ~US$8 | ~US$22 | ~US$36 |
-| México | ~US$12 | ~US$35 | ~US$58 |
-| Chile | ~US$20 | ~US$55 | ~US$91 |
-| Perú | ~US$20 | ~US$55 | ~US$91 |
-| Argentina | ~US$23 | ~US$65 | ~US$107 |
+| Colombia | US$35 | ~US$2 | **~US$37** |
+| México | US$35 | ~US$15 | **~US$50** |
+| Chile | US$35 | ~US$35 | **~US$70** |
+| Perú | US$35 | ~US$35 | **~US$70** |
+| Argentina | US$35 | ~US$45 | **~US$80** |
 
 **Si la clínica continúa — mensual (uso típico): US$169 plan + Meta.** Meta/mes: Colombia ~US$1 · México ~US$10 · Chile/Perú ~US$23 · Argentina ~US$30.
 
-**Presupuesto a comunicar por clínica piloto (Colombia, 45 días): US$25-35** (holgura sobre los ~US$22 del caso típico).
+**Presupuesto a comunicar por clínica piloto (Colombia): ~US$37 los 45 días.**
 
 ### Prerrequisito para pilotear con clínicas físicas
 
@@ -7161,7 +7161,7 @@ Crear una **plantilla de `ai_behavior_rules` para clínica física** — sin sec
 Referente del nicho veterinario en LATAM (YouTube "Veterinario Emprendedor", miles de seguidores, empresa de cursos para veterinarios). Representante: **Yares**. Interesado en alianza con Vetly con **comisión por clínica**, a cambio de ayudar a expandir rápido. Antes de cerrar quiere un **piloto de 5 clínicas** con el agente IA por **mínimo 45 días** para recabar feedback y validar.
 
 **Acuerdo (dos etapas):**
-1. **Piloto (45 días):** clínicas **sin suscripción**, pagan **solo OpenAI + Meta** (~US$22 los 45 días en Colombia, caso típico). Se parte en **Colombia** por el costo Meta casi nulo.
+1. **Piloto (45 días):** clínicas **sin suscripción**. Pagan **US$35 fijos de créditos de IA por adelantado a Vetly** + **mensajería directo a Meta** (~US$2 en Colombia). Total ~US$37 los 45 días en Colombia. Se parte en **Colombia** por el costo Meta casi nulo.
 2. **Si continúan:** pasan a **plan Pro (US$169/mes)** con OpenAI absorbido; el único add-on es Meta (~US$1/mes en Colombia).
 
 La comisión de Yares sale de la suscripción Vetly, no del costo variable de mensajería. One-pager para Yares: `scratchpad/costo-piloto-vetly.html` (artefacto publicado).
