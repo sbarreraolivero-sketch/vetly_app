@@ -135,7 +135,7 @@ export const PLANS = {
             'Todo lo de Starter',
             'Conversaciones IA ilimitadas',
             'Citas con IA ilimitadas',
-            '250 recordatorios/mes',
+            'Automatización de recordatorios vía WhatsApp',
             'Encuestas de satisfacción',
             'Soporte prioritario',
         ],

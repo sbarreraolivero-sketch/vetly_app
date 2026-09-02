@@ -871,7 +871,7 @@ La landing es la fuente de verdad. Todos los archivos de planes actualizados par
 #### Límite mensual compartido (citas + médicos)
 - **DB**: columna `reminders_pack_balance INTEGER DEFAULT 0` en `subscriptions` (sesión previa)
 - **Función `reset_monthly_ai_usage()`**: actualizada para también resetear `monthly_reminders_used` y `reminders_pack_balance` el día 1 de cada mes
-- **Límites por plan**: Core=0, Starter=100, Pro=250, Enterprise=null (ilimitado). Pool compartido entre recordatorios de citas (PART 1/2) y médicos (PART 4)
+- **Límites por plan**: Core=25, Starter=100, Pro=null (ilimitado, desde 2026-09-02), Enterprise=null (ilimitado). Pool compartido entre recordatorios de citas (PART 1/2) y médicos (PART 4)
 - **`cron-process-reminders` v17**: helpers `effectiveLimit(sub)` y `pickSub(sub)` — `effLimit = monthly_reminders_limit + reminders_pack_balance`; contador local `poolUsed` que hace `break` al alcanzar el límite
 
 #### Filtros de fecha coherentes en Reminders.tsx
@@ -7113,39 +7113,48 @@ Convertirse en **Solution Partner** (línea de crédito, consolidar el cobro de 
 
 Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LATAM hispanohablante: concentrar en **Colombia y México** (Meta barato); Chile / Argentina / Perú tienen costo Meta significativo (~US$0.02-0.026/msg) que hay que comunicar de entrada al cliente. Brasil no es mercado objetivo (idioma).
 
-### Modelo de costo OpenAI + Meta para una clínica FÍSICA típica (piloto Yares)
+### Modelo de costo para una clínica FÍSICA típica (piloto Yares)
 
-**⚠️ Calibrado sobre Animalgrace (móvil, alto volumen) ajustado hacia abajo — no hay ninguna clínica física real con el agente todavía.** Los primeros 7-10 días de un piloto dan el número real.
+**Decisión (2026-09-02): las clínicas piloto van en el plan Pro (US$169/mes) y NO se les cobra OpenAI aparte.** El procesamiento del agente va dentro del plan (los ~7.600 créditos/mes de una clínica física típica caben en los 10.000 del plan Pro). El **único costo variable de la clínica es la mensajería de Meta**, que paga directo a Meta con su método de pago en el Business Manager.
 
-- **OpenAI ≈ US$0.013/mensaje saliente** para clínica física (mezcla ~55% GPT-4o / 45% mini, prompt recortado sin lógica móvil, caching activo). Animalgrace móvil: ~US$0.020-0.023/msg (prompt del doble, 77% en 4o).
-- **Volumen clínica física típica:** ~300 conversaciones/mes × ~3.5 salientes = ~1.050 salientes IA/mes + ~100-150 recordatorios (plantillas, ya se cobran). Rango: baja ~360/mes, alta ~1.750/mes.
+**⚠️ Modelo calibrado sobre Animalgrace (móvil, alto volumen) ajustado hacia abajo — no hay ninguna clínica física real con el agente todavía.** Los primeros 7-10 días de un piloto dan el número real.
 
-**Costo total para el dueño de una clínica piloto, 45 días** (tarifas post 1-oct; antes de esa fecha los service messages son gratis y el costo Meta baja a la mitad):
+- **Volumen clínica física típica:** ~300 conversaciones/mes × ~3.5 salientes = ~1.050 salientes IA/mes + ~100-150 recordatorios. Rango: baja ~360/mes, alta ~1.750/mes.
+- Referencia interna: OpenAI ≈ US$0.013/mensaje saliente para clínica física (~55% 4o / 45% mini, prompt recortado). ~US$20 para 45 días de uso típico — **este costo lo absorbe Vetly, no se muestra al cliente.**
 
-| País | Baja | Media | Alta |
+**Costo de MENSAJERÍA META para el dueño, 45 días** (tarifas post 1-oct; antes de esa fecha los mensajes del agente son gratis y el costo baja aún más):
+
+| País | Baja | Típica | Alta |
 |---|---|---|---|
-| Colombia | ~US$9 | ~US$21 | ~US$38 |
-| México | ~US$13 | ~US$35 | ~US$60 |
-| Chile | ~US$20 | ~US$55 | ~US$95 |
-| Perú | ~US$20 | ~US$55 | ~US$95 |
-| Argentina | ~US$25 | ~US$65 | ~US$110 |
+| Colombia | < US$1 | ~US$1.50 | ~US$2 |
+| México | ~US$5 | ~US$15 | ~US$24 |
+| Chile | ~US$13 | ~US$35 | ~US$57 |
+| Perú | ~US$13 | ~US$35 | ~US$57 |
+| Argentina | ~US$16 | ~US$45 | ~US$73 |
 
-Caso media: OpenAI ~US$20 (igual en todos los países) + Meta según país. En Colombia el costo es casi solo OpenAI.
+**Mensual continuo (uso típico), a Meta, además de los US$169 del plan:** Colombia ~US$1 · México ~US$10 · Chile/Perú ~US$23 · Argentina ~US$30.
+
+**Presupuesto a comunicar por clínica piloto (Colombia, 45 días): US$5 es más que suficiente.**
 
 ### Prerrequisito para pilotear con clínicas físicas
 
-Crear una **plantilla de `ai_behavior_rules` para clínica física** — recortada, sin sectores/GPS/ruta/coordinadora/hubs quirúrgicos. El prompt actual de Animalgrace (40k+ caracteres) es ~90% lógica de clínica móvil. Recortarlo baja el costo OpenAI ~40% *y* mejora la calidad. Es prerrequisito del piloto, no opcional.
+Crear una **plantilla de `ai_behavior_rules` para clínica física** — sin sectores/GPS/ruta/coordinadora/hubs quirúrgicos. El prompt actual de Animalgrace (40k+ caracteres) es ~90% lógica de clínica móvil. Es prerrequisito del piloto, no opcional: mejora la calidad de las respuestas y ordena el flujo (además de bajar el costo OpenAI que ahora absorbe Vetly).
+
+### Plan Pro — cambios de comunicación (2026-09-02)
+
+- Copy de recordatorios: `"250 recordatorios/mes"` → **`"Automatización de recordatorios vía WhatsApp"`** en `paddle.ts`, `mercadopago.ts`, `Pricing.tsx`, `public/landing.html`.
+- `plan_limits`: `monthly_reminders` de **`pro`/`radiance`** pasó de `250` a **`NULL` (ilimitado)** para que la copia sin número no mienta. `cron-process-reminders` ya trata NULL como ilimitado (igual que Enterprise).
+- `public/landing.html` bloque Pro: decía `"Hasta 5 usuarios"` — corregido a `"Hasta 10 usuarios"` (el enforcement en `plan_limits` ya era 10). El bloque Starter de landing.html sigue desincronizado (dice "2 usuarios · 1 agenda" cuando `plan_limits` es 5·3) — **pendiente**, no tocado en esta sesión.
 
 ### Palancas para bajar el costo de mensajería (aplican a todas las clínicas desde 1-oct)
 
-1. **Reducir mensajes salientes** — corta costo en dos ejes (Meta *y* OpenAI): unir respuestas multi-burbuja en una, eliminar acuses de bajo valor, resolver el "4o pegado" de sesión 83.
+1. **Reducir mensajes salientes** — unir respuestas multi-burbuja en una, eliminar acuses de bajo valor, resolver el "4o pegado" de sesión 83. Baja Meta *y* OpenAI.
 2. Verificar que toda clínica con agente tenga método de pago + alertas de saldo en su BM (el bug `[131042]` de sesión 70 va a golpear a más clínicas y más fuerte).
 3. Empujar Click-to-WhatsApp donde se pueda (ventana de 72 h gratis).
-4. Respuestas del agente más cortas (menos burbujas = menos mensajes facturados).
 
 ### Alianza Yares / "Veterinario Emprendedor" (2026-09-02, en negociación)
 
-Referente del nicho veterinario en LATAM (YouTube "Veterinario Emprendedor", miles de seguidores, empresa de cursos para veterinarios). Representante: **Yares**. Interesado en alianza con Vetly con **comisión por clínica**, a cambio de ayudar a expandir rápido. Antes de cerrar quiere un **piloto de 5 clínicas** con el agente IA por **mínimo 45 días** para recabar feedback y validar. Acuerdo propuesto: las clínicas piloto costean OpenAI + Meta; se sugirió **partir en Colombia** por el costo Meta casi nulo. La comisión de Yares sale de la suscripción Vetly, no del costo variable de mensajería.
+Referente del nicho veterinario en LATAM (YouTube "Veterinario Emprendedor", miles de seguidores, empresa de cursos para veterinarios). Representante: **Yares**. Interesado en alianza con Vetly con **comisión por clínica**, a cambio de ayudar a expandir rápido. Antes de cerrar quiere un **piloto de 5 clínicas** con el agente IA por **mínimo 45 días** para recabar feedback y validar. Acuerdo: las clínicas piloto van en **plan Pro (US$169)**, Vetly absorbe OpenAI, y **solo costean la mensajería de Meta** (~US$5 los 45 días en Colombia). Se parte en **Colombia** por el costo Meta casi nulo. La comisión de Yares sale de la suscripción Vetly, no del costo variable de mensajería. One-pager para Yares: `scratchpad/costo-piloto-vetly.html` (artefacto publicado).
 
 ---
 

@@ -1056,31 +1056,39 @@ Desde el 1-oct-2026 Meta cobra **cada** mensaje que el negocio envía dentro de 
 
 **Implicancia go-to-market LATAM:** concentrar en **Colombia y México** (Meta barato). Chile / Argentina / Perú tienen costo de mensajería significativo que hay que comunicar de entrada al cliente. Brasil no es mercado objetivo (idioma).
 
-### Costo estimado por clínica física piloto — 45 días (OpenAI + Meta)
+### Estructura del piloto (definida 2026-09-02)
+
+**Las 5 clínicas piloto van en el plan Pro (US$169/mes).** Vetly **absorbe el costo de OpenAI** (el procesamiento del agente va dentro del plan — ~7.600 créditos/mes de una clínica física típica caben en los 10.000 del Pro). El **único costo variable de la clínica es la mensajería de Meta**, que paga directo a Meta.
+
+### Costo de MENSAJERÍA META por clínica física piloto — 45 días
 
 **⚠️ Modelo calibrado sobre Animalgrace (móvil) ajustado a la baja. No hay clínica física real con el agente todavía — los primeros días del piloto dan el número real.**
 
-| País | Bajo volumen | **Volumen típico** | Alto volumen |
+| País | Bajo | **Típico** | Alto |
 |---|---|---|---|
-| Colombia | ~US$9 | **~US$21** | ~US$38 |
-| México | ~US$13 | **~US$35** | ~US$60 |
-| Chile | ~US$20 | **~US$55** | ~US$95 |
-| Perú | ~US$20 | **~US$55** | ~US$95 |
-| Argentina | ~US$25 | **~US$65** | ~US$110 |
+| Colombia | < US$1 | **~US$1.50** | ~US$2 |
+| México | ~US$5 | **~US$15** | ~US$24 |
+| Chile | ~US$13 | **~US$35** | ~US$57 |
+| Perú | ~US$13 | **~US$35** | ~US$57 |
+| Argentina | ~US$16 | **~US$45** | ~US$73 |
 
-- OpenAI ≈ US$20 para los 45 días (igual en todos los países, ~US$0.013/mensaje saliente).
-- En Colombia el costo es casi solo OpenAI → **presupuesto a comunicar: US$25-35 por clínica para los 45 días**.
-- Si el piloto arranca antes del 1-oct, las primeras semanas los mensajes de servicio son gratis → costo Meta baja a la mitad en ese tramo.
+Mensual continuo (uso típico, además de los US$169): Colombia ~US$1 · México ~US$10 · Chile/Perú ~US$23 · Argentina ~US$30.
 
 ### Qué decirle a Yares
 
-- Piloto en **Colombia**: ~US$25-35 por clínica para 45 días completos, casi todo OpenAI. Costo predecible y bajo.
-- La propuesta de valor queda limpia: **"US$89 Vetly + ~US$15/mes de uso"** en Colombia.
+- Piloto en **Colombia**: la mensajería cuesta centavos. **Presupuesto a comunicar a cada dueño: US$5 para los 45 días** es más que suficiente.
+- La propuesta de valor queda limpia: **"US$169 Vetly, todo incluido, + una mensajería que no se nota"** en Colombia.
 - No usar Chile/Argentina/Perú para el piloto — el costo Meta 25-33× más alto distorsiona la validación.
+- One-pager para compartir: artefacto `scratchpad/costo-piloto-vetly.html`.
+
+### Cambios al plan Pro (2026-09-02)
+
+- Copy: `"250 recordatorios/mes"` → **`"Automatización de recordatorios vía WhatsApp"`** (sin número). El tope real en `plan_limits` pasó de 250 a ilimitado para que la copia no mienta.
+- Usuarios: el enforcement ya era 10; se corrigió la landing que decía 5.
 
 ### Prerrequisito técnico del piloto
 
-Crear una **plantilla de prompt para clínica física** (`ai_behavior_rules` recortado, sin lógica móvil: sin sectores, GPS, ruta, coordinadora, hubs quirúrgicos). El prompt actual de Animalgrace es ~90% lógica móvil. Recortarlo baja OpenAI ~40% y mejora la calidad de respuesta. Prerrequisito, no opcional.
+Crear una **plantilla de prompt para clínica física** (`ai_behavior_rules` sin lógica móvil: sin sectores, GPS, ruta, coordinadora, hubs quirúrgicos). El prompt actual de Animalgrace es ~90% lógica móvil. Prerrequisito, no opcional: mejora la calidad de las respuestas y ordena el flujo.
 
 ### Evaluar: convertirse en Meta Solution Partner
 
