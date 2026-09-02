@@ -7110,9 +7110,8 @@ Convertirse en **Solution Partner** (línea de crédito, consolidar el cobro de 
 | **Chile** | **0.0200** | 0.0889 |
 | **Perú** | **0.0200** | 0.0703 |
 | **Argentina** | **0.0260** | 0.0618 |
-| Brasil | ~0.0070 | ~0.0625 |
 
-Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LATAM: concentrar en Colombia / México / Brasil (Meta barato); Chile / Argentina / Perú tienen costo Meta significativo (~US$0.02-0.026/msg).
+Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LATAM hispanohablante: concentrar en **Colombia y México** (Meta barato); Chile / Argentina / Perú tienen costo Meta significativo (~US$0.02-0.026/msg) que hay que comunicar de entrada al cliente. Brasil no es mercado objetivo (idioma).
 
 ### Modelo de costo OpenAI + Meta para una clínica FÍSICA típica (piloto Yares)
 

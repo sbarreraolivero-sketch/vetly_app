@@ -1054,7 +1054,7 @@ Desde el 1-oct-2026 Meta cobra **cada** mensaje que el negocio envía dentro de 
 | Perú | 0.0200 | 25× |
 | Argentina | 0.0260 | 33× |
 
-**Implicancia go-to-market LATAM:** concentrar en **Colombia / México / Brasil** (Meta barato). Chile / Argentina / Perú tienen costo de mensajería significativo que hay que comunicar de entrada al cliente.
+**Implicancia go-to-market LATAM:** concentrar en **Colombia y México** (Meta barato). Chile / Argentina / Perú tienen costo de mensajería significativo que hay que comunicar de entrada al cliente. Brasil no es mercado objetivo (idioma).
 
 ### Costo estimado por clínica física piloto — 45 días (OpenAI + Meta)
 
