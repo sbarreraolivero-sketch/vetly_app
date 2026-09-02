@@ -693,10 +693,34 @@ El CORS de `_shared/cors.ts` usa `Access-Control-Allow-Origin: '*'` por diseño.
 - **RPC `get_credit_history_summary(p_clinic_ids, p_month_start, p_month_end)`** — agrega totales server-side. Usar siempre para calcular resúmenes de historial; nunca fetchear filas individuales en el cliente y sumar (PostgREST limita a 1.000 filas en silencio).
 
 ### Límites de plan y sucursales — reglas permanentes
-- Los **créditos mensuales** por plan son: Core=0, Starter=5.000, Pro=20.000, Enterprise=30.000
 - El plan **Enterprise** permite hasta **3 sucursales totales** (raíz + 2 adicionales). El RPC `create_clinic_branch` bloquea con excepción si `count(owner clinics) >= 3`
-- Para cambiar precios o créditos, actualizar en **5 lugares**: `lemonsqueezy.ts`, `mercadopago.ts`, `lemonsqueezy-webhook` (subscription_created), `mercadopago-webhook` (subscription sync), `public/landing.html`
+- **Límites por plan (usuarios/agendas/recordatorios/créditos): autoridad = tabla `plan_limits`** (Postgres). Espejos a mantener en sync: `src/lib/plans.ts` (frontend) y `_shared/planLimits.ts` FALLBACK (solo se usa si la query falla). Cambiar el número primero en `plan_limits`, luego los dos espejos.
+- **Para cambiar precios** (no límites): `src/lib/mercadopago.ts`, `src/lib/paddle.ts`, `src/pages/Pricing.tsx`, `public/landing.html`. (LemonSqueezy se eliminó en sesión 68 — cualquier nota vieja que lo mencione está obsoleta.)
 - Las cuentas `manually_active = true` se rigen por `clinic_settings.max_users` (no por el plan derivado de `subscriptions.plan`). El RPC `invite_member_v2` respeta este flag.
+
+### Créditos IA por plan — límites, enforcement y estado (2026-09-02)
+
+**Límites vigentes en `plan_limits.ai_credits`:**
+
+| Plan | Créditos IA/mes | ≈ mensajes del agente/mes | Marketing dice |
+|---|---|---|---|
+| Core | 0 | — | "gestión sin IA" ✅ |
+| Starter | 5.000 | ~575 | "5.000 créditos IA/mes" ✅ |
+| **Pro** | **20.000** | **~2.300** | "Conversaciones IA ilimitadas" (cierto en la práctica con 20k) |
+| Enterprise | 30.000 | ~3.450 | "Conversaciones IA ilimitadas" ⚠️ (tope real; Animalgrace lo supera) |
+
+Costo blended ≈ **8,7 créditos/mensaje** (mezcla ~55% GPT-4o × 15 + ~45% mini × 1). `CREDIT_COST_4O = 15` en `_shared/aiCredits.ts`.
+
+**Cadena de enforcement:** `plan_limits.ai_credits` → los webhooks de pago (`paddle-webhook`, `mercadopago-webhook`, `signup-handler`, `mercadopago-create-subscription`) vía `limitsForPlan()` lo copian a `clinic_settings.ai_credits_monthly_limit` → `getCreditStatus()` en el webhook del agente lo checkea → al agotarse (`exhausted`), **el agente queda mudo** hasta el reset del día 1 o hasta que compren un pack. Los webhooks solo resincronizan `ai_credits_monthly_limit` en el próximo pago/cambio de plan — subir un límite en `plan_limits` NO actualiza a las clínicas ya existentes; hay que hacerlo a mano.
+
+**"Ilimitado" de verdad = flag `clinic_settings.ai_credits_unlimited` (boolean) por clínica.** El código NO soporta un plan con créditos ilimitados (`PlanLimits.ai_credits` es `number`, no nullable; null caería a un default de 500). Para hacer un plan realmente ilimitado habría que: (a) que los webhooks seteen `ai_credits_unlimited = true` para ese plan, o (b) usar un número muy alto. La UI (`AISettings.tsx`) ya muestra "∞ ILIMITADO" cuando el flag está activo.
+
+**Direcciones para resolver la inconsistencia "ilimitadas" vs tope real:**
+- **A — flag `ai_credits_unlimited` real:** elimina el modo "agente mudo" para el plan; riesgo de costo OpenAI sin techo (acotado — incluso uso alto deja >70% de margen).
+- **B — tope honesto + copy con número:** "20.000 créditos IA/mes" en vez de "ilimitadas".
+- **C — tope alto de seguridad + copy sigue "ilimitadas":** el tope protege contra abuso pero ninguna clínica real lo toca. **← elegido para Pro (20.000).**
+
+**Estado:** Pro resuelto con dirección C (20.000). **Enterprise pendiente de decisión del usuario:** sigue en 30.000 con copy "ilimitadas"; Animalgrace (pool compartido Linares+Santiago) consume ~43.000/mes → se les acaba y compran packs, fricción sobre el cliente insignia. Recomendación: Enterprise → `ai_credits_unlimited` real (dirección A).
 
 ### Packs de créditos extra — reglas permanentes (reescritas sesión 2026-09-01)
 - **Los packs comprados NO expiran.** `ai_credits_extra_expires_at` siempre queda en `NULL`. Todas las rutas de compra (`mercadopago-webhook`, `paddle-webhook`, `AdminClinics.tsx handleManualCharge`) fijan `null`. El cron `expire-extra-credits` (pg_cron jobid 17) quedó **desactivado** (`cron.unschedule('expire-extra-credits')`); la edge function sigue existiendo pero no la llama nadie.
@@ -7148,11 +7172,9 @@ Crear una **plantilla de `ai_behavior_rules` para clínica física** — sin sec
 
 - Copy de recordatorios: `"250 recordatorios/mes"` → **`"Automatización de recordatorios vía WhatsApp"`** en `paddle.ts`, `mercadopago.ts`, `Pricing.tsx`, `public/landing.html`.
 - `plan_limits`: `monthly_reminders` de **`pro`/`radiance`** pasó de `250` a **`NULL` (ilimitado)**. `cron-process-reminders` ya trata NULL como ilimitado (igual que Enterprise).
-- **`plan_limits.ai_credits` de `pro`/`radiance`: `10.000` → `20.000`** (migración `pro_plan_ai_credits_10k_to_20k`). 20.000 créditos ≈ 2.300 mensajes del agente/mes — techo de seguridad contra abuso, muy por encima de lo que consume una clínica física real (~1.050/mes típico), así que la copia "Conversaciones IA ilimitadas" sigue siendo cierta en la práctica. La única clínica Pro real (Clínica Huellitas, de prueba) se bumpeó a 20.000 a mano (los webhooks solo resincronizan `ai_credits_monthly_limit` en el próximo pago).
+- **`plan_limits.ai_credits` de `pro`/`radiance`: `10.000` → `20.000`** (migración `pro_plan_ai_credits_10k_to_20k`). Ver la sección "Créditos IA por plan — límites, enforcement y estado" arriba para el análisis completo (tabla, direcciones, pendiente de Enterprise). La única clínica Pro real (Clínica Huellitas, de prueba) se bumpeó a 20.000 a mano.
 - Mirrors actualizados: `_shared/planLimits.ts` FALLBACK (pro `ai_credits` 20.000 + `monthly_reminders` null; de paso core `max_users` 3→10 que estaba desincronizado), `src/lib/plans.ts` PLAN_LIMITS (pro `aiCredits` 20.000 + `monthlyReminders` null).
 - `public/landing.html` bloque Pro: decía `"Hasta 5 usuarios"` — corregido a `"Hasta 10 usuarios"`. El bloque Starter de landing.html sigue desincronizado (dice "2 usuarios · 1 agenda" cuando `plan_limits` es 5·3) — **pendiente**.
-
-**Pendiente de decisión del usuario:** Enterprise sigue en 30.000 (marketing dice "ilimitadas"). Animalgrace consume ~43.000/mes en el pool compartido → se les acaba y compran packs. Evaluar Enterprise → `ai_credits_unlimited` real.
 
 ### Palancas para bajar el costo de mensajería (aplican a todas las clínicas desde 1-oct)
 
