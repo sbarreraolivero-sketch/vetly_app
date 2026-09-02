@@ -1025,3 +1025,63 @@ El módulo no se llama "Cómo usar Vetly" — se llama *"El sistema de atención
 
 ### Conclusión estratégica
 Citenly captura leads más fácil por volumen de mercado. Vetly convierte mejor por diferenciación y confianza construida con marca personal. **Vetly tiene mayor defensibilidad a largo plazo.**
+
+---
+
+## Alianza Yares / "Veterinario Emprendedor" + costos de mensajería (sesión 2026-09-02)
+
+### La alianza
+
+**Yares** es representante y rostro de una empresa establecida ("Veterinario Emprendedor" — referente del nicho veterinario en LATAM, canal de YouTube con miles de seguidores, años dictando cursos a veterinarios). Ya hubo reuniones. Le interesa una **alianza con comisión por clínica**: nos ayuda a expandirnos rápido a cambio de comisión por cada clínica que traiga. Lo que más le atrae es el **agente de IA**.
+
+**Condición antes de cerrar:** un **piloto de 5 clínicas** con el agente IA activo por **mínimo 45 días**, para recabar feedback y validar que Vetly es efectivamente la solución que publicitamos.
+
+**Acuerdo de costos propuesto:** las clínicas piloto costean el uso variable (OpenAI + mensajería Meta). La comisión de Yares sale de la **suscripción Vetly**, no del costo de mensajería. Se sugirió **partir en Colombia** por el costo Meta casi nulo.
+
+### El problema de costos: Meta empieza a cobrar por mensaje el 1-oct-2026
+
+Desde el 1-oct-2026 Meta cobra **cada** mensaje que el negocio envía dentro de la ventana de 24 h (antes gratis desde nov-2024), a la tarifa de utility/auth del país, sin descuento por volumen. Detalle técnico completo en CLAUDE.md ("Costos de mensajería WhatsApp — Meta per-message pricing").
+
+**Vetly es Tech Provider → la clínica paga a Meta directo.** El margen de las suscripciones no se toca, pero el costo total de tener Vetly sube para el cliente.
+
+### Tarifas Meta (utility/auth = costo por mensaje del agente desde 1-oct)
+
+| País | US$/mensaje | vs Colombia |
+|---|---|---|
+| Colombia | 0.0008 | 1× |
+| México | 0.0085 | 11× |
+| Chile | 0.0200 | 25× |
+| Perú | 0.0200 | 25× |
+| Argentina | 0.0260 | 33× |
+
+**Implicancia go-to-market LATAM:** concentrar en **Colombia / México / Brasil** (Meta barato). Chile / Argentina / Perú tienen costo de mensajería significativo que hay que comunicar de entrada al cliente.
+
+### Costo estimado por clínica física piloto — 45 días (OpenAI + Meta)
+
+**⚠️ Modelo calibrado sobre Animalgrace (móvil) ajustado a la baja. No hay clínica física real con el agente todavía — los primeros días del piloto dan el número real.**
+
+| País | Bajo volumen | **Volumen típico** | Alto volumen |
+|---|---|---|---|
+| Colombia | ~US$9 | **~US$21** | ~US$38 |
+| México | ~US$13 | **~US$35** | ~US$60 |
+| Chile | ~US$20 | **~US$55** | ~US$95 |
+| Perú | ~US$20 | **~US$55** | ~US$95 |
+| Argentina | ~US$25 | **~US$65** | ~US$110 |
+
+- OpenAI ≈ US$20 para los 45 días (igual en todos los países, ~US$0.013/mensaje saliente).
+- En Colombia el costo es casi solo OpenAI → **presupuesto a comunicar: US$25-35 por clínica para los 45 días**.
+- Si el piloto arranca antes del 1-oct, las primeras semanas los mensajes de servicio son gratis → costo Meta baja a la mitad en ese tramo.
+
+### Qué decirle a Yares
+
+- Piloto en **Colombia**: ~US$25-35 por clínica para 45 días completos, casi todo OpenAI. Costo predecible y bajo.
+- La propuesta de valor queda limpia: **"US$89 Vetly + ~US$15/mes de uso"** en Colombia.
+- No usar Chile/Argentina/Perú para el piloto — el costo Meta 25-33× más alto distorsiona la validación.
+
+### Prerrequisito técnico del piloto
+
+Crear una **plantilla de prompt para clínica física** (`ai_behavior_rules` recortado, sin lógica móvil: sin sectores, GPS, ruta, coordinadora, hubs quirúrgicos). El prompt actual de Animalgrace es ~90% lógica móvil. Recortarlo baja OpenAI ~40% y mejora la calidad de respuesta. Prerrequisito, no opcional.
+
+### Evaluar: convertirse en Meta Solution Partner
+
+Cuando Vetly escale más allá de un puñado de clínicas (esta alianza podría gatillarlo), evaluar pasar de Tech Provider a **Solution Partner**: línea de crédito con Meta, consolidar el cobro de mensajería dentro de la factura Vetly con markup (5-20%), eliminar la fricción de que el cliente cargue tarjeta en Meta, y poder incluir un cupo de mensajes en cada plan. Costo: aprobación de Meta, exposición financiera (adelantar el pago a Meta), pasar a ser revendedor de mensajería.

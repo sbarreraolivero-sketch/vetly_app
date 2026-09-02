@@ -7079,3 +7079,118 @@ Respaldo: `prompt_backups` label `pre_unificar_ventana_espera_2026_09_01`.
 
 ### Regla permanente
 - **El multiplicador de créditos reprecia retroactivamente todo el consumo del ciclo en curso** (el saldo se recalcula en vivo desde `mini_used + 4o_used × CREDIT_COST_4O`). Cambiarlo a mitad de mes puede agotar de golpe a una clínica que venía bajo el número viejo. El momento seguro para subirlo es justo después del reset del día 1. (Aprendido en sesión 83: se subió a 20 y se revirtió a 15 el mismo día tras dejar a Animalgrace muda 3 h.)
+
+---
+
+## Costos de mensajería WhatsApp — Meta per-message pricing (análisis 2026-09-02)
+
+### El cambio de Meta del 1-oct-2026 (fuente: developers.facebook.com/documentation/business-messaging/whatsapp/pricing)
+
+| Fecha | Cambio |
+|---|---|
+| 1-jul-2026 | Lanza **Meta Business Agent** (agente IA nativo de Meta para WhatsApp) |
+| 1-ago-2026 | Cobro por tokens del Meta Business Agent: **US$2 / 1M tokens** (global, ~4-5¢/mensaje). NO aplica a Vetly (usamos agente propio). |
+| 1-sep-2026 | Meta publica las tarifas por mercado del cambio de octubre |
+| **1-oct-2026** | **Los "service messages" dejan de ser gratis.** Toda respuesta free-form del negocio dentro de la ventana de 24 h (la escriba un humano o un agente IA de terceros) se cobra **por mensaje**, a la **tarifa de utility/auth** del país. **Sin descuento por volumen.** También se cobran las plantillas de utilidad enviadas dentro de la ventana. |
+
+**NO se cobra:** mensajes entrantes del cliente; la ventana gratuita de **72 h** de conversaciones iniciadas desde anuncios Click-to-WhatsApp o botones CTA de FB/IG; personal WhatsApp / app gratuita.
+
+### Quién paga: **la clínica, no Vetly**
+
+**Vetly es Tech Provider, no Solution Partner.** Los Tech Providers **no tienen línea de crédito con Meta** → el cliente paga a Meta directo con el método de pago de su Business Manager. El margen de las suscripciones Vetly no se toca. Pero el costo total de tener Vetly sube para la clínica y va a Meta sin markup ni control de Vetly.
+
+Convertirse en **Solution Partner** (línea de crédito, consolidar el cobro de Meta en la factura Vetly con markup 5-20%, meter cupo de mensajes en los planes) es la decisión estratégica a evaluar cuando Vetly escale más allá de un puñado de clínicas.
+
+### Tarifas Meta por país (rate card oficial, vigente jul-2026) — utility/auth = tarifa del service message desde 1-oct
+
+| País | Utility/Auth (US$/msg) | Marketing (US$/msg) |
+|---|---|---|
+| **Colombia** | **0.0008** | 0.0125 |
+| **México** | **0.0085** | 0.0305 |
+| **Chile** | **0.0200** | 0.0889 |
+| **Perú** | **0.0200** | 0.0703 |
+| **Argentina** | **0.0260** | 0.0618 |
+| Brasil | ~0.0070 | ~0.0625 |
+
+Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LATAM: concentrar en Colombia / México / Brasil (Meta barato); Chile / Argentina / Perú tienen costo Meta significativo (~US$0.02-0.026/msg).
+
+### Modelo de costo OpenAI + Meta para una clínica FÍSICA típica (piloto Yares)
+
+**⚠️ Calibrado sobre Animalgrace (móvil, alto volumen) ajustado hacia abajo — no hay ninguna clínica física real con el agente todavía.** Los primeros 7-10 días de un piloto dan el número real.
+
+- **OpenAI ≈ US$0.013/mensaje saliente** para clínica física (mezcla ~55% GPT-4o / 45% mini, prompt recortado sin lógica móvil, caching activo). Animalgrace móvil: ~US$0.020-0.023/msg (prompt del doble, 77% en 4o).
+- **Volumen clínica física típica:** ~300 conversaciones/mes × ~3.5 salientes = ~1.050 salientes IA/mes + ~100-150 recordatorios (plantillas, ya se cobran). Rango: baja ~360/mes, alta ~1.750/mes.
+
+**Costo total para el dueño de una clínica piloto, 45 días** (tarifas post 1-oct; antes de esa fecha los service messages son gratis y el costo Meta baja a la mitad):
+
+| País | Baja | Media | Alta |
+|---|---|---|---|
+| Colombia | ~US$9 | ~US$21 | ~US$38 |
+| México | ~US$13 | ~US$35 | ~US$60 |
+| Chile | ~US$20 | ~US$55 | ~US$95 |
+| Perú | ~US$20 | ~US$55 | ~US$95 |
+| Argentina | ~US$25 | ~US$65 | ~US$110 |
+
+Caso media: OpenAI ~US$20 (igual en todos los países) + Meta según país. En Colombia el costo es casi solo OpenAI.
+
+### Prerrequisito para pilotear con clínicas físicas
+
+Crear una **plantilla de `ai_behavior_rules` para clínica física** — recortada, sin sectores/GPS/ruta/coordinadora/hubs quirúrgicos. El prompt actual de Animalgrace (40k+ caracteres) es ~90% lógica de clínica móvil. Recortarlo baja el costo OpenAI ~40% *y* mejora la calidad. Es prerrequisito del piloto, no opcional.
+
+### Palancas para bajar el costo de mensajería (aplican a todas las clínicas desde 1-oct)
+
+1. **Reducir mensajes salientes** — corta costo en dos ejes (Meta *y* OpenAI): unir respuestas multi-burbuja en una, eliminar acuses de bajo valor, resolver el "4o pegado" de sesión 83.
+2. Verificar que toda clínica con agente tenga método de pago + alertas de saldo en su BM (el bug `[131042]` de sesión 70 va a golpear a más clínicas y más fuerte).
+3. Empujar Click-to-WhatsApp donde se pueda (ventana de 72 h gratis).
+4. Respuestas del agente más cortas (menos burbujas = menos mensajes facturados).
+
+### Alianza Yares / "Veterinario Emprendedor" (2026-09-02, en negociación)
+
+Referente del nicho veterinario en LATAM (YouTube "Veterinario Emprendedor", miles de seguidores, empresa de cursos para veterinarios). Representante: **Yares**. Interesado en alianza con Vetly con **comisión por clínica**, a cambio de ayudar a expandir rápido. Antes de cerrar quiere un **piloto de 5 clínicas** con el agente IA por **mínimo 45 días** para recabar feedback y validar. Acuerdo propuesto: las clínicas piloto costean OpenAI + Meta; se sugirió **partir en Colombia** por el costo Meta casi nulo. La comisión de Yares sale de la suscripción Vetly, no del costo variable de mensajería.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 97, 2026-09-02)
+
+> Nota de numeración: "sesión 96" (2026-09-01) la ocupó una sesión paralela (bug de facturación del pack de créditos extra). Esta es una sesión distinta del día siguiente — se salta a 97, mismo patrón ya documentado en sesiones 66/87/89/91/93.
+
+### Ruteo de IA optimizado — desplegado a Santiago (rollout controlado)
+
+**Motivación:** el usuario reportó que OpenAI gasta mucho. Diagnóstico ya hecho (sesiones 83/85): ~80% de los mensajes van a GPT-4o y son ~98% del gasto. La causa es el ruteo, no el proveedor.
+
+**Comparación de proveedores reconfirmada (descarte):** Claude Haiku cuesta MÁS que gpt-4o-mini; Sonnet ≈ gpt-4o (cero ahorro). Gemini 2.0/2.5 Flash es la única alternativa grande genuinamente más barata que mini con tools + contexto amplio — el cambio realista si algún día se migra. DeepSeek ~10x más barato pero API en China (datos de clientes de por medio). Migrar cualquiera = reescribir el tool loop de ambos webhooks (formato OpenAI). **No se migra — se optimiza el ruteo primero.**
+
+**El cambio (`meta-whatsapp-webhook`, línea ~2455):**
+- Constante nueva `LEAN_ROUTING_CLINICS = [CLINIC_ANIMALGRACE_SANTIAGO_ID]` — gate del rollout.
+- El bloque de ruteo `hybrid` se bifurca: si la clínica está en la lista **y** `scheduling_mode === 'coordinator_approval'` → ruteo lean. Cualquier otra (Linares incluida) → el ruteo de hoy **sin tocar una línea** (mismo `selectModelTier` + `activeSchedulingFlow` de 3 mensajes + `isSafeTrivialAck`).
+- **Ruteo lean — van a GPT-4o SOLO:** imagen · vuelta del pin (detecta `[LOGÍSTICA` / `[UBICACIÓN COMPARTIDA` / `recargo traslado` en el mensaje — el momento donde se arma recargo + servicio + mínimo $15.000 + excepciones) · keywords de **precio** (precio, valor, cuánto, recargo, traslado, comuna, cotiz, pack, promoci, presupuesto) · servicios con costo variable que causaron bugs reales sin keyword (uña, parasit, camada, gatitos, perritos, "4 gatos", "dos perros", alizin, preñ, monta) · keywords **médicas** (cirug, castra, vacun, antirrabi, octuple, destartraje, sedaci, ecograf, eutan) · el **último** mensaje de la IA (solo 1, no 3) tocó precio/médico **o** ofreció una hora concreta.
+- **Todo lo demás → mini:** nombre del tutor, dirección escrita, "sí", especie, edad, "¿qué días te acomodan?".
+- Razón del diseño: en modo coordinadora la IA ya no razona rutas — solo llena datos y llama `request_scheduling_coordination`. El "agendamiento" per se no necesita 4o; lo que sí es **precio** y **triaje médico**.
+
+**Impacto esperado:** 4o de ~80% → ~50% de los mensajes → **~35% menos consumo de créditos**. Ningún momento de precio en mini. Deja a Animalgrace dentro del plan de 30.000/ciclo sin comprar packs extra.
+
+**Rollout:** (1) Santiago 3 días → revisar conversaciones reales cruzando `ai_model` de cada respuesta contra errores de precio/triaje. (2) Si limpio → agregar Linares a `LEAN_ROUTING_CLINICS` (1 línea) + deploy. (3) Estable 1 semana → simplificar (quitar la lista, gatear solo por `scheduling_mode`). Revertir = `git revert` de un commit.
+
+**Deploy:** `meta-whatsapp-webhook` (con `--no-verify-jwt`). `ycloud-whatsapp-webhook` NO tocado — sin tráfico real; recibe el cambio por paridad cuando se promueva a "ambas clínicas".
+
+**NO verificado con tráfico real** — al momento del deploy la cuenta de OpenAI estaba en $0 (ver abajo), así que la IA no responde a nadie. La ventana de observación de 3 días arranca cuando OpenAI tenga saldo.
+
+**Pendiente (fase siguiente, no aplicado):** recorte quirúrgico del prompt. Fase 1 (~15%, bajo riesgo): quitar inflación de énfasis ("CRÍTICO/ABSOLUTO" repetidos), colapsar ejemplos dobles, quitar detalle operativo muerto. Fase 2 (~15-20%, patrón sesión 62/85): mover tablas grandes de precio de `ai_behavior_rules` a documentos de conocimiento forzado, dejar puntero + regla anti-error de una línea. `ai_behavior_rules` Linares ≈ 42.500 chars, se manda en cada mensaje + cada iteración del tool loop.
+
+### Caída total de Supabase — 2026-09-02 ~01:33–03:20 UTC
+
+**Síntoma reportado por el usuario:** no se podía entrar a la cuenta de Animalgrace, el login quedaba cargando.
+
+**Causa:** incidente de infraestructura de Supabase — "API Gateway — Degraded Performance" (status page). La consola del navegador mostraba `Access to fetch at '.../auth/v1/token?grant_type=password' blocked by CORS policy: No 'Access-Control-Allow-Origin' header` + `net::ERR_FAILED` — el endpoint de auth devolvía una respuesta de error del gateway **sin headers CORS**, así que el navegador la bloqueaba. Los errores secundarios (`Lock not released within 5000ms`, `AbortError: Lock broken`) eran efecto — el cliente de gotrue-js trabado esperando una respuesta que nunca llegaba. En paralelo, TODA consulta a la base (MCP incluido, ni `SELECT 1`) daba `Connection terminated due to connection timeout`.
+
+**Resolución:** el usuario reinició el proyecto desde **Supabase dashboard → Settings → General → "Restart project"** (`https://supabase.com/dashboard/project/ehmncwawzdciajvuallg/settings/general`). Verificado post-reinicio: base responde (14 conexiones, sano), 31 usuarios auth, 26 clínicas, todos los cambios de prompt del día intactos.
+
+**Alcance:** el agente de WhatsApp también estuvo caído ~1h47m (misma base). Meta reintenta webhooks fallidos, así que parte de los mensajes se recuperaron; los que agotaron reintentos se perdieron. Se le pidió a Claudia revisar WhatsApp por clientes sin respuesta entre 21:30–23:20 Chile.
+
+**Regla permanente — login de la app "queda cargando":** si la consola muestra un error de CORS en `/auth/v1/token` con `net::ERR_FAILED`, NO es el código de la app ni la config — es el gateway de auth de Supabase devolviendo errores sin headers CORS (incidente de infra). Verificar status.supabase.com, y probar "Restart project" desde Settings → General. Los errores de `Lock "lock:sb-...-auth-token" not released` son ruido secundario, no la causa.
+
+### OpenAI sin saldo — 7ma vez (2026-09-01 23:21 UTC en adelante)
+
+Justo después del deploy del ruteo, `debug_logs` mostró `Meta Async Process Error` → `OpenAI 429: "You have no credits remaining" / code: credit_balance_exhausted`. **La cuenta de OpenAI (el dinero real que Vetly le paga a OpenAI) llegó a $0**, no el pool interno de créditos de Vetly. Empezó 2026-09-01 23:21 UTC (~19:21 Chile), 5 clientes afectados hasta la mañana (pocos por ser de noche).
+
+Patrón crónico documentado: 30-abr, 9-may, 24-may, 23-jun, 25/28-jul, 15-ago, y ahora 1-sep. **Recomendación al usuario (no aplicada — es config de su cuenta OpenAI):** activar auto-recarga en `platform.openai.com/settings/organization/billing` con umbral alto (ej. recargar $50 al bajar de $20) o pasar a facturación mensual, para que deje de cortar la IA. El ruteo lean estira el presupuesto pero no arregla un saldo en $0.
