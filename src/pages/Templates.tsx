@@ -49,6 +49,14 @@ export default function Templates() {
         { label: 'Horario', icon: '⏰', example: '10:30', num: 4 },
         { label: 'Nombre Clínica', icon: '🏥', example: 'AnimalGrace', num: 5 },
         { label: 'Link de Interés', icon: '🔗', example: 'https://vetly.app/reserva', num: 6 },
+        // Variables del flujo de coordinación (Ajustes → Modo de Agendamiento →
+        // "Requiere aprobación de coordinación"). El backend siempre manda estas 5
+        // en este orden exacto — ver sendMetaCoordinatorTemplate en
+        // meta-whatsapp-webhook. Si se agrega una plantilla nueva a mano para ese
+        // aviso, el orden de {{n}} debe coincidir con este, no con QUICK_VARIABLES 1-6.
+        { label: 'Nombre Tutor', icon: '👤', example: 'María Rodríguez', num: 7 },
+        { label: 'Dirección', icon: '📍', example: 'Pirque', num: 8 },
+        { label: 'Disponibilidad', icon: '🕓', example: 'Jueves 10 a 12', num: 9 },
     ]
 
     const [variableExamples, setVariableExamples] = useState<Record<number, string>>({})
@@ -59,7 +67,10 @@ export default function Templates() {
         "Lunes 15 de Mayo",
         "10:30",
         "AnimalGrace",
-        "https://vetly.app/reserva"
+        "https://vetly.app/reserva",
+        "María Rodríguez",
+        "Pirque",
+        "Jueves 10 a 12",
     ]
 
     const loadTemplates = async () => {
@@ -314,6 +325,27 @@ export default function Templates() {
                             >
                                 <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Seguimiento Médico</div>
                                 <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 Te escribimos de {'{{5}}'} para recordarte...</div>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setNewTemplate({
+                                        name: 'aviso_coordinadora_agenda',
+                                        category: 'UTILITY',
+                                        body: '🐾 Nueva solicitud de agenda — revisar ruta\n\nTutor: {{1}}\nMascota: {{2}}\nServicio: {{3}}\nDirección: {{4}}\nDisponibilidad: {{5}}\n\nAutoriza los horarios en Citas Médicas.',
+                                        buttons: []
+                                    })
+                                    setVariableExamples({
+                                        1: 'María Rodríguez',
+                                        2: 'Mila',
+                                        3: 'Consulta médica',
+                                        4: 'Pirque',
+                                        5: 'Jueves 10 a 12',
+                                    })
+                                }}
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
+                            >
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Aviso a Coordinadora</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">🐾 Nueva solicitud de agenda — revisar ruta. Tutor: {'{{1}}'}...</div>
                             </button>
                             <button
                                 onClick={() => {
