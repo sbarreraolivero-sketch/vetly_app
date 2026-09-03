@@ -7382,3 +7382,46 @@ Caso confirmado end-to-end: Daniel Vásquez recibió su recordatorio a las `16:0
 - **En JavaScript `\b` no reconoce caracteres acentuados** (`\w` es `[A-Za-z0-9_]`). Cualquier regex en español que termine un grupo con `\b` después de vocal acentuada nunca hará match. Verificar siempre con un test mecánico, no por inspección.
 - **`ai_generated = false` NO significa "lo escribió un humano".** Todo el sistema (crons de recordatorios, campañas, encuestas, upsell, retención) inserta así. Cualquier lógica que quiera distinguir "intervención humana" debe apoyarse en el marcador `payload.type = 'system_*'` / `campaign_id`, nunca en `ai_generated` a secas.
 - **Una instrucción del prompt escrita para un modo de operación debe revisarse al cambiar de modo.** El `lastSlotNote` era correcto en flujo autónomo y se volvió una orden contradictoria al activar el modo coordinadora — y como va arriba en el prompt, le ganaba a las reglas de abajo. Al activar un modo nuevo, auditar todo texto inyectado por código, no solo `ai_behavior_rules`.
+
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 100, 2026-09-03)
+
+Continuación directa de sesión 99 (auditoría del flujo de agendamiento). Mientras se ejecutaba la revisión manual de los 37 clientes esperando respuesta, el usuario preguntó por una cita real que cambió de hora sola en Linares (12:30 → 16:30). La investigación de ese caso puntual encontró **una quinta causa de mutismo**, distinta a las cuatro de sesión 99, y **un bug real de guardado de hora de citas** — ambos con evidencia mecánica antes de tocar código.
+
+### Quinta causa de mutismo — el mensaje de error técnico se contaba como "intervención manual"
+
+Al revisar los 37 clientes con mensajes recientes sin responder, la mayoría de las causas aparecían como `MANUAL`. Investigando el contenido real: casi todos eran el mismo texto — *"Lo siento, tuve un problema técnico procesando tu mensaje..."* — el mensaje genérico que sale cuando OpenAI falla (rate limit, timeout, etc.).
+
+**Causa raíz:** ese `catch` insertaba el mensaje vía `saveMsg(...)` **sin pasar `ai_generated`** en el objeto `extra` — y `messages.ai_generated` tiene `DEFAULT false` a nivel de columna. El mismo trigger `handle_manual_message_pause` (corregido en sesión 99 para recordatorios) interpretaba esto como "Claudia respondió a mano" y pausaba al cliente **de forma permanente**, cada vez que OpenAI fallaba. Dado el patrón crónico de cortes de saldo de OpenAI ya documentado en este archivo (abr/may×3/jun/jul×2/ago×2/sep), esta causa probablemente explica una fracción significativa del historial de "IA muda" reportado en sesiones anteriores.
+
+**Fix:** el insert pasó a ser directo (no vía `saveMsg`, para no cobrar un crédito IA por un mensaje que nunca fue una respuesta real de OpenAI) con `ai_generated: true` — mismo patrón ya establecido en sesión 98 para el aviso a la coordinadora.
+
+**Remediación:** **60 tutores más reactivados** (criterio conservador: solo si la pausa coincide con este mensaje exacto y no hubo intervención manual real después). Total del día: **226 tutores reactivados**, todos respaldados en `requires_human_backup_20260903`.
+
+### Bug real: la hora de la cita podía guardarse distinta a la confirmada — no es un caso aislado
+
+**Reporte del usuario:** *"Claudia me indica que vio que en la agenda se cambiaron las horas solas, una hora que había a las 12.30 y se puso a las 16.30 sola... ¿tiene que ver con lo que estamos haciendo?"*
+
+**Primero lo urgente — la línea de tiempo descarta la relación:** la cita en cuestión (Hachi/Javiera Rivera) se creó el **2026-09-01**, dos días antes de cualquier cambio de esta sesión (3 de septiembre). No podía ser causada por nada de lo hecho hoy.
+
+**Diagnóstico del bug real, con evidencia en cada paso (nunca por inspección sola):**
+1. Confirmado con el registro completo de mensajes: la coordinadora autorizó "12.30 PM", la IA se lo confirmó al tutor como "12:30 PM", y el propio resultado del tool `create_appointment` (construido por código, no por el modelo) también decía "12:30 PM" — los tres coincidían.
+2. Pese a eso, `appointments.appointment_date` guardaba **16:30 hora local** — 4 horas de más.
+3. **Se descartó que fuera un offset fijo mal calculado**: se buscó otro caso real (Pantro/Daniel, `status='completed'` — el paciente fue atendido) con el mismo patrón de "confirmado 12:30 PM" y resultó guardado a **10:30 local** — un desfase de -2h, no +4h. Dos desfases distintos en dos casos reales descartan una constante equivocada; apuntaba a un cálculo no determinístico.
+4. **Se probó `getOffset()` en vivo, en el mismo runtime Deno de producción** (función de diagnóstico temporal, desplegada y borrada en el acto): para las fechas exactas de ambos incidentes, la función devolvía correctamente `-04:00` — el mecanismo, probado hoy, funciona bien. Esto descartó también la hipótesis de tzdata desactualizado para 2026.
+5. **Se verificó cada eslabón restante por separado**: `clinic_settings.timezone` de Linares = `'America/Santiago'` (correcto, no un valor corrupto); Postgres parsea `'2026-09-03T12:30:00-04:00'::timestamptz` exactamente como se espera (16:30 UTC, 12:30 local) — confirmado con una consulta SQL directa. Cada pieza individual, probada de forma aislada, se comportaba bien.
+
+**Causa raíz identificada:** `getOffset()` calculaba el desfase formateando una fecha con `date.toLocaleString("en-US", { timeZone })` y **volviendo a parsear ese string de vuelta con `new Date(...)`** — una técnica de round-trip que depende de que el motor JS interprete correctamente un formato NO estándar (ej. `"9/3/2026, 8:00:00 AM"`). El spec de ECMAScript solo garantiza el parseo de fechas en formato ISO 8601; cualquier otro formato es *implementation-defined*. La técnica funcionaba la mayoría de las veces (4 de 8 citas muestreadas coincidían exactamente) pero no de forma confiable — exactamente el patrón de "a veces sí, a veces no, con magnitudes distintas" observado.
+
+**Fix:** `getOffset()` reescrito para leer el desfase directo desde `Intl.DateTimeFormat(..., { timeZoneName: "shortOffset" }).formatToParts(...)`, sin el round-trip por string. Se agregó además un **chequeo de sanidad**: para `America/Santiago` el offset real siempre está entre `-03:00` y `-05:00` (invierno/verano, con margen); si algún día el motor de Intl devolviera algo fuera de ese rango, la función cae a un default seguro (`-04:00`) **y deja rastro en `debug_logs`** — en vez de escribir una hora incorrecta en la base sin que nadie se entere, como pasó estas dos veces.
+
+**Corregido:** el `getOffset()` nuevo se validó localmente (Node) y en vivo contra el mismo runtime de producción antes de aceptar el fix — mismo estándar de verificación mecánica de toda esta sesión. La cita de Hachi se corrigió a mano de vuelta a las 12:30.
+
+### Reglas permanentes de esta sesión
+
+- **`new Date(string)` con cualquier formato que no sea ISO 8601 es *implementation-defined*, no confiable.** Cualquier cálculo de offset/timezone en este proyecto debe usar `Intl.DateTimeFormat(...).formatToParts(...)` directo — nunca formatear una fecha a texto y volver a parsear ese texto como `Date`.
+- **Un bug no determinístico (mismo código, resultados distintos entre invocaciones) casi nunca es "la constante está mal".** Verificar con al menos 2 casos reales antes de asumir un offset fijo — un solo caso puede llevar a la conclusión equivocada.
+- **Cualquier cálculo crítico (fecha, dinero, disponibilidad) que dependa de una librería/API externa debería tener un chequeo de sanidad con rango conocido**, no solo una ruta feliz. Un resultado fuera de rango debe caer a un default seguro *y quedar registrado* — nunca fallar en silencio escribiendo un dato incorrecto.
+- **Todo insert a `messages` con `direction='outbound'` debe decidir explícitamente su `ai_generated`.** El default de columna (`false`) coincide con la condición que dispara el trigger de pausa manual — cualquier mensaje de sistema/error/aviso que no pase por ese trigger a propósito necesita `ai_generated: true` vía insert directo (nunca vía `saveMsg` si no es una respuesta real de OpenAI, para no cobrar crédito de más).
