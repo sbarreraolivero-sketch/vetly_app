@@ -7289,3 +7289,43 @@ Continuación directa de sesión 97 (generalización del modo coordinadora a Lin
 - **Un mensaje aceptado por Meta (200 + `message.id`) no es un mensaje entregado.** Cualquier envío proactivo de WhatsApp desde código (no solo recordatorios) debe persistirse con su WAMID en `messages` (o una tabla equivalente) para que el handler de `whatsapp.message.updated` ya existente pueda correlacionar un rechazo asíncrono — si no, ese rechazo es indistinguible de un envío exitoso que la persona simplemente no vio.
 - **Cuando una instrucción de prompt ("nunca digas X sin hacer Y") se viola de forma repetida y confirmada con datos, el prompt ya no es la herramienta correcta — hay que hacerlo cumplir en código.** El patrón ganador: dentro del mismo tool loop, detectar la respuesta-sin-acción ANTES de aceptarla como final, empujar una corrección explícita, y dar un reintento acotado (nunca ilimitado, nunca forzando un tool_choice específico con datos potencialmente incompletos). La detección posterior (pausar + avisar) queda como red de seguridad, no como mecanismo principal.
 - **Antes de escalar la severidad de un fix (de "detectar" a "prevenir en código"), verificar con evidencia que el patrón es recurrente, no un caso aislado** — en este caso, dos tutoras distintas afectadas por dos huecos distintos (uno de observabilidad, otro de cumplimiento) el mismo día, más el propio historial de la sesión anterior, confirmaron que sí ameritaba el refuerzo estructural que pidió el usuario.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 99, 2026-09-03)
+
+### Importación de datos de otro sistema — unificada en un solo flujo con IA
+
+**Motivación:** la página **Tutores** tenía dos botones que en realidad eran dos pasos secuenciales sin explicarse como tales: **"Importar CSV"** ([`CSVUploader.tsx`](src/components/patients/CSVUploader.tsx), sin IA, PapaParse, solo contactos → crea `tutors`+`patients`) y **"Importar historial"** ([`MedicalHistoryImportModal.tsx`](src/components/patients/MedicalHistoryImportModal.tsx), con IA, **solo adjuntaba** vacunas/desparasitaciones/consultas a pacientes que **ya existían** — si no había match, el evento se descartaba con `"Sin patient_id"`). El usuario que migra de GVET/QVET/Sami/WinVet/Gestor Vet exporta **un archivo** (a veces multi-hoja) y tenía que adivinar el orden; si el historial traía mascotas nuevas, se perdían.
+
+**Investigación de formatos de la competencia (WebSearch):** servicios de migración profesional (Smart Vet migra de Qvet/WinVet/Gestor Vet/Iveter) usan **CSV/Excel**; clientes+pacientes suelen venir combinados y el **historial médico + vacunas vienen como conjunto aparte** (hasta se cobran por separado — son estructuralmente más difíciles). VetAdministrator/Gespet ofrecen **un libro Excel multi-hoja** (Clientes / Pacientes / Vacunas / Historial). Un archivo plano donde *una fila = paciente + dueño + todo su historial* **no es la norma** (el historial es multi-fila por paciente).
+
+**Decisiones (AskUserQuestion):** (1) **eliminar `CSVUploader`** → un solo botón "Importar datos"; (2) **parser completo multi-hoja** (la IA lee la hoja "Pacientes" y la combina con las hojas de vacunas/historial).
+
+#### Cambios
+
+| Archivo | Cambio |
+|---|---|
+| `hq-analyze-medical-history/index.ts` | Nuevo `event_type: "patient_record"` (filas de ficha sin evento médico). Extrae también `species`/`breed`/`sex`/`dob`/`microchip`/`tutor_email`/`tutor_address`. `max_tokens` 8000→12000. **El costo de OpenAI lo sigue pagando la cuenta de Vetly, NUNCA los créditos de la clínica** (Core tiene 0). |
+| `medicalHistoryImportHelpers.ts` | `PatientGroup` gana campos `*Raw` (poblados con `firstNonEmpty` desde cualquier evento del grupo) + `willCreate`. `groupByPatientTutor` estampa `ev._groupKey` (sobrevive al reemplazo de objetos en el paso de revisión — arregla un bug latente del botón "← Volver a matching"). Nuevo `mergeGroupsByPatientName` — fusiona un grupo sin dueño dentro del grupo con dueño de la MISMA mascota (hoja "Vacunas" trae solo nombre de mascota; se abstiene si hay 2+ dueños distintos). Nuevo `isMedicalEvent`. |
+| `hq-commit-medical-history/index.ts` | Body extendido: `{ clinic_id, new_patients: NewPatient[], events }`. **Antes de adjuntar eventos, CREA los dueños y mascotas que faltan.** Dedup de tutores por `phone_number` (solo dígitos, ≥7) contra la DB y dentro del lote. **`tutors.phone_number` es NOT NULL → un dueño sin teléfono NO se crea: la mascota queda con `tutor_id: null`** (mismo criterio que el CSV viejo); un pet sin teléfono se vincula a un dueño existente/recién-creado solo si hay UN único match por nombre. Eventos con `temp_key` (mascota a crear) se resuelven a `patient_id` real tras el insert; guard `ins.length !== batch.length` aborta antes de mezclar historiales. **Sigue sin escribir NUNCA en `reminders`** (regla dura intacta). `sanitizeSex`/`sanitizeDate` server-side. Devuelve `tutors_created`/`patients_created`. |
+| `MedicalHistoryImportModal.tsx` | Paso `matching`: un `<select>` unificado por grupo con "➕ Crear paciente nuevo" (default para `no_match`) + mini-form inline (nombre/especie editables, `<datalist>` de sugerencias) o vincular a existente. Contadores "N se vinculan · M se crean · K sin resolver". "Continuar" bloqueado solo si un grupo **con eventos médicos** quedó sin resolver (un grupo de solo ficha sin resolver = no se crea, nada que perder). `patient_record` se filtra de la tabla de revisión (solo aporta metadata). Copy sin la línea "requiere roster ya importado". Título "Importar datos desde otro sistema". |
+| `Tutors.tsx` | Un solo botón "Importar datos" (ícono `Upload`), `onSuccess` → `fetchContacts()`. |
+| `CSVUploader.tsx` | **Eliminado.** `papaparse` queda sin uso en `package.json` (no se quitó — fuera de alcance). |
+
+**Auth:** las 3 edge functions (`hq-analyze-medical-history`, `hq-clinic-patient-roster`, `hq-commit-medical-history`) usan [`requireClinicAccess`](supabase/functions/_shared/clinicOrAdminAuth.ts) = `platform_admin` O `clinic_member` activo — los dueños de clínica ya las usan (el prefijo `hq-` es histórico). Escrituras con **service role**. El modal se monta en [`Tutors.tsx`](src/pages/Tutors.tsx) (self-serve) y [`AdminClinics.tsx`](src/pages/hq/AdminClinics.tsx) (HQ) — ambos pasan por el mismo componente, backwards-compatible (un frontend viejo que mande `{clinic_id, events}` sin `new_patients` → `newPatients = []` → comportamiento idéntico al anterior).
+
+#### Verificación
+
+- **Tests unitarios de helpers** (esbuild → mjs, 15 asserts): multi-hoja + merge, auto/ambiguous/no_match + willCreate, archivo plano sin `patient_record`, `_groupKey` estable, merge se abstiene si es ambiguo. 15/15.
+- **End-to-end contra `Veterinaria Los Robles`** (`741a3568-…`, clínica de prueba del usuario, edge functions ya deployadas, sesión real vía magic-link): `analyze` clasificó bien `patient_record` (especie/raza/dob) + vaccine. `commit` → `tutors_created: 1` (2 variantes de teléfono `56900112233`/`56 9 0011 2233` → 1 dueño), `patients_created: 3` (incl. 1 sin teléfono → `tutor_id` null), vacuna a mascota nueva vía `temp_key` **y** a mascota existente vía `patient_id` en el mismo lote, evento sin fecha → `skipped` (no rompió el lote), **`reminders` nuevos: 0**. Datos de prueba borrados, clínica de vuelta en 10 pacientes / 9 tutores.
+- `tsc --noEmit` + `npm run build` limpios (working tree y worktree aislado de `HEAD`).
+
+**Deploy:** `hq-analyze-medical-history` y `hq-commit-medical-history` (CLI, sin `--no-verify-jwt` — no están en `config.toml`, `verify_jwt` default). Frontend: commit `957c222` → `main` → Vercel.
+
+### Reglas permanentes de esta sesión
+
+- **Antes de portar un flujo "de referencia" de otro proyecto o asumir el formato de un export externo, investigar con datos reales** (WebSearch de los sistemas concretos) — el resultado (contactos combinados / historial aparte, casi siempre un archivo multi-hoja) cambió el diseño respecto a lo que se asumía.
+- **`.insert(...).select('id')` sobre un array preserva el orden en Postgres** (un solo `INSERT ... RETURNING` con lista de VALUES), pero cuando el mapeo por índice puede mezclar registros críticos (historial médico → paciente equivocado), agregar un guard `ins.length !== batch.length` que aborte en vez de mapear mal.
+- **`tutors.phone_number` es NOT NULL** — un dueño sin teléfono no se puede crear; la mascota queda con `tutor_id: null` (patrón ya establecido por el importador de CSV). No inventar un teléfono placeholder.
+- **Un `event_type` nuevo que no representa un evento a insertar** (`patient_record`) debe filtrarse de la tabla de revisión pero mantenerse en el grupo para aportar metadata — `isMedicalEvent` es el único punto donde se decide qué cuenta como evento.
