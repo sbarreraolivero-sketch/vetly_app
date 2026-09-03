@@ -10,7 +10,7 @@ import {
     Trash2,
     X,
     Filter,
-    Stethoscope,
+    Upload,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -19,7 +19,6 @@ import { TutorForm } from '@/components/patients/TutorForm'
 import { TutorDetails } from '@/components/patients/TutorDetails'
 import { SubscriptionGuard } from '@/components/auth/SubscriptionGuard'
 import { TutorRowSkeleton, TutorCardSkeleton } from '@/components/ui/Skeleton'
-import { CSVUploader } from '@/components/patients/CSVUploader'
 import { MedicalHistoryImportModal } from '@/components/patients/MedicalHistoryImportModal'
 import { cn } from '@/lib/utils'
 
@@ -195,13 +194,12 @@ export default function Tutors() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <CSVUploader onSuccess={fetchContacts} />
                                     <button
                                         onClick={() => setShowHistoryImport(true)}
-                                        title="¿Vienes de otro sistema? Importa el historial médico de tus pacientes con ayuda de IA"
+                                        title="¿Vienes de otro sistema? Sube el Excel o CSV que exportaste y la IA crea dueños, mascotas e historial"
                                         className="btn-ghost flex items-center gap-2 self-start sm:self-auto bg-white border border-silk-beige"
                                     >
-                                        <Stethoscope className="w-4 h-4" /> Importar historial
+                                        <Upload className="w-4 h-4" /> Importar datos
                                     </button>
                                     <button
                                         onClick={() => {
@@ -526,7 +524,7 @@ export default function Tutors() {
                     clinicId={profile.clinic_id}
                     clinicName={clinics.find(c => c.clinic_id === profile.clinic_id)?.clinic_name ?? 'tu clínica'}
                     onClose={() => setShowHistoryImport(false)}
-                    onSuccess={() => {}}
+                    onSuccess={() => fetchContacts()}
                 />
             )}
         </SubscriptionGuard>

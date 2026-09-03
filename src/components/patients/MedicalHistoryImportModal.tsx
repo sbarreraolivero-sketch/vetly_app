@@ -1,13 +1,14 @@
 import { useState, useRef, useCallback } from 'react'
 import {
     X, Upload, Loader2, Sparkles, Stethoscope,
-    CheckCircle2, AlertCircle, Trash2, FileSpreadsheet, ChevronRight,
+    CheckCircle2, AlertCircle, Trash2, FileSpreadsheet, ChevronRight, PlusCircle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import {
-    parseSpreadsheet, chunkRows, groupByPatientTutor, matchPatientGroup,
+    parseSpreadsheet, chunkRows, groupByPatientTutor, mergeGroupsByPatientName,
+    matchPatientGroup, isMedicalEvent,
     type ExtractedEvent, type RosterPatient, type PatientGroup,
 } from './medicalHistoryImportHelpers'
 
@@ -17,6 +18,8 @@ const MAX_BATCHES = 40 // techo de 2000 filas por sesión — herramienta intern
 const EVENT_TYPE_LABEL: Record<string, string> = {
     vaccine: 'Vacuna', deworming: 'Desparasitación', consultation: 'Consulta', unknown: 'Sin clasificar',
 }
+
+const SPECIES_OPTIONS = ['Canino', 'Felino', 'Ave', 'Conejo', 'Roedor', 'Reptil', 'Equino', 'Otro']
 
 interface Props {
     clinicId: string
@@ -42,7 +45,7 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
     const [events, setEvents] = useState<ExtractedEvent[]>([])
 
     const [saving, setSaving] = useState(false)
-    const [result, setResult] = useState<{ vaccines_inserted: number; deworming_inserted: number; medical_history_inserted: number; skipped: any[]; errors: string[] } | null>(null)
+    const [result, setResult] = useState<{ tutors_created?: number; patients_created?: number; vaccines_inserted: number; deworming_inserted: number; medical_history_inserted: number; skipped: any[]; errors: string[] } | null>(null)
 
     const reset = () => {
         setStep('upload'); setFileName(''); setProgress({ current: 0, total: 0 })
@@ -121,9 +124,12 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                 return
             }
 
-            const grouped = groupByPatientTutor(allEvents).map(g => matchPatientGroup(g, rosterData))
+            const grouped = mergeGroupsByPatientName(groupByPatientTutor(allEvents))
+                .map(g => matchPatientGroup(g, rosterData))
             setGroups(grouped)
-            setEvents(allEvents)
+            // Las filas "patient_record" solo aportan metadata al grupo — no son
+            // eventos que se inserten, no van a la tabla de revisión.
+            setEvents(allEvents.filter(isMedicalEvent))
             setStep('matching')
         } catch (err: any) {
             toast.error(err.message ?? 'Error al analizar el archivo')
@@ -142,17 +148,41 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
     }
     const handleCancelAnalysis = () => { cancelRef.current = true }
 
+    // Vincular el grupo a un paciente EXISTENTE (deja de crearse uno nuevo).
     const setGroupPatient = (groupKey: string, patientId: string | null) => {
-        setGroups(prev => prev.map(g => g.key === groupKey ? { ...g, resolvedPatientId: patientId } : g))
+        setGroups(prev => prev.map(g => g.key === groupKey
+            ? { ...g, resolvedPatientId: patientId, willCreate: false }
+            : g))
+    }
+    // Volver a "crear paciente nuevo" para este grupo.
+    const setGroupCreate = (groupKey: string) => {
+        setGroups(prev => prev.map(g => g.key === groupKey
+            ? { ...g, resolvedPatientId: null, willCreate: true }
+            : g))
+    }
+    const setGroupSpecies = (groupKey: string, species: string) => {
+        setGroups(prev => prev.map(g => g.key === groupKey ? { ...g, speciesRaw: species || null } : g))
+    }
+    const setGroupPatientName = (groupKey: string, name: string) => {
+        setGroups(prev => prev.map(g => g.key === groupKey ? { ...g, patientNameRaw: name } : g))
     }
 
+    const toCreateCount = groups.filter(g => g.willCreate).length
+    const toLinkCount = groups.filter(g => !g.willCreate && !!g.resolvedPatientId).length
+    // Solo bloquea "Continuar" un grupo sin resolver que TIENE eventos médicos
+    // (perderíamos historial real). Un grupo de solo ficha sin resolver = no se
+    // crea esa mascota, nada que perder.
+    const unresolvedCount = groups.filter(g =>
+        !g.willCreate && !g.resolvedPatientId && g.events.some(isMedicalEvent)).length
+
     const proceedToReview = () => {
-        // Cada evento ya vive dentro de exactamente un grupo (groupByPatientTutor
-        // los reparte sin solapar) — se busca por identidad de objeto, no hace
-        // falta reconstruir la key de normalización acá.
+        // El grupo de cada evento se resuelve por _groupKey (sobrevive al
+        // reemplazo de objetos si se vuelve a este paso).
+        const byKey = new Map(groups.map(g => [g.key, g]))
         const resolved = events.map(ev => {
-            const g = groups.find(gr => gr.events.includes(ev))
-            return { ...ev, patient_id: g?.resolvedPatientId ?? null, selected: !!g?.resolvedPatientId }
+            const g = ev._groupKey ? byKey.get(ev._groupKey) : undefined
+            const willImport = !!g && (!!g.resolvedPatientId || g.willCreate)
+            return { ...ev, patient_id: g?.resolvedPatientId ?? null, selected: willImport }
         })
         setEvents(resolved)
         setStep('review')
@@ -165,30 +195,64 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
     const removeEvent = (idx: number) =>
         setEvents(prev => prev.filter((_, i) => i !== idx))
 
+    const patientLabel = (id: string | null | undefined) => {
+        if (!id) return '—'
+        const p = roster.find(r => r.id === id)
+        return p ? `${p.name}${p.tutor_name ? ` (${p.tutor_name})` : ''}` : id
+    }
+
+    const willCreateKeys = new Set(groups.filter(g => g.willCreate).map(g => g.key))
+    const eventHasTarget = (ev: ExtractedEvent) =>
+        !!ev.patient_id || (!!ev._groupKey && willCreateKeys.has(ev._groupKey))
+
     const isEventValid = (ev: ExtractedEvent) => {
-        if (!ev.patient_id) return false
+        if (!eventHasTarget(ev)) return false
         if (ev.event_type === 'vaccine') return !!ev.vaccine_name && !!ev.application_date
         if (ev.event_type === 'deworming') return !!ev.deworming_type && !!ev.application_date
         if (ev.event_type === 'consultation') return true
         return false
     }
 
+    const groupByKey = (key: string | undefined) => key ? groups.find(g => g.key === key) : undefined
+    const targetLabel = (ev: ExtractedEvent) => {
+        if (ev.patient_id) return patientLabel(ev.patient_id)
+        const g = groupByKey(ev._groupKey)
+        return g ? `➕ ${g.patientNameRaw}` : ''
+    }
+
     const selectedEvents = events.filter(ev => ev.selected)
     const selectedInvalidCount = selectedEvents.filter(ev => !isEventValid(ev)).length
 
     const handleConfirm = async () => {
-        if (selectedEvents.length === 0) { toast.error('Selecciona al menos un evento'); return }
+        if (selectedEvents.length === 0 && toCreateCount === 0) {
+            toast.error('No hay nada para importar — selecciona al menos un evento o un paciente a crear'); return
+        }
         if (selectedInvalidCount > 0) { toast.error(`${selectedInvalidCount} evento(s) seleccionados tienen campos obligatorios vacíos (en rojo)`); return }
 
         setStep('saving')
         setSaving(true)
         try {
+            const newPatients = groups.filter(g => g.willCreate).map(g => ({
+                temp_key: g.key,
+                patient_name: g.patientNameRaw,
+                species: g.speciesRaw,
+                breed: g.breedRaw,
+                sex: g.sexRaw,
+                dob: g.dobRaw,
+                microchip: g.microchipRaw,
+                tutor_name: g.tutorNameRaw || null,
+                tutor_phone: g.tutorPhoneRaw || null,
+                tutor_email: g.tutorEmailRaw,
+                tutor_address: g.tutorAddressRaw,
+            }))
             const { data, error } = await supabase.functions.invoke('hq-commit-medical-history', {
                 body: {
                     clinic_id: clinicId,
+                    new_patients: newPatients,
                     events: selectedEvents.map(ev => ({
                         event_type: ev.event_type,
-                        patient_id: ev.patient_id,
+                        patient_id: ev.patient_id || null,
+                        temp_key: ev.patient_id ? null : (ev._groupKey ?? null),
                         vaccine_name: ev.vaccine_name,
                         deworming_type: ev.deworming_type,
                         deworming_brand: ev.deworming_brand,
@@ -217,12 +281,6 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
         }
     }
 
-    const patientLabel = (id: string | null | undefined) => {
-        if (!id) return '—'
-        const p = roster.find(r => r.id === id)
-        return p ? `${p.name}${p.tutor_name ? ` (${p.tutor_name})` : ''}` : id
-    }
-
     return (
         <div className="fixed inset-0 bg-charcoal/50 z-50 flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -234,8 +292,8 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                             <Stethoscope className="w-5 h-5 text-violet-600" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-charcoal">Importar historial médico</h3>
-                            <p className="text-xs text-charcoal/50">{clinicName} · vacunas, desparasitaciones y consultas</p>
+                            <h3 className="text-lg font-bold text-charcoal">Importar datos desde otro sistema</h3>
+                            <p className="text-xs text-charcoal/50">{clinicName} · dueños, mascotas e historial médico</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-silk-beige rounded-soft transition-colors">
@@ -262,12 +320,12 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                                 <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                                     <Upload className="w-8 h-8 text-violet-500" />
                                 </div>
-                                <p className="text-base font-bold text-charcoal mb-1">Arrastra el Excel del cliente aquí</p>
+                                <p className="text-base font-bold text-charcoal mb-1">Arrastra el Excel o CSV que exportaste de tu sistema anterior</p>
                                 <p className="text-sm text-charcoal/50 mb-4">o haz clic para seleccionar un archivo</p>
                                 <div className="flex items-center justify-center gap-3 text-xs text-charcoal/40">
                                     <span className="flex items-center gap-1"><FileSpreadsheet className="w-3.5 h-3.5" /> XLSX / XLS / CSV</span>
                                     <span>·</span>
-                                    <span>varias hojas OK</span>
+                                    <span>una o varias hojas</span>
                                 </div>
                             </div>
 
@@ -276,10 +334,10 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                                     <Sparkles className="w-3.5 h-3.5" /> Cómo funciona
                                 </p>
                                 <ol className="text-sm text-charcoal/70 space-y-1 list-decimal list-inside">
-                                    <li>Requiere que el roster de pacientes/tutores ya esté importado (CSVUploader) en esta clínica</li>
-                                    <li>La IA lee el Excel y extrae vacunas, desparasitaciones y consultas</li>
-                                    <li>Vas a poder confirmar a qué paciente corresponde cada grupo de eventos</li>
+                                    <li>La IA lee el archivo e identifica dueños, mascotas y su historial (vacunas, desparasitaciones, consultas)</li>
+                                    <li>Confirmas qué mascotas ya existen en Vetly y cuáles se crean nuevas</li>
                                     <li>Revisas y corriges cada evento antes de guardar — nada se guarda sin tu confirmación</li>
+                                    <li>Se crean los dueños y mascotas que falten y se adjunta el historial</li>
                                 </ol>
                             </div>
                         </div>
@@ -316,45 +374,88 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                                 </div>
                             )}
                             <p className="text-sm text-charcoal/60">
-                                Se detectaron <strong>{groups.length}</strong> pacientes distintos en el archivo, con <strong>{events.length}</strong> eventos en total. Confirma a qué paciente de Vetly corresponde cada uno.
+                                Se detectaron <strong>{groups.length}</strong> mascotas en el archivo{events.length > 0 && <> con <strong>{events.length}</strong> eventos médicos</>}. Confirma cuáles ya existen en Vetly y cuáles se crean nuevas.
                             </p>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                                {toLinkCount > 0 && <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-medium">{toLinkCount} se vincularán a mascotas existentes</span>}
+                                {toCreateCount > 0 && <span className="px-2 py-1 rounded-lg bg-violet-50 text-violet-700 font-medium">{toCreateCount} se crearán nuevas</span>}
+                                {unresolvedCount > 0 && <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">{unresolvedCount} sin resolver</span>}
+                            </div>
                             <div className="border border-silk-beige rounded-xl divide-y divide-silk-beige/50 max-h-[50vh] overflow-y-auto">
-                                {groups.map(g => (
-                                    <div key={g.key} className="p-4 flex items-center justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <p className="font-semibold text-charcoal truncate">
-                                                {g.patientNameRaw} {g.tutorNameRaw && <span className="text-charcoal/40 font-normal">· {g.tutorNameRaw}</span>}
-                                            </p>
-                                            <p className="text-xs text-charcoal/40">{g.events.length} evento{g.events.length !== 1 ? 's' : ''}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            {g.matchStatus === 'auto' && (
-                                                <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                                                    <CheckCircle2 className="w-3.5 h-3.5" /> {patientLabel(g.resolvedPatientId)}
-                                                </span>
-                                            )}
-                                            {(g.matchStatus === 'ambiguous' || g.matchStatus === 'no_match') && (
+                                {groups.map(g => {
+                                    const opts = g.candidates.length > 0 ? g.candidates : roster
+                                    const medCount = g.events.filter(isMedicalEvent).length
+                                    return (
+                                        <div key={g.key} className="p-4 space-y-2">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-charcoal truncate">
+                                                        {g.patientNameRaw} {g.tutorNameRaw && <span className="text-charcoal/40 font-normal">· {g.tutorNameRaw}</span>}
+                                                    </p>
+                                                    <p className="text-xs text-charcoal/40">
+                                                        {medCount > 0
+                                                            ? `${medCount} evento${medCount !== 1 ? 's' : ''}`
+                                                            : 'solo ficha, sin historial'}
+                                                    </p>
+                                                </div>
                                                 <select
-                                                    value={g.resolvedPatientId ?? ''}
-                                                    onChange={e => setGroupPatient(g.key, e.target.value || null)}
+                                                    value={g.willCreate ? '__create__' : (g.resolvedPatientId ?? '')}
+                                                    onChange={e => e.target.value === '__create__'
+                                                        ? setGroupCreate(g.key)
+                                                        : setGroupPatient(g.key, e.target.value || null)}
                                                     className={cn(
-                                                        "text-xs rounded-lg border px-2 py-1.5 max-w-[220px]",
-                                                        g.resolvedPatientId ? "border-emerald-200 text-emerald-700" : "border-amber-300 text-amber-700 bg-amber-50"
+                                                        "text-xs rounded-lg border px-2 py-1.5 max-w-[240px] shrink-0",
+                                                        g.willCreate ? "border-violet-300 text-violet-700 bg-violet-50"
+                                                            : g.resolvedPatientId ? "border-emerald-200 text-emerald-700"
+                                                                : "border-amber-300 text-amber-700 bg-amber-50"
                                                     )}
                                                 >
-                                                    <option value="">
-                                                        {g.matchStatus === 'no_match' ? 'Sin match — elegir manual' : `Ambiguo (${g.candidates.length}) — elegir`}
-                                                    </option>
-                                                    {(g.candidates.length > 0 ? g.candidates : roster).map(c => (
+                                                    <option value="__create__">➕ Crear paciente nuevo</option>
+                                                    {!g.willCreate && !g.resolvedPatientId && (
+                                                        <option value="">{medCount > 0 ? 'Elegir paciente existente…' : 'No importar esta ficha'}</option>
+                                                    )}
+                                                    {opts.map(c => (
                                                         <option key={c.id} value={c.id}>{c.name}{c.tutor_name ? ` (${c.tutor_name})` : ''}</option>
                                                     ))}
                                                 </select>
+                                            </div>
+                                            {g.willCreate && (
+                                                <div className="flex flex-wrap items-center gap-2 pl-1">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500 flex items-center gap-1">
+                                                        <PlusCircle className="w-3 h-3" /> Nueva mascota
+                                                    </span>
+                                                    <input
+                                                        value={g.patientNameRaw}
+                                                        onChange={e => setGroupPatientName(g.key, e.target.value)}
+                                                        placeholder="Nombre mascota"
+                                                        className="text-xs border border-silk-beige rounded px-2 py-1 w-36"
+                                                    />
+                                                    <input
+                                                        value={g.speciesRaw ?? ''}
+                                                        onChange={e => setGroupSpecies(g.key, e.target.value)}
+                                                        placeholder="Especie"
+                                                        list="species-suggestions"
+                                                        className="text-xs border border-silk-beige rounded px-2 py-1 w-28"
+                                                    />
+                                                    {(g.tutorNameRaw || g.tutorPhoneRaw) && (
+                                                        <span className="text-xs text-charcoal/40 truncate">
+                                                            dueño: {g.tutorNameRaw || 'sin nombre'}{g.tutorPhoneRaw ? ` · ${g.tutorPhoneRaw}` : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
+                                <datalist id="species-suggestions">
+                                    {SPECIES_OPTIONS.map(s => <option key={s} value={s} />)}
+                                </datalist>
                             </div>
-                            <button onClick={proceedToReview} className="btn-primary flex items-center gap-2">
+                            <button
+                                onClick={proceedToReview}
+                                disabled={unresolvedCount > 0}
+                                className="btn-primary flex items-center gap-2 disabled:opacity-50"
+                            >
                                 Continuar a revisión <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
@@ -363,12 +464,17 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                     {/* ── REVIEW ─────────────────────────────────────── */}
                     {step === 'review' && (
                         <div className="p-6 space-y-4">
-                            <div className="flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                <span className="text-xs text-emerald-600 font-medium">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                                     {selectedEvents.length} de {events.length} eventos seleccionados
                                     {selectedInvalidCount > 0 && ` · ${selectedInvalidCount} con campos obligatorios vacíos (en rojo)`}
                                 </span>
+                                {toCreateCount > 0 && (
+                                    <span className="text-xs text-violet-600 font-medium">
+                                        + {toCreateCount} mascota{toCreateCount !== 1 ? 's' : ''} nueva{toCreateCount !== 1 ? 's' : ''} (y su dueño si falta)
+                                    </span>
+                                )}
                             </div>
                             <div className="border border-silk-beige rounded-xl overflow-hidden">
                                 <div className="bg-silk-beige/30 px-4 py-2.5 grid grid-cols-[auto_90px_1fr_1fr_100px_100px_1fr_32px] gap-2 text-[10px] font-black uppercase tracking-wider text-charcoal/50">
@@ -386,7 +492,7 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                                             )}>
                                                 <input type="checkbox" checked={!!ev.selected} onChange={() => toggleEvent(idx)} className="w-4 h-4 accent-primary-500 cursor-pointer" />
                                                 <span className="text-charcoal/60">{EVENT_TYPE_LABEL[ev.event_type] ?? ev.event_type}</span>
-                                                <span className="truncate" title={patientLabel(ev.patient_id)}>{patientLabel(ev.patient_id) || <span className="text-red-500">sin match</span>}</span>
+                                                <span className={cn("truncate", !ev.patient_id && willCreateKeys.has(ev._groupKey ?? '') && "text-violet-600")} title={targetLabel(ev)}>{targetLabel(ev) || <span className="text-red-500">sin match</span>}</span>
                                                 <input
                                                     value={(ev as any)[mainField] ?? ''}
                                                     onChange={e => updateEvent(idx, mainField as keyof ExtractedEvent, e.target.value)}
@@ -428,7 +534,7 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                     {step === 'saving' && (
                         <div className="p-12 flex flex-col items-center gap-4">
                             <Loader2 className="w-10 h-10 text-violet-500 animate-spin" />
-                            <p className="text-base font-bold text-charcoal">Guardando historial médico...</p>
+                            <p className="text-base font-bold text-charcoal">Creando dueños, mascotas y guardando el historial...</p>
                         </div>
                     )}
 
@@ -436,8 +542,11 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                     {step === 'done' && result && (
                         <div className="p-8 flex flex-col items-center gap-4 text-center">
                             <CheckCircle2 className="w-14 h-14 text-emerald-500" />
-                            <p className="text-lg font-bold text-charcoal">Historial importado</p>
+                            <p className="text-lg font-bold text-charcoal">Datos importados</p>
                             <div className="text-sm text-charcoal/60 space-y-1">
+                                {(!!result.tutors_created || !!result.patients_created) && (
+                                    <p className="text-violet-600 font-medium">{result.tutors_created ?? 0} dueños · {result.patients_created ?? 0} mascotas creados</p>
+                                )}
                                 <p>{result.vaccines_inserted} vacunas · {result.deworming_inserted} desparasitaciones · {result.medical_history_inserted} consultas</p>
                                 {result.skipped.length > 0 && <p className="text-amber-600">{result.skipped.length} eventos omitidos (ver detalle abajo)</p>}
                                 {result.errors.length > 0 && <p className="text-red-500">{result.errors.length} error(es) — revisa con el equipo técnico</p>}
@@ -457,8 +566,10 @@ export function MedicalHistoryImportModal({ clinicId, clinicName, onClose, onSuc
                 <div className="p-6 border-t border-silk-beige shrink-0 flex justify-end gap-3 bg-ivory rounded-b-2xl">
                     <button onClick={onClose} className="btn-ghost">{step === 'done' ? 'Cerrar' : 'Cancelar'}</button>
                     {step === 'review' && (
-                        <button onClick={handleConfirm} disabled={saving || selectedEvents.length === 0} className="btn-primary disabled:opacity-50 flex items-center gap-2">
-                            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</> : <><Stethoscope className="w-4 h-4" /> Guardar {selectedEvents.length} eventos</>}
+                        <button onClick={handleConfirm} disabled={saving || (selectedEvents.length === 0 && toCreateCount === 0)} className="btn-primary disabled:opacity-50 flex items-center gap-2">
+                            {saving
+                                ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+                                : <><Stethoscope className="w-4 h-4" /> Importar{selectedEvents.length > 0 ? ` ${selectedEvents.length} evento${selectedEvents.length !== 1 ? 's' : ''}` : ''}{toCreateCount > 0 ? ` + ${toCreateCount} mascota${toCreateCount !== 1 ? 's' : ''}` : ''}</>}
                         </button>
                     )}
                 </div>

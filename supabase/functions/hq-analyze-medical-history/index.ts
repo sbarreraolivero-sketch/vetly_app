@@ -1,9 +1,13 @@
 /**
- * hq-analyze-medical-history — extrae eventos médicos (vacunas,
- * desparasitaciones, consultas) de un LOTE de filas de un Excel/CSV
- * exportado de otro sistema, para migrarlos a Vetly. Mismo patrón que
- * analyze-invoice (GPT-4o-mini, JSON forzado, revisión humana obligatoria
- * después) pero para datos tabulares, no imágenes.
+ * hq-analyze-medical-history — extrae de un LOTE de filas de un Excel/CSV
+ * exportado de otro sistema (para migrarlo a Vetly): eventos médicos
+ * (vacunas, desparasitaciones, consultas) Y registros de paciente/dueño
+ * ("patient_record" — filas de una hoja "Pacientes"/"Clientes" sin evento
+ * médico). Mismo patrón que analyze-invoice (GPT-4o-mini, JSON forzado,
+ * revisión humana obligatoria después) pero para datos tabulares, no
+ * imágenes. El commit (hq-commit-medical-history) usa los patient_record
+ * y la metadata de tutor de cada evento para CREAR los dueños y mascotas
+ * que no existan antes de adjuntar el historial.
  *
  * Se llama UNA VEZ POR LOTE (hasta 50 filas) — el cliente (modal, en HQ o
  * en el portal del cliente) hace el chunking y llama esta función en loop,
@@ -46,10 +50,11 @@ const SYSTEM_PROMPT = `Eres un asistente que extrae eventos médicos veterinario
 
 Para CADA fila del lote, determina:
 
-1. event_type: "vaccine" | "deworming" | "consultation" | "unknown"
+1. event_type: "vaccine" | "deworming" | "consultation" | "patient_record" | "unknown"
    - "vaccine" si la fila describe una vacuna aplicada (nombre de vacuna, antígeno, "vacuna óctuple", "antirrábica", etc.)
    - "deworming" si describe una desparasitación (interna/externa, antipulgas, antiparasitario, producto tipo Drontal/Nexgard/Bravecto/etc.)
    - "consultation" si describe una consulta/atención general (motivo, diagnóstico, síntomas) sin ser específicamente vacuna o desparasitación
+   - "patient_record" si la fila describe a una MASCOTA y/o a su DUEÑO SIN ningún evento médico — típico de una hoja "Pacientes", "Fichas" o "Clientes" (nombre de la mascota, especie, raza, sexo, fecha de nacimiento, microchip, y/o nombre/teléfono/email/dirección del dueño). Úsalo aunque la fila solo traiga el nombre de la mascota y el del dueño.
    - "unknown" si la fila no tiene información suficiente para clasificarla con confianza razonable — NUNCA fuerces un tipo si no estás seguro.
 
 2. Identificador del paciente y tutor — copia el texto TAL COMO aparece en la fila, nunca inventes ni completes: patient_name, tutor_name, tutor_phone (si hay alguna columna de teléfono/celular/contacto en la fila).
@@ -58,6 +63,7 @@ Para CADA fila del lote, determina:
    - vaccine: vaccine_name (obligatorio si event_type=vaccine, si no hay nombre claro de vacuna usa "unknown" en vez de inventar un nombre), application_date, next_dose_date, notes
    - deworming: deworming_type ("Interna"/"Externa"/"Interna y externa", tal como lo indique la fila — si no está claro, deja null), deworming_brand, weight (numérico, sin unidad), application_date, next_dose_date, notes
    - consultation: reason, diagnosis, anamnesis, procedure_notes, event_date, weight — IMPORTANTE: no se piden signos vitales estructurados (fc, fr, temperatura, etc.) — si la fila trae algo así, ponlo en procedure_notes como texto, nunca inventes una estructura que no te pedí.
+   - patient_record: species (perro/gato/etc. tal como aparezca, o null), breed (raza, o null), sex ("M" para macho, "F" para hembra, null si no está claro), dob (fecha de nacimiento en YYYY-MM-DD, o null), microchip (número de microchip/chip/RFID, o null), tutor_email, tutor_address. También puedes rellenar estos mismos campos (species, breed, sex, dob, microchip, tutor_email, tutor_address) en filas de vaccine/deworming/consultation si la fila los trae — sirven para completar la ficha de la mascota.
 
 4. Fechas: normaliza SIEMPRE a formato YYYY-MM-DD. Acepta dd/mm/yyyy, dd-mm-yyyy, nombres de mes en español, fechas ya en YYYY-MM-DD. Si la fecha es ambigua, está incompleta, o no se puede determinar con confianza razonable, devuelve null — nunca adivines ni completes una fecha.
 
@@ -66,7 +72,7 @@ Para CADA fila del lote, determina:
 6. Si una fila está completamente vacía o es claramente un encabezado repetido/fila de totales, no la incluyas en la respuesta.
 
 Responde SOLO con un objeto JSON válido, sin texto antes ni después:
-{"events": [{"row_index": 0, "event_type": "vaccine", "patient_name": "...", "tutor_name": "...", "tutor_phone": "...", "vaccine_name": "...", "deworming_type": null, "deworming_brand": null, "weight": null, "application_date": "2023-05-14", "next_dose_date": "2024-05-14", "reason": null, "diagnosis": null, "anamnesis": null, "procedure_notes": null, "event_date": null, "notes": null}]}`;
+{"events": [{"row_index": 0, "event_type": "vaccine", "patient_name": "...", "tutor_name": "...", "tutor_phone": "...", "species": null, "breed": null, "sex": null, "dob": null, "microchip": null, "tutor_email": null, "tutor_address": null, "vaccine_name": "...", "deworming_type": null, "deworming_brand": null, "weight": null, "application_date": "2023-05-14", "next_dose_date": "2024-05-14", "reason": null, "diagnosis": null, "anamnesis": null, "procedure_notes": null, "event_date": null, "notes": null}, {"row_index": 1, "event_type": "patient_record", "patient_name": "Mila", "tutor_name": "Juan Pérez", "tutor_phone": "56911111111", "species": "Perro", "breed": "Labrador", "sex": "F", "dob": "2020-03-01", "microchip": null, "tutor_email": null, "tutor_address": null, "vaccine_name": null, "deworming_type": null, "deworming_brand": null, "weight": null, "application_date": null, "next_dose_date": null, "reason": null, "diagnosis": null, "anamnesis": null, "procedure_notes": null, "event_date": null, "notes": null}]}`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -105,7 +111,7 @@ Deno.serve(async (req: Request) => {
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 8000,
+        max_tokens: 12000,
       }),
     });
 
