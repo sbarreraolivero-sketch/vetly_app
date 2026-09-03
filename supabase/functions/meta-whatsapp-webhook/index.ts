@@ -2261,7 +2261,16 @@ Deno.serve(async (req) => {
               /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(rawPromptSlotCap.trim())
             ? rawPromptSlotCap.trim().slice(0, 5)
             : "18:00";
-          const lastSlotNote = `\n⚠️ ÚLTIMA CITA AGENDABLE DEL DÍA: la última visita que se puede agendar COMIENZA a las ${promptSlotCap} hrs. El equipo puede terminar de atender más tarde, pero NO se agenda ninguna visita que empiece después de esa hora. La hora de "cierre" de arriba NO es la última hora agendable. TERMINANTEMENTE PROHIBIDO ofrecer, prometer, "coordinar con la coordinadora" o enviar en la solicitud de agenda cualquier horario posterior a las ${promptSlotCap}. Si el tutor solo puede después de las ${promptSlotCap}, dile con claridad: "La última visita que agendamos comienza a las ${promptSlotCap} hrs" y ofrece esa hora o un día alternativo — nunca insinúes que se puede más tarde.`;
+          // El texto cambia según el modo de agendamiento. En modo coordinadora la
+          // versión antigua ("...y ofrece esa hora") era una orden DIRECTA de ofrecer
+          // un horario, en contradicción con la Sección 10 del prompt — y como este
+          // bloque va arriba (junto a "Horarios:") le ganaba por posición. Causó un
+          // caso real (Daniel Vásquez, Linares, 2026-09-03): la IA respondió "La
+          // última visita que podemos agendar comienza a las 18:00 hrs. ¿Te gustaría
+          // que coordinemos para esa hora hoy?" — copiado casi textual de esta nota.
+          const lastSlotNote = clinic.scheduling_mode === "coordinator_approval"
+            ? `\n⚠️ ÚLTIMA CITA AGENDABLE DEL DÍA: la última visita que se puede agendar COMIENZA a las ${promptSlotCap} hrs. El equipo puede terminar más tarde, pero NO se agenda ninguna visita que empiece después de esa hora — la hora de "cierre" de arriba NO es la última hora agendable. Este dato es SOLO un límite que tú debes respetar al reunir la disponibilidad del tutor: NO es un horario para ofrecer. En esta clínica los horarios los decide la coordinadora (ver Sección 10), así que TERMINANTEMENTE PROHIBIDO proponerle al tutor una hora concreta —incluidas las ${promptSlotCap}— o preguntarle si "coordinamos para esa hora". Si el tutor solo puede después de las ${promptSlotCap}, dile con claridad "la última visita que agendamos comienza a las ${promptSlotCap} hrs" y pídele qué otros días y rangos DENTRO de ese margen le acomodan, para enviárselos a la coordinadora.`
+            : `\n⚠️ ÚLTIMA CITA AGENDABLE DEL DÍA: la última visita que se puede agendar COMIENZA a las ${promptSlotCap} hrs. El equipo puede terminar de atender más tarde, pero NO se agenda ninguna visita que empiece después de esa hora. La hora de "cierre" de arriba NO es la última hora agendable. TERMINANTEMENTE PROHIBIDO ofrecer, prometer o enviar en la solicitud de agenda cualquier horario posterior a las ${promptSlotCap}. Si el tutor solo puede después de las ${promptSlotCap}, dile con claridad: "La última visita que agendamos comienza a las ${promptSlotCap} hrs" y ofrece esa hora o un día alternativo — nunca insinúes que se puede más tarde.`;
 
           // Survey feedback context
           const normalizedFromPhone = normalizePhone(from);
@@ -2521,9 +2530,37 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // usadas tanto para forzar un reintento dentro del loop como para el
           // aviso post-envío de más abajo. Una sola definición, sin duplicar.
           const dispatchTools = ["request_scheduling_coordination", "create_appointment", "reschedule_appointment", "escalate_to_human"];
-          const promisePattern = /coordinador|revisar[áa] la ruta|voy a enviar (esta )?informaci[oó]n/i;
           const isCoordinatorClinic = clinic.scheduling_mode === "coordinator_approval";
           let correctionAttempts = 0;
+
+          // Detección de "promesa sin acción". La primera versión de este patrón
+          // buscaba cualquier MENCIÓN de la coordinadora — y eso resultó tener 100%
+          // de falsos positivos en producción (7 de 7 disparos, 3 tutores afectados
+          // el 2026-09-03), porque la respuesta CORRECTA más frecuente del flujo
+          // también la menciona: "Para poder enviar la solicitud a nuestra
+          // coordinadora, necesito que me confirmes: 1. Tu nombre...". Peor: como
+          // ese falso positivo pausaba al tutor (requires_human), dejaba la
+          // conversación muda para siempre — el mutismo reportado por Claudia
+          // (Guillermo Dodds/Flaca) lo causó exactamente esto.
+          //
+          // La señal real de promesa rota NO es mencionar a la coordinadora: es
+          // AFIRMAR que la solicitud ya se envió o se está enviando ahora. Pedir los
+          // datos que faltan es lo correcto y nunca debe dispararlo — por eso van
+          // dos capas: verbo de acción consumada/inminente Y ausencia de petición
+          // de datos.
+          // Sin \b de cierre a propósito: en JavaScript \b se basa en [A-Za-z0-9_],
+          // así que una frase terminada en vocal acentuada ("ya envié", "enviaré",
+          // "ya le pasé") NUNCA hacía match con \b al final — verificado con un test
+          // mecánico antes de desplegar. Los \b de apertura sí se conservan (todas
+          // las frases empiezan con letra ASCII).
+          const claimsDispatch = (t: string) =>
+            /\b(he enviado|ya envi[éeó]|envi[éeó]|voy a enviar|enviar[ée]|estoy enviando|he pasado|ya (le )?pas[ée]|he compartido|voy a compartir|he derivado|voy a derivar)/i.test(t);
+          // Acotado a peticiones de dato explícitas — a propósito NO incluye un "¿"
+          // genérico: una pregunta de cortesía ("¿necesitas algo más?") no debe
+          // silenciar la detección de una promesa realmente rota.
+          const asksForData = (t: string) =>
+            /necesito (que me |algunos |unos |los |el |tu )?(confirmes|indiques|entregues|datos|detalles|antecedentes|nombre|direcci[óo]n|saber)|me (puedes|podr[íi]as) (confirmar|indicar|decir|entregar|proporcionar)|podr[íi]as (confirmarme|indicarme|decirme|proporcionarme)|\n\s*\d[.)]\s|¿(c[óo]mo se llama|cu[áa]l es (tu|el) nombre|qu[ée] d[íi]as|en qu[ée] comuna)/i.test(t);
+          const promisedWithoutAction = (t: string) => claimsDispatch(t) && !asksForData(t);
 
           // El modelo a veces anuncia "voy a enviar esto a la coordinadora" sin
           // haber llamado realmente al tool — promesa sin acción, confirmada real
@@ -2535,7 +2572,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           const needsCoordinationCorrection = () =>
             isCoordinatorClinic && !!assistant?.content
             && !(assistant.tool_calls?.length > 0) && !assistant.function_call
-            && promisePattern.test(assistant.content)
+            && promisedWithoutAction(assistant.content)
             && !allFuncResults.some(r => dispatchTools.includes(r.name))
             && correctionAttempts < 1;
 
@@ -2638,14 +2675,16 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // va DESPUÉS de enviar la respuesta real (nunca antes: pausar aquí
           // arriba dejaría al tutor sin ninguna respuesta, peor que hoy).
           if (isCoordinatorClinic) {
-            const promisedCoordination = promisePattern.test(reply);
             const actuallyDispatched = allFuncResults.some(r => dispatchTools.includes(r.name));
-            if (promisedCoordination && !actuallyDispatched) {
+            if (promisedWithoutAction(reply) && !actuallyDispatched) {
               await debugLog(sb, "[COORDINATION PROMISE GAP] Persistió incluso después del reintento forzado", {
                 phone: from, clinicId: clinic.id, reply, correctionAttempts,
               });
-              await sb.from("tutors").update({ requires_human: true }).eq("clinic_id", clinic.id).eq("phone_number", from);
-              await sb.from("crm_prospects").update({ requires_human: true }).eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${from}`);
+              // NO se pausa al tutor (requires_human). La versión anterior sí lo
+              // hacía y el costo de un falso positivo era desproporcionado: la
+              // conversación quedaba muda de forma permanente, sin que nadie la
+              // reactivara (confirmado real, 3 tutores el 2026-09-03). Avisar es
+              // suficiente — si el aviso resulta ser falso, no rompe nada.
               await sb.from("notifications").insert({
                 clinic_id: clinic.id,
                 type: "human_handoff",
