@@ -190,16 +190,39 @@ const geocodeAddress = async (address: string): Promise<{ lat: number; lng: numb
   } catch { return null; }
 };
 
-const getOffset = (timeZone: string, date: Date): string => {
+// Confirmado real en producción (Hachi/Javiera y Pantro/Daniel, Linares,
+// 2026-09-01/08-31): la técnica anterior (formatear con toLocaleString y volver
+// a parsear el string resultante con `new Date(...)`) produjo offsets erróneos
+// y NO uniformes (-08:00 en un caso, +02:00 en otro) para citas cuya IA había
+// confirmado correctamente "12:30 PM" al tutor — el texto de confirmación se
+// arma directo desde args.time (sin pasar por Date), así que no reflejaba el
+// error; solo la hora GUARDADA en la base quedaba mal. Re-parsear un string
+// como "9/3/2026, 8:00:00 AM" con `new Date()` es implementation-defined según
+// el spec de ECMAScript (solo ISO 8601 está garantizado) — funciona la mayoría
+// de las veces pero no es confiable. `formatToParts` con `timeZoneName:
+// "shortOffset"` lee el offset directo del motor de Intl, sin ese round-trip.
+const getOffset = (timeZone: string, date: Date, sb?: ReturnType<typeof createClient>): string => {
   try {
-    const utcDate = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
-    const tzDate = new Date(date.toLocaleString("en-US", { timeZone }));
-    const diff = tzDate.getTime() - utcDate.getTime();
-    const hours = Math.floor(Math.abs(diff) / 3600000);
-    const mins = Math.floor((Math.abs(diff) % 3600000) / 60000);
-    const sign = diff >= 0 ? "+" : "-";
-    return `${sign}${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-  } catch { return "-04:00"; }
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "shortOffset" }).formatToParts(date);
+    const tzPart = parts.find((p) => p.type === "timeZoneName")?.value || "";
+    const m = tzPart.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/);
+    if (m) {
+      const h = parseInt(m[1], 10);
+      const mins = m[2] ? parseInt(m[2], 10) : 0;
+      const sign = h < 0 ? "-" : "+";
+      const result = `${sign}${String(Math.abs(h)).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+      // Chequeo de sanidad: para Chile el offset real siempre está entre -03:00 y
+      // -05:00 (invierno/verano, con margen). Si algún día el motor de Intl del
+      // runtime devuelve algo fuera de ese rango, no confiar en él en silencio
+      // como pasó antes — usar el default seguro y dejar rastro para auditar.
+      if (timeZone === "America/Santiago" && (h < -5 || h > -3)) {
+        if (sb) debugLog(sb, "[TZ OFFSET SANITY] Offset fuera de rango para Chile, usando fallback", { timeZone, date: date.toISOString(), computed: result });
+        return "-04:00";
+      }
+      return result;
+    }
+  } catch { /* cae al fallback de abajo */ }
+  return "-04:00";
 };
 
 const getTravelDetails = async (
@@ -689,7 +712,7 @@ const checkAvail = async (
   // Filter slots already booked
   let filteredSlots = (slots || []).filter((slot: any) => {
     const slotTime = slot.slot_time?.substring(0, 5);
-    const tzOffset = getOffset(timezone, new Date(`${date}T12:00:00`));
+    const tzOffset = getOffset(timezone, new Date(`${date}T12:00:00`), sb);
     const slotStart = new Date(`${date}T${slotTime}:00${tzOffset}`);
     const slotEnd = new Date(slotStart.getTime() + duration * 60000);
 
@@ -705,7 +728,7 @@ const checkAvail = async (
   const isToday = date === new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
   if (isToday) {
     const now = new Date();
-    const tzOffset = getOffset(timezone, now);
+    const tzOffset = getOffset(timezone, now, sb);
     filteredSlots = filteredSlots.filter((slot: any) => {
       const slotTime = slot.slot_time?.substring(0, 5);
       const slotStart = new Date(`${date}T${slotTime}:00${tzOffset}`);
@@ -818,7 +841,7 @@ const checkAvail = async (
       clinicBase = closest;
     }
 
-    const tzOffset = getOffset(timezone, new Date(`${date}T12:00:00`));
+    const tzOffset = getOffset(timezone, new Date(`${date}T12:00:00`), sb);
     const travelKey = (a: any, b: any) => {
       const as = typeof a === "string" ? a : `${a.lat},${a.lng}`;
       const bs = typeof b === "string" ? b : `${b.lat},${b.lng}`;
@@ -1075,7 +1098,7 @@ const createAppt = async (
   }
   args.time = cleanTime;
 
-  const offset = getOffset(timezone, new Date(`${args.date}T12:00:00`));
+  const offset = getOffset(timezone, new Date(`${args.date}T12:00:00`), sb);
   const appointmentDateWithOffset = `${args.date}T${args.time}:00${offset}`;
 
   // Deduplication check
@@ -1588,7 +1611,7 @@ const rescheduleAppt = async (sb: ReturnType<typeof createClient>, clinicId: str
     .order("appointment_date", { ascending: true }).limit(1).maybeSingle();
   if (!appt) return { success: false, message: "No hay citas próximas para reagendar." };
 
-  const offset = getOffset(timezone, new Date(`${args.new_date}T12:00:00`));
+  const offset = getOffset(timezone, new Date(`${args.new_date}T12:00:00`), sb);
   const newDate = `${args.new_date}T${args.new_time}:00${offset}`;
   await sb.from("appointments").update({ appointment_date: newDate, status: "pending", reminder_sent: false }).eq("id", appt.id);
 
@@ -2701,8 +2724,22 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           await debugLog(sb, "Meta Async Process Error", { error: (err as Error).message, phone: from });
           // No molestar con un aviso de error si la conversación ya fue tomada por un humano.
           if (await isPausedForHuman(sb, clinic.id, from)) return;
+          // Insert DIRECTO (no vía saveMsg): el trigger on_manual_message_pause
+          // pausa la IA para siempre ante cualquier outbound con
+          // ai_generated=false/NULL (default de columna), pensado para cuando
+          // Claudia responde a mano — pero CADA error técnico (rate limit de
+          // OpenAI, timeout, etc.) generaba este mismo mensaje y lo dejaba
+          // silenciado sin que nadie se enterara. Confirmado real: la mayoría de
+          // los "MANUAL" en la auditoría del 2026-09-03 eran este mensaje, no
+          // Claudia. ai_generated:true evita el trigger; el insert directo (en
+          // vez de saveMsg) evita que se cobre un crédito IA por un mensaje que
+          // nunca fue una respuesta real de OpenAI.
           const fallbackReply = "Lo siento, tuve un problema técnico procesando tu mensaje. Por favor intenta consultarme en unos minutos.";
-          await saveMsg(sb, clinic.id, from, fallbackReply, "outbound", { error_fallback: true }, targetModel);
+          await sb.from("messages").insert({
+            clinic_id: clinic.id, phone_number: from, content: fallbackReply,
+            direction: "outbound", ai_generated: true, message_type: "text",
+            payload: { error_fallback: true },
+          });
           await sendMetaMessage(clinic.meta_phone_number_id, clinic.meta_access_token, from, fallbackReply)
             .catch(e => console.error("Failed sending Meta fallback:", e));
         }
