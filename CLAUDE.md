@@ -7329,3 +7329,56 @@ Continuación directa de sesión 97 (generalización del modo coordinadora a Lin
 - **`.insert(...).select('id')` sobre un array preserva el orden en Postgres** (un solo `INSERT ... RETURNING` con lista de VALUES), pero cuando el mapeo por índice puede mezclar registros críticos (historial médico → paciente equivocado), agregar un guard `ins.length !== batch.length` que aborte en vez de mapear mal.
 - **`tutors.phone_number` es NOT NULL** — un dueño sin teléfono no se puede crear; la mascota queda con `tutor_id: null` (patrón ya establecido por el importador de CSV). No inventar un teléfono placeholder.
 - **Un `event_type` nuevo que no representa un evento a insertar** (`patient_record`) debe filtrarse de la tabla de revisión pero mantenerse en el grupo para aportar metadata — `isMedicalEvent` es el único punto donde se decide qué cuenta como evento.
+
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 99, 2026-09-03)
+
+**Auditoría general del flujo de agendamiento**, pedida explícitamente por el usuario: *"este tema ya lo hemos tratado muchísimas veces y siento que no se soluciona, vuelve una y otra vez... no quiero que supongas nada"*. Reportó dos fallos con capturas reales el mismo día. La auditoría encontró **tres causas raíz distintas**, todas confirmadas con datos de producción — y la tercera explica por qué el problema "volvía una y otra vez" sin causa aparente.
+
+### Causa 1 — El detector de "promesa sin acción" tenía 100% de falsos positivos, y su castigo era mutismo permanente
+
+**Síntoma reportado:** Guillermo Dodds/Flaca (Linares) — la IA pidió nombre del tutor y de la mascota, el tutor los entregó, y **la IA nunca volvió a responder**.
+
+**Causa raíz — el fix de la sesión anterior.** `crm_prospects.requires_human` pasó a `true` a las `13:50:56`, **2 segundos después** del mensaje en que la IA pedía esos datos. El detector agregado en sesión 98 usaba `promisePattern = /coordinador|revisar[áa] la ruta|voy a enviar (esta )?informaci[oó]n/i`, que dispara ante **cualquier mención** de la coordinadora — incluida la respuesta *correcta* más frecuente de todo el flujo: *"Para poder enviar la solicitud a nuestra coordinadora, necesito que me confirmes: 1. Tu nombre completo..."*.
+
+**Medido en `debug_logs`: 7 disparos desde el deploy, los 7 falsos positivos, 3 tutores afectados.** Y como el detector pausaba al tutor, cada falso positivo dejaba esa conversación muda **de forma permanente** (nada la reactiva sola, por decisión de sesión 92).
+
+**Fix:** el patrón ahora mide la señal real —afirmar que la solicitud **ya se envió o se está enviando**— en dos capas: `claimsDispatch` (verbo de acción consumada/inminente) **y** `!asksForData` (que no esté pidiendo datos). Y **se eliminó la pausa**: ante un falso positivo el costo era desproporcionado; ahora solo registra y notifica in-app.
+
+### Causa 2 — Bug dentro del propio patrón nuevo: `\b` no funciona con acentos en JavaScript
+
+Al verificar el patrón nuevo con un test mecánico contra los textos reales **antes** de desplegar, falló 1 de 9 casos: `"Ya envié tus datos a la coordinadora"` no disparaba. Motivo: en JavaScript `\b` se apoya en `\w = [A-Za-z0-9_]`, que **no incluye vocales acentuadas** — así que un `\b` de cierre después de `"envié"`, `"enviaré"` o `"pasé"` nunca hace match. Se quitaron los `\b` de cierre (los de apertura sí sirven: todas las frases empiezan con letra ASCII). Tras el arreglo: **9/9 casos correctos**, incluidos los 5 textos reales de producción que causaron falsos positivos.
+
+### Causa 3 — El `lastSlotNote` le ORDENABA ofrecer un horario, contradiciendo el modo coordinadora
+
+**Síntoma reportado:** Daniel Vásquez (Linares) — la IA respondió *"La última visita que podemos agendar comienza a las 18:00 hrs. ¿Te gustaría que coordinemos para esa hora hoy?"*, ofreciendo un horario, algo prohibido en modo coordinadora.
+
+**Causa raíz:** el bloque `lastSlotNote` (agregado en sesión 95, cuando Linares todavía era flujo autónomo) decía textualmente *"...dile con claridad 'La última visita que agendamos comienza a las X hrs' **y ofrece esa hora** o un día alternativo"*. La IA lo copió casi palabra por palabra. Al activar `coordinator_approval` (sesión 97) esa instrucción quedó contradiciendo la Sección 10 del prompt — y **le gana por posición**, porque va arriba (junto a `Horarios:`) mientras las reglas van más abajo. Mismo patrón de bug ya documentado en sesión 95 con `ai_personality`.
+
+**Fix:** el texto ahora depende de `scheduling_mode`. En modo coordinadora explicita que el dato es **solo un límite que la IA debe respetar al reunir disponibilidad, no un horario para ofrecer**, y prohíbe proponer una hora concreta —incluidas las 18:00— o preguntar "¿coordinamos para esa hora?".
+
+### Causa 4 (la que explicaba la recurrencia) — cada recordatorio automático dejaba muda a la IA
+
+Al medir el alcance real apareció el hallazgo mayor: **419 tutores pausados** (236 Santiago + 183 Linares), 53 en las últimas 48 h. Cruzando cada pausa con el mensaje que la provocó (±5 s):
+
+| Causa de la pausa | Tutores (7 días) |
+|---|---|
+| **Recordatorio automático del cron** | **~88 (79%)** |
+| Mensaje manual real | ~23 |
+
+El trigger `handle_manual_message_pause` pausa ante **cualquier** mensaje `outbound` con `ai_generated = false`. Su intención es *"si Claudia responde a mano desde su teléfono, la IA no debe pisarle la conversación"* — pero `cron-process-reminders` inserta sus envíos exactamente así. **Cada recordatorio de cita o médico enviado silenciaba a ese cliente de forma permanente.** Medido: **467 mensajes `system_reminder_*` en 30 días**, cada uno un silenciamiento. Eso es lo que hacía que el problema "volviera una y otra vez": no era una regresión del flujo de coordinación, era el sistema de recordatorios apagando la IA en silencio.
+
+Caso confirmado end-to-end: Daniel Vásquez recibió su recordatorio a las `16:00:13`, quedó pausado en ese mismo milisegundo, respondió *"Si confirmo"* a las `16:01:56` — y nadie le respondió.
+
+**Fix (migración `manual_pause_ignores_system_messages`):** el cron **ya marcaba** estos envíos con `payload.type = 'system_reminder_*'`, así que bastó con excluirlos en el trigger (más `campaign_id IS NULL`). Un mensaje escrito a mano nunca lleva ese marcador, así que el comportamiento deseado queda intacto. **Verificado mecánicamente** con dos inserts de prueba: recordatorio de sistema → no pausa; mensaje manual → sí pausa. Datos de prueba eliminados.
+
+**Remediación (migración `reactivate_tutors_silenced_by_system_reminders`):** **154 `crm_prospects` + 10 `tutors` reactivados** — solo aquellos cuya pausa coincide temporalmente con un `system_reminder_*` y que **nunca** recibieron un mensaje manual real. Los 60 con intervención humana real y los 205 de causa no concluyente quedaron pausados a propósito (criterio conservador). Respaldo completo en `requires_human_backup_20260903` para poder revertir. Aparte, se reactivaron a mano los 4 tutores afectados por el falso positivo del detector.
+
+### Reglas permanentes de esta sesión
+
+- **Un detector heurístico que castiga con una acción irreversible necesita medirse contra tráfico real antes de confiar en él.** Aquí el castigo (pausar la IA) era permanente y la tasa de falsos positivos era del 100% — el "fix" hacía más daño que el bug que intentaba resolver. Regla derivada: **la penalización de un detector debe ser proporcional a su tasa de error**; ante duda, notificar en vez de bloquear.
+- **En JavaScript `\b` no reconoce caracteres acentuados** (`\w` es `[A-Za-z0-9_]`). Cualquier regex en español que termine un grupo con `\b` después de vocal acentuada nunca hará match. Verificar siempre con un test mecánico, no por inspección.
+- **`ai_generated = false` NO significa "lo escribió un humano".** Todo el sistema (crons de recordatorios, campañas, encuestas, upsell, retención) inserta así. Cualquier lógica que quiera distinguir "intervención humana" debe apoyarse en el marcador `payload.type = 'system_*'` / `campaign_id`, nunca en `ai_generated` a secas.
+- **Una instrucción del prompt escrita para un modo de operación debe revisarse al cambiar de modo.** El `lastSlotNote` era correcto en flujo autónomo y se volvió una orden contradictoria al activar el modo coordinadora — y como va arriba en el prompt, le ganaba a las reglas de abajo. Al activar un modo nuevo, auditar todo texto inyectado por código, no solo `ai_behavior_rules`.
