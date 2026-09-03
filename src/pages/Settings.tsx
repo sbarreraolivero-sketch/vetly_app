@@ -123,6 +123,11 @@ export default function Settings() {
     const [businessModel, setBusinessModel] = useState<'physical' | 'mobile' | 'hybrid'>('physical')
     const [schedulingMode, setSchedulingMode] = useState<'ai_autonomous' | 'coordinator_approval'>('ai_autonomous')
     const [coordinatorPhone, setCoordinatorPhone] = useState('')
+    // Plantilla opcional de Meta para el aviso de "nueva solicitud" a la
+    // coordinadora — sin ella, el aviso es texto libre y solo llega si hay una
+    // conversación abierta en las últimas 24h con ese número (ver CLAUDE.md,
+    // sesión 98: caso real donde el aviso nunca llegó por esa ventana vencida).
+    const [coordinatorAlertTemplate, setCoordinatorAlertTemplate] = useState('')
     // "Logística Pro" = el cálculo automático de tramos/recargo por tiempo de viaje
     // (panel en Conocimiento). Vive dentro de logistics_config.is_active — se
     // conserva el resto del JSON (locations, routing_mode, etc.) tal cual al guardar.
@@ -414,6 +419,7 @@ export default function Settings() {
                     setBusinessModel(clinicData.business_model || 'physical')
                     setSchedulingMode(clinicData.scheduling_mode === 'coordinator_approval' ? 'coordinator_approval' : 'ai_autonomous')
                     setCoordinatorPhone(clinicData.coordinator_phone || '')
+                    setCoordinatorAlertTemplate(clinicData.coordinator_alert_template || '')
                     setLogisticsConfigRaw(clinicData.logistics_config || {})
                     setLogisticsProEnabled(clinicData.logistics_config?.is_active === true)
                     // El toggle de moneda solo respeta 'chile' cuando hay una
@@ -613,6 +619,7 @@ export default function Settings() {
                     // Una clínica de local fijo no coordina rutas: el modo vuelve al default.
                     scheduling_mode: businessModel === 'physical' ? 'ai_autonomous' : schedulingMode,
                     coordinator_phone: coordinatorPhone.trim() || null,
+                    coordinator_alert_template: coordinatorAlertTemplate.trim() || null,
                     // Preserva locations/routing_mode/etc. ya configurados; solo cambia el switch.
                     // Un local fijo no puede tener Logística Pro activa.
                     logistics_config: {
@@ -1379,6 +1386,16 @@ export default function Settings() {
                                                     Las solicitudes se revisan en Citas Médicas. Si lo dejas vacío, solo llegará
                                                     la notificación dentro de la plataforma.
                                                 </p>
+
+                                                <div className="mt-4">
+                                                    <TemplateSelector
+                                                        label="Plantilla del aviso a la coordinadora"
+                                                        description="Opcional, pero recomendada. WhatsApp solo permite mensajes libres si hay una conversación abierta con este número en las últimas 24h — si pasa más tiempo sin que le escribas, el aviso puede no llegar. Con una plantilla aprobada por Meta, el aviso llega siempre, sin depender de eso. Créala en tu cuenta de Meta Business y selecciónala aquí."
+                                                        value={coordinatorAlertTemplate}
+                                                        onChange={setCoordinatorAlertTemplate}
+                                                        placeholder="Sin plantilla (mensaje libre)"
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                     </div>

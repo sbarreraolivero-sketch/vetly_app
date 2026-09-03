@@ -1519,13 +1519,23 @@ const requestSchedulingCoordination = async (
       // notifications, pero no hay evidencia de que el WhatsApp a la coordinadora
       // haya llegado ni de que haya fallado — no quedaba registrado ninguno de los
       // dos casos).
-      const coordResult = await sendMetaMessage(
-        clinic.meta_phone_number_id,
-        clinic.meta_access_token,
-        normalizePhone(coordinatorPhone),
-        `🐾 Nueva solicitud de agenda — revisar ruta\n\n${resumen}\n\nTeléfono: +${normalizedPhone}\n\nAutoriza los horarios en Citas Médicas.`,
-      );
-      await debugLog(sb, "[COORDINATOR ALERT] Aviso de solicitud nueva", { to: coordinatorPhone, result: coordResult });
+      // Con plantilla aprobada (clinic.coordinator_alert_template): funciona
+      // sin importar la ventana de 24h de WhatsApp — es la vía recomendada.
+      // Sin plantilla: texto libre, como antes (solo llega si hay una
+      // conversación abierta reciente con ese número).
+      const coordResult = clinic.coordinator_alert_template
+        ? await sendMetaCoordinatorTemplate(
+            clinic.meta_phone_number_id, clinic.meta_access_token, clinic.meta_waba_id,
+            normalizePhone(coordinatorPhone), clinic.coordinator_alert_template,
+            { tutor: tutorName, mascota: args.pet_name || "", servicio: payload.service_requested, direccion: address, disponibilidad: availability },
+          )
+        : await sendMetaMessage(
+            clinic.meta_phone_number_id,
+            clinic.meta_access_token,
+            normalizePhone(coordinatorPhone),
+            `🐾 Nueva solicitud de agenda — revisar ruta\n\n${resumen}\n\nTeléfono: +${normalizedPhone}\n\nAutoriza los horarios en Citas Médicas.`,
+          );
+      await debugLog(sb, "[COORDINATOR ALERT] Aviso de solicitud nueva", { to: coordinatorPhone, viaTemplate: !!clinic.coordinator_alert_template, result: coordResult });
 
       // Persistir con el WAMID para que el handler de whatsapp.message.updated
       // (más abajo en este archivo) pueda correlacionar delivered/failed — Meta
@@ -1713,6 +1723,58 @@ const sendMetaMessage = async (phoneNumberId: string, accessToken: string, to: s
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { body: text } }),
+  });
+  return res.json();
+};
+
+// Cuenta las variables {{n}} del body de una plantilla aprobada, consultando
+// directo el WABA de Meta. Mismo patrón que getVarCount() en
+// cron-process-reminders — sin caché (esto se llama una vez por solicitud
+// nueva, no en un loop), y sin fallback silencioso: si no se puede confirmar
+// el conteo real, se retorna null para NO enviar parámetros que Meta podría
+// rechazar por no calzar con la plantilla real.
+const getTemplateVarCount = async (wabaId: string, accessToken: string, tplName: string): Promise<number | null> => {
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/message_templates?fields=name,components&limit=200`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const d = await res.json();
+    const tpl = (d.data || []).find((t: any) => t.name === tplName);
+    const body = tpl?.components?.find((c: any) => c.type === "BODY");
+    const matches = body?.text?.match(/\{\{\d+\}\}/g);
+    return matches ? matches.length : 0;
+  } catch { return null; }
+};
+
+// Envía el aviso de "nueva solicitud" a la coordinadora como plantilla de Meta
+// en vez de texto libre — funciona sin importar la ventana de 24h. Orden fijo
+// de variables (igual criterio que mkParams en cron-process-reminders): la
+// plantilla que Claudia cree en Meta Business debe usar {{1}}..{{n}} en este
+// mismo orden. Se recorta al conteo real de la plantilla aprobada.
+const sendMetaCoordinatorTemplate = async (
+  phoneNumberId: string, accessToken: string, wabaId: string, to: string, tplName: string,
+  fields: { tutor: string; mascota: string; servicio: string; direccion: string; disponibilidad: string },
+) => {
+  const varCount = await getTemplateVarCount(wabaId, accessToken, tplName);
+  if (varCount === null) return { error: "No se pudo confirmar la plantilla en Meta (no encontrada o WABA sin acceso)." };
+  const safe = (v: string, fallback: string) => ({ type: "text", text: (v || "").trim() || fallback });
+  const all = [
+    safe(fields.tutor, "un tutor"),
+    safe(fields.mascota, "su mascota"),
+    safe(fields.servicio, "una visita"),
+    safe(fields.direccion, "su domicilio"),
+    safe(fields.disponibilidad, "por confirmar"),
+  ];
+  const params = varCount > 0 ? all.slice(0, varCount) : [];
+  const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: { name: tplName, language: { code: "es" }, components: params.length > 0 ? [{ type: "body", parameters: params }] : [] },
+    }),
   });
   return res.json();
 };
