@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { Sparkles, Mail, Lock, User, Building2, ArrowRight, Loader2, Check, ShieldCheck, MessageCircle, Star, Globe } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -98,6 +98,7 @@ const ROLE_TRANSLATIONS: Record<string, string> = {
 
 export default function Register() {
     const [searchParams] = useSearchParams()
+    const location = useLocation()
     const isJoinMode = searchParams.get('mode') === 'join'
     const inviteEmail = searchParams.get('email')
     const joinClinicId = searchParams.get('clinic')
@@ -105,7 +106,14 @@ export default function Register() {
     const inviteRole = searchParams.get('role')
     const refParam = searchParams.get('ref')
     const planParam = searchParams.get('plan')
-    const initialPlan = planParam && (PLAN_ORDER as readonly string[]).includes(planParam) ? planParam : 'pro'
+    // Programa piloto (alianza Yares): registro dedicado. Se registra como
+    // cualquier clínica (plan Core bajo el capó → prueba sin tarjeta, entra
+    // directo a la app). El acceso Pro por 45 días + el pago de US$47 los
+    // habilita HQ después con el flag pilot_eligible (ver CLAUDE.md sesión 102).
+    const isPilot = location.pathname === '/registro-piloto' || searchParams.get('pilot') === '1'
+    const initialPlan = isPilot
+        ? 'core'
+        : (planParam && (PLAN_ORDER as readonly string[]).includes(planParam) ? planParam : 'pro')
 
     const [step, setStep] = useState(1)
     const [email, setEmail] = useState(inviteEmail || '')
@@ -476,19 +484,23 @@ export default function Register() {
                         autoservicio. Se vuelve plan-aware. */}
                     <h1 className="text-h2 text-charcoal mb-2">
                         {isJoinMode ? 'Únete a tu equipo' : (
-                            singleStep ? 'Crea tu cuenta gratis' : (
-                                step === 1 ? 'Reserva tu Implementación Estratégica' :
-                                    step === 2 ? 'Sobre tu clínica' :
-                                        'Elige tu plan'
+                            isPilot ? 'Programa piloto Vetly' : (
+                                singleStep ? 'Crea tu cuenta gratis' : (
+                                    step === 1 ? 'Reserva tu Implementación Estratégica' :
+                                        step === 2 ? 'Sobre tu clínica' :
+                                            'Elige tu plan'
+                                )
                             )
                         )}
                     </h1>
                     <p className="text-charcoal/60 mb-6">
                         {isJoinMode ? 'Ingresa tus datos para aceptar la invitación' : (
-                            singleStep ? 'Sin tarjeta de crédito. Empiezas a usar Vetly en 2 minutos.' : (
-                                step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
-                                    step === 2 ? 'Configura los datos básicos de tu negocio' :
-                                        'Selecciona el plan que mejor se adapte a ti'
+                            isPilot ? 'Crea la cuenta de tu clínica. Después coordinamos contigo la activación del piloto.' : (
+                                singleStep ? 'Sin tarjeta de crédito. Empiezas a usar Vetly en 2 minutos.' : (
+                                    step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
+                                        step === 2 ? 'Configura los datos básicos de tu negocio' :
+                                            'Selecciona el plan que mejor se adapte a ti'
+                                )
                             )
                         )}
                     </p>
@@ -497,7 +509,28 @@ export default function Register() {
                         iguala rápido (Veti 15, Sami 14, Wirevet 7, VetLink 0).
                         Antes vivían en gris de 12px dentro de un recuadro
                         secundario; acá son el segundo elemento más grande. */}
-                    {singleStep && (
+                    {isPilot ? (
+                        <div className="rounded-soft border-2 border-primary-500 bg-primary-50 p-5 mb-6">
+                            <div className="flex items-center gap-4">
+                                <div className="text-center leading-none shrink-0">
+                                    <div className="text-5xl font-black text-primary-600 tracking-tight">45</div>
+                                    <div className="text-[11px] font-bold uppercase tracking-widest text-primary-700 mt-1">días</div>
+                                </div>
+                                <div className="w-px self-stretch bg-primary-200" />
+                                <div>
+                                    <p className="font-bold text-charcoal leading-snug">
+                                        Acceso completo a Vetly y a tu agente de IA
+                                    </p>
+                                    <p className="text-sm text-charcoal/70 mt-1 leading-relaxed">
+                                        Sin cuota mensual. Ahora solo creas tu cuenta y cargas tus datos.
+                                        Después el equipo de Vetly habilita tu piloto y podrás hacer el
+                                        pago único de US$47 que cubre el procesamiento de IA del período.
+                                        El envío de mensajes por WhatsApp lo factura Meta directo a tu clínica.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : singleStep && (
                         <div className="rounded-soft border-2 border-primary-500 bg-primary-50 p-5 mb-6">
                             <div className="flex items-center gap-4">
                                 <div className="text-center leading-none shrink-0">
@@ -863,11 +896,18 @@ export default function Register() {
                             </div>
                         )}
 
+                        {/* Piloto: sin confirmación de plan ni toggle de pasarela —
+                            no hay cobro mensual, el pago de US$47 lo habilita HQ
+                            después. Solo el captcha para el submit. */}
+                        {isPilot && TURNSTILE_SITE_KEY && (
+                            <div ref={turnstileRef} className="flex justify-center" />
+                        )}
+
                         {/* Confirmación de plan + verificación, sólo en el flujo único.
                             No es un selector: quien llega desde /core ya eligió.
                             El toggle de región se mantiene porque define la
                             pasarela (MercadoPago vs Paddle) que recibe signUp. */}
-                        {singleStep && (
+                        {singleStep && !isPilot && (
                             <div className="space-y-4">
                                 <div className="rounded-soft border border-silk-beige bg-white p-4">
                                     <div className="flex items-center justify-between gap-4">
@@ -956,6 +996,11 @@ export default function Register() {
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                             Cargando...
                                         </>
+                                    ) : isPilot ? (
+                                        <>
+                                            Crear la cuenta de mi clínica
+                                            <ArrowRight className="w-5 h-5" />
+                                        </>
                                     ) : singleStep ? (
                                         <>
                                             Empezar mis 30 días gratis
@@ -1002,17 +1047,21 @@ export default function Register() {
                         <div className="mb-10">
                             <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
                                 <Star className="w-3.5 h-3.5 text-yellow-300" />
-                                {isCoreSelected ? 'Gestión completa para tu clínica' : 'Tu clínica con Infraestructura Operativa de Éxito'}
+                                {isPilot ? 'Programa piloto — 45 días' : isCoreSelected ? 'Gestión completa para tu clínica' : 'Tu clínica con Infraestructura Operativa de Éxito'}
                             </div>
                             <h2 className="text-4xl font-bold mb-5 leading-tight" style={{ background: 'linear-gradient(135deg, #FFD700, #F5C842, #E8B830, #FFE066)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                                {isCoreSelected
-                                    ? 'Citas, fichas médicas, finanzas e inventario en un solo lugar — sin planillas ni cuadernos.'
-                                    : 'Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.'}
+                                {isPilot
+                                    ? 'Tu agente de IA atendiendo tu WhatsApp, y todo el sistema de gestión, por 45 días.'
+                                    : isCoreSelected
+                                        ? 'Citas, fichas médicas, finanzas e inventario en un solo lugar — sin planillas ni cuadernos.'
+                                        : 'Implementamos hasta que tu asistente atienda pacientes al 100%, como lo haría tu recepcionista.'}
                             </h2>
                             <p className="text-white/75 text-lg leading-relaxed">
-                                {isCoreSelected
-                                    ? 'Deja de perseguir información en distintas planillas. Todo tu negocio ordenado, con recordatorios de WhatsApp listos para enviar en un clic.'
-                                    : 'No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.'}
+                                {isPilot
+                                    ? 'Sin cuota mensual. Un único pago de US$47 cubre el procesamiento de IA del período — lo habilitamos contigo después de que cargues los datos de tu clínica.'
+                                    : isCoreSelected
+                                        ? 'Deja de perseguir información en distintas planillas. Todo tu negocio ordenado, con recordatorios de WhatsApp listos para enviar en un clic.'
+                                        : 'No te dejamos solo con una herramienta. Trabajamos contigo hasta que cada consulta, cada cita y cada respuesta funcione perfectamente.'}
                             </p>
                         </div>
 
@@ -1024,12 +1073,14 @@ export default function Register() {
                                 </div>
                                 <div>
                                     <p className="font-bold text-white text-base mb-1">
-                                        {isCoreSelected ? 'Sin tarjeta, sin compromiso' : 'La Regla de Éxito Vetly'}
+                                        {isPilot ? 'Ahora solo creas la cuenta' : isCoreSelected ? 'Sin tarjeta, sin compromiso' : 'La Regla de Éxito Vetly'}
                                     </p>
                                     <p className="text-white/80 text-sm leading-relaxed">
-                                        {isCoreSelected
-                                            ? '30 días para probar el sistema completo. Si no es para ti, cancelas en un clic desde Configuración.'
-                                            : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
+                                        {isPilot
+                                            ? 'No se pide tarjeta en este paso. El equipo de Vetly te contacta para configurar tu agente y habilitar el pago del piloto.'
+                                            : isCoreSelected
+                                                ? '30 días para probar el sistema completo. Si no es para ti, cancelas en un clic desde Configuración.'
+                                                : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
                                     </p>
                                 </div>
                             </div>

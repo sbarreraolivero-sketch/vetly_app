@@ -159,6 +159,16 @@ function MainRoutes() {
                             </ProtectedRoute>
                         }
                     />
+                    {/* Registro dedicado del programa piloto (alianza Yares).
+                        Register.tsx detecta el pathname y ajusta copy + plan. */}
+                    <Route
+                        path="/registro-piloto"
+                        element={
+                            <ProtectedRoute requireAuth={false}>
+                                <Register />
+                            </ProtectedRoute>
+                        }
+                    />
 
                     {/* Pending Activation Route */}
                     <Route
