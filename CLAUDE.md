@@ -7425,3 +7425,36 @@ Al revisar los 37 clientes con mensajes recientes sin responder, la mayoría de 
 - **Un bug no determinístico (mismo código, resultados distintos entre invocaciones) casi nunca es "la constante está mal".** Verificar con al menos 2 casos reales antes de asumir un offset fijo — un solo caso puede llevar a la conclusión equivocada.
 - **Cualquier cálculo crítico (fecha, dinero, disponibilidad) que dependa de una librería/API externa debería tener un chequeo de sanidad con rango conocido**, no solo una ruta feliz. Un resultado fuera de rango debe caer a un default seguro *y quedar registrado* — nunca fallar en silencio escribiendo un dato incorrecto.
 - **Todo insert a `messages` con `direction='outbound'` debe decidir explícitamente su `ai_generated`.** El default de columna (`false`) coincide con la condición que dispara el trigger de pausa manual — cualquier mensaje de sistema/error/aviso que no pase por ese trigger a propósito necesita `ai_generated: true` vía insert directo (nunca vía `saveMsg` si no es una respuesta real de OpenAI, para no cobrar crédito de más).
+
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 101, 2026-09-05)
+
+Dos reportes reales del mismo día (sábado 5-sep), ambos con evidencia real antes de tocar código.
+
+### Caso 1 — disponibilidad "hoy/mañana" aceptada aunque la clínica estuviera cerrada
+
+**Reporte:** Aaron Llanos (Santiago, San Bernardo) — perro con arcadas, marcado urgente. Ofreció "Hoy en la tarde o mañana" como disponibilidad. Hoy era **sábado**; `working_hours` de Santiago tiene `saturday: null` y `sunday: null` — es decir, ofreció dos días en los que la clínica no atiende, y la solicitud se envió igual a la coordinadora sin que la IA lo advirtiera.
+
+**Fix — guard de código en `request_scheduling_coordination`** (mismo archivo, mismo patrón que los guards anti-placeholder de tutor/dirección/mascota ya existentes): si el texto de disponibilidad menciona "hoy" y/o "mañana" **sin** dar ningún otro día concreto (nombre de día de semana o fecha explícita), se resuelve el día real contra `clinic.working_hours` — si TODOS los días relativos mencionados caen en un día cerrado, la función rechaza el envío con `FALTA_DISPONIBILIDAD_VALIDA`, forzando a la IA a explicarle al tutor que ese día no hay atención y pedir una alternativa real. Si el caso es urgente y no puede esperar, la instrucción del error apunta a `escalate_to_human`.
+
+**Verificado mecánicamente** (5/5 casos, incluido el real): bloquea "hoy o mañana" en sábado real; no bloquea "hoy" en viernes (día hábil); no bloquea si menciona un día de semana o fecha alternativa aunque hoy esté cerrado; no bloquea disponibilidad normal sin palabras relativas.
+
+### Caso 2 — precio de cirugía mal calculado, tercera vez documentada
+
+**Reporte:** esterilización de perra ~30kg cotizada en $85.000 (Linares) el día anterior. Verificado con la conversación real: `4o_pro` (el modelo caro) tenía la matriz de precios completa en su contexto (se inyecta siempre que se menciona "ester"/"castra"/"cirug" vía `FORCED_KB_TOPICS`, sesión 62) y aun así cruzó mal peso × sexo en una tabla de 14 celdas. El precio correcto para perra 28.1-35kg tramo T1 es **$115.000** — $85.000 es el precio de la fila "perra 5.1-12kg T1", una fila completamente distinta.
+
+**No es la primera vez.** Sesiones 9 y 40 ya documentaron el mismo tipo de error (confusión de fila/especie en esta misma tabla), cada vez corregido solo con advertencias de prompt ("ANTI-CONFUSIÓN"). Con un tercer caso real confirmado —con la tabla completa disponible y el modelo caro respondiendo—, seguir reforzando solo el prompt ya no era razonable.
+
+**Fix — el cálculo se movió a código.** Nuevo tool `calculate_surgery_price` (solo Linares): recibe especie, sexo, peso (obligatorio si es perro) y los minutos al Centro Quirúrgico más cercano (que la IA ya lee de su contexto, del bloque `[LOGÍSTICA: Pabellón más cercano... a N min]`), y devuelve un `price_total` determinístico calculado contra una tabla en código que refleja exacto la matriz del KB (`LINARES_SURGERY_PRICES`). `ai_behavior_rules` y el propio documento KB de la matriz se actualizaron para prohibir explícitamente que el modelo calcule el precio a mano y exigir que use el tool — respaldo previo en `prompt_backups` (`pre_calculate_surgery_price_tool_2026_09_05`).
+
+**Verificado mecánicamente** (7/7 casos, incluido el real): perra 30kg T1 → $115.000 (no $85.000); perra 8kg T1 → $85.000 (confirma que ese valor SÍ es correcto para otro peso, la tabla no estaba mal, era el cruce); gata/gato en ambos tramos; límites exactos de bracket (40kg vs 40.1kg cae en filas distintas); recargo por celo/preñez sumado correctamente.
+
+**Alcance — solo Linares.** Santiago tiene una matriz de cirugías con una dimensión extra (tipo de anestesia inyectable/inhalatoria, con celdas de precio "por confirmar con coordinadora" en algunos rangos) — mismo riesgo de confusión en teoría, pero no fue el caso reportado y construir el tool ahí requiere manejar esos casos "sin definir" con cuidado. Queda identificado como el follow-up natural, no aplicado esta sesión.
+
+### Reglas permanentes de esta sesión
+
+- **Cuando un cruce de 2+ dimensiones en una tabla de precios/reglas falla repetidamente en producción —incluso con la tabla completa en el contexto del modelo caro— la tabla debe volverse una función determinística en código, no un tercer intento de reforzar el prompt.** Mismo principio ya aplicado a la coordinación (sesión 98/99): el modelo copia un resultado ya calculado, no hace el cálculo él mismo.
+- **Un guard de disponibilidad debe distinguir "el tutor dio un día real" de "el tutor solo usó una palabra relativa (hoy/mañana)".** Bloquear únicamente cuando TODAS las palabras relativas mencionadas resuelven a un día cerrado, y nunca si ya hay un día explícito como alternativa — evita repetir el error de un detector de falsos positivos (sesión 99).
+- **Verificar mecánicamente contra el caso real antes de desplegar, siempre** — el propio proceso de escribir el test para la calculadora de precios encontró 2 errores en mis propios valores esperados (no en el código) — la disciplina de escribir el test primero paga incluso cuando el código ya está bien.
