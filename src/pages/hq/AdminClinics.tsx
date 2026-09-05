@@ -76,6 +76,8 @@ interface ClinicData {
     ai_credits_monthly_4o_used: number
     ai_credits_monthly_4o_limit: number
     ai_credits_extra_4o: number
+    pilot_eligible: boolean
+    pilot_activated_at: string | null
 }
 
 interface ClinicOwner {
@@ -157,6 +159,7 @@ export default function AdminClinics() {
     const [planFilter, setPlanFilter] = useState<string>('all')
 
     const [charging, setCharging] = useState<string | null>(null)
+    const [togglingPilot, setTogglingPilot] = useState<string | null>(null)
     const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
     const [chargeTargets, setChargeTargets] = useState<Record<string, string>>({})
 
@@ -264,6 +267,24 @@ export default function AdminClinics() {
             alert('Error: ' + err.message)
         } finally {
             setCharging(null)
+        }
+    }
+
+    // Piloto (alianza Yares): habilita/deshabilita el checkout de US$47 para una clínica.
+    // La clínica lo verá en Ajustes → Suscripción como "Activar piloto · US$47".
+    const handleTogglePilot = async (clinicId: string, next: boolean) => {
+        if (next && !confirm('¿Habilitar el checkout de piloto de US$47 para esta clínica? Le aparecerá en Ajustes → Suscripción.')) return
+        setTogglingPilot(clinicId)
+        try {
+            const { error } = await (supabase.from('clinic_settings') as any)
+                .update({ pilot_eligible: next })
+                .eq('id', clinicId)
+            if (error) throw error
+            fetchClinics()
+        } catch (err: any) {
+            alert('Error: ' + err.message)
+        } finally {
+            setTogglingPilot(null)
         }
     }
 
@@ -648,6 +669,43 @@ export default function AdminClinics() {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Piloto (alianza Yares) — habilita el checkout de US$47 por clínica */}
+                            <div className="space-y-2 p-5 bg-primary-50/40 rounded-[1.5rem] border border-primary-50">
+                                <h4 className="text-[10px] font-black text-primary-600 uppercase tracking-widest flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4" />
+                                    Piloto · US$47
+                                </h4>
+                                {branches.map((b) => (
+                                    <div key={b.id} className="flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-bold text-gray-800 truncate">{isMultiBranch ? branchLabel(b) : b.clinic_name}</p>
+                                            <p className="text-[10px] font-bold text-gray-400">
+                                                {b.pilot_activated_at
+                                                    ? `Activado ${new Date(b.pilot_activated_at).toLocaleDateString('es-CO')}`
+                                                    : b.pilot_eligible
+                                                        ? 'Habilitado — esperando pago'
+                                                        : 'No habilitado'}
+                                            </p>
+                                        </div>
+                                        {b.pilot_activated_at ? (
+                                            <span className="text-[10px] font-black text-emerald-600 uppercase shrink-0">Piloto activo</span>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleTogglePilot(b.id, !b.pilot_eligible)}
+                                                disabled={togglingPilot === b.id}
+                                                className={cn(
+                                                    "shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center gap-1.5",
+                                                    b.pilot_eligible ? "bg-gray-100 text-gray-600 hover:bg-gray-200" : "bg-primary-600 text-white hover:bg-primary-700"
+                                                )}
+                                            >
+                                                {togglingPilot === b.id && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                {b.pilot_eligible ? 'Deshabilitar' : 'Habilitar checkout'}
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
 
                             {/* Secuencia de bienvenida — enviados/abiertos, tal como pidió el usuario. */}
