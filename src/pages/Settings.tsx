@@ -45,7 +45,7 @@ import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
 import { usePlan } from '@/hooks/usePlan'
 import { PLANS, type PlanId, normalizePlanId, redirectToCheckout } from '@/lib/mercadopago'
-import { PADDLE_PLANS, type PaddlePlanId, type BillingPeriod, planSupportsAnnual, openPaddleSubscriptionCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
+import { PADDLE_PLANS, type PaddlePlanId, type BillingPeriod, planSupportsAnnual, openPaddleSubscriptionCheckout, openPaddlePilotDepositCheckout, onPaddleCheckoutEvent } from '@/lib/paddle'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { TagManager } from '@/components/settings/TagManager'
@@ -195,6 +195,11 @@ export default function Settings() {
     // paga con el otro proveedor). Usado para decidir si mostrar "Gestionar en Mercado Pago".
     const [currentPaymentProvider, setCurrentPaymentProvider] = useState<string | null>(null)
 
+    // Piloto de clínicas (alianza Yares) — checkout de US$47 exclusivo.
+    const [pilotEligible, setPilotEligible] = useState(false)
+    const [pilotActivatedAt, setPilotActivatedAt] = useState<string | null>(null)
+    const [pilotLoading, setPilotLoading] = useState(false)
+
     // Notification preferences state
     const [notifPrefs, setNotifPrefs] = useState({
         new_appointment: true,
@@ -299,6 +304,33 @@ export default function Settings() {
             text: '¡Pago procesado exitosamente! Tu suscripción ha sido activada. Los cambios pueden demorar unos segundos en reflejarse.'
         })
         checkPendingOnboardingPrompt(clinicIdForUpdate)
+    }
+
+    const handlePilotDeposit = async () => {
+        if (!clinicId || !user?.email) {
+            alert('No se encontró el email del usuario. Recarga la página.')
+            return
+        }
+        setPilotLoading(true)
+        try {
+            onPaddleCheckoutEvent((event) => {
+                if (event.name === 'checkout.completed') {
+                    setActiveTab('subscription')
+                    setPaymentMessage({
+                        type: 'success',
+                        text: '¡Piloto activado! Tu clínica tiene acceso completo por 45 días. Los cambios pueden demorar unos segundos en reflejarse.',
+                    })
+                    setPilotLoading(false)
+                    setTimeout(() => window.location.reload(), 3000)
+                }
+                if (event.name === 'checkout.closed') setPilotLoading(false)
+            })
+            await openPaddlePilotDepositCheckout(clinicId, user.email)
+        } catch (error: any) {
+            console.error('Pilot checkout error:', error)
+            alert(error?.message || 'No se pudo iniciar el pago del piloto. Intenta más tarde.')
+            setPilotLoading(false)
+        }
     }
 
     // Read tab from URL params (for deep linking) + handle payment returns
@@ -439,6 +471,8 @@ export default function Settings() {
                         setPaymentRegion(hasRealSubscription && isChileanPayer ? 'chile' : 'international')
                     }
                     setCurrentPaymentProvider(clinicData.payment_provider || null)
+                    setPilotEligible(clinicData.pilot_eligible === true)
+                    setPilotActivatedAt(clinicData.pilot_activated_at || null)
                     if (clinicData.working_hours) setWorkingHours(clinicData.working_hours)
                     setPublicBookingEnabled(clinicData.public_booking_enabled ?? false)
                     setPublicBookingSlug(clinicData.public_booking_slug || '')
@@ -2188,6 +2222,35 @@ export default function Settings() {
                                     }
                                     onDismiss={() => setOnboardingPromptPlan(null)}
                                 />
+                            )}
+
+                            {/* Piloto de clínicas (alianza Yares) — checkout US$47, exclusivo */}
+                            {pilotEligible && !pilotActivatedAt && (
+                                <div className="p-5 sm:p-6 rounded-soft bg-gradient-to-br from-primary-600 to-primary-700 text-white">
+                                    <p className="text-[11px] font-black uppercase tracking-widest text-primary-200 mb-1">Programa piloto</p>
+                                    <h3 className="text-xl font-extrabold tracking-tight mb-2">Activa tu piloto de 45 días</h3>
+                                    <p className="text-sm text-white/85 leading-relaxed mb-4 max-w-xl">
+                                        Acceso completo a Vetly y a tu agente de IA por 45 días, sin cuota mensual.
+                                        Pagas un único <strong>US$47</strong> que cubre el procesamiento de IA del período.
+                                        El envío de mensajes por WhatsApp lo factura Meta directamente a tu clínica según tu país
+                                        (en Colombia es un costo mínimo, cercano a US$2 en total).
+                                    </p>
+                                    <button
+                                        onClick={handlePilotDeposit}
+                                        disabled={pilotLoading}
+                                        className="bg-white text-primary-700 font-bold px-6 py-2.5 rounded-xl hover:bg-primary-50 transition-all disabled:opacity-60"
+                                    >
+                                        {pilotLoading ? 'Abriendo pago…' : 'Activar piloto · US$47'}
+                                    </button>
+                                </div>
+                            )}
+                            {pilotEligible && pilotActivatedAt && (
+                                <div className="p-4 rounded-soft bg-emerald-50 border border-emerald-200 flex items-center gap-3">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                                    <p className="text-sm font-semibold text-emerald-800">
+                                        Piloto activo — acceso completo por 45 días desde el {new Date(pilotActivatedAt).toLocaleDateString('es-CO')}.
+                                    </p>
+                                </div>
                             )}
 
                             {/* Expired Trial Banner */}

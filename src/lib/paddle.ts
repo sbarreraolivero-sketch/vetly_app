@@ -322,7 +322,7 @@ export async function openPaddleReminderPackCheckout(clinicId: string, email: st
 // (el precio SIEMPRE se calcula server-side en paddle-create-transaction)
 // ──────────────────────────────────────────────
 
-async function createDraftTransaction(clinicId: string, type: 'reminders' | 'campaign_credits', quantity: number): Promise<string> {
+async function createDraftTransaction(clinicId: string, type: 'reminders' | 'campaign_credits' | 'pilot_deposit', quantity?: number): Promise<string> {
     const { data, error } = await supabase.functions.invoke('paddle-create-transaction', {
         body: { clinic_id: clinicId, type, quantity },
     })
@@ -353,6 +353,19 @@ export async function openPaddleRemindersUnitsCheckout(clinicId: string, email: 
  */
 export async function openPaddleCampaignCreditsCheckout(clinicId: string, email: string, quantity: number) {
     const transactionId = await createDraftTransaction(clinicId, 'campaign_credits', Math.max(50, quantity))
+    await ensureEventDispatcher()
+    await openCheckout({ items: [], customData: {}, email, transactionId })
+}
+
+/**
+ * Checkout del depósito de piloto (alianza Yares) — US$47 fijo, una sola vez.
+ * Exclusivo para clínicas con `clinic_settings.pilot_eligible = true`: la edge
+ * function `paddle-create-transaction` lo rechaza si no lo están, y el webhook
+ * `paddle-webhook` (type 'pilot_deposit') lo re-verifica antes de provisionar
+ * (Pro por 45 días + pool de créditos IA).
+ */
+export async function openPaddlePilotDepositCheckout(clinicId: string, email: string) {
+    const transactionId = await createDraftTransaction(clinicId, 'pilot_deposit')
     await ensureEventDispatcher()
     await openCheckout({ items: [], customData: {}, email, transactionId })
 }

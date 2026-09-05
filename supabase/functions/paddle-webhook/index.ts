@@ -138,6 +138,78 @@ Deno.serve(async (req: Request) => {
         const clinicId = customData.clinic_id;
         const purchaseType = customData.type || "subscription";
 
+        // ─── Depósito de piloto (alianza Yares) — US$47 fijo, una sola vez ───
+        // Provisiona: acceso Pro por 45 días + un pool de créditos IA generoso
+        // (monto fijo, "si se pasan Vetly cubre el exceso"). No es una suscripción:
+        // al día 45 el redirect de trial vencido bloquea el dashboard.
+        if (purchaseType === "pilot_deposit") {
+            if (eventType !== "transaction.completed") {
+                console.log(`Ignoring ${eventType} for pilot_deposit`);
+                return new Response("OK", { status: 200 });
+            }
+
+            const { data: cs } = await supabase
+                .from("clinic_settings")
+                .select("pilot_eligible, pilot_activated_at, ai_credits_extra_balance")
+                .eq("id", clinicId)
+                .maybeSingle();
+
+            if (!cs?.pilot_eligible) {
+                // Alguien pagó por el link sin estar habilitado — registrar y NO provisionar.
+                console.warn(`[Paddle] pilot_deposit para clínica NO elegible ${clinicId} — pago recibido, sin provisionar. Revisar/reembolsar.`);
+                return new Response("OK (not eligible)", { status: 200 });
+            }
+            if (cs.pilot_activated_at) {
+                console.log(`[Paddle] pilot_deposit ya activado para ${clinicId} — skip`);
+                return new Response("OK (already active)", { status: 200 });
+            }
+
+            const PILOT_DAYS = 45;
+            const PILOT_CREDITS = 30000; // ~3.400 mensajes blended en 45 días — holgado para clínica física
+            const now = new Date();
+            const pilotEnd = new Date(now.getTime() + PILOT_DAYS * 24 * 60 * 60 * 1000).toISOString();
+            const newExtra = (cs.ai_credits_extra_balance || 0) + PILOT_CREDITS;
+
+            await supabase
+                .from("clinic_settings")
+                .update({
+                    pilot_activated_at: now.toISOString(),
+                    subscription_plan: "pro",
+                    payment_provider: "paddle",
+                    paddle_customer_id: payload.data.customer_id || null,
+                    activation_status: "active",
+                    ai_credits_monthly_limit: 0,
+                    ai_credits_extra_balance: newExtra,
+                    ai_credits_extra_expires_at: null,
+                    trial_start_date: now.toISOString().slice(0, 10),
+                    trial_end_date: pilotEnd.slice(0, 10),
+                    trial_status: "running",
+                })
+                .eq("id", clinicId);
+
+            await supabase.from("subscriptions").upsert({
+                clinic_id: clinicId,
+                plan: "pro",
+                plan_id: "pro",
+                status: "active",
+                current_period_start: now.toISOString(),
+                current_period_end: pilotEnd,
+                billing_period: "month",
+            }, { onConflict: "clinic_id" });
+
+            await supabase.from("ai_credit_transactions").insert({
+                clinic_id: clinicId,
+                type: "purchase",
+                amount: PILOT_CREDITS,
+                balance_after: newExtra,
+                description: `Piloto Vetly 45 días — depósito US$47`,
+                metadata: { model: "mini", source: "pilot_deposit", pilot_end: pilotEnd },
+            });
+
+            console.log(`[Paddle] Pilot activated: ${clinicId} → Pro 45d, +${PILOT_CREDITS} créditos, vence ${pilotEnd}`);
+            return new Response("Pilot OK", { status: 200 });
+        }
+
         // ─── AI Credits Purchase ───
         if (purchaseType === "ai_credits") {
             if (eventType !== "transaction.completed") {

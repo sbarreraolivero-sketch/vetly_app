@@ -23,9 +23,12 @@ const PADDLE_CONTAINER_PRODUCT_ID = Deno.env.get("PADDLE_CONTAINER_PRODUCT_ID") 
 
 interface RequestBody {
     clinic_id: string;
-    type: "reminders" | "campaign_credits";
-    quantity: number;
+    type: "reminders" | "campaign_credits" | "pilot_deposit";
+    quantity?: number;
 }
+
+// Depósito fijo del piloto de clínicas (alianza Yares): US$47, monto fijo.
+const PILOT_DEPOSIT_CENTS = 4700;
 
 Deno.serve(async (req: Request) => {
     const corsHeaders = {
@@ -49,7 +52,8 @@ Deno.serve(async (req: Request) => {
         const body: RequestBody = await req.json();
         const { clinic_id, type, quantity } = body;
 
-        if (!clinic_id || !type || !quantity) {
+        // pilot_deposit no lleva quantity (monto fijo); el resto sí.
+        if (!clinic_id || !type || (type !== "pilot_deposit" && !quantity)) {
             return new Response(
                 JSON.stringify({ error: "Missing required fields: clinic_id, type, quantity" }),
                 { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -90,6 +94,29 @@ Deno.serve(async (req: Request) => {
             });
         }
 
+        // El checkout del piloto (US$47) es EXCLUSIVO para clínicas piloto: solo
+        // se genera si clinic_settings.pilot_eligible = true y aún no se activó.
+        // El webhook también lo re-verifica antes de provisionar.
+        if (type === "pilot_deposit") {
+            const { data: cs } = await supabase
+                .from("clinic_settings")
+                .select("pilot_eligible, pilot_activated_at")
+                .eq("id", clinic_id)
+                .maybeSingle();
+            if (!cs?.pilot_eligible) {
+                return new Response(
+                    JSON.stringify({ success: false, error: "Esta cuenta no está habilitada para el piloto." }),
+                    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+            }
+            if (cs.pilot_activated_at) {
+                return new Response(
+                    JSON.stringify({ success: false, error: "El piloto ya fue activado en esta cuenta." }),
+                    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+            }
+        }
+
         if (!PADDLE_API_KEY || !PADDLE_CONTAINER_PRODUCT_ID) {
             console.error("PADDLE_API_KEY or PADDLE_CONTAINER_PRODUCT_ID not configured");
             return new Response(
@@ -99,27 +126,32 @@ Deno.serve(async (req: Request) => {
         }
 
         // Precio SIEMPRE calculado server-side — nunca confiar en un monto del frontend.
-        // Misma lógica que hoy en lemonsqueezy-create-checkout: $0.15/unidad en ambos tipos,
-        // redondeo a múltiplos de 10, con distinto mínimo por tipo.
-        let roundedQuantity: number;
+        let unitPriceCents: number;
         let description: string;
+        let customData: Record<string, string>;
 
-        if (type === "reminders") {
-            const units = Math.max(10, quantity);
-            roundedQuantity = Math.ceil(units / 10) * 10;
+        if (type === "pilot_deposit") {
+            unitPriceCents = PILOT_DEPOSIT_CENTS; // US$47 fijo
+            description = "Depósito de piloto Vetly (45 días)";
+            customData = { clinic_id, type: "pilot_deposit" };
+        } else if (type === "reminders") {
+            const units = Math.max(10, quantity!);
+            const roundedQuantity = Math.ceil(units / 10) * 10;
+            unitPriceCents = roundedQuantity * 15; // US$0.15/unidad
             description = "Recordatorios por unidad";
+            customData = { clinic_id, type, quantity: String(roundedQuantity) };
         } else if (type === "campaign_credits") {
-            const credits = Math.max(50, quantity);
-            roundedQuantity = Math.ceil(credits / 10) * 10;
+            const credits = Math.max(50, quantity!);
+            const roundedQuantity = Math.ceil(credits / 10) * 10;
+            unitPriceCents = roundedQuantity * 15; // US$0.15/crédito
             description = "Créditos de campaña";
+            customData = { clinic_id, type, quantity: String(roundedQuantity) };
         } else {
             return new Response(
                 JSON.stringify({ error: `Invalid type: ${type}` }),
                 { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
-
-        const unitPriceCents = roundedQuantity * 15; // US$0.15/unidad = 15 centavos
 
         const transactionPayload = {
             items: [
@@ -133,14 +165,10 @@ Deno.serve(async (req: Request) => {
                     quantity: 1,
                 },
             ],
-            custom_data: {
-                clinic_id,
-                type,
-                quantity: String(roundedQuantity),
-            },
+            custom_data: customData,
         };
 
-        console.log(`Creating Paddle draft transaction: clinic=${clinic_id}, type=${type}, quantity=${roundedQuantity}`);
+        console.log(`Creating Paddle draft transaction: clinic=${clinic_id}, type=${type}, amount=${unitPriceCents}c`);
 
         const paddleResponse = await fetch(`${PADDLE_API_HOST}/transactions`, {
             method: "POST",
