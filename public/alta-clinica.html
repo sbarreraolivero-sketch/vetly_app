@@ -5,7 +5,7 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alta de clínica — Vetly</title>
-    <meta name="description" content="Formulario de alta para clínicas veterinarias que se integran con Vetly. Recopilamos todo lo necesario para configurar tu cuenta y tu agente de IA.">
+    <meta name="description" content="Formulario de alta para clínicas veterinarias que se integran con Vetly. Recopilamos todo lo necesario para configurar el agente de IA.">
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="https://vetly.pro/alta-clinica">
 
@@ -27,7 +27,7 @@
     <style>
         body { background-color: #fafafa; }
         .field label { display:block; font-weight:600; font-size:.875rem; color:#27272a; margin-bottom:.35rem; }
-        .field .hint { font-weight:400; font-size:.8rem; color:#71717a; margin-bottom:.4rem; }
+        .field .hint { font-weight:400; font-size:.8rem; color:#71717a; margin-bottom:.4rem; line-height:1.5; }
         .field input[type=text], .field input[type=email], .field input[type=tel], .field input[type=url],
         .field input[type=number], .field select, .field textarea {
             width:100%; border:1px solid #d4d4d8; border-radius:.6rem; padding:.6rem .75rem;
@@ -36,18 +36,16 @@
         .field input:focus, .field select:focus, .field textarea:focus {
             outline:none; border-color:#0d9488; box-shadow:0 0 0 3px rgba(13,148,136,.12);
         }
-        .field textarea { min-height:5rem; resize:vertical; line-height:1.5; }
+        .field textarea { min-height:5rem; resize:vertical; line-height:1.55; }
+        .field textarea.big { min-height:7.5rem; }
         .chk { display:flex; gap:.55rem; align-items:flex-start; font-size:.88rem; color:#3f3f46; cursor:pointer; }
         .chk input { margin-top:.15rem; width:1rem; height:1rem; accent-color:#0d9488; flex:none; }
         .sec { scroll-margin-top:5rem; }
         .sec-num { font-variant-numeric:tabular-nums; }
-        details > summary { list-style:none; }
-        details > summary::-webkit-details-marker { display:none; }
     </style>
 </head>
 <body class="font-sans text-neutral">
 
-<!-- barra superior -->
 <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
@@ -62,18 +60,21 @@
 <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
 
     <div class="mb-8">
-        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Cuéntanos cómo funciona tu clínica</h1>
-        <p class="text-muted leading-relaxed">Con esto configuramos tu cuenta y, sobre todo, tu <strong>agente de IA</strong>: para que responda precios, horarios y protocolos <em>exactamente</em> como los maneja tu clínica. Toma unos 15–20 minutos. Si algo no aplica, déjalo en blanco. Si tienes tu lista de precios en un archivo, puedes escribir "la envío aparte" y adjuntarla por WhatsApp.</p>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Configuración de tu agente de IA</h1>
+        <p class="text-muted leading-relaxed">Este formulario alimenta la <strong>base de conocimiento</strong> de tu agente: lo que responde sobre precios, protocolos y políticas de tu clínica. Mientras más detalle nos des, menos errores comete el agente.</p>
+        <div class="mt-4 rounded-xl bg-brandLt/50 border border-brandLt p-4 text-sm text-brandDk leading-relaxed">
+            <strong>No es un "sí / no + precio".</strong> En cada servicio necesitamos el detalle completo: si requiere una consulta previa, cuándo se deriva a un profesional, qué preparación se le pide al tutor, cómo se agenda (el agente lo hace solo o lo coordina una persona), el protocolo paso a paso. Escribe como si le explicaras a un recepcionista nuevo.
+        </div>
+        <p class="text-xs text-muted mt-3">Lo que cada profesional configura desde su propia cuenta (título, matrícula, firma, horario personal) y lo que verás directamente en tu panel (agendas, tipos de cita, usuarios del equipo) <strong>no va acá</strong>. Toma unos 20–30 minutos. Si tienes archivos (lista de precios, protocolos), puedes subirlos al final.</p>
     </div>
 
-    <form id="altaForm" class="space-y-10">
+    <form id="altaForm" class="space-y-9">
 
     <!-- 1 · DATOS DE LA CLÍNICA -->
     <section id="s1" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
         <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">01</span> Datos de la clínica</h2>
         <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>Nombre comercial de la clínica *</label><input type="text" name="clinic_name" required></div>
-            <div class="field"><label>Razón social / identificación tributaria</label><p class="hint">RUT, NIT, RFC, CUIT… según tu país</p><input type="text" name="tax_id"></div>
+            <div class="field"><label>Nombre de la clínica *</label><input type="text" name="clinic_name" required></div>
             <div class="field"><label>País *</label>
                 <select name="country" required>
                     <option value="">Selecciona…</option>
@@ -85,138 +86,264 @@
                 </select>
             </div>
             <div class="field"><label>Ciudad *</label><input type="text" name="city" required></div>
-            <div class="field sm:col-span-2"><label>Dirección completa de la clínica *</label><p class="hint">Calle, número, comuna/barrio, referencias. Aparece en la ficha del paciente y los comprobantes.</p><input type="text" name="address" required></div>
-            <div class="field"><label>Teléfono público de la clínica</label><input type="tel" name="clinic_phone"></div>
-            <div class="field"><label>Email de contacto de la clínica *</label><input type="email" name="contact_email" required></div>
-            <div class="field"><label>Sitio web</label><input type="url" name="website" placeholder="https://"></div>
-            <div class="field"><label>Instagram</label><input type="text" name="instagram" placeholder="@tuclinica"></div>
-            <div class="field"><label>Facebook</label><input type="text" name="facebook"></div>
             <div class="field"><label>Moneda en la que cobras *</label><input type="text" name="currency" placeholder="COP, MXN, CLP, USD…" required></div>
+            <div class="field sm:col-span-2"><label>Dirección completa de la clínica *</label><p class="hint">Calle, número, barrio/localidad y referencias para llegar. El agente la entrega a los tutores y aparece en los comprobantes.</p><input type="text" name="address" required></div>
+            <div class="field"><label>Teléfono público de la clínica</label><input type="tel" name="clinic_phone"></div>
+            <div class="field"><label>Email de contacto *</label><input type="email" name="contact_email" required></div>
+            <div class="field"><label>Sitio web</label><input type="url" name="website" placeholder="https://"></div>
+            <div class="field"><label>Instagram / Facebook</label><input type="text" name="social" placeholder="@tuclinica"></div>
         </div>
-        <div class="field"><label>Logo y color de marca</label><p class="hint">Los usamos en tu página de reservas online, las recetas y el carnet digital del tutor. Envía el logo (PNG/JPG) por WhatsApp e indica acá tu color principal si lo sabes.</p><input type="text" name="brand_color" placeholder="Ej: teal / #0d9488 / 'el verde de mi logo'"></div>
+        <div class="field"><label>Dueño/a de la clínica *</label><p class="hint">Nombre completo · email · WhatsApp. Será la cuenta principal de Vetly.</p><input type="text" name="owner" required placeholder="Nombre · correo@… · +57 …"></div>
+        <div class="field"><label>Logo y color de marca</label><p class="hint">Aparecen en tu página de reservas, recetas y carnet digital del tutor. Sube el logo al final del formulario e indica acá tu color principal.</p><input type="text" name="brand_color" placeholder="Ej: verde / #0d9488 / 'el azul de mi logo'"></div>
     </section>
 
-    <!-- 2 · EQUIPO -->
+    <!-- 2 · HORARIOS -->
     <section id="s2" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">02</span> Equipo</h2>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>Dueño/a de la clínica — nombre completo *</label><input type="text" name="owner_name" required></div>
-            <div class="field"><label>Email del dueño/a *</label><p class="hint">Será la cuenta principal (owner) de Vetly.</p><input type="email" name="owner_email" required></div>
-            <div class="field"><label>WhatsApp del dueño/a *</label><input type="tel" name="owner_phone" required></div>
-        </div>
-        <div class="field"><label>Profesionales que atienden pacientes *</label>
-            <p class="hint">Por cada médico/a veterinario/a que atiende: <strong>nombre completo · título profesional · N° de colegiatura / matrícula / cédula profesional · especialidad</strong>. Uno por línea. La colegiatura aparece en las recetas.</p>
-            <textarea name="professionals" required placeholder="Ej:
-Dra. Camila Ríos · Médica Veterinaria · MP 12345 · Medicina interna
-Dr. Andrés Peña · Médico Veterinario · MP 67890 · Cirugía"></textarea>
-        </div>
-        <div class="field"><label>Otras personas que necesitan cuenta en Vetly</label>
-            <p class="hint">Recepción, asistentes, admin. Nombre · email · rol (recepción / asistente / administrador). Uno por línea. El plan Starter permite 3 usuarios en total; Pro, 10.</p>
-            <textarea name="other_users" placeholder="Ej:
-Laura Gómez · laura@… · recepción"></textarea>
-        </div>
-    </section>
-
-    <!-- 3 · HORARIOS -->
-    <section id="s3" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">03</span> Horarios de atención</h2>
-        <div class="field"><label>Horario de la clínica por día *</label>
-            <p class="hint">Indica apertura y cierre de cada día, o "cerrado". Si cierran a mediodía, ponlo (ej: "L a V 9:00–13:00 y 15:00–19:00").</p>
-            <textarea name="hours" required placeholder="Lunes: 9:00–19:00
-Martes: 9:00–19:00
-Miércoles: 9:00–19:00
-Jueves: 9:00–19:00
-Viernes: 9:00–19:00
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">02</span> Horarios de atención</h2>
+        <div class="field"><label>Horario de la clínica, día por día *</label>
+            <p class="hint">Apertura y cierre de cada día, o "cerrado". Si cierran a mediodía, ponlo (ej: "L a V 8:00–12:00 y 14:00–18:00").</p>
+            <textarea name="hours" required class="big" placeholder="Lunes: 8:00–18:00
+Martes: 8:00–18:00
+Miércoles: 8:00–18:00
+Jueves: 8:00–18:00
+Viernes: 8:00–18:00
 Sábado: 9:00–13:00
-Domingo: cerrado"></textarea>
+Domingo: cerrado
+Festivos: cerrado"></textarea>
         </div>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>Horario de colación / almuerzo</label><p class="hint">Si el agente NO debe agendar en ese bloque.</p><input type="text" name="lunch_break" placeholder="Ej: 13:00–14:30"></div>
-            <div class="field"><label>Última hora a la que aceptan una cita *</label><p class="hint">Aunque el servicio termine después. Ej: 18:00.</p><input type="text" name="last_slot" required placeholder="18:00"></div>
+        <div class="field"><label>Última hora a la que se puede agendar una cita *</label><p class="hint">Aunque la clínica cierre después. Ej: si cierran 18:00 pero la última cita se toma 17:30, pon 17:30.</p><input type="text" name="last_slot" required placeholder="17:30"></div>
+        <div class="field"><label>¿Hay servicios que solo se realizan ciertos días u horas? *</label>
+            <p class="hint">Muy importante para el agente. Ej: "cirugías solo martes y jueves en la mañana", "vacunación cualquier día", "eco solo cuando viene el especialista los viernes", "destartraje solo lunes". Si todos los servicios se hacen en cualquier horario de atención, escríbelo así.</p>
+            <textarea name="service_hours" required placeholder="Consultas y vacunación: cualquier día en horario de atención.
+Cirugías: martes y jueves, ingreso 8:00–9:00.
+Ecografía: viernes por la tarde (viene el especialista)."></textarea>
         </div>
-        <div class="field"><label>¿Algún profesional tiene un horario distinto al de la clínica?</label><p class="hint">Si es así, detalla cuál y qué días/horas. (En Vetly el horario del profesional manda sobre el de la clínica.)</p><textarea name="prof_hours"></textarea></div>
-        <div class="field"><label>Feriados o cierres especiales en los próximos meses</label><input type="text" name="holidays"></div>
     </section>
 
-    <!-- 4 · AGENDA Y TIPOS DE CITA -->
+    <!-- 3 · MODELO DE ATENCIÓN Y AGENDAMIENTO -->
+    <section id="s3" class="sec bg-white rounded-2xl border-2 border-brandLt p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">03</span> Cómo agenda el agente</h2>
+        <div class="field"><label>¿El agente confirma la cita solo, o una persona la revisa antes? *</label>
+            <p class="hint">Con "confirma solo", el agente cierra la cita en el momento según tu agenda. Con "revisa antes", el agente reúne los datos y el tutor espera a que alguien del equipo le confirme la hora.</p>
+            <select name="scheduling_mode" required>
+                <option value="">Selecciona…</option>
+                <option value="ai_autonomous">El agente confirma la cita solo</option>
+                <option value="coordinator_approval">Una persona del equipo revisa y confirma cada cita</option>
+            </select>
+        </div>
+        <div class="field"><label>Si una persona revisa: ¿quién y en qué horario responde?</label><p class="hint">Nombre y el rango horario en que puede confirmar citas. Fuera de ese horario el tutor igual puede dejar su solicitud.</p><input type="text" name="scheduler_person" placeholder="Ej: Laura, de 8:00 a 17:00 de lunes a viernes"></div>
+        <div class="field"><label>¿Qué servicios NO se agendan de una vez y exigen una consulta u evaluación previa? *</label>
+            <p class="hint">En Animalgrace, por ejemplo, el destartraje siempre pasa primero por una consulta de evaluación, y las cirugías se coordinan aparte. Dinos, para tu clínica, qué servicios requieren un paso previo y cuál es ese paso.</p>
+            <textarea name="services_need_prior" required class="big" placeholder="Ej:
+- Destartraje: primero consulta de evaluación ($X) para revisar la boca y aptitud anestésica. Recién ahí se agenda el procedimiento.
+- Cirugías: se coordinan directamente con la Dra. X, no las agenda el agente.
+- Exámenes de laboratorio sin orden médica: consulta primero."></textarea>
+        </div>
+        <div class="field"><label>Al confirmar una cita, ¿qué debe recordarle el agente al tutor? *</label>
+            <p class="hint">Preparación, ayuno, llevar carné o exámenes previos, llegar con anticipación, traer a la mascota con correa/transportadora, etc. Indica qué aplica a qué tipo de cita.</p>
+            <textarea name="confirm_reminders" required placeholder="Ej:
+- Vacunación: traer el carné si lo tienen.
+- Cirugía y destartraje: ayuno de 8 horas de comida, agua permitida. Llegar a las 8:00.
+- Gatos: traer en transportadora."></textarea>
+        </div>
+    </section>
+
+    <!-- 4 · CONSULTAS -->
     <section id="s4" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">04</span> Agenda y tipos de cita</h2>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>¿Cuántas agendas necesitas? *</label><p class="hint">Normalmente 1 por profesional o box. Si tienen un box de vacunación aparte, cuenta como otra.</p><input type="number" name="num_agendas" min="1" required value="1"></div>
-            <div class="field"><label>Duración de una consulta general *</label><input type="text" name="consult_duration" required placeholder="30 min"></div>
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">04</span> Consultas médicas</h2>
+        <div class="field"><label>Consulta médica general *</label><p class="hint">Precio · qué incluye (evaluación clínica, toma de constantes, prediagnóstico…) · duración.</p><textarea name="consult_general" required placeholder="Ej: $X. Incluye evaluación clínica completa, toma de temperatura y peso, entrevista al tutor y prediagnóstico. Dura 30 min."></textarea></div>
+        <div class="field"><label>Controles / consultas de seguimiento *</label><p class="hint">Precio · ¿hasta cuántos días después de la consulta inicial cuenta como control? · ¿el control tiene descuento por cantidad de mascotas o siempre precio completo?</p><textarea name="consult_control" required placeholder="Ej: $X. Válido hasta 2 semanas después de la consulta inicial, para seguimiento del mismo caso. Sin descuento por cantidad: $X por cada mascota siempre."></textarea></div>
+        <div class="field"><label>Consulta de urgencia</label><p class="hint">Si tienen una tarifa distinta para urgencias / fuera de horario, detállala. Si no, escríbelo.</p><textarea name="consult_urgency"></textarea></div>
+        <div class="field"><label>Consulta con 2 o más mascotas del mismo hogar *</label>
+            <p class="hint">¿Cobran precio completo por cada una, o hay descuento? Si hay descuento, dinos el precio por mascota según la cantidad (2, 3, 4, 5, 6+). ¿Aplica también a una camada de crías? ¿Desde qué edad una mascota deja de contar como "camada" y cuenta como individual?</p>
+            <textarea name="consult_multi" required class="big" placeholder="Ej:
+- Camada (crías hasta 3 meses): revisión de toda la camada por $X (2 a 4 crías), $Y (5 a 8 crías).
+- Varias mascotas del hogar desde 4 meses: $18.000 c/u si son 2, $17.000 c/u si son 3, $16.000 c/u si son 4, $15.000 c/u de 5 en adelante.
+- Una sola mascota: precio normal de consulta."></textarea>
         </div>
-        <div class="field"><label>Tipos de cita que maneja la clínica y su duración *</label>
-            <p class="hint">Ej: consulta, control, vacunación, desparasitación, procedimiento menor, cirugía, peluquería, eco/rayos… Uno por línea con su duración.</p>
-            <textarea name="appt_types" required placeholder="Consulta general · 30 min
-Control · 15 min
-Vacunación · 15 min
-Cirugía menor · 60 min"></textarea>
-        </div>
-        <div class="field"><label>¿Aceptan pacientes sin cita (walk-in)?</label><input type="text" name="walk_in"></div>
     </section>
 
-    <!-- 5 · SERVICIOS Y PRECIOS -->
+    <!-- 5 · VACUNACIÓN -->
     <section id="s5" class="sec bg-white rounded-2xl border-2 border-brandLt p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">05</span> Servicios y precios</h2>
-        <p class="text-sm text-muted bg-brandLt/40 rounded-lg p-3">Esta es la sección más importante para el agente. La mayoría de los errores de un agente de IA son de precio. Sé lo más específico posible. <strong>Si tienes tu lista de precios completa en un archivo, escribe "la envío aparte" en el cuadro grande y mándala por WhatsApp</strong> — igual llena los puntos de abajo.</p>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>Precio consulta general *</label><input type="text" name="price_consult" required></div>
-            <div class="field"><label>Precio control</label><input type="text" name="price_control"></div>
-            <div class="field"><label>Precio consulta de urgencia</label><input type="text" name="price_urgency"></div>
-            <div class="field"><label>¿Cobran un monto mínimo por visita?</label><p class="hint">Ej: "mínimo $X aunque el servicio cueste menos".</p><input type="text" name="min_visit"></div>
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">05</span> Vacunación — protocolo completo</h2>
+        <p class="text-sm text-muted bg-brandLt/40 rounded-lg p-3">Esta sección es donde más falla un agente si le falta detalle. Necesitamos el <strong>esquema completo</strong>, no solo precios.</p>
+
+        <div class="field"><label>Vacunas para PERROS — una por una *</label>
+            <p class="hint">Por cada vacuna: nombre comercial · precio · qué previene · edad de inicio · número de dosis del plan inicial · días entre dosis · cada cuánto el refuerzo. Incluye Séxtuple/Óctuple, Puppy, Antirrábica, Tos de las perreras (KC/Bordetella), y cualquier otra que apliquen.</p>
+            <textarea name="vac_dogs" required class="big" placeholder="Ej:
+- Puppy DP — $X. Previene parvovirus y distemper. Desde los 30 días, dosis única sin refuerzo.
+- Séxtuple/Óctuple — $X. Desde los 2 meses. Plan inicial: 3 dosis cada 21 días (máx 30 días o se repite la anterior). Refuerzo anual.
+- Antirrábica — $X. Obligatoria por ley. Desde los 3 meses, dosis única. Refuerzo al año y luego anual.
+- Tos de las perreras (KC, intranasal) — $X. 1 dosis anual, sin refuerzo mensual."></textarea>
         </div>
-        <div class="field"><label>Consulta con 2 o más mascotas del mismo hogar</label><p class="hint">¿Hacen descuento por mascota adicional? ¿Cómo funciona? ¿O cobran precio completo por cada una?</p><textarea name="multi_pet"></textarea></div>
-        <div class="field"><label>Revisión de camada</label><p class="hint">¿Tienen un precio especial para revisar una camada completa? ¿Desde qué edad se considera "camada" y no mascotas individuales?</p><textarea name="litter"></textarea></div>
-        <div class="field"><label>Vacunas *</label><p class="hint">Nombre (comercial) de cada vacuna que aplican y su precio. ¿Ofrecen un pack anual? ¿A qué precio?</p><textarea name="vaccines" required placeholder="Óctuple canina · $X
-Antirrábica · $X
-Triple felina · $X
-Pack anual perro · $X"></textarea></div>
-        <div class="field"><label>Protocolo de primovacunación *</label><p class="hint">Si una mascota nunca fue vacunada, ¿aplican 2 vacunas en la misma visita o solo 1 y la otra en la siguiente? ¿Piden días de "aclimatación" en el hogar antes de vacunar a un cachorro?</p><textarea name="first_vaccine_protocol" required></textarea></div>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>Desparasitación interna</label><p class="hint">Precio (por rango de peso si aplica).</p><textarea name="deworm_internal"></textarea></div>
-            <div class="field"><label>Desparasitación externa</label><textarea name="deworm_external"></textarea></div>
-            <div class="field"><label>Corte de uñas</label><p class="hint">Precio. ¿Aplica igual a perros y gatos?</p><textarea name="nail_trim"></textarea></div>
-            <div class="field"><label>Destartraje</label><p class="hint">Precio por peso / especie.</p><textarea name="dental"></textarea></div>
+
+        <div class="field"><label>Vacunas para GATOS — una por una *</label>
+            <p class="hint">Mismo detalle: nombre · precio · qué previene · edad de inicio · dosis · intervalo · refuerzo. Incluye Triple Felina, Leucemia Felina (FeLV), Antirrábica y cualquier otra.</p>
+            <textarea name="vac_cats" required class="big" placeholder="Ej:
+- Triple Felina — $X. Previene rinotraqueítis, calicivirus y panleucopenia. Desde los 2 meses. Plan inicial: 3 dosis cada 21 días. Refuerzo anual.
+- Leucemia Felina (FeLV) — $X. En cachorros 2 dosis cada 21 días desde los 2 meses. Refuerzo anual. Se recomienda test FeLV/FIV antes de la primera dosis.
+- Antirrábica — $X. Desde los 3 meses, dosis única. Refuerzo al año y luego anual."></textarea>
         </div>
-        <div class="field"><label>Esterilización / castración *</label><p class="hint">Precio por especie, sexo y <strong>rango de peso</strong> (en perros). ¿Incluye el examen prequirúrgico o se cobra aparte? ¿Precio del pack prequirúrgico?</p><textarea name="sterilization" required></textarea></div>
-        <div class="field"><label>Exámenes de laboratorio</label><p class="hint">¿Cuáles hacen dentro de la clínica y a qué precio? ¿Cuáles derivan a un laboratorio externo?</p><textarea name="lab_tests"></textarea></div>
-        <div class="field"><label>Imagenología (ecografía, radiografía)</label><p class="hint">¿La hacen? ¿A qué precio? ¿Con profesional propio o externo? ¿El agente puede agendarla directamente o debe derivar a la recepción?</p><textarea name="imaging"></textarea></div>
-        <div class="field"><label>Peluquería / baño</label><p class="hint">Si aplica: precios por tamaño o raza.</p><textarea name="grooming"></textarea></div>
-        <div class="field"><label>Eutanasia y cremación</label><p class="hint">Precio del procedimiento. ¿Ofrecen cremación (individual / comunitaria)? Precio.</p><textarea name="euthanasia"></textarea></div>
-        <div class="field"><label>Certificados (de salud, de viaje)</label><p class="hint">¿Los emiten? ¿Precio?</p><input type="text" name="certificates"></div>
-        <div class="field"><label>Otros servicios / procedimientos y sus precios</label><textarea name="other_services"></textarea></div>
-        <div class="field"><label>Lista de precios completa (o "la envío aparte") *</label><p class="hint">Pega aquí tu lista completa si la tienes en texto, o escribe "la envío por WhatsApp".</p><textarea name="full_price_list" required style="min-height:8rem"></textarea></div>
+
+        <div class="field"><label>Esquema para CACHORROS (perro y gato) *</label>
+            <p class="hint">¿Desde qué edad parten? ¿Cuántas dosis? ¿Cada cuántos días exactamente? ¿Qué pasa si el tutor se atrasa entre dosis? ¿Cuándo entra la antirrábica? ¿Cuándo el primer refuerzo anual?</p>
+            <textarea name="vac_puppy_scheme" required></textarea>
+        </div>
+
+        <div class="field"><label>Esquema para ADULTOS ya vacunados (mayores de 1 año) *</label>
+            <p class="hint">¿Solo refuerzo anual? ¿Se pueden poner las 2 vacunas anuales (polivalente + antirrábica) en la misma visita? ¿Cada cuánto exactamente el refuerzo?</p>
+            <textarea name="vac_adult_scheme" required></textarea>
+        </div>
+
+        <div class="field"><label>Perro o gato ADULTO que NUNCA se ha vacunado — ¿cómo lo abordan? *</label>
+            <p class="hint">Este caso es muy frecuente y confunde al agente. ¿Cuántas dosis le ponen para dejarlo al día? ¿Cada cuántos días? ¿Empieza con la polivalente o con antirrábica? ¿Cuándo queda "al día"?</p>
+            <textarea name="vac_adult_unvaccinated" required class="big" placeholder="Ej: adulto nunca vacunado → 2 dosis de Séxtuple/Óctuple (o Triple Felina) separadas por 21–30 días, más 1 antirrábica. Queda al día tras la segunda dosis. Luego refuerzo anual."></textarea>
+        </div>
+
+        <div class="field"><label>Primera vacunación de por vida — ¿1 o 2 vacunas en la misma visita? *</label>
+            <p class="hint">¿Si es la primera vez que la mascota se vacuna, ponen solo una (y la antirrábica después), o las dos juntas? ¿Cuál priorizan?</p>
+            <textarea name="vac_first_time" required></textarea>
+        </div>
+
+        <div class="field"><label>Combinaciones de vacunas — ¿qué se puede y qué NO en la misma visita? *</label>
+            <p class="hint">Ej: "máximo 2 vacunas por visita", "nunca juntar la intranasal con la polivalente", "no 3 dosis juntas". Todo lo que el agente deba saber para no ofrecer una combinación incorrecta.</p>
+            <textarea name="vac_combos" required></textarea>
+        </div>
+
+        <div class="field"><label>Requisitos y condiciones de seguridad para vacunar *</label>
+            <p class="hint">¿Piden carné previo? ¿Vacunan a una mascota que llega con síntomas (o mandan a consulta primero)? ¿Días que un cachorro debe llevar en el nuevo hogar antes de la primera vacuna? ¿No vacunan si hay cirugía programada en X días? ¿Desparasitación previa?</p>
+            <textarea name="vac_requirements" required class="big" placeholder="Ej:
+- Un cachorro debe llevar al menos 7 días en el hogar antes de la primera vacuna.
+- No vacunamos mascotas con síntomas: primero consulta médica.
+- No vacunamos si hay cirugía programada en los próximos 7 días.
+- Recomendamos desparasitar antes de vacunar."></textarea>
+        </div>
+
+        <div class="field"><label>Test de Leucemia / SIDA felino (FeLV/FIV)</label><p class="hint">¿Lo hacen? Precio. ¿Lo piden antes de la primera vacuna de leucemia felina? ¿En qué otros casos lo recomiendan (o en cuáles NO)?</p><textarea name="vac_felv_test"></textarea></div>
+
+        <div class="field"><label>Packs de vacunación y promociones</label>
+            <p class="hint">¿Tienen un "pack anual" (las 2 vacunas del año + revisión)? Precio. ¿Descuento por cantidad de vacunas o de mascotas en la misma visita? Detalla las tablas si las tienen, o escribe "las envío aparte".</p>
+            <textarea name="vac_packs"></textarea>
+        </div>
+
+        <div class="field"><label>¿Qué incluye el valor de una vacuna, además de la dosis?</label><p class="hint">Ej: revisión médica, control de peso, carnet al día, consulta incluida. El agente lo aclara para que el tutor entienda el valor.</p><textarea name="vac_includes"></textarea></div>
     </section>
 
-    <!-- 6 · POLÍTICAS DE ATENCIÓN -->
-    <section id="s6" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">06</span> Políticas de atención</h2>
-        <div class="field"><label>¿Qué especies atiende la clínica? *</label>
-            <p class="hint">Importante: el agente debe saber a quién decir que no. (Ej: "solo perros y gatos" / "perros, gatos y exóticos" / …)</p>
-            <input type="text" name="species" required placeholder="Solo perros y gatos">
+    <!-- 6 · DESPARASITACIÓN -->
+    <section id="s6" class="sec bg-white rounded-2xl border-2 border-brandLt p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">06</span> Desparasitación — protocolo completo</h2>
+        <div class="field"><label>Desparasitación interna *</label><p class="hint">Precio (por rango de peso si aplica) · producto que usan (gotas, pastillas, marca) · dosis (ej: X por kg).</p><textarea name="deworm_internal" required placeholder="Ej: entre $X y $Y según peso. Gotas/pastillas. Dosis: 1 comprimido por cada 10 kg."></textarea></div>
+        <div class="field"><label>Desparasitación externa (perros y gatos) *</label><p class="hint">Precio por peso · producto (comprimido, pipeta, marca) · cuánto dura la protección · qué elimina (pulgas, garrapatas, ácaros).</p><textarea name="deworm_external" required></textarea></div>
+        <div class="field"><label>Frecuencia de desparasitación por edad *</label>
+            <p class="hint">El caso que más pregunta la gente. ¿Cada cuánto desparasitar a un cachorro? ¿A un juvenil (3 meses–1 año)? ¿A un adulto? Interna y externa.</p>
+            <textarea name="deworm_frequency" required class="big" placeholder="Ej:
+- Cachorros (15 días a 3 meses): interna cada 15 días.
+- Juveniles (3 meses a 1 año): interna cada mes.
+- Adultos (más de 1 año): interna cada 3 meses.
+- Externa: todo el año, según el producto (mensual las pipetas, cada 35 días los comprimidos)."></textarea>
         </div>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>Métodos de pago que aceptan *</label><input type="text" name="payment_methods" required placeholder="Efectivo, débito, crédito, transferencia"></div>
-            <div class="field"><label>Tolerancia de atraso del cliente</label><p class="hint">Ej: "15 minutos, después se reagenda".</p><input type="text" name="late_tolerance"></div>
-        </div>
-        <div class="field"><label>¿Piden seña / abono para reservar cirugías o procedimientos?</label><input type="text" name="deposit_policy"></div>
-        <div class="field"><label>Política de inasistencia (no-show) y cancelación</label><p class="hint">¿Cobran algo? ¿Con cuánta anticipación se puede cancelar?</p><textarea name="noshow_policy"></textarea></div>
-        <div class="field"><label>¿Emiten boleta / factura electrónica?</label><p class="hint">¿En qué sistema? (Vetly registra el cobro y puede enviar un comprobante, pero la emisión tributaria puede seguir en tu sistema actual.)</p><input type="text" name="invoicing"></div>
+        <div class="field"><label>¿La desparasitación necesita consulta previa, o se agenda directo?</label><textarea name="deworm_flow"></textarea></div>
     </section>
 
-    <!-- 7 · PROTOCOLOS CLÍNICOS -->
-    <section id="s7" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">07</span> Protocolos que el agente debe conocer</h2>
-        <div class="field"><label>Requisitos para vacunar</label><p class="hint">¿Piden carné de vacunas u orden médica? ¿Vacunan a un animal que llega enfermo o lo derivan a consulta primero?</p><textarea name="vaccine_requirements"></textarea></div>
-        <div class="field"><label>Animales agresivos / difíciles de manejar</label><p class="hint">¿Los atienden? ¿Ofrecen sedación previa? ¿En clínica o a domicilio? ¿Precio?</p><textarea name="aggressive_animals"></textarea></div>
-        <div class="field"><label>Urgencias y riesgo vital *</label><p class="hint">Si llega un caso de riesgo vital fuera de sus capacidades u horario, ¿qué debe hacer el agente? ¿Derivan a una clínica 24h? ¿Tienen convenio? ¿O el agente pasa el caso a una persona del equipo?</p><textarea name="emergency_protocol" required></textarea></div>
-        <div class="field"><label>Ayunos / preparaciones previas</label><p class="hint">Ej: "para castración de gato pedimos 8 h de ayuno". El agente lo avisará al agendar.</p><textarea name="pre_op_prep"></textarea></div>
-        <div class="field"><label>Convenios y descuentos vigentes</label><p class="hint">Adultos mayores, rescatistas, fundaciones, múltiples mascotas, promociones actuales.</p><textarea name="discounts"></textarea></div>
+    <!-- 7 · CIRUGÍAS -->
+    <section id="s7" class="sec bg-white rounded-2xl border-2 border-brandLt p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">07</span> Cirugías y esterilizaciones — protocolo completo</h2>
+        <div class="field"><label>Precios de esterilización / castración *</label>
+            <p class="hint">Por especie, sexo y rango de peso (en perros). Pega la tabla completa o escribe "la envío aparte" y súbela al final.</p>
+            <textarea name="surg_prices" required class="big" placeholder="Ej:
+Gata: $X | Gato: $Y
+Perra 1–10 kg: $X | 10–20 kg: $Y | 20–30 kg: $Z | +30 kg: $W
+Perro 1–10 kg: $X | 10–20 kg: $Y | ..."></textarea>
+        </div>
+        <div class="field"><label>¿Se necesita una consulta médica previa antes de operar? *</label>
+            <p class="hint">¿Toda cirugía pasa primero por una consulta/valoración prequirúrgica? ¿O se puede agendar directo? ¿Qué se revisa en esa consulta?</p>
+            <textarea name="surg_prior_consult" required></textarea>
+        </div>
+        <div class="field"><label>Exámenes prequirúrgicos *</label>
+            <p class="hint">¿Son obligatorios u opcionales/recomendados? ¿Desde qué edad los exigen? ¿Qué incluye el perfil (hemograma, bioquímico, coagulación…)? Precio del pack. ¿Se hacen el mismo día o antes?</p>
+            <textarea name="surg_preop_exams" required class="big" placeholder="Ej: recomendados siempre, obligatorios sobre 6 años. Pack prequirúrgico = hemograma + perfil bioquímico + coagulación por $X. Se toman 24–48 h antes."></textarea>
+        </div>
+        <div class="field"><label>Ayuno y preparación previa *</label><p class="hint">Horas de ayuno de comida (perros / gatos / hembras si difiere). ¿Agua permitida? Otras indicaciones (baño previo, suspender celo, etc.).</p><textarea name="surg_fasting" required></textarea></div>
+        <div class="field"><label>Recargos y condiciones especiales</label><p class="hint">¿Cobran extra si la hembra está en celo o preñada? ¿Cuánto? ¿Hernia, criptorquidia, piometra u otras condiciones tienen valor distinto?</p><textarea name="surg_surcharges"></textarea></div>
+        <div class="field"><label>¿Hay razas o casos que NO operan? *</label><p class="hint">Ej: braquicéfalos (bulldog, pug…) que requieren manejo anestésico especial, mascotas geriátricas sin exámenes, cardiópatas. Si operan todo, escríbelo.</p><textarea name="surg_exclusions" required></textarea></div>
+        <div class="field"><label>Logística del día de la cirugía *</label>
+            <p class="hint">¿A qué hora ingresa la mascota? ¿Queda hospitalizada o se va el mismo día? ¿A qué hora se retira? ¿Control post-operatorio incluido? ¿Retiro de puntos incluido o aparte?</p>
+            <textarea name="surg_day_logistics" required></textarea>
+        </div>
+        <div class="field"><label>¿Cómo se agenda una cirugía? *</label>
+            <p class="hint">¿El agente la agenda directo según los días de pabellón, o siempre la coordina una persona? ¿Piden seña/abono para reservar? ¿Cuánto?</p>
+            <textarea name="surg_scheduling" required></textarea>
+        </div>
+        <div class="field"><label>Otras cirugías y procedimientos que realizan</label><p class="hint">Tumores/masas, cesáreas, ortopedia, oftalmología, extracciones dentales, etc. — con precio o rango, y si requieren derivación a un especialista.</p><textarea name="surg_other"></textarea></div>
+        <div class="field"><label>Interrupción de gestación / "monta no deseada" en perras</label><p class="hint">¿Lo hacen (Alizin u otro)? Protocolo (nº de visitas/dosis), qué incluye, precio según peso, qué pasa si no es candidata.</p><textarea name="surg_alizin"></textarea></div>
     </section>
 
-    <!-- 8 · WHATSAPP Y EL AGENTE -->
+    <!-- 8 · DESTARTRAJE -->
     <section id="s8" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">08</span> WhatsApp y el agente de IA</h2>
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">08</span> Limpieza dental / destartraje</h2>
+        <div class="field"><label>Precios *</label><p class="hint">Por especie y peso. Aclara si el valor es referencial y puede subir según placa/extracciones.</p><textarea name="dental_prices" required placeholder="Ej: Gato: $X (fijo). Perro hasta 10 kg: $Y | 11–20 kg: $Z | ... El valor es referencial: si hay piezas sueltas para extraer o mucho sarro, puede aumentar."></textarea></div>
+        <div class="field"><label>¿Consulta de evaluación previa obligatoria? *</label><p class="hint">¿Se puede agendar el destartraje directo, o primero hay una consulta para revisar la boca y la aptitud anestésica? ¿Precio de esa consulta? ¿Qué se revisa (auscultación cardíaca, estado dental…)?</p><textarea name="dental_prior_eval" required></textarea></div>
+        <div class="field"><label>Anestesia, ayuno y exámenes *</label><p class="hint">¿Con anestesia inyectable o inhalatoria? ¿Horas de ayuno? ¿Exámenes pre según edad (obligatorios / recomendados)?</p><textarea name="dental_anesthesia" required></textarea></div>
+        <div class="field"><label>¿Cómo se agenda?</label><p class="hint">¿El agente lo agenda o lo coordina una persona tras la evaluación?</p><textarea name="dental_scheduling"></textarea></div>
+    </section>
+
+    <!-- 9 · LABORATORIO -->
+    <section id="s9" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">09</span> Exámenes de laboratorio</h2>
+        <div class="field"><label>Exámenes que hacen y sus precios *</label><p class="hint">Hemograma, perfil bioquímico, perfil renal, orina, coprológico, hormonales, pruebas infecciosas, citología/PAAF, cultivos… con precio. Pega la lista o escribe "la envío aparte".</p><textarea name="lab_list" required class="big"></textarea></div>
+        <div class="field"><label>¿Cuáles derivan a un laboratorio externo?</label><textarea name="lab_referrals"></textarea></div>
+        <div class="field"><label>¿Exigen orden médica para hacer exámenes? *</label><p class="hint">Si el tutor no tiene orden de otro veterinario, ¿debe pasar por una consulta primero? ¿O toman muestras "a pedido"?</p><textarea name="lab_order_required" required></textarea></div>
+        <div class="field"><label>Ayuno y preparación</label><p class="hint">Horas de ayuno para exámenes de sangre. Preparación para orina, ecografía abdominal, etc.</p><textarea name="lab_prep"></textarea></div>
+        <div class="field"><label>Plazo de entrega de resultados</label><textarea name="lab_turnaround"></textarea></div>
+    </section>
+
+    <!-- 10 · IMAGENOLOGÍA -->
+    <section id="s10" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">10</span> Imagenología (ecografía, radiografía)</h2>
+        <div class="field"><label>¿La realizan? Detalle completo *</label>
+            <p class="hint">Eco / rayos X: precio · ¿con profesional propio o agendan un especialista externo? · ¿el agente puede agendar directo o deriva a una persona? · ¿requiere preparación (ayuno, vejiga llena)? · ¿días/horarios en que se hace? Si NO la hacen, escríbelo claramente.</p>
+            <textarea name="imaging" required class="big"></textarea>
+        </div>
+    </section>
+
+    <!-- 11 · OTROS SERVICIOS -->
+    <section id="s11" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">11</span> Otros servicios</h2>
+        <p class="text-sm text-muted">Para cada uno: precio + cualquier detalle relevante (requisitos, si necesita consulta previa, cómo se agenda). Deja en blanco los que no ofrezcas.</p>
+        <div class="field"><label>Corte de uñas</label><p class="hint">Precio (¿igual para perro y gato? ¿varía por tamaño?).</p><textarea name="svc_nails"></textarea></div>
+        <div class="field"><label>Microchip / identificación</label><p class="hint">Precio. ¿La inscripción en el registro legal la hace la clínica o el dueño?</p><textarea name="svc_microchip"></textarea></div>
+        <div class="field"><label>Certificado de salud / certificado para viaje</label><p class="hint">Precio. ¿Incluye revisión médica? ¿Nacional e internacional? ¿Cuánto demora?</p><textarea name="svc_certificate"></textarea></div>
+        <div class="field"><label>Eutanasia</label><p class="hint">Precio (por especie/peso). ¿En clínica o a domicilio? ¿Requiere evaluación médica previa? ¿Se puede pagar/coordinar por adelantado?</p><textarea name="svc_euthanasia"></textarea></div>
+        <div class="field"><label>Cremación</label><p class="hint">¿Ofrecen? Individual / comunitaria, precios, plazo de entrega de cenizas.</p><textarea name="svc_cremation"></textarea></div>
+        <div class="field"><label>Peluquería / baño</label><p class="hint">Precios por tamaño o raza. ¿Baño medicado?</p><textarea name="svc_grooming"></textarea></div>
+        <div class="field"><label>Hospitalización</label><p class="hint">¿Tienen? Precio por día, qué incluye, si hay atención nocturna.</p><textarea name="svc_hospitalization"></textarea></div>
+        <div class="field"><label>Cualquier otro servicio con su precio y detalle</label><textarea name="svc_other" class="big"></textarea></div>
+        <div class="field"><label>Lista de precios completa (o "la envío aparte") *</label><p class="hint">Pega tu tarifario completo si lo tienes en texto, o escribe "la subo como archivo" y adjúntalo al final.</p><textarea name="full_price_list" required class="big"></textarea></div>
+    </section>
+
+    <!-- 12 · POLÍTICAS -->
+    <section id="s12" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">12</span> Políticas de atención</h2>
+        <div class="field"><label>¿Qué especies atiende la clínica? *</label><p class="hint">Crítico: el agente debe saber a quién decir que no. Ej: "solo perros y gatos", "perros, gatos y exóticos (conejos, aves, roedores)".</p><input type="text" name="species" required placeholder="Solo perros y gatos"></div>
+        <div class="field"><label>Mascotas enfermas y urgencias *</label>
+            <p class="hint">¿Atienden casos con síntomas (vómito, diarrea, decaimiento, heridas) con normalidad? ¿En qué punto derivan a una urgencia 24h? ¿Tienen convenio o clínica de referencia? ¿El agente debe pasar el caso a una persona ante ciertos síntomas?</p>
+            <textarea name="pol_emergencies" required class="big"></textarea>
+        </div>
+        <div class="field"><label>¿Qué NO hace la clínica? *</label><p class="hint">Servicios que no ofrecen y que la gente igual pregunta (ej: no hacen ortopedia compleja, no atienden exóticos, no hacen guardería). Así el agente responde bien en vez de inventar.</p><textarea name="pol_dont_do" required></textarea></div>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Métodos de pago que aceptan *</label><input type="text" name="pol_payment" required placeholder="Efectivo, débito, crédito, transferencia, Nequi…"></div>
+            <div class="field"><label>Tolerancia de atraso del cliente</label><input type="text" name="pol_late" placeholder="Ej: 15 min, luego se reagenda"></div>
+        </div>
+        <div class="field"><label>¿Piden seña / abono para reservar cirugías o procedimientos?</label><input type="text" name="pol_deposit"></div>
+        <div class="field"><label>Política de inasistencia (no-show) y cancelación</label><p class="hint">¿Cobran algo? ¿Con cuánta anticipación se puede cancelar sin costo?</p><textarea name="pol_noshow"></textarea></div>
+        <div class="field"><label>¿Emiten factura electrónica? ¿En qué sistema?</label><input type="text" name="pol_invoicing"></div>
+        <div class="field"><label>Descuentos y convenios vigentes</label><p class="hint">Adultos mayores, rescatistas, fundaciones, varias mascotas, promociones actuales. El agente los ofrece de forma proactiva cuando aplican.</p><textarea name="pol_discounts"></textarea></div>
+        <div class="field"><label>Datos para transferencia / pago anticipado</label><p class="hint">Si quieres que el agente pueda entregarlos cuando un cliente los pida. (Banco, tipo de cuenta, número, titular, documento.)</p><textarea name="pol_transfer_data"></textarea></div>
+    </section>
+
+    <!-- 13 · AGENTE -->
+    <section id="s13" class="sec bg-white rounded-2xl border-2 border-brandLt p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">13</span> El agente en WhatsApp</h2>
         <div class="grid sm:grid-cols-2 gap-4">
             <div class="field"><label>Número de WhatsApp de la clínica *</label><p class="hint">El que atiende a los clientes y vamos a conectar al agente.</p><input type="tel" name="wa_number" required></div>
             <div class="field"><label>¿Ese número ya es WhatsApp Business?</label>
@@ -225,64 +352,71 @@ Pack anual perro · $X"></textarea></div>
             <div class="field"><label>¿Tiene una cuenta / Business Manager de Meta asociada?</label>
                 <select name="wa_has_meta"><option value="">Selecciona…</option><option>Sí</option><option>No</option><option>No sé</option></select>
             </div>
-            <div class="field"><label>¿Cuántos mensajes reciben al día, aproximadamente?</label><input type="text" name="wa_volume"></div>
+            <div class="field"><label>¿Cuántos mensajes reciben al día, aprox.?</label><input type="text" name="wa_volume"></div>
         </div>
         <div class="field"><label>¿Quién responde el WhatsApp hoy?</label><input type="text" name="wa_who"></div>
         <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>¿Qué nombre quieres para el agente?</label><p class="hint">Ej: un nombre de recepcionista. Si no, usamos "Lía".</p><input type="text" name="agent_name" placeholder="Lía"></div>
-            <div class="field"><label>Tono del agente</label>
-                <select name="agent_tone"><option value="">Selecciona…</option><option>Cercano y cálido</option><option>Formal y profesional</option><option>Un punto medio</option></select>
+            <div class="field"><label>Nombre que quieres para el agente</label><p class="hint">Si no eliges, usamos "Lía".</p><input type="text" name="agent_name" placeholder="Lía"></div>
+            <div class="field"><label>Tratamiento al cliente</label>
+                <select name="agent_treatment"><option value="">Selecciona…</option><option>De "tú"</option><option>De "usted"</option><option>De "vos"</option><option>Depende / natural</option></select>
             </div>
         </div>
-        <div class="field"><label>Mensaje de bienvenida / saludo que quieres que use</label><textarea name="agent_greeting" placeholder="Ej: ¡Hola! Soy Lía, de Clínica X 🐾 ¿En qué te puedo ayudar?"></textarea></div>
-        <div class="field"><label>¿Qué NO debe hacer el agente? *</label><p class="hint">Ej: no dar diagnósticos, no cotizar cirugías directamente, no confirmar horas sin revisar…</p><textarea name="agent_donts" required></textarea></div>
-        <div class="field"><label>Preguntas frecuentes que reciben y cómo las responden hoy *</label><p class="hint">Estacionamiento, si atienden gatos, cómo llegar, si hay que pedir hora, formas de pago… Escribe la pregunta y tu respuesta.</p><textarea name="agent_faqs" required style="min-height:7rem"></textarea></div>
-        <div class="field"><label>¿Cómo se llega a la clínica? ¿Hay estacionamiento?</label><textarea name="directions"></textarea></div>
-        <div class="field"><label>¿El agente puede confirmar la cita solo, o alguien del equipo debe aprobarla primero? *</label>
-            <p class="hint">La mayoría de las clínicas físicas dejan que el agente confirme solo. Elige "aprobación" si prefieren revisar cada cita antes.</p>
-            <select name="scheduling_mode" required>
-                <option value="">Selecciona…</option>
-                <option value="ai_autonomous">El agente confirma la cita solo</option>
-                <option value="coordinator_approval">Una persona del equipo aprueba cada cita antes</option>
-            </select>
+        <div class="field"><label>Acento, región y modismos *</label>
+            <p class="hint">La clínica es de <strong>Colombia</strong> y la forma de hablar cambia mucho según la zona. Dinos: ¿de qué ciudad/región son sus clientes? ¿Qué expresiones locales debería usar el agente para sonar natural? ¿Alguna palabra o modismo que NO debería usar? ¿Cómo saludan y se despiden normalmente ahí?</p>
+            <textarea name="agent_accent" required class="big" placeholder="Ej: Somos de Medellín, la mayoría de clientes son paisas. El agente puede usar 'con mucho gusto', 'listo pues', 'de una' con confianza pero sin exagerar. Evitar 'chévere' (más costeño/rolo). Saludo típico: 'Buenas, ¿cómo estás?'. Despedida: 'Que estés muy bien'."></textarea>
         </div>
+        <div class="field"><label>Tono general del agente</label>
+            <select name="agent_tone"><option value="">Selecciona…</option><option>Cercano y cálido</option><option>Formal y profesional</option><option>Un punto medio</option></select>
+        </div>
+        <div class="field"><label>Mensaje de bienvenida / saludo</label><textarea name="agent_greeting" placeholder="Ej: ¡Hola! Soy Lía, de Clínica X 🐾 ¿En qué te puedo ayudar?"></textarea></div>
+        <div class="field"><label>¿Qué NO debe hacer el agente? *</label><p class="hint">Ej: no dar diagnósticos, no cotizar cirugías sin los datos, no confirmar horas de cirugía, no prometer resultados, no recomendar otra clínica…</p><textarea name="agent_donts" required></textarea></div>
+        <div class="field"><label>Preguntas frecuentes que reciben y cómo las responden hoy *</label><p class="hint">Escribe la pregunta y tu respuesta. Estacionamiento, si atienden gatos, cómo llegar, si hay que pedir hora, si atienden sin cita, formas de pago, si hacen domicilios, horario…</p><textarea name="agent_faqs" required class="big"></textarea></div>
+        <div class="field"><label>¿Cómo se llega a la clínica? ¿Hay estacionamiento?</label><textarea name="agent_directions"></textarea></div>
+        <div class="field"><label>¿Hacen visitas a domicilio?</label><p class="hint">Si es así: para qué servicios, en qué zonas, con qué recargo, y cómo se agenda.</p><textarea name="agent_home_visits"></textarea></div>
     </section>
 
-    <!-- 9 · RECORDATORIOS -->
-    <section id="s9" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">09</span> Recordatorios</h2>
+    <!-- 14 · RECORDATORIOS -->
+    <section id="s14" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">14</span> Recordatorios</h2>
         <div class="space-y-2.5">
             <label class="chk"><input type="checkbox" name="rem_24h" value="sí"> Recordatorio 24 h antes de la cita</label>
             <label class="chk"><input type="checkbox" name="rem_2h" value="sí"> Recordatorio 2 h antes de la cita</label>
             <label class="chk"><input type="checkbox" name="rem_medical" value="sí"> Recordatorios médicos (vacunas, desparasitaciones y controles por vencer)</label>
         </div>
-        <div class="field"><label>¿Algún texto en particular que quieran para los recordatorios?</label><textarea name="rem_text"></textarea></div>
+        <div class="field"><label>¿Algún texto o indicación en particular para los recordatorios?</label><textarea name="rem_text"></textarea></div>
     </section>
 
-    <!-- 10 · DATOS A MIGRAR -->
-    <section id="s10" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">10</span> Datos que ya tienes</h2>
+    <!-- 15 · MIGRACIÓN -->
+    <section id="s15" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">15</span> Datos que ya tienes</h2>
         <div class="grid sm:grid-cols-2 gap-4">
-            <div class="field"><label>¿En qué sistema tienes hoy tus pacientes / historial?</label><p class="hint">Excel, otro software, cuaderno…</p><input type="text" name="current_system"></div>
+            <div class="field"><label>¿En qué sistema tienes hoy tus pacientes / historia clínica?</label><p class="hint">Excel, otro software, cuaderno…</p><input type="text" name="mig_system"></div>
             <div class="field"><label>¿Puedes exportarlo a Excel / CSV?</label>
-                <select name="exportable"><option value="">Selecciona…</option><option>Sí</option><option>No</option><option>No sé</option></select>
+                <select name="mig_exportable"><option value="">Selecciona…</option><option>Sí</option><option>No</option><option>No sé</option></select>
             </div>
-            <div class="field"><label>Pacientes activos, aprox.</label><input type="text" name="patients_count"></div>
-            <div class="field"><label>Citas por mes, aprox.</label><input type="text" name="appts_per_month"></div>
+            <div class="field"><label>Pacientes activos, aprox.</label><input type="text" name="mig_patients"></div>
+            <div class="field"><label>Citas por mes, aprox.</label><input type="text" name="mig_appts"></div>
         </div>
     </section>
 
-    <!-- 11 · FIDELIZACIÓN (opcional) -->
-    <section id="s11" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">11</span> Fidelización y referidos <span class="text-xs font-medium text-muted">(opcional)</span></h2>
+    <!-- 16 · FIDELIZACIÓN -->
+    <section id="s16" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">16</span> Fidelización y referidos <span class="text-xs font-medium text-muted">(opcional)</span></h2>
         <label class="chk"><input type="checkbox" name="loyalty_interest" value="sí"> Nos interesa activar un programa de puntos / cashback y referidos</label>
         <div class="field"><label>Si ya tienen algo así hoy, ¿cómo funciona?</label><textarea name="loyalty_current"></textarea></div>
     </section>
 
-    <!-- FINAL -->
-    <section id="s12" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
-        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">12</span> Algo más</h2>
-        <div class="field"><label>Cualquier cosa que creas importante que sepamos sobre tu clínica</label><textarea name="anything_else" style="min-height:6rem"></textarea></div>
+    <!-- 17 · ARCHIVOS -->
+    <section id="s17" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">17</span> Archivos adjuntos</h2>
+        <p class="text-sm text-muted">Sube tu tarifario, protocolos internos, esquemas de vacunación, folletos, o cualquier documento que ayude a configurar el agente. PDF, imágenes, Excel o Word. Máx. 15 MB por archivo.</p>
+        <div class="field">
+            <label>Documentos</label>
+            <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.xlsx,.xls,.csv,.txt,.doc,.docx,.zip"
+                class="block w-full text-sm text-charcoal file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand file:text-white file:font-semibold file:cursor-pointer">
+            <ul id="fileList" class="mt-3 space-y-1 text-sm text-charcoal/70"></ul>
+        </div>
+        <div class="field"><label>Algo más que quieras contarnos</label><textarea name="anything_else" class="big"></textarea></div>
         <label class="chk"><input type="checkbox" id="consent" required> Autorizo a Vetly a usar esta información para configurar mi cuenta y mi agente de IA.</label>
     </section>
 
@@ -313,8 +447,8 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 var form = document.getElementById('altaForm');
 var bar = document.getElementById('progressBar');
 var lbl = document.getElementById('progressLabel');
+var pendingFiles = [];
 
-// barra de progreso: % de campos required + textareas con contenido
 function updateProgress() {
     var fields = form.querySelectorAll('input[required], select[required], textarea[required]');
     var done = 0;
@@ -329,40 +463,85 @@ function updateProgress() {
 form.addEventListener('input', updateProgress);
 form.addEventListener('change', updateProgress);
 
-// pre-cargar prospecto desde ?ref= / ?source= (para Yares u otros canales)
+var fileInput = document.getElementById('fileInput');
+var fileListEl = document.getElementById('fileList');
+fileInput.addEventListener('change', function () {
+    for (var i = 0; i < fileInput.files.length; i++) {
+        var f = fileInput.files[i];
+        if (f.size > 15 * 1024 * 1024) { alert('"' + f.name + '" supera los 15 MB y no se subirá.'); continue; }
+        pendingFiles.push(f);
+    }
+    fileInput.value = '';
+    renderFiles();
+});
+function renderFiles() {
+    fileListEl.innerHTML = '';
+    pendingFiles.forEach(function (f, idx) {
+        var li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-3 bg-surface rounded-lg px-3 py-2';
+        var span = document.createElement('span');
+        span.className = 'truncate';
+        span.textContent = f.name + ' (' + (f.size / 1024 / 1024).toFixed(1) + ' MB)';
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.textContent = 'Quitar'; btn.className = 'text-red-600 text-xs font-semibold shrink-0';
+        btn.onclick = function () { pendingFiles.splice(idx, 1); renderFiles(); };
+        li.appendChild(span); li.appendChild(btn);
+        fileListEl.appendChild(li);
+    });
+}
+
 try {
     var qs = new URLSearchParams(location.search);
     if (qs.get('source')) form.dataset.source = qs.get('source');
 } catch (e) {}
+
+function safeName(n) {
+    return n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+}
 
 form.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var btn = document.getElementById('submitBtn');
     var msg = document.getElementById('formMsg');
 
-    // arma el payload
     var payload = { source: form.dataset.source || 'alta-clinica', submitted_at: new Date().toISOString(), user_agent: navigator.userAgent };
-    var els = form.querySelectorAll('input, select, textarea');
-    els.forEach(function (el) {
+    form.querySelectorAll('input, select, textarea').forEach(function (el) {
         if (!el.name) return;
-        if (el.type === 'checkbox') { payload[el.name] = el.checked ? (el.value || true) : false; }
-        else { payload[el.name] = (el.value || '').trim(); }
+        if (el.type === 'checkbox') payload[el.name] = el.checked ? (el.value || true) : false;
+        else payload[el.name] = (el.value || '').trim();
     });
-    payload.contact_name = payload.owner_name || '';
-    payload.contact_phone = payload.owner_phone || payload.clinic_phone || '';
+    payload.contact_name = (payload.owner || '').split('·')[0].trim();
+    payload.contact_phone = payload.clinic_phone || '';
+    payload.file_count = pendingFiles.length;
 
     btn.disabled = true;
     btn.textContent = 'Enviando…';
     msg.className = 'hidden';
+
+    var submissionId = null;
 
     fetch(SUPA_URL + '/rest/v1/rpc/submit_clinic_onboarding', {
         method: 'POST',
         headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_payload: payload })
     })
-    .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (id) {
+        submissionId = (typeof id === 'string') ? id.replace(/"/g, '') : id;
+        if (!pendingFiles.length || !submissionId) return;
+        btn.textContent = 'Subiendo archivos…';
+        var uploads = pendingFiles.map(function (f, i) {
+            var path = submissionId + '/' + String(i + 1).padStart(2, '0') + '-' + safeName(f.name);
+            return fetch(SUPA_URL + '/storage/v1/object/clinic-onboarding/' + encodeURI(path), {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY,
+                    'Content-Type': f.type || 'application/octet-stream', 'x-upsert': 'false'
+                },
+                body: f
+            });
+        });
+        return Promise.allSettled(uploads);
     })
     .then(function () {
         document.getElementById('thanks').classList.remove('hidden');

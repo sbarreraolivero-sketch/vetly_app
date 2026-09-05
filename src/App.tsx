@@ -74,6 +74,7 @@ const AdminMessages = lazy(() => import('./pages/hq/AdminMessages'))
 const AdminCRM = lazy(() => import('./pages/hq/AdminCRM'))
 const AdminReferrals = lazy(() => import('./pages/hq/AdminReferrals'))
 const AdminProspecting = lazy(() => import('./pages/hq/AdminProspecting'))
+const AdminOnboarding = lazy(() => import('./pages/hq/AdminOnboarding'))
 
 // Contexts & Guards
 import { AuthProvider } from './contexts/AuthContext'
@@ -110,6 +111,7 @@ function HQRoutes() {
                                 <Route path="crm" element={<AdminCRM />} />
                                 <Route path="prospecting" element={<AdminProspecting />} />
                                 <Route path="referrals" element={<AdminReferrals />} />
+                                <Route path="onboarding" element={<AdminOnboarding />} />
                                 <Route path="settings" element={<AdminSettings />} />
                             </Route>
                         </Route>
