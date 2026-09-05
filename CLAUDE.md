@@ -7485,7 +7485,7 @@ Dos reportes reales del mismo día (sábado 5-sep), ambos con evidencia real ant
 
 ### Checkout del piloto — US$47 fijo, exclusivo para clínicas piloto
 
-**Migración `20260905182949_pilot_deposit_clinic_flags.sql`:** `clinic_settings.pilot_eligible boolean DEFAULT false` + `pilot_activated_at timestamptz`. HQ marca `pilot_eligible = true` (`UPDATE` a mano) para cada clínica piloto confirmada.
+**Migración `20260905182949_pilot_deposit_clinic_flags.sql`:** `clinic_settings.pilot_eligible boolean DEFAULT false` + `pilot_activated_at timestamptz`. **`AdminClinics.tsx` (`/hq/clinics`)** tiene un toggle **"Habilitar checkout"** por clínica (muestra: no habilitado / esperando pago / piloto activo) — el UPDATE lo hace HQ como platform admin, exento del guard de facturación.
 
 **`paddle-create-transaction` — `type: 'pilot_deposit'`** (deployado, `verify_jwt: true`): monto fijo `PILOT_DEPOSIT_CENTS = 4700` (no del frontend), sobre el `PADDLE_CONTAINER_PRODUCT_ID` existente (no hace falta un producto Paddle nuevo — funciona en live de inmediato, mismo patrón que reminders/campaign_credits). Gates: (1) el caller es miembro activo de `clinic_id` (check ya existente), (2) `clinic_settings.pilot_eligible = true`, (3) `pilot_activated_at IS NULL`.
 
