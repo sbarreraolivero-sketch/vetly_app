@@ -7461,24 +7461,51 @@ Dos reportes reales del mismo día (sábado 5-sep), ambos con evidencia real ant
 
 ---
 
-## Cambios realizados — septiembre 2026 (sesión 101, 2026-09-05)
+---
 
-### Formulario de alta de clínica — `/alta-clinica` (cuestionario de onboarding reutilizable)
+## Cambios realizados — septiembre 2026 (sesión 102, 2026-09-05)
 
-**Motivación (Yares — ver [[project_yares_partnership_pilot]]):** la primera clínica piloto está confirmada. Antes de encender el agente hay que recabar **toda** la información operativa que se aprendió a los golpes con Animalgrace — no su modelo (móvil), sino la estructura de datos: precios exactos por servicio (origen de casi todos los bugs del agente), horarios, protocolos clínicos, políticas, config de WhatsApp. El usuario pidió un link reutilizable de Vetly para compartir con prospectos.
+### Formulario de alta de clínica `/alta-clinica` — v2 enfocado en KB + panel HQ
 
-**Implementación (estático, patrón `public/recursos/diagnostico.html`):**
-- **`public/alta-clinica.html`** — form Tailwind CDN + Outfit, `noindex`, 12 secciones: (1) datos de la clínica + marca, (2) equipo + profesionales con **título + N° de colegiatura + firma** (para las recetas), (3) horarios por día + colación + **última hora agendable**, (4) agendas + tipos de cita con duración, (5) **servicios y precios** — la sección crítica, con campos guía para todos los casos que rompieron a Animalgrace (consulta multi-mascota, camada + edad de corte, vacunas por nombre + pack + primovacunación, desparasitación/uñas/destartraje, esterilización por especie/sexo/peso + prequirúrgico, laboratorio, imagenología propia vs derivada, eutanasia, certificados, mínimo de visita) + lista completa "o la envío aparte", (6) políticas (especies que atienden, pago, no-show, seña, tolerancia, boleta), (7) protocolos (requisitos de vacunación, agresivos/sedación, **urgencia/riesgo vital → derivar o escalar**, ayunos, convenios), (8) WhatsApp + agente (número, si ya es Business, si tiene Meta BM, quién responde hoy, nombre/tono/saludo del agente, **qué NO debe hacer**, FAQs, `scheduling_mode` autónomo vs aprobación), (9) recordatorios, (10) datos a migrar (sistema actual, exportable, volumen), (11) fidelización (opcional), (12) libre + consentimiento.
-- Barra de progreso por % de campos required completados. Soporta `?source=` en la URL (para separar el canal Yares).
-- POST a `submit_clinic_onboarding(p_payload jsonb)` vía REST con anon key (misma key pública que `diagnostico.html`).
-- **Ruta en `vercel.json`**: `{ "src": "/alta-clinica", "dest": "/alta-clinica.html" }` — explícita, antes del catch-all del SPA (el catch-all `((?!landing|demo|core|.*\.).*)` habría mandado `/alta-clinica` al `index.html`).
+**Motivación (Yares — ver [[project_yares_partnership_pilot]]):** la primera clínica piloto está confirmada. Antes de encender el agente hay que recabar toda la información operativa que se aprendió a los golpes con Animalgrace — su **estructura de datos**, no su modelo (móvil): precios exactos por servicio (origen de casi todos los bugs del agente), horarios, protocolos clínicos, políticas, config de WhatsApp. Link reutilizable de Vetly para compartir con prospectos.
 
-**Migración `20260905171642_clinic_onboarding_form.sql`** (aplicada vía MCP, archivo local creado después con el timestamp real — patrón habitual del repo):
-- Tabla `clinic_onboarding` (`clinic_name`, `contact_*`, `country`, `city`, `submission jsonb NOT NULL`, `source` default `'alta-clinica'`, `status` default `'received'`, `clinic_id` FK opcional, `reviewed_by`/`reviewed_at`). RLS: solo `service_role`.
-- RPC `submit_clinic_onboarding(p_payload jsonb)` — `SECURITY DEFINER`, valida que sea objeto JSON, extrae los campos indexables al top level y guarda el payload completo. `REVOKE FROM PUBLIC, anon` + `GRANT TO anon, authenticated, service_role` (misma forma que `mark_diagnostic_wa_clicked`).
-- RPC `get_clinic_onboarding_submissions()` — `SECURITY DEFINER` gated por `is_platform_admin()`, para un futuro panel en `/hq`.
+**`public/alta-clinica.html`** (estático, patrón `public/recursos/diagnostico.html`, Tailwind CDN + Outfit, `noindex`, ruta explícita en `vercel.json` antes del catch-all):
+- **Se quitó lo que la clínica configura sola**: sección de profesionales (título/matrícula/firma → los pone cada uno en Mi Perfil), usuarios del equipo, feriados, sección de agendas y tipos de cita (config directa del dueño).
+- **Servicios y protocolos expandidos con el detalle real de Animalgrace** aplicable a clínica física (leído de `ai_behavior_rules` + los 12 docs de `knowledge_base` de Linares): esquema de vacunación completo (perros/gatos vacuna por vacuna, cachorros, adultos, **adulto nunca vacunado**, primovacunación 1 vs 2 dosis, combinaciones prohibidas, cuarentena, requisitos, test FeLV/FIV, packs); desparasitación por edad + dosis; cirugías (¿consulta previa?, prequirúrgico obligatorio vs recomendado, ayuno, razas excluidas, recargo celo/preñez, logística día-de, **cómo se agenda**, Alizin); destartraje (consulta de evaluación previa, anestesia, ayuno); laboratorio (¿orden médica?, ayuno, PAAF); imagenología (propia vs especialista externo, quién agenda); políticas de urgencias/derivación; qué NO hace la clínica.
+- **Campo nuevo `agent_accent`** (obligatorio): la clínica es colombiana y la jerga cambia por zona — de qué ciudad son los clientes, modismos a usar/evitar, saludo/despedida local, tratamiento (tú/usted/vos).
+- **Cada servicio pide el detalle completo, no "sí/no + precio"**: nota destacada en el header + placeholders estructurados que piden protocolo paso a paso, consulta previa, cuándo derivar, preparación del tutor, modelo de agendamiento.
+- **Subida de archivos adjuntos** (sección 17): tarifario, protocolos internos, folletos. Sube al bucket privado `clinic-onboarding` bajo `{submission_id}/...` tras enviar el formulario.
 
-**Pendiente (no en esta sesión):**
-- [ ] Panel en `/hq` para revisar las respuestas (`get_clinic_onboarding_submissions()` ya existe).
-- [ ] Checkout de Paddle para el pago fijo de **US$47** del piloto — precio nuevo en Paddle live + handler `type: 'pilot_deposit'` en `paddle-webhook` (setea `ai_credits_monthly_limit`/`ai_credits_extra_balance`, `trial_end_date = now + 45d`, `activation_status = 'active'`, `subscriptions.current_period_end = now + 45d`, transacción `purchase`).
-- [ ] Plantilla de `ai_behavior_rules` para clínica física (prerrequisito de encender el agente, ver memoria del piloto).
+**DB — migraciones aplicadas vía MCP (archivos locales creados con el timestamp real):**
+- `20260905171642_clinic_onboarding_form.sql` — tabla `clinic_onboarding` (`submission jsonb`, `source`, `status`, FK `clinic_id` opcional), RLS solo `service_role`. RPC `submit_clinic_onboarding(p_payload jsonb)` `SECURITY DEFINER` anon-executable (form público). RPC `get_clinic_onboarding_submissions()` gated por `is_platform_admin()`.
+- `20260905181254` + `20260905182537` — bucket privado `clinic-onboarding` (15 MB, mimes restringidos). Política anon INSERT: solo dentro de la carpeta de una respuesta de las últimas 2h, vía helper `onboarding_folder_is_recent(text)` `SECURITY DEFINER` (el subquery directo a `clinic_onboarding` en la política corría bajo el rol `anon` sujeto a RLS → 0 filas → todo INSERT fallaba; el helper lo resuelve). Política SELECT solo `is_platform_admin()`. Políticas `TO public`, nunca `TO authenticated` (regla sesión 86). Verificado con curl: anon sube en su carpeta (200), en carpeta ajena (403), no puede leer (404).
+- `20260905183854_submit_clinic_onboarding_size_guard.sql` — el RPC público rechaza payloads > 200 KB o > 250 campos, y aplica `LEFT()` a los campos indexables.
+
+**`src/pages/hq/AdminOnboarding.tsx`** (ruta `/hq/onboarding`, nav en `AdminLayout.tsx`): lista todas las respuestas (fecha, clínica, país, adjuntos), expandible a la respuesta completa agrupada en 17 secciones con `LABELS` legibles, y descarga de los adjuntos vía `supabase.storage.from('clinic-onboarding').list()` + `createSignedUrl()` (el admin autenticado pasa la política `is_platform_admin()`).
+
+### Checkout del piloto — US$47 fijo, exclusivo para clínicas piloto
+
+**Migración `20260905182949_pilot_deposit_clinic_flags.sql`:** `clinic_settings.pilot_eligible boolean DEFAULT false` + `pilot_activated_at timestamptz`. HQ marca `pilot_eligible = true` (`UPDATE` a mano) para cada clínica piloto confirmada.
+
+**`paddle-create-transaction` — `type: 'pilot_deposit'`** (deployado, `verify_jwt: true`): monto fijo `PILOT_DEPOSIT_CENTS = 4700` (no del frontend), sobre el `PADDLE_CONTAINER_PRODUCT_ID` existente (no hace falta un producto Paddle nuevo — funciona en live de inmediato, mismo patrón que reminders/campaign_credits). Gates: (1) el caller es miembro activo de `clinic_id` (check ya existente), (2) `clinic_settings.pilot_eligible = true`, (3) `pilot_activated_at IS NULL`.
+
+**`paddle-webhook` — handler `pilot_deposit`** (deployado, `verify_jwt: false`): en `transaction.completed`, re-verifica `pilot_eligible` (si una clínica no elegible pagó por el link → loguea y NO provisiona), idempotente vía `paddle_webhook_events` + `pilot_activated_at`. Provisiona: `subscription_plan = 'pro'` + `subscriptions` upsert `plan_id='pro'`/`status='active'`/`current_period_end = now + 45d`, `ai_credits_monthly_limit = 0` + `ai_credits_extra_balance += 30000` (monto fijo generoso; "si se pasan Vetly cubre el exceso"), `trial_end_date = now + 45d`, `activation_status = 'active'`. Al día 45 el redirect de trial vencido (`DashboardLayout`) bloquea el dashboard porque NO se setea `manually_active`.
+
+**`src/lib/paddle.ts`:** `openPaddlePilotDepositCheckout(clinicId, email)`. **`src/pages/Settings.tsx`:** tarjeta "Activar piloto · US$47" visible solo si `pilot_eligible && !pilot_activated_at`; badge verde si ya activado.
+
+**Verificado end-to-end con sesiones reales:** no elegible → rechazado sin llamar a Paddle; elegible → draft transaction real (`txn_...`); no-miembro → 403.
+
+### Seguridad — trigger que bloquea la auto-edición de columnas de facturación
+
+**Hallazgo (encontrado al revisar el gate del piloto):** las políticas `UPDATE` de `clinic_settings` dejan a owner/admin (y hasta `vet_assistant`) escribir **cualquier columna** de su clínica desde el navegador. Un owner podía, con un `supabase.from('clinic_settings').update(...)` crudo desde la consola: ponerse `ai_credits_extra_balance = 999999`, `subscription_plan = 'enterprise'`, `ai_credits_unlimited = true`, `trial_end_date` lejano, `pilot_eligible = true`. Hueco preexistente, no introducido por el piloto — pero el piloto lo hacía explotable de forma directa.
+
+**Fix — migraciones `20260905183557` / `183636` / `183950`:** trigger `BEFORE UPDATE ON clinic_settings` (`guard_clinic_settings_billing_columns`, `SET search_path = public`) que rechaza con `42501` el cambio de 12 columnas de facturación (`pilot_eligible`, `pilot_activated_at`, `subscription_plan`, `ai_credits_monthly_limit`, `ai_credits_extra_balance`, `ai_credits_extra_4o`, `ai_credits_unlimited`, `ai_credits_extra_expires_at`, `trial_end_date`, `trial_start_date`, `trial_status`, `activation_status`) **cuando `auth.role() IN ('authenticated','anon') AND NOT is_platform_admin()`**. `service_role` (webhooks de pago, RPCs, edge functions), platform admins (panel HQ, `AdminCalendar` setea `trial_*` al activar cuentas) y las migraciones siguen pudiendo. **Verificado con sesión real:** owner autenticado → 403 en las 5 columnas probadas, 204 en columnas normales; `service_role` → 204.
+
+De paso (advisor `get_advisors(security)` = 1 ERROR): RLS habilitada en `requires_human_backup_20260903` (tabla de respaldo de sesión 99, solo `service_role`).
+
+### Reglas permanentes de esta sesión
+
+- **Un subquery a una tabla propia dentro de una política de Storage corre bajo el rol del caller (sujeto a RLS).** Si `anon` no ve filas de esa tabla, el `IN (SELECT ...)` siempre da falso y todo INSERT falla. Envolverlo en un helper `SECURITY DEFINER` que devuelva solo un booleano.
+- **Las políticas `UPDATE` de `clinic_settings` no tienen granularidad de columna.** Cualquier columna sensible nueva (facturación, flags de acceso) necesita un trigger `BEFORE UPDATE` que la proteja de los requests con JWT de usuario — la RLS por sí sola deja al owner escribir toda la fila. Patrón: `IF auth.role() IN ('authenticated','anon') AND NOT is_platform_admin() THEN RAISE`.
+- **Para un pago "exclusivo" sin producto Paddle nuevo:** reusar `paddle-create-transaction` con un `type` propio de monto fijo (`custom_price` sobre el `PADDLE_CONTAINER_PRODUCT_ID`), gateado por un flag en DB que solo HQ puede setear, y re-verificado en el webhook. Funciona en Paddle live sin crear nada en el dashboard.
+- **Un formulario de onboarding de agente NO es un "¿lo hacen? + precio".** El detalle que evita bugs del agente es el protocolo: consulta previa, cuándo deriva, preparación del tutor, cómo se agenda. Cada regla real de Animalgrace (`ai_behavior_rules` + KB) se puede convertir en una pregunta del formulario.
