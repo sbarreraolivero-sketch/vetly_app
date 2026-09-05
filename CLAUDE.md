@@ -7493,6 +7493,8 @@ Dos reportes reales del mismo día (sábado 5-sep), ambos con evidencia real ant
 
 **`src/lib/paddle.ts`:** `openPaddlePilotDepositCheckout(clinicId, email)`. **`src/pages/Settings.tsx`:** tarjeta "Activar piloto · US$47" visible solo si `pilot_eligible && !pilot_activated_at`; badge verde si ya activado.
 
+**`/registro-piloto`** (ruta nueva en `App.tsx` → `<Register />`): página de registro dedicada. `Register.tsx` detecta `location.pathname === '/registro-piloto'` (o `?pilot=1`) → modo `isPilot`: registro de una pantalla, sin selector de plan ni toggle de pasarela, copy propia (45 días / agente IA / pago único US$47 habilitado por HQ después), se registra bajo plan Core (prueba sin tarjeta, entra directo a `/app`). Evita mandar clínicas piloto por `/register?plan=pro` (pedía tarjeta) o `/core` (copy de gestión sin IA).
+
 **Verificado end-to-end con sesiones reales:** no elegible → rechazado sin llamar a Paddle; elegible → draft transaction real (`txn_...`); no-miembro → 403.
 
 ### Seguridad — trigger que bloquea la auto-edición de columnas de facturación
