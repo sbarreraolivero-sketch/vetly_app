@@ -7140,7 +7140,7 @@ Colombia es **25× más barato que Chile**. Implicancia para el go-to-market LAT
 ### Modelo de costo para una clínica FÍSICA típica (piloto Yares)
 
 **Modelo de DOS ETAPAS (definido 2026-09-02):**
-- **Etapa 1 — piloto (45 días):** la clínica **NO paga la suscripción**. Paga: (a) **US$45 fijos de créditos de IA por adelantado a Vetly** (monto fijo dimensionado para uso típico — no cambia con el uso real), y (b) la **mensajería de WhatsApp directo a Meta** según su país. Nota interna: uso alto real de 45 días puede llegar a ~US$40-50 en OpenAI (clínica muy activa o ad-driven); los US$45 tienen holgura para uso típico y quedan justos para uso alto. El riesgo de que el agente quede mudo a mitad del piloto arruina la validación — si una clínica se pasa, Vetly cubre el exceso y reconcilia.
+- **Etapa 1 — piloto (45 días):** la clínica **NO paga la suscripción**. Paga: (a) **US$47 fijos de créditos de IA por adelantado a Vetly, vía checkout de Paddle** (monto fijo — no cambia con el uso real), y (b) la **mensajería de WhatsApp directo a Meta** según su país. Nota interna: uso alto real de 45 días puede llegar a ~US$40-50 en OpenAI (clínica muy activa o ad-driven); los US$47 tienen holgura para uso típico y quedan justos para uso alto. El riesgo de que el agente quede mudo a mitad del piloto arruina la validación — si una clínica se pasa, Vetly cubre el exceso y reconcilia.
 - **Etapa 2 — si la clínica decide continuar:** pasa a la suscripción **Pro (US$169/mes)** que **ya incluye el procesamiento de OpenAI** (los ~7.600 créditos/mes de una clínica física típica caben de sobra en los 20.000 del Pro). El **único costo que se suma al plan es la mensajería de Meta**, que la clínica paga directo a Meta con su método de pago en el Business Manager.
 
 Regla general (fuera del piloto): **el costo adicional a cualquier plan de Vetly es solo Meta.** OpenAI siempre va absorbido en el plan.
@@ -7150,19 +7150,19 @@ Regla general (fuera del piloto): **el costo adicional a cualquier plan de Vetly
 - **Volumen clínica física típica:** ~300 conversaciones/mes × ~3.5 salientes = ~1.050 salientes IA/mes + ~100-150 recordatorios.
 - Referencia interna: OpenAI ≈ US$0.015-0.020/mensaje saliente (clínica física, 4o-intensivo, caché parcial por tráfico esparcido). Uso típico 45 días ≈ US$20-30; uso alto ≈ US$40-50.
 
-**Costo del PILOTO por clínica, 45 días** (US$45 fijo a Vetly + Meta directo a Meta, uso típico; tarifas Meta post 1-oct):
+**Costo del PILOTO por clínica, 45 días** (US$47 fijo a Vetly vía Paddle + Meta directo a Meta, uso típico; tarifas Meta post 1-oct):
 
-| País | Créditos IA (a Vetly) | Meta (directo) | Total piloto |
+| País | Pago a Vetly (Paddle) | Meta (directo) | Total piloto |
 |---|---|---|---|
-| Colombia | US$45 | ~US$2 | **~US$47** |
-| México | US$45 | ~US$15 | **~US$60** |
-| Chile | US$45 | ~US$35 | **~US$80** |
-| Perú | US$45 | ~US$35 | **~US$80** |
-| Argentina | US$45 | ~US$45 | **~US$90** |
+| Colombia | US$47 | ~US$2 | **~US$49** |
+| México | US$47 | ~US$15 | **~US$62** |
+| Chile | US$47 | ~US$35 | **~US$82** |
+| Perú | US$47 | ~US$35 | **~US$82** |
+| Argentina | US$47 | ~US$45 | **~US$92** |
 
 **Si la clínica continúa — mensual (uso típico): US$169 plan + Meta.** Meta/mes: Colombia ~US$1 · México ~US$10 · Chile/Perú ~US$23 · Argentina ~US$30.
 
-**Presupuesto a comunicar por clínica piloto (Colombia): ~US$47 los 45 días.**
+**Pago del piloto a Vetly: US$47 fijos (checkout de Paddle).** Meta lo paga la clínica directo (~US$2 en Colombia).
 
 ### Prerrequisito para pilotear con clínicas físicas
 
@@ -7196,7 +7196,7 @@ Crear una **plantilla de `ai_behavior_rules` para clínica física** — sin sec
 Referente del nicho veterinario en LATAM (YouTube "Veterinario Emprendedor", miles de seguidores, empresa de cursos para veterinarios). Representante: **Yares**. Interesado en alianza con Vetly con **comisión por clínica**, a cambio de ayudar a expandir rápido. Antes de cerrar quiere un **piloto de 5 clínicas** con el agente IA por **mínimo 45 días** para recabar feedback y validar.
 
 **Acuerdo (dos etapas):**
-1. **Piloto (45 días):** clínicas **sin suscripción**. Pagan **US$45 fijos de créditos de IA por adelantado a Vetly** + **mensajería directo a Meta** (~US$2 en Colombia). Total ~US$47 los 45 días en Colombia. Se parte en **Colombia** por el costo Meta casi nulo.
+1. **Piloto (45 días):** clínicas **sin suscripción**. Pagan **US$47 fijos de créditos de IA por adelantado a Vetly (checkout de Paddle)** + **mensajería directo a Meta** (~US$2 en Colombia, la paga la clínica en su Meta Business Manager). Se parte en **Colombia** por el costo Meta casi nulo.
 2. **Si continúan:** pasan a **plan Pro (US$169/mes)** con OpenAI absorbido; el único add-on es Meta (~US$1/mes en Colombia).
 
 La comisión de Yares sale de la suscripción Vetly, no del costo variable de mensajería. One-pager para Yares: `scratchpad/costo-piloto-vetly.html` (artefacto publicado).
@@ -7458,3 +7458,27 @@ Dos reportes reales del mismo día (sábado 5-sep), ambos con evidencia real ant
 - **Cuando un cruce de 2+ dimensiones en una tabla de precios/reglas falla repetidamente en producción —incluso con la tabla completa en el contexto del modelo caro— la tabla debe volverse una función determinística en código, no un tercer intento de reforzar el prompt.** Mismo principio ya aplicado a la coordinación (sesión 98/99): el modelo copia un resultado ya calculado, no hace el cálculo él mismo.
 - **Un guard de disponibilidad debe distinguir "el tutor dio un día real" de "el tutor solo usó una palabra relativa (hoy/mañana)".** Bloquear únicamente cuando TODAS las palabras relativas mencionadas resuelven a un día cerrado, y nunca si ya hay un día explícito como alternativa — evita repetir el error de un detector de falsos positivos (sesión 99).
 - **Verificar mecánicamente contra el caso real antes de desplegar, siempre** — el propio proceso de escribir el test para la calculadora de precios encontró 2 errores en mis propios valores esperados (no en el código) — la disciplina de escribir el test primero paga incluso cuando el código ya está bien.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 101, 2026-09-05)
+
+### Formulario de alta de clínica — `/alta-clinica` (cuestionario de onboarding reutilizable)
+
+**Motivación (Yares — ver [[project_yares_partnership_pilot]]):** la primera clínica piloto está confirmada. Antes de encender el agente hay que recabar **toda** la información operativa que se aprendió a los golpes con Animalgrace — no su modelo (móvil), sino la estructura de datos: precios exactos por servicio (origen de casi todos los bugs del agente), horarios, protocolos clínicos, políticas, config de WhatsApp. El usuario pidió un link reutilizable de Vetly para compartir con prospectos.
+
+**Implementación (estático, patrón `public/recursos/diagnostico.html`):**
+- **`public/alta-clinica.html`** — form Tailwind CDN + Outfit, `noindex`, 12 secciones: (1) datos de la clínica + marca, (2) equipo + profesionales con **título + N° de colegiatura + firma** (para las recetas), (3) horarios por día + colación + **última hora agendable**, (4) agendas + tipos de cita con duración, (5) **servicios y precios** — la sección crítica, con campos guía para todos los casos que rompieron a Animalgrace (consulta multi-mascota, camada + edad de corte, vacunas por nombre + pack + primovacunación, desparasitación/uñas/destartraje, esterilización por especie/sexo/peso + prequirúrgico, laboratorio, imagenología propia vs derivada, eutanasia, certificados, mínimo de visita) + lista completa "o la envío aparte", (6) políticas (especies que atienden, pago, no-show, seña, tolerancia, boleta), (7) protocolos (requisitos de vacunación, agresivos/sedación, **urgencia/riesgo vital → derivar o escalar**, ayunos, convenios), (8) WhatsApp + agente (número, si ya es Business, si tiene Meta BM, quién responde hoy, nombre/tono/saludo del agente, **qué NO debe hacer**, FAQs, `scheduling_mode` autónomo vs aprobación), (9) recordatorios, (10) datos a migrar (sistema actual, exportable, volumen), (11) fidelización (opcional), (12) libre + consentimiento.
+- Barra de progreso por % de campos required completados. Soporta `?source=` en la URL (para separar el canal Yares).
+- POST a `submit_clinic_onboarding(p_payload jsonb)` vía REST con anon key (misma key pública que `diagnostico.html`).
+- **Ruta en `vercel.json`**: `{ "src": "/alta-clinica", "dest": "/alta-clinica.html" }` — explícita, antes del catch-all del SPA (el catch-all `((?!landing|demo|core|.*\.).*)` habría mandado `/alta-clinica` al `index.html`).
+
+**Migración `20260905171642_clinic_onboarding_form.sql`** (aplicada vía MCP, archivo local creado después con el timestamp real — patrón habitual del repo):
+- Tabla `clinic_onboarding` (`clinic_name`, `contact_*`, `country`, `city`, `submission jsonb NOT NULL`, `source` default `'alta-clinica'`, `status` default `'received'`, `clinic_id` FK opcional, `reviewed_by`/`reviewed_at`). RLS: solo `service_role`.
+- RPC `submit_clinic_onboarding(p_payload jsonb)` — `SECURITY DEFINER`, valida que sea objeto JSON, extrae los campos indexables al top level y guarda el payload completo. `REVOKE FROM PUBLIC, anon` + `GRANT TO anon, authenticated, service_role` (misma forma que `mark_diagnostic_wa_clicked`).
+- RPC `get_clinic_onboarding_submissions()` — `SECURITY DEFINER` gated por `is_platform_admin()`, para un futuro panel en `/hq`.
+
+**Pendiente (no en esta sesión):**
+- [ ] Panel en `/hq` para revisar las respuestas (`get_clinic_onboarding_submissions()` ya existe).
+- [ ] Checkout de Paddle para el pago fijo de **US$47** del piloto — precio nuevo en Paddle live + handler `type: 'pilot_deposit'` en `paddle-webhook` (setea `ai_credits_monthly_limit`/`ai_credits_extra_balance`, `trial_end_date = now + 45d`, `activation_status = 'active'`, `subscriptions.current_period_end = now + 45d`, transacción `purchase`).
+- [ ] Plantilla de `ai_behavior_rules` para clínica física (prerrequisito de encender el agente, ver memoria del piloto).

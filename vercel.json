@@ -30,6 +30,7 @@
     { "src": "/recursos/ruta-movil", "dest": "/recursos/ruta-movil.html" },
     { "src": "/recursos/diagnostico", "dest": "/recursos/diagnostico.html" },
     { "src": "/links", "dest": "/links.html" },
+    { "src": "/alta-clinica", "dest": "/alta-clinica.html" },
     { "src": "/((?!landing|demo|core|.*\\.).*)", "dest": "/index.html" }
   ]
 }

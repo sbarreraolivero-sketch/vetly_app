@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alta de clínica — Vetly</title>
+    <meta name="description" content="Formulario de alta para clínicas veterinarias que se integran con Vetly. Recopilamos todo lo necesario para configurar tu cuenta y tu agente de IA.">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="https://vetly.pro/alta-clinica">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Outfit', 'sans-serif'] },
+                colors: {
+                    brand: '#0d9488', brandDk: '#0f766e', brandLt: '#ccfbf1',
+                    neutral: '#18181b', muted: '#71717a', surface: '#f4f4f5', offwhite: '#fafafa',
+                },
+            } }
+        }
+    </script>
+    <style>
+        body { background-color: #fafafa; }
+        .field label { display:block; font-weight:600; font-size:.875rem; color:#27272a; margin-bottom:.35rem; }
+        .field .hint { font-weight:400; font-size:.8rem; color:#71717a; margin-bottom:.4rem; }
+        .field input[type=text], .field input[type=email], .field input[type=tel], .field input[type=url],
+        .field input[type=number], .field select, .field textarea {
+            width:100%; border:1px solid #d4d4d8; border-radius:.6rem; padding:.6rem .75rem;
+            font-size:.9rem; background:#fff; transition:border-color .15s, box-shadow .15s;
+        }
+        .field input:focus, .field select:focus, .field textarea:focus {
+            outline:none; border-color:#0d9488; box-shadow:0 0 0 3px rgba(13,148,136,.12);
+        }
+        .field textarea { min-height:5rem; resize:vertical; line-height:1.5; }
+        .chk { display:flex; gap:.55rem; align-items:flex-start; font-size:.88rem; color:#3f3f46; cursor:pointer; }
+        .chk input { margin-top:.15rem; width:1rem; height:1rem; accent-color:#0d9488; flex:none; }
+        .sec { scroll-margin-top:5rem; }
+        .sec-num { font-variant-numeric:tabular-nums; }
+        details > summary { list-style:none; }
+        details > summary::-webkit-details-marker { display:none; }
+    </style>
+</head>
+<body class="font-sans text-neutral">
+
+<!-- barra superior -->
+<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white font-extrabold">V</div>
+            <span class="font-bold">Vetly · Alta de clínica</span>
+        </div>
+        <span id="progressLabel" class="text-xs text-muted tabular-nums">0 %</span>
+    </div>
+    <div class="h-1 bg-zinc-100"><div id="progressBar" class="h-full bg-brand transition-all" style="width:0%"></div></div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+
+    <div class="mb-8">
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Cuéntanos cómo funciona tu clínica</h1>
+        <p class="text-muted leading-relaxed">Con esto configuramos tu cuenta y, sobre todo, tu <strong>agente de IA</strong>: para que responda precios, horarios y protocolos <em>exactamente</em> como los maneja tu clínica. Toma unos 15–20 minutos. Si algo no aplica, déjalo en blanco. Si tienes tu lista de precios en un archivo, puedes escribir "la envío aparte" y adjuntarla por WhatsApp.</p>
+    </div>
+
+    <form id="altaForm" class="space-y-10">
+
+    <!-- 1 · DATOS DE LA CLÍNICA -->
+    <section id="s1" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">01</span> Datos de la clínica</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Nombre comercial de la clínica *</label><input type="text" name="clinic_name" required></div>
+            <div class="field"><label>Razón social / identificación tributaria</label><p class="hint">RUT, NIT, RFC, CUIT… según tu país</p><input type="text" name="tax_id"></div>
+            <div class="field"><label>País *</label>
+                <select name="country" required>
+                    <option value="">Selecciona…</option>
+                    <option>Colombia</option><option>México</option><option>Chile</option><option>Perú</option>
+                    <option>Argentina</option><option>Ecuador</option><option>Bolivia</option><option>Paraguay</option>
+                    <option>Uruguay</option><option>Costa Rica</option><option>Panamá</option><option>Guatemala</option>
+                    <option>El Salvador</option><option>Honduras</option><option>Nicaragua</option><option>República Dominicana</option>
+                    <option>España</option><option>Otro</option>
+                </select>
+            </div>
+            <div class="field"><label>Ciudad *</label><input type="text" name="city" required></div>
+            <div class="field sm:col-span-2"><label>Dirección completa de la clínica *</label><p class="hint">Calle, número, comuna/barrio, referencias. Aparece en la ficha del paciente y los comprobantes.</p><input type="text" name="address" required></div>
+            <div class="field"><label>Teléfono público de la clínica</label><input type="tel" name="clinic_phone"></div>
+            <div class="field"><label>Email de contacto de la clínica *</label><input type="email" name="contact_email" required></div>
+            <div class="field"><label>Sitio web</label><input type="url" name="website" placeholder="https://"></div>
+            <div class="field"><label>Instagram</label><input type="text" name="instagram" placeholder="@tuclinica"></div>
+            <div class="field"><label>Facebook</label><input type="text" name="facebook"></div>
+            <div class="field"><label>Moneda en la que cobras *</label><input type="text" name="currency" placeholder="COP, MXN, CLP, USD…" required></div>
+        </div>
+        <div class="field"><label>Logo y color de marca</label><p class="hint">Los usamos en tu página de reservas online, las recetas y el carnet digital del tutor. Envía el logo (PNG/JPG) por WhatsApp e indica acá tu color principal si lo sabes.</p><input type="text" name="brand_color" placeholder="Ej: teal / #0d9488 / 'el verde de mi logo'"></div>
+    </section>
+
+    <!-- 2 · EQUIPO -->
+    <section id="s2" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">02</span> Equipo</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Dueño/a de la clínica — nombre completo *</label><input type="text" name="owner_name" required></div>
+            <div class="field"><label>Email del dueño/a *</label><p class="hint">Será la cuenta principal (owner) de Vetly.</p><input type="email" name="owner_email" required></div>
+            <div class="field"><label>WhatsApp del dueño/a *</label><input type="tel" name="owner_phone" required></div>
+        </div>
+        <div class="field"><label>Profesionales que atienden pacientes *</label>
+            <p class="hint">Por cada médico/a veterinario/a que atiende: <strong>nombre completo · título profesional · N° de colegiatura / matrícula / cédula profesional · especialidad</strong>. Uno por línea. La colegiatura aparece en las recetas.</p>
+            <textarea name="professionals" required placeholder="Ej:
+Dra. Camila Ríos · Médica Veterinaria · MP 12345 · Medicina interna
+Dr. Andrés Peña · Médico Veterinario · MP 67890 · Cirugía"></textarea>
+        </div>
+        <div class="field"><label>Otras personas que necesitan cuenta en Vetly</label>
+            <p class="hint">Recepción, asistentes, admin. Nombre · email · rol (recepción / asistente / administrador). Uno por línea. El plan Starter permite 3 usuarios en total; Pro, 10.</p>
+            <textarea name="other_users" placeholder="Ej:
+Laura Gómez · laura@… · recepción"></textarea>
+        </div>
+    </section>
+
+    <!-- 3 · HORARIOS -->
+    <section id="s3" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">03</span> Horarios de atención</h2>
+        <div class="field"><label>Horario de la clínica por día *</label>
+            <p class="hint">Indica apertura y cierre de cada día, o "cerrado". Si cierran a mediodía, ponlo (ej: "L a V 9:00–13:00 y 15:00–19:00").</p>
+            <textarea name="hours" required placeholder="Lunes: 9:00–19:00
+Martes: 9:00–19:00
+Miércoles: 9:00–19:00
+Jueves: 9:00–19:00
+Viernes: 9:00–19:00
+Sábado: 9:00–13:00
+Domingo: cerrado"></textarea>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Horario de colación / almuerzo</label><p class="hint">Si el agente NO debe agendar en ese bloque.</p><input type="text" name="lunch_break" placeholder="Ej: 13:00–14:30"></div>
+            <div class="field"><label>Última hora a la que aceptan una cita *</label><p class="hint">Aunque el servicio termine después. Ej: 18:00.</p><input type="text" name="last_slot" required placeholder="18:00"></div>
+        </div>
+        <div class="field"><label>¿Algún profesional tiene un horario distinto al de la clínica?</label><p class="hint">Si es así, detalla cuál y qué días/horas. (En Vetly el horario del profesional manda sobre el de la clínica.)</p><textarea name="prof_hours"></textarea></div>
+        <div class="field"><label>Feriados o cierres especiales en los próximos meses</label><input type="text" name="holidays"></div>
+    </section>
+
+    <!-- 4 · AGENDA Y TIPOS DE CITA -->
+    <section id="s4" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">04</span> Agenda y tipos de cita</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>¿Cuántas agendas necesitas? *</label><p class="hint">Normalmente 1 por profesional o box. Si tienen un box de vacunación aparte, cuenta como otra.</p><input type="number" name="num_agendas" min="1" required value="1"></div>
+            <div class="field"><label>Duración de una consulta general *</label><input type="text" name="consult_duration" required placeholder="30 min"></div>
+        </div>
+        <div class="field"><label>Tipos de cita que maneja la clínica y su duración *</label>
+            <p class="hint">Ej: consulta, control, vacunación, desparasitación, procedimiento menor, cirugía, peluquería, eco/rayos… Uno por línea con su duración.</p>
+            <textarea name="appt_types" required placeholder="Consulta general · 30 min
+Control · 15 min
+Vacunación · 15 min
+Cirugía menor · 60 min"></textarea>
+        </div>
+        <div class="field"><label>¿Aceptan pacientes sin cita (walk-in)?</label><input type="text" name="walk_in"></div>
+    </section>
+
+    <!-- 5 · SERVICIOS Y PRECIOS -->
+    <section id="s5" class="sec bg-white rounded-2xl border-2 border-brandLt p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">05</span> Servicios y precios</h2>
+        <p class="text-sm text-muted bg-brandLt/40 rounded-lg p-3">Esta es la sección más importante para el agente. La mayoría de los errores de un agente de IA son de precio. Sé lo más específico posible. <strong>Si tienes tu lista de precios completa en un archivo, escribe "la envío aparte" en el cuadro grande y mándala por WhatsApp</strong> — igual llena los puntos de abajo.</p>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Precio consulta general *</label><input type="text" name="price_consult" required></div>
+            <div class="field"><label>Precio control</label><input type="text" name="price_control"></div>
+            <div class="field"><label>Precio consulta de urgencia</label><input type="text" name="price_urgency"></div>
+            <div class="field"><label>¿Cobran un monto mínimo por visita?</label><p class="hint">Ej: "mínimo $X aunque el servicio cueste menos".</p><input type="text" name="min_visit"></div>
+        </div>
+        <div class="field"><label>Consulta con 2 o más mascotas del mismo hogar</label><p class="hint">¿Hacen descuento por mascota adicional? ¿Cómo funciona? ¿O cobran precio completo por cada una?</p><textarea name="multi_pet"></textarea></div>
+        <div class="field"><label>Revisión de camada</label><p class="hint">¿Tienen un precio especial para revisar una camada completa? ¿Desde qué edad se considera "camada" y no mascotas individuales?</p><textarea name="litter"></textarea></div>
+        <div class="field"><label>Vacunas *</label><p class="hint">Nombre (comercial) de cada vacuna que aplican y su precio. ¿Ofrecen un pack anual? ¿A qué precio?</p><textarea name="vaccines" required placeholder="Óctuple canina · $X
+Antirrábica · $X
+Triple felina · $X
+Pack anual perro · $X"></textarea></div>
+        <div class="field"><label>Protocolo de primovacunación *</label><p class="hint">Si una mascota nunca fue vacunada, ¿aplican 2 vacunas en la misma visita o solo 1 y la otra en la siguiente? ¿Piden días de "aclimatación" en el hogar antes de vacunar a un cachorro?</p><textarea name="first_vaccine_protocol" required></textarea></div>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Desparasitación interna</label><p class="hint">Precio (por rango de peso si aplica).</p><textarea name="deworm_internal"></textarea></div>
+            <div class="field"><label>Desparasitación externa</label><textarea name="deworm_external"></textarea></div>
+            <div class="field"><label>Corte de uñas</label><p class="hint">Precio. ¿Aplica igual a perros y gatos?</p><textarea name="nail_trim"></textarea></div>
+            <div class="field"><label>Destartraje</label><p class="hint">Precio por peso / especie.</p><textarea name="dental"></textarea></div>
+        </div>
+        <div class="field"><label>Esterilización / castración *</label><p class="hint">Precio por especie, sexo y <strong>rango de peso</strong> (en perros). ¿Incluye el examen prequirúrgico o se cobra aparte? ¿Precio del pack prequirúrgico?</p><textarea name="sterilization" required></textarea></div>
+        <div class="field"><label>Exámenes de laboratorio</label><p class="hint">¿Cuáles hacen dentro de la clínica y a qué precio? ¿Cuáles derivan a un laboratorio externo?</p><textarea name="lab_tests"></textarea></div>
+        <div class="field"><label>Imagenología (ecografía, radiografía)</label><p class="hint">¿La hacen? ¿A qué precio? ¿Con profesional propio o externo? ¿El agente puede agendarla directamente o debe derivar a la recepción?</p><textarea name="imaging"></textarea></div>
+        <div class="field"><label>Peluquería / baño</label><p class="hint">Si aplica: precios por tamaño o raza.</p><textarea name="grooming"></textarea></div>
+        <div class="field"><label>Eutanasia y cremación</label><p class="hint">Precio del procedimiento. ¿Ofrecen cremación (individual / comunitaria)? Precio.</p><textarea name="euthanasia"></textarea></div>
+        <div class="field"><label>Certificados (de salud, de viaje)</label><p class="hint">¿Los emiten? ¿Precio?</p><input type="text" name="certificates"></div>
+        <div class="field"><label>Otros servicios / procedimientos y sus precios</label><textarea name="other_services"></textarea></div>
+        <div class="field"><label>Lista de precios completa (o "la envío aparte") *</label><p class="hint">Pega aquí tu lista completa si la tienes en texto, o escribe "la envío por WhatsApp".</p><textarea name="full_price_list" required style="min-height:8rem"></textarea></div>
+    </section>
+
+    <!-- 6 · POLÍTICAS DE ATENCIÓN -->
+    <section id="s6" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">06</span> Políticas de atención</h2>
+        <div class="field"><label>¿Qué especies atiende la clínica? *</label>
+            <p class="hint">Importante: el agente debe saber a quién decir que no. (Ej: "solo perros y gatos" / "perros, gatos y exóticos" / …)</p>
+            <input type="text" name="species" required placeholder="Solo perros y gatos">
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Métodos de pago que aceptan *</label><input type="text" name="payment_methods" required placeholder="Efectivo, débito, crédito, transferencia"></div>
+            <div class="field"><label>Tolerancia de atraso del cliente</label><p class="hint">Ej: "15 minutos, después se reagenda".</p><input type="text" name="late_tolerance"></div>
+        </div>
+        <div class="field"><label>¿Piden seña / abono para reservar cirugías o procedimientos?</label><input type="text" name="deposit_policy"></div>
+        <div class="field"><label>Política de inasistencia (no-show) y cancelación</label><p class="hint">¿Cobran algo? ¿Con cuánta anticipación se puede cancelar?</p><textarea name="noshow_policy"></textarea></div>
+        <div class="field"><label>¿Emiten boleta / factura electrónica?</label><p class="hint">¿En qué sistema? (Vetly registra el cobro y puede enviar un comprobante, pero la emisión tributaria puede seguir en tu sistema actual.)</p><input type="text" name="invoicing"></div>
+    </section>
+
+    <!-- 7 · PROTOCOLOS CLÍNICOS -->
+    <section id="s7" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">07</span> Protocolos que el agente debe conocer</h2>
+        <div class="field"><label>Requisitos para vacunar</label><p class="hint">¿Piden carné de vacunas u orden médica? ¿Vacunan a un animal que llega enfermo o lo derivan a consulta primero?</p><textarea name="vaccine_requirements"></textarea></div>
+        <div class="field"><label>Animales agresivos / difíciles de manejar</label><p class="hint">¿Los atienden? ¿Ofrecen sedación previa? ¿En clínica o a domicilio? ¿Precio?</p><textarea name="aggressive_animals"></textarea></div>
+        <div class="field"><label>Urgencias y riesgo vital *</label><p class="hint">Si llega un caso de riesgo vital fuera de sus capacidades u horario, ¿qué debe hacer el agente? ¿Derivan a una clínica 24h? ¿Tienen convenio? ¿O el agente pasa el caso a una persona del equipo?</p><textarea name="emergency_protocol" required></textarea></div>
+        <div class="field"><label>Ayunos / preparaciones previas</label><p class="hint">Ej: "para castración de gato pedimos 8 h de ayuno". El agente lo avisará al agendar.</p><textarea name="pre_op_prep"></textarea></div>
+        <div class="field"><label>Convenios y descuentos vigentes</label><p class="hint">Adultos mayores, rescatistas, fundaciones, múltiples mascotas, promociones actuales.</p><textarea name="discounts"></textarea></div>
+    </section>
+
+    <!-- 8 · WHATSAPP Y EL AGENTE -->
+    <section id="s8" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">08</span> WhatsApp y el agente de IA</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>Número de WhatsApp de la clínica *</label><p class="hint">El que atiende a los clientes y vamos a conectar al agente.</p><input type="tel" name="wa_number" required></div>
+            <div class="field"><label>¿Ese número ya es WhatsApp Business?</label>
+                <select name="wa_is_business"><option value="">Selecciona…</option><option>Sí, uso la app WhatsApp Business</option><option>No, es WhatsApp normal</option><option>No sé</option></select>
+            </div>
+            <div class="field"><label>¿Tiene una cuenta / Business Manager de Meta asociada?</label>
+                <select name="wa_has_meta"><option value="">Selecciona…</option><option>Sí</option><option>No</option><option>No sé</option></select>
+            </div>
+            <div class="field"><label>¿Cuántos mensajes reciben al día, aproximadamente?</label><input type="text" name="wa_volume"></div>
+        </div>
+        <div class="field"><label>¿Quién responde el WhatsApp hoy?</label><input type="text" name="wa_who"></div>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>¿Qué nombre quieres para el agente?</label><p class="hint">Ej: un nombre de recepcionista. Si no, usamos "Lía".</p><input type="text" name="agent_name" placeholder="Lía"></div>
+            <div class="field"><label>Tono del agente</label>
+                <select name="agent_tone"><option value="">Selecciona…</option><option>Cercano y cálido</option><option>Formal y profesional</option><option>Un punto medio</option></select>
+            </div>
+        </div>
+        <div class="field"><label>Mensaje de bienvenida / saludo que quieres que use</label><textarea name="agent_greeting" placeholder="Ej: ¡Hola! Soy Lía, de Clínica X 🐾 ¿En qué te puedo ayudar?"></textarea></div>
+        <div class="field"><label>¿Qué NO debe hacer el agente? *</label><p class="hint">Ej: no dar diagnósticos, no cotizar cirugías directamente, no confirmar horas sin revisar…</p><textarea name="agent_donts" required></textarea></div>
+        <div class="field"><label>Preguntas frecuentes que reciben y cómo las responden hoy *</label><p class="hint">Estacionamiento, si atienden gatos, cómo llegar, si hay que pedir hora, formas de pago… Escribe la pregunta y tu respuesta.</p><textarea name="agent_faqs" required style="min-height:7rem"></textarea></div>
+        <div class="field"><label>¿Cómo se llega a la clínica? ¿Hay estacionamiento?</label><textarea name="directions"></textarea></div>
+        <div class="field"><label>¿El agente puede confirmar la cita solo, o alguien del equipo debe aprobarla primero? *</label>
+            <p class="hint">La mayoría de las clínicas físicas dejan que el agente confirme solo. Elige "aprobación" si prefieren revisar cada cita antes.</p>
+            <select name="scheduling_mode" required>
+                <option value="">Selecciona…</option>
+                <option value="ai_autonomous">El agente confirma la cita solo</option>
+                <option value="coordinator_approval">Una persona del equipo aprueba cada cita antes</option>
+            </select>
+        </div>
+    </section>
+
+    <!-- 9 · RECORDATORIOS -->
+    <section id="s9" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">09</span> Recordatorios</h2>
+        <div class="space-y-2.5">
+            <label class="chk"><input type="checkbox" name="rem_24h" value="sí"> Recordatorio 24 h antes de la cita</label>
+            <label class="chk"><input type="checkbox" name="rem_2h" value="sí"> Recordatorio 2 h antes de la cita</label>
+            <label class="chk"><input type="checkbox" name="rem_medical" value="sí"> Recordatorios médicos (vacunas, desparasitaciones y controles por vencer)</label>
+        </div>
+        <div class="field"><label>¿Algún texto en particular que quieran para los recordatorios?</label><textarea name="rem_text"></textarea></div>
+    </section>
+
+    <!-- 10 · DATOS A MIGRAR -->
+    <section id="s10" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">10</span> Datos que ya tienes</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="field"><label>¿En qué sistema tienes hoy tus pacientes / historial?</label><p class="hint">Excel, otro software, cuaderno…</p><input type="text" name="current_system"></div>
+            <div class="field"><label>¿Puedes exportarlo a Excel / CSV?</label>
+                <select name="exportable"><option value="">Selecciona…</option><option>Sí</option><option>No</option><option>No sé</option></select>
+            </div>
+            <div class="field"><label>Pacientes activos, aprox.</label><input type="text" name="patients_count"></div>
+            <div class="field"><label>Citas por mes, aprox.</label><input type="text" name="appts_per_month"></div>
+        </div>
+    </section>
+
+    <!-- 11 · FIDELIZACIÓN (opcional) -->
+    <section id="s11" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">11</span> Fidelización y referidos <span class="text-xs font-medium text-muted">(opcional)</span></h2>
+        <label class="chk"><input type="checkbox" name="loyalty_interest" value="sí"> Nos interesa activar un programa de puntos / cashback y referidos</label>
+        <div class="field"><label>Si ya tienen algo así hoy, ¿cómo funciona?</label><textarea name="loyalty_current"></textarea></div>
+    </section>
+
+    <!-- FINAL -->
+    <section id="s12" class="sec bg-white rounded-2xl border border-zinc-200 p-5 sm:p-7 space-y-5">
+        <h2 class="text-lg font-bold flex items-baseline gap-2"><span class="sec-num text-brand text-sm">12</span> Algo más</h2>
+        <div class="field"><label>Cualquier cosa que creas importante que sepamos sobre tu clínica</label><textarea name="anything_else" style="min-height:6rem"></textarea></div>
+        <label class="chk"><input type="checkbox" id="consent" required> Autorizo a Vetly a usar esta información para configurar mi cuenta y mi agente de IA.</label>
+    </section>
+
+    <div id="formMsg" class="hidden rounded-xl p-4 text-sm"></div>
+
+    <button type="submit" id="submitBtn"
+        class="w-full bg-brand text-white font-bold py-4 rounded-xl hover:bg-brandDk transition-all active:scale-[0.99] text-base disabled:opacity-50 disabled:cursor-not-allowed">
+        Enviar
+    </button>
+    <p class="text-center text-xs text-muted mt-3">Tus respuestas se envían de forma segura y solo las ve el equipo de Vetly.</p>
+
+    </form>
+</main>
+
+<div id="thanks" class="hidden fixed inset-0 z-50 bg-offwhite flex items-center justify-center px-6">
+    <div class="max-w-md text-center">
+        <div class="w-16 h-16 rounded-2xl bg-brand mx-auto flex items-center justify-center text-white text-3xl mb-5">✓</div>
+        <h2 class="text-2xl font-extrabold mb-2">¡Listo, recibimos todo!</h2>
+        <p class="text-muted leading-relaxed mb-6">El equipo de Vetly va a revisar tus datos y te contactará por WhatsApp para los siguientes pasos: conectar tu WhatsApp, cargar tu lista de pacientes y afinar tu agente de IA.</p>
+        <a href="https://wa.me/56993089185" class="inline-block bg-brand text-white font-semibold px-7 py-3 rounded-xl hover:bg-brandDk transition-all">Escríbenos por WhatsApp</a>
+    </div>
+</div>
+
+<script>
+var SUPA_URL = 'https://ehmncwawzdciajvuallg.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVobW5jd2F3emRjaWFqdnVhbGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDY4NzgsImV4cCI6MjA4OTQyMjg3OH0.FBiTDJ6ecEip6aEJrWaNzhLK93jO-VKJTff-Kt9lKng';
+
+var form = document.getElementById('altaForm');
+var bar = document.getElementById('progressBar');
+var lbl = document.getElementById('progressLabel');
+
+// barra de progreso: % de campos required + textareas con contenido
+function updateProgress() {
+    var fields = form.querySelectorAll('input[required], select[required], textarea[required]');
+    var done = 0;
+    fields.forEach(function (f) {
+        if (f.type === 'checkbox') { if (f.checked) done++; }
+        else if ((f.value || '').trim().length > 0) done++;
+    });
+    var pct = Math.round(done / fields.length * 100);
+    bar.style.width = pct + '%';
+    lbl.textContent = pct + ' %';
+}
+form.addEventListener('input', updateProgress);
+form.addEventListener('change', updateProgress);
+
+// pre-cargar prospecto desde ?ref= / ?source= (para Yares u otros canales)
+try {
+    var qs = new URLSearchParams(location.search);
+    if (qs.get('source')) form.dataset.source = qs.get('source');
+} catch (e) {}
+
+form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var btn = document.getElementById('submitBtn');
+    var msg = document.getElementById('formMsg');
+
+    // arma el payload
+    var payload = { source: form.dataset.source || 'alta-clinica', submitted_at: new Date().toISOString(), user_agent: navigator.userAgent };
+    var els = form.querySelectorAll('input, select, textarea');
+    els.forEach(function (el) {
+        if (!el.name) return;
+        if (el.type === 'checkbox') { payload[el.name] = el.checked ? (el.value || true) : false; }
+        else { payload[el.name] = (el.value || '').trim(); }
+    });
+    payload.contact_name = payload.owner_name || '';
+    payload.contact_phone = payload.owner_phone || payload.clinic_phone || '';
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    msg.className = 'hidden';
+
+    fetch(SUPA_URL + '/rest/v1/rpc/submit_clinic_onboarding', {
+        method: 'POST',
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_payload: payload })
+    })
+    .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    })
+    .then(function () {
+        document.getElementById('thanks').classList.remove('hidden');
+        window.scrollTo(0, 0);
+    })
+    .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'Enviar';
+        msg.className = 'rounded-xl p-4 text-sm bg-red-50 text-red-700 border border-red-200';
+        msg.textContent = 'No pudimos enviar el formulario. Revisa tu conexión e inténtalo de nuevo, o escríbenos por WhatsApp al +56 9 9308 9185.';
+        console.error(err);
+    });
+});
+
+updateProgress();
+</script>
+</body>
+</html>

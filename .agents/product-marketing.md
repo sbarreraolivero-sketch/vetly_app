@@ -1058,7 +1058,7 @@ Desde el 1-oct-2026 Meta cobra **cada** mensaje que el negocio envía dentro de 
 
 ### Estructura del piloto — dos etapas (definida 2026-09-02)
 
-1. **Piloto (45 días):** las clínicas **NO pagan la suscripción**. Pagan: (a) **US$45 fijos de créditos de IA por adelantado a Vetly** (monto fijo dimensionado para uso típico — no varía con el uso real; si una clínica se pasa, Vetly cubre el exceso para que el agente no quede mudo a mitad del piloto), y (b) la **mensajería directo a Meta** según país.
+1. **Piloto (45 días):** las clínicas **NO pagan la suscripción**. Pagan: (a) **US$47 fijos de créditos de IA por adelantado a Vetly, vía checkout de Paddle** (monto fijo — no varía con el uso; si una clínica se pasa, Vetly cubre el exceso para que el agente no quede mudo a mitad del piloto), y (b) la **mensajería directo a Meta** según país (~US$2 en Colombia).
 2. **Si continúan:** pasan al **plan Pro (US$169/mes)**, que **ya incluye el procesamiento de OpenAI** (~7.600 créditos/mes de una clínica física típica caben en los 10.000 del Pro). El único costo que se suma al plan es **Meta**.
 
 Regla general fuera del piloto: **el add-on a cualquier plan Vetly es solo Meta.** OpenAI siempre va absorbido.
@@ -1069,19 +1069,19 @@ Regla general fuera del piloto: **el add-on a cualquier plan Vetly es solo Meta.
 
 | País | Créditos IA (a Vetly) | Meta (directo, uso típico) | **Total piloto** |
 |---|---|---|---|
-| Colombia | US$45 | ~US$2 | **~US$47** |
-| México | US$45 | ~US$15 | **~US$60** |
-| Chile | US$45 | ~US$35 | **~US$80** |
-| Perú | US$45 | ~US$35 | **~US$80** |
-| Argentina | US$45 | ~US$45 | **~US$90** |
+| Colombia | US$47 | ~US$2 | **~US$49** |
+| México | US$47 | ~US$15 | **~US$62** |
+| Chile | US$47 | ~US$35 | **~US$82** |
+| Perú | US$47 | ~US$35 | **~US$82** |
+| Argentina | US$47 | ~US$45 | **~US$92** |
 
-Los US$45 son fijos y no cambian con el uso (dimensionados para uso típico; uso alto real puede llegar a ~US$40-50 en OpenAI, Vetly cubre el exceso).
+Los US$47 son fijos y no cambian con el uso (uso alto real puede llegar a ~US$40-50 en OpenAI, Vetly cubre el exceso). Se cobran por checkout de Paddle.
 
 **Si la clínica continúa — mensual:** US$169 plan + Meta (Colombia ~US$1 · México ~US$10 · Chile/Perú ~US$23 · Argentina ~US$30).
 
 ### Qué decirle a Yares
 
-- Piloto en **Colombia**: **~US$47 por clínica para los 45 días** (US$45 créditos IA a Vetly + ~US$2 Meta directo).
+- Piloto en **Colombia**: **US$47 fijos a Vetly** (checkout de Paddle) + ~US$2 de Meta que paga la clínica directo.
 - Si continúan, la propuesta queda limpia: **"US$169 Vetly, todo incluido, + una mensajería que en Colombia no se nota (~US$1/mes)"**.
 - No usar Chile/Argentina/Perú para el piloto — el costo Meta 25-33× más alto sube el total del piloto a ~US$80-90.
 - One-pager para compartir: artefacto `scratchpad/costo-piloto-vetly.html`.
