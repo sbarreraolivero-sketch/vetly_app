@@ -47,6 +47,90 @@ const CLINIC_ANIMALGRACE_SANTIAGO_ID = "13472ea4-4da6-461c-9a80-a5c970d9ec73";
 // se agrega Linares y finalmente se simplifica a un chequeo de scheduling_mode.
 const LEAN_ROUTING_CLINICS = [CLINIC_ANIMALGRACE_SANTIAGO_ID];
 
+// Matriz de precios de esterilización/castración de Linares — refleja EXACTO
+// el documento KB #MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS. Vive en código (no
+// solo en el prompt) porque cruzar especie+sexo+peso+tramo en una tabla de 14
+// celdas es exactamente el tipo de lookup en el que el modelo se ha
+// equivocado repetidamente en producción — incluso con la tabla completa en
+// su contexto (ver sesiones 9, 40, y el caso real de sesión 100: perra de
+// 30 kg cotizada en $85.000, precio real de la tabla equivocada — $115.000
+// era el correcto). Igual que con la promesa-sin-acción del agendamiento: un
+// tercer intento de arreglarlo solo con el prompt no era razonable — se
+// mueve el cálculo a código, y el modelo solo copia el resultado.
+const LINARES_SURGERY_PRICES = {
+  gato: {
+    hembra: { T1: 65000, T2: 73000, T3: 81000 },
+    macho: { T1: 60000, T2: 66000, T3: 74000 },
+  },
+  perro: {
+    hembra: [
+      { maxKg: 5, T1: 80000, T2: 88000, T3: 96000 },
+      { maxKg: 12, T1: 85000, T2: 93000, T3: 101000 },
+      { maxKg: 17, T1: 90000, T2: 98000, T3: 106000 },
+      { maxKg: 22, T1: 95000, T2: 103000, T3: 111000 },
+      { maxKg: 28, T1: 105000, T2: 113000, T3: 121000 },
+      { maxKg: 35, T1: 115000, T2: 123000, T3: 131000 },
+      { maxKg: 40, T1: 122000, T2: 130000, T3: 138000 },
+    ],
+    macho: [
+      { maxKg: 10, T1: 70000, T2: 78000, T3: 86000 },
+      { maxKg: 15, T1: 75000, T2: 83000, T3: 91000 },
+      { maxKg: 22, T1: 80000, T2: 88000, T3: 96000 },
+      { maxKg: 30, T1: 85000, T2: 93000, T3: 101000 },
+      { maxKg: 40, T1: 90000, T2: 98000, T3: 106000 },
+      { maxKg: 100, T1: 100000, T2: 108000, T3: 116000 },
+    ],
+  },
+} as const;
+
+const calculateSurgeryPriceLinares = (args: any) => {
+  const sp = String(args.species || "").toLowerCase();
+  const isCat = /gat/.test(sp);
+  const isDog = /perr|can/.test(sp);
+  if (!isCat && !isDog) {
+    return { success: false, message: "Especie no reconocida — usa 'gato' o 'perro'. Confírmasela al tutor antes de reintentar." };
+  }
+  const sx = String(args.sex || "").toLowerCase();
+  const isFemale = /hembra|femenin/.test(sx);
+  const isMale = /macho|masculin/.test(sx);
+  if (!isFemale && !isMale) {
+    return { success: false, message: "Sexo no reconocido — usa 'hembra' o 'macho'. Confírmaselo al tutor antes de reintentar." };
+  }
+  const travelMinutes = Number(args.travel_minutes);
+  if (!Number.isFinite(travelMinutes) || travelMinutes < 0) {
+    return { success: false, message: "Falta travel_minutes — usa el número exacto del bloque [LOGÍSTICA: Pabellón más cercano... a N min] de tu contexto." };
+  }
+  const tramo = travelMinutes <= 25 ? "T1" : travelMinutes <= 35 ? "T2" : travelMinutes <= 45 ? "T3" : null;
+  if (!tramo) {
+    return { success: false, message: "Fuera de rango de tramo (más de 45 min al pabellón) — no hay valor automático. Usa escalate_to_human." };
+  }
+
+  let base: number;
+  if (isCat) {
+    base = LINARES_SURGERY_PRICES.gato[isFemale ? "hembra" : "macho"][tramo];
+  } else {
+    const weightKg = Number(args.weight_kg);
+    if (!Number.isFinite(weightKg) || weightKg <= 0) {
+      return { success: false, message: "Falta weight_kg — es obligatorio para perros. Pídele el peso al tutor antes de reintentar." };
+    }
+    const brackets = LINARES_SURGERY_PRICES.perro[isFemale ? "hembra" : "macho"];
+    const bracket = brackets.find((b) => weightKg <= b.maxKg);
+    if (!bracket) {
+      return { success: false, message: `Peso de ${weightKg}kg fuera de la tabla — escala a un humano, no inventes un valor.` };
+    }
+    base = bracket[tramo];
+  }
+
+  const surcharge = args.in_heat_or_pregnant === true ? 20000 : 0;
+  return {
+    success: true,
+    price_total: base + surcharge,
+    tramo,
+    breakdown: surcharge > 0 ? `Base $${base.toLocaleString("es-CL")} + $20.000 (celo/preñez)` : `Base $${base.toLocaleString("es-CL")}, sin recargos`,
+    instruction: "Usa EXCLUSIVAMENTE price_total como el valor a comunicar. No lo recalcules ni lo ajustes.",
+  };
+};
+
 const surgeryPrompt = `
 [NORMATIVA NUCLEAR - BLACKOUT QUIRÚRGICO]:
 1. ESTE SERVICIO TIENE LA AGENDA BLOQUEADA PARA TI.
@@ -347,6 +431,21 @@ const functions = [
         additional_notes: { type: "string", description: "Cualquier antecedente adicional relevante para el servicio solicitado" },
       },
       required: ["tutor_name", "service_name", "comuna", "address", "is_urgent", "availability_text"],
+    },
+  },
+  {
+    name: "calculate_surgery_price",
+    description: "SOLO Linares. Calcula el precio EXACTO de esterilización/castración — úsala SIEMPRE en vez de leer la tabla de precios tú mismo, ni siquiera para hacer un cálculo mental rápido. Cruzar especie+sexo+peso+tramo a mano ya causó cotizaciones incorrectas reales. Requiere especie y sexo confirmados con el tutor, peso (obligatorio si es perro) y los minutos de traslado del bloque [LOGÍSTICA: Pabellón más cercano... a N min] de tu contexto — nunca inventes esos minutos. Usa EXCLUSIVAMENTE el price_total que te devuelva.",
+    parameters: {
+      type: "object",
+      properties: {
+        species: { type: "string", enum: ["perro", "gato"], description: "Especie de la mascota" },
+        sex: { type: "string", enum: ["hembra", "macho"], description: "Sexo de la mascota" },
+        weight_kg: { type: "number", description: "Peso en kilos. Obligatorio si species='perro'; se ignora para gatos." },
+        travel_minutes: { type: "number", description: "Minutos al pabellón quirúrgico más cercano, tomados literalmente del bloque [LOGÍSTICA] de tu contexto." },
+        in_heat_or_pregnant: { type: "boolean", description: "true si la hembra está en celo o preñada (agrega $20.000 de recargo)" },
+      },
+      required: ["species", "sex", "travel_minutes"],
     },
   },
   {
@@ -1430,6 +1529,33 @@ const requestSchedulingCoordination = async (
     return { success: false, message: "FALTA_NOMBRE_MASCOTA: No se puede enviar la solicitud sin el nombre real de la mascota. Pregúntaselo al tutor antes de volver a intentar." };
   }
 
+  // Guard: si el tutor solo ofreció "hoy" y/o "mañana" (sin dar ningún otro día
+  // concreto) y ESE/ESOS día(s) la clínica no atiende, la solicitud no debe
+  // llegar a la coordinadora tal cual — eso le hace creer que hay una opción
+  // real cuando no la hay. Caso real confirmado (Aaron Llanos/Noah, Santiago,
+  // sábado 2026-09-05): el tutor ofreció "hoy o mañana" (sábado y domingo,
+  // ambos cerrados) y la solicitud se envió igual, sin que nadie lo notara
+  // hasta que Claudia la vio en su WhatsApp. No bloquea si el tutor YA
+  // mencionó otro día de la semana o una fecha explícita como alternativa.
+  const availLower = availability.toLowerCase();
+  const mentionsExplicitDay = /\b(lunes|martes|mi[ée]rcoles|jueves|viernes|s[áa]bado|domingo)\b/.test(availLower)
+    || /\d{1,2}[\/\-]\d{1,2}/.test(availLower);
+  if (!mentionsExplicitDay) {
+    const clinicTz = clinic?.timezone || "America/Santiago";
+    const dayKeyEn = (offsetDays: number) =>
+      new Date(Date.now() + offsetDays * 86400000).toLocaleDateString("en-US", { timeZone: clinicTz, weekday: "long" }).toLowerCase();
+    const isDayClosed = (key: string) => {
+      const h = (clinic?.working_hours || {})[key];
+      return !h || h.closed === true || h.enabled === false;
+    };
+    const mentioned: { closed: boolean }[] = [];
+    if (/\bhoy\b/.test(availLower)) mentioned.push({ closed: isDayClosed(dayKeyEn(0)) });
+    if (/\bmañana\b/.test(availLower)) mentioned.push({ closed: isDayClosed(dayKeyEn(1)) });
+    if (mentioned.length > 0 && mentioned.every((d) => d.closed)) {
+      return { success: false, message: "FALTA_DISPONIBILIDAD_VALIDA: El tutor solo ofreció \"hoy\" y/o \"mañana\", pero la clínica no atiende ese/esos día(s) (está cerrada). Dile con claridad que ese día no hay atención y pídele una alternativa de día hábil real — luego vuelve a llamar a esta función con la nueva disponibilidad. Si el caso es realmente urgente y no puede esperar ningún día hábil, usa escalate_to_human en su lugar." };
+    }
+  }
+
   const { data: tutor } = await sb.from("tutors").select("id")
     .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone).limit(1).maybeSingle();
 
@@ -1665,6 +1791,9 @@ const processFunc = async (
       return rescheduleAppt(sb, clinicId, phone, args, timezone, schedulingMode);
     case "request_scheduling_coordination":
       return requestSchedulingCoordination(sb, clinicId, phone, args, clinic);
+    case "calculate_surgery_price":
+      if (clinicId !== CLINIC_ANIMALGRACE_ID) return { error: "Esta herramienta solo está disponible para Linares." };
+      return calculateSurgeryPriceLinares(args);
     case "tag_patient":
       return tagPatient(sb, clinicId, phone, args);
     default:
