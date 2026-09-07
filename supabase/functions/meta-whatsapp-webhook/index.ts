@@ -2742,8 +2742,15 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
                 "2 gatos", "3 gatos", "4 gatos", "2 perros", "3 perros", "4 perros",
                 "dos gatos", "tres gatos", "cuatro gatos", "dos perros", "tres perros", "cuatro perros",
                 "alizin", "preñ", "monta"];
-              const medicalSignals = ["cirug", "esteril", "castra", "vacun", "antirrabi", "octuple", "sextuple", "triple felina",
-                "puppy", "leucemia felina", "perrera", "destartraje", "sedaci", "ecograf", "radiograf", "eutan"];
+              const medicalSignals = ["cirug", "cesar", "esteril", "castra", "vacun", "antirrabi", "octuple", "sextuple", "triple felina",
+                "puppy", "leucemia felina", "perrera", "destartraje", "sedaci", "ecograf", "radiograf", "eutan",
+                // Triaje / síntomas — la IA en mini es más floja acá (deriva con lenguaje ambiguo,
+                // no aplica el protocolo de cirugía a "cesárea", etc.). Verificado sesión 97.
+                "vomit", "diarre", "sangr", "convuls", "temblor", "tiembla", "intoxic", "toxic", "envenen", "chocolate",
+                "no come", "no quiere comer", "no ha comido", "decai", "decaíd", "decaid", "cojea", "renque",
+                "dolor", "le duele", "se queja", "no respira", "cuesta respirar", "ahog", "asfixia", "jadea",
+                "herida", "atropell", "accidente", "mordi", "hincha", "inflam",
+                "bulto", "masa", "nódulo", "nodulo", "tumor", "quiste"];
               const currentBig = hasImageInBurst || pinContext
                 || pricingSignals.some(s => t.includes(s))
                 || medicalSignals.some(s => t.includes(s));
