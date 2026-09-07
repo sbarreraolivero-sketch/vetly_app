@@ -40,7 +40,9 @@ import {
     Image as ImageIcon,
     Palette,
     Info,
+    DollarSign,
 } from 'lucide-react'
+import { PriceMatrixEditor } from '@/components/settings/PriceMatrixEditor'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
 import { usePlan } from '@/hooks/usePlan'
@@ -58,6 +60,7 @@ import { toast } from 'react-hot-toast'
 const tabs = [
     { id: 'profile', label: 'Mi Perfil', icon: User },
     { id: 'clinic', label: 'Clínica', icon: Building2 },
+    { id: 'services_pricing', label: 'Servicios y Precios', icon: DollarSign },
     { id: 'branding', label: 'Diseño de marca', icon: Palette },
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'subscription', label: 'Plan', icon: CreditCard },
@@ -159,6 +162,12 @@ export default function Settings() {
     const [newServiceLinkedProductId, setNewServiceLinkedProductId] = useState<string>('')
     const [newServiceLinkedProductQty, setNewServiceLinkedProductQty] = useState<string>('1')
     const [newServicePublicBookable, setNewServicePublicBookable] = useState(false)
+    // 'fixed' = precio único (comportamiento de siempre). 'matrix' = el precio
+    // depende de especie/sexo/peso/tramo/anestesia — se resuelve vía la matriz
+    // elegida (calculate_matrix_price), no se guarda un número acá.
+    const [newServicePricingMode, setNewServicePricingMode] = useState<'fixed' | 'matrix'>('fixed')
+    const [newServicePriceMatrixId, setNewServicePriceMatrixId] = useState<string>('')
+    const [priceMatrices, setPriceMatrices] = useState<{ id: string; label: string }[]>([])
     const [inventoryProducts, setInventoryProducts] = useState<any[]>([])
 
     // Professional assignment state for service modal
@@ -405,13 +414,15 @@ export default function Settings() {
                     { data: servicesData, error: servicesError },
                     { data: profData, error: profError },
                     { data: productsData },
+                    { data: matricesData },
                 ] = await Promise.all([
                     safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', clinicId).single()),
                     safe((supabase as any).from('clinic_settings').select('*').eq('id', clinicId).single()),
                     safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', clinicId).single()),
-                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty, is_public_bookable').eq('clinic_id', clinicId)),
+                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty, is_public_bookable, pricing_mode, price_matrix_id').eq('clinic_id', clinicId)),
                     safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: clinicId })),
                     safe((supabase as any).from('inventory_products').select('id, name, unit, stock_quantity').eq('clinic_id', clinicId).eq('is_active', true).order('name')),
+                    safe((supabase as any).from('clinic_price_matrices').select('id, label').eq('clinic_id', clinicId).eq('status', 'active').order('created_at', { ascending: true })),
                 ])
 
                 // Blocked dates tiene su propio loading state — corre en background
@@ -493,8 +504,12 @@ export default function Settings() {
                         linkedProductId: s.linked_product_id,
                         linkedProductQty: s.linked_product_qty,
                         publicBookable: s.is_public_bookable,
+                        pricingMode: s.pricing_mode || 'fixed',
+                        priceMatrixId: s.price_matrix_id,
                     })))
                 }
+
+                if (matricesData) setPriceMatrices(matricesData)
 
                 // --- Procesar profesionales ---
                 if (profError) console.error('Error fetching professionals:', profError)
@@ -939,6 +954,8 @@ export default function Settings() {
         setNewServiceLinkedProductId('')
         setNewServiceLinkedProductQty('1')
         setNewServicePublicBookable(false)
+        setNewServicePricingMode('fixed')
+        setNewServicePriceMatrixId('')
     }
 
     const handleEditService = async (service: any) => {
@@ -949,6 +966,8 @@ export default function Settings() {
         setNewServiceLinkedProductId(service.linkedProductId ?? '')
         setNewServiceLinkedProductQty(String(service.linkedProductQty ?? 1))
         setNewServicePublicBookable(!!service.publicBookable)
+        setNewServicePricingMode(service.pricingMode === 'matrix' ? 'matrix' : 'fixed')
+        setNewServicePriceMatrixId(service.priceMatrixId || '')
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
@@ -978,16 +997,27 @@ export default function Settings() {
 
     const handleSaveService = async () => {
         if (!newServiceName.trim() || !clinicId) return
+        if (newServicePricingMode === 'matrix' && !newServicePriceMatrixId) {
+            alert('Elige una matriz de precio, o cambia el tipo a "Fijo".')
+            return
+        }
 
         try {
             const serviceData = {
                 clinic_id: clinicId,
                 name: newServiceName.trim(),
                 duration: parseInt(newServiceDuration) || 0,
-                price: parseFloat(newServicePrice) || 0,
+                // Un servicio "por matriz" no guarda un número acá — el precio
+                // real lo resuelve el agente vía calculate_matrix_price. El 0
+                // es un piso de compatibilidad para pantallas que aún leen
+                // .price como número plano (Finanzas, reserva pública, etc.)
+                // y no forman parte de este trabajo — deuda conocida, no oculta.
+                price: newServicePricingMode === 'matrix' ? 0 : (parseFloat(newServicePrice) || 0),
                 linked_product_id: newServiceLinkedProductId || null,
                 linked_product_qty: Math.max(1, parseInt(newServiceLinkedProductQty) || 1),
                 is_public_bookable: newServicePublicBookable,
+                pricing_mode: newServicePricingMode,
+                price_matrix_id: newServicePricingMode === 'matrix' ? newServicePriceMatrixId : null,
             }
 
             let savedServiceId = editingServiceId
@@ -1012,6 +1042,8 @@ export default function Settings() {
                     linkedProductId: serviceData.linked_product_id,
                     linkedProductQty: serviceData.linked_product_qty,
                     publicBookable: serviceData.is_public_bookable,
+                    pricingMode: serviceData.pricing_mode,
+                    priceMatrixId: serviceData.price_matrix_id,
                 } : s))
             } else {
                 // Insert new service
@@ -1035,6 +1067,8 @@ export default function Settings() {
                     linkedProductId: data.linked_product_id,
                     linkedProductQty: data.linked_product_qty,
                     publicBookable: data.is_public_bookable,
+                    pricingMode: data.pricing_mode,
+                    priceMatrixId: data.price_matrix_id,
                 }])
             }
 
@@ -1732,6 +1766,15 @@ export default function Settings() {
 
                             </div>
 
+                        </div>
+                    )}
+
+                    {/* Servicios y Precios — unifica el CRUD de servicios (movido desde
+                        Clínica) con las matrices de precio nuevas, en un solo lugar. */}
+                    {activeTab === 'services_pricing' && (
+                        <div className="space-y-6">
+                            <PriceMatrixEditor clinicId={clinicId} />
+
                             {/* Services */}
                             <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
@@ -1784,9 +1827,20 @@ export default function Settings() {
                                                             Reservable online
                                                         </span>
                                                     )}
+                                                    {service.pricingMode === 'matrix' && (
+                                                        <span
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full"
+                                                            title="El precio lo calcula el agente de IA con una matriz (especie/sexo/peso/etc.), no un número fijo"
+                                                        >
+                                                            <DollarSign className="w-2.5 h-2.5" />
+                                                            Por matriz
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="text-sm text-charcoal/50">
-                                                    {service.duration} minutos · {currencySymbols[currency]}{service.price.toLocaleString()} {currency}
+                                                    {service.duration} minutos · {service.pricingMode === 'matrix'
+                                                        ? 'precio según matriz'
+                                                        : `${currencySymbols[currency]}${service.price.toLocaleString()} ${currency}`}
                                                 </p>
                                             </div>
                                             <div className="flex gap-2">
@@ -1855,17 +1909,58 @@ export default function Settings() {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm font-medium text-charcoal mb-2">Precio ({currency})</label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={newServicePrice}
-                                                        onChange={(e) => setNewServicePrice(e.target.value)}
-                                                        className="input-soft"
-                                                        placeholder="0"
-                                                    />
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="block text-sm font-medium text-charcoal">Precio ({currency})</label>
+                                                        {/* El toggle solo aparece si ya hay al menos una matriz configurada —
+                                                            la gran mayoría de los servicios tienen precio fijo y no necesitan verlo. */}
+                                                        {priceMatrices.length > 0 && (
+                                                            <div className="flex text-[10px] rounded-full border border-silk-beige overflow-hidden">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setNewServicePricingMode('fixed')}
+                                                                    className={cn('px-2 py-0.5 font-bold uppercase tracking-wide', newServicePricingMode === 'fixed' ? 'bg-primary-500 text-white' : 'bg-white text-charcoal/50')}
+                                                                >
+                                                                    Fijo
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setNewServicePricingMode('matrix')}
+                                                                    className={cn('px-2 py-0.5 font-bold uppercase tracking-wide', newServicePricingMode === 'matrix' ? 'bg-primary-500 text-white' : 'bg-white text-charcoal/50')}
+                                                                >
+                                                                    Por matriz
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {newServicePricingMode === 'matrix' ? (
+                                                        <select
+                                                            value={newServicePriceMatrixId}
+                                                            onChange={(e) => setNewServicePriceMatrixId(e.target.value)}
+                                                            className="input-soft"
+                                                        >
+                                                            <option value="">Elige una matriz</option>
+                                                            {priceMatrices.map((m) => (
+                                                                <option key={m.id} value={m.id}>{m.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            value={newServicePrice}
+                                                            onChange={(e) => setNewServicePrice(e.target.value)}
+                                                            className="input-soft"
+                                                            placeholder="0"
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
+                                            {newServicePricingMode === 'matrix' && (
+                                                <p className="text-xs text-charcoal/50 -mt-2">
+                                                    El precio lo calcula el agente de IA según especie/sexo/peso/tramo — configura los valores en
+                                                    la sección "Matrices de Precio" de arriba.
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Descuento de stock — el servicio es el concepto que se cobra,
@@ -2030,7 +2125,6 @@ export default function Settings() {
                         </div>
                     )}
 
-                    {/* Diseño de marca (logo + colores) y Página de Reservas Online */}
                     {activeTab === 'branding' && (
                         <div className="space-y-6">
                             {/* Card 1 — Diseño de marca: siempre visible */}
