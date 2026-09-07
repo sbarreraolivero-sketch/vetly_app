@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, Phone, Send, Sparkles, MoreVertical, MessageSquare, RefreshCw, Bot, User, BellOff, ArrowLeft } from 'lucide-react'
 import { cn, formatPhoneNumber, getInitials } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -27,18 +28,17 @@ interface Conversation {
 
 export default function Messages() {
     const { profile } = useAuth()
-    const [conversations, setConversations] = useState<Conversation[]>([])
+    const queryClient = useQueryClient()
+    const convKey = ['conversations', profile?.clinic_id] as const
     const [selectedPhone, setSelectedPhone] = useState<string | null>(null)
     const [sidebarPhone, setSidebarPhone] = useState<string | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [newMessage, setNewMessage] = useState('')
-    const [loading, setLoading] = useState(true)
     const [loadingMessages, setLoadingMessages] = useState(false)
     const [sending, setSending] = useState(false)
     const [togglingAI, setTogglingAI] = useState(false)
     const [showSidebar, setShowSidebar] = useState(false)
-    const [loadError, setLoadError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const chatRef = useRef<HTMLDivElement>(null)
 
@@ -49,7 +49,7 @@ export default function Messages() {
     }, [selectedPhone])
 
     // Stable refs to avoid recreating Realtime subscription when callbacks change
-    const fetchConversationsRef = useRef<() => Promise<void>>(() => Promise.resolve())
+    const fetchConversationsRef = useRef<() => void>(() => {})
     const scrollToBottomRef = useRef<() => void>(() => {})
 
     // Scroll to bottom of messages
@@ -59,18 +59,22 @@ export default function Messages() {
         }, 100)
     }, [])
 
-    // Fetch conversations (grouped by phone_number)
-    const fetchConversations = useCallback(async () => {
-        if (!profile?.clinic_id) return
-        setLoadError(null)
-        try {
+    // Lista de conversaciones vía React Query — cacheada entre navegaciones
+    // (staleTime global 5 min). Realtime y las mutaciones invalidan esta query.
+    // La vista de mensajes por teléfono sigue en estado local (tiene efectos de
+    // is_read y append en vivo, más frágiles de mover).
+    const convQuery = useQuery<Conversation[]>({
+        queryKey: convKey,
+        enabled: !!profile?.clinic_id,
+        queryFn: async () => {
+            const cid = profile!.clinic_id
             // Get all messages grouped by phone number, get latest message per conversation
             // We use a try-catch pattern or a safer select to handle the missing is_read column
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let { data: msgs, error } = await (supabase as any)
                 .from('messages')
                 .select('phone_number, content, direction, created_at, is_read')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', cid)
                 .order('created_at', { ascending: false })
                 .limit(3000)
 
@@ -79,7 +83,7 @@ export default function Messages() {
                 const { data: fallbackMsgs, error: fallbackError } = await (supabase as any)
                     .from('messages')
                     .select('phone_number, content, direction, created_at')
-                    .eq('clinic_id', profile.clinic_id)
+                    .eq('clinic_id', cid)
                     .order('created_at', { ascending: false })
                     .limit(3000)
 
@@ -88,7 +92,7 @@ export default function Messages() {
             } else if (error) {
                 throw error
             }
-            if (!msgs || msgs.length === 0) { setConversations([]); setLoading(false); return }
+            if (!msgs || msgs.length === 0) return []
 
             // Group by phone number
             const phoneMap = new Map<string, { messages: typeof msgs, count: number }>()
@@ -117,7 +121,7 @@ export default function Messages() {
             const { data: tutors } = await (supabase as any)
                 .from('tutors')
                 .select('phone_number, name, requires_human')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', cid)
                 .in('phone_number', queryPhones)
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +138,7 @@ export default function Messages() {
                 const { data: prospects } = await (supabase as any)
                     .from('crm_prospects')
                     .select('phone, name, requires_human')
-                    .eq('clinic_id', profile.clinic_id)
+                    .eq('clinic_id', cid)
                     .in('phone', queryUnnamed)
 
                 prospects?.forEach((p: any) => {
@@ -177,19 +181,33 @@ export default function Messages() {
 
             // Sort by last message time
             convs.sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
-            setConversations(convs)
+            return convs
+        },
+    })
 
-            // Auto-select first conversation if none selected (only on desktop)
-            if (!selectedPhoneRef.current && convs.length > 0 && window.innerWidth >= 768) {
-                setSelectedPhone(convs[0].phone_number)
-            }
-        } catch (e) {
-            console.error('Error:', e)
-            setLoadError('No se pudieron cargar las conversaciones. Revisa tu conexión e intenta de nuevo.')
-        } finally {
-            setLoading(false)
+    const conversations = convQuery.data ?? []
+    const loading = convQuery.isLoading
+    const loadError = convQuery.isError
+        ? 'No se pudieron cargar las conversaciones. Revisa tu conexión e intenta de nuevo.'
+        : null
+
+    /** Refresca la lista de conversaciones (realtime + botón de recargar + mutaciones). */
+    const fetchConversations = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: convKey })
+    }, [queryClient, profile?.clinic_id])
+
+    /** Parche optimista sobre el caché de conversaciones. */
+    const patchConversations = useCallback((fn: (c: Conversation[]) => Conversation[]) => {
+        queryClient.setQueryData<Conversation[]>(convKey, (old) => fn(old ?? []))
+    }, [queryClient, profile?.clinic_id])
+
+    // Auto-seleccionar la primera conversación (solo desktop) cuando llega la lista.
+    useEffect(() => {
+        const convs = convQuery.data
+        if (convs && convs.length > 0 && !selectedPhoneRef.current && window.innerWidth >= 768) {
+            setSelectedPhone(convs[0].phone_number)
         }
-    }, [profile?.clinic_id])
+    }, [convQuery.data])
 
     // Keep refs in sync so Realtime handler always calls the latest version
     useEffect(() => { fetchConversationsRef.current = fetchConversations }, [fetchConversations])
@@ -234,10 +252,7 @@ export default function Messages() {
         }
     }, [profile?.clinic_id, selectedPhone, scrollToBottom])
 
-    // Initial load
-    useEffect(() => {
-        fetchConversations()
-    }, [fetchConversations])
+    // (La carga inicial de conversaciones la maneja convQuery al montar.)
 
     // Fetch messages when conversation changes
     useEffect(() => {
@@ -325,7 +340,7 @@ export default function Messages() {
             }
 
             // Update local state
-            setConversations(prev => prev.map(c =>
+            patchConversations(prev => prev.map(c =>
                 c.phone_number === conv.phone_number
                     ? { ...c, requires_human: newStatus }
                     : c
@@ -397,7 +412,7 @@ export default function Messages() {
             ])
 
             // Update local state for immediate feedback
-            setConversations(prev => prev.map(c =>
+            patchConversations(prev => prev.map(c =>
                 c.phone_number === selectedPhone ? { ...c, requires_human: true } : c
             ))
 
@@ -489,7 +504,7 @@ export default function Messages() {
                     </p>
                     {loadError && (
                         <button
-                            onClick={() => { setLoading(true); fetchConversations() }}
+                            onClick={() => fetchConversations()}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-soft hover:bg-primary-600 transition-colors"
                         >
                             <RefreshCw className="w-4 h-4" /> Reintentar
@@ -513,14 +528,13 @@ export default function Messages() {
                         <h2 className="font-semibold text-charcoal">Mensajes</h2>
                         <button
                             onClick={() => {
-                                setLoading(true);
                                 fetchConversations();
                                 if (selectedPhone) fetchMessages();
                             }}
                             className="p-1.5 text-charcoal/40 hover:text-charcoal hover:bg-ivory rounded-soft transition-colors"
                             title="Actualizar"
                         >
-                            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+                            <RefreshCw className={cn("w-4 h-4", (convQuery.isFetching || loadingMessages) && "animate-spin")} />
                         </button>
                     </div>
                     <div className="relative">

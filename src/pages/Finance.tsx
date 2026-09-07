@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     DollarSign,
     TrendingUp,
@@ -35,7 +36,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { supabase } from '@/lib/supabase'
-import { financeService, type FinanceStats, type Expense, type Income, type CashRegister } from '@/services/financeService'
+import { financeService, type Expense, type Income } from '@/services/financeService'
 import { inventoryService } from '@/services/inventoryService'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
@@ -113,9 +114,7 @@ const Finance = () => {
     const { profile, member, user } = useAuth()
     const { can, isOwner } = usePermissions()
     const clinicId = member?.clinic_id || profile?.clinic_id
-    const [clinicName, setClinicName] = useState<string>((member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica')
-    // Moneda real de la clínica; CLP como fallback razonable para este mercado.
-    const [currency, setCurrency] = useState<string>('CLP')
+    const queryClient = useQueryClient()
 
     // Timezone-aware date utilities from clinic settings
     const {
@@ -124,15 +123,7 @@ const Finance = () => {
         getDateRange,
     } = useClinicTimezone()
 
-    const [stats, setStats] = useState<FinanceStats | null>(null)
-    const [expenses, setExpenses] = useState<Expense[]>([])
-    const [incomes, setIncomes] = useState<Income[]>([])
-    const [loading, setLoading] = useState(true)
-    const [itemMetrics, setItemMetrics] = useState<any>(null)
-    const [discountMetrics, setDiscountMetrics] = useState<any>(null)
-    const [prevDiscountPct, setPrevDiscountPct] = useState<number | null>(null)
     const [activeTab, setActiveTab] = useState<'dashboard' | 'cajas' | 'expenses' | 'incomes' | 'analysis'>('dashboard')
-    const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
     const [cajaToClose, setCajaToClose] = useState<string | null>(null)  // date 'YYYY-MM-DD'
     const [closingCaja, setClosingCaja] = useState(false)
     const [reopeningCaja, setReopeningCaja] = useState<string | null>(null)  // date en proceso de reapertura
@@ -167,16 +158,19 @@ const Finance = () => {
         }
     }
 
-    // ── Data loading ──
-    useEffect(() => {
-        if (filterType === 'custom' && !customRange) return
-        loadData()
-    }, [clinicId, filterType, customRange, timezone])
+    // ── Datos de Finanzas vía React Query ──────────────────────────────
+    // Un solo fetch agregado, cacheado entre navegaciones y por cada período
+    // (staleTime global 5 min). Volver a Finanzas ya no repite las 8 consultas.
+    // Las mutaciones llaman `loadData()` (ahora un invalidate) y las de caja /
+    // borrado de ingreso hacen parche optimista sobre el caché con `patchFinance`.
+    const customRangeKey = customRange ? `${customRange.start.getTime()}-${customRange.end.getTime()}` : null
+    const financeKey = ['finance', clinicId, filterType, customRangeKey, timezone] as const
 
-    const loadData = async () => {
-        if (!clinicId) return
-        setLoading(true)
-        try {
+    const financeQuery = useQuery({
+        queryKey: financeKey,
+        enabled: !!clinicId && (filterType !== 'custom' || !!customRange),
+        queryFn: async () => {
+            const cid = clinicId as string
             let start: Date, end: Date
             if (filterType === 'custom' && customRange) {
                 start = startOfDay(customRange.start)
@@ -193,46 +187,61 @@ const Finance = () => {
             const prevStart = startOfDay(addDays(start, -spanDays))
             const prevEnd   = endOfDay(addDays(end, -spanDays))
 
-            // allSettled: que un fallo en una query no tumbe a las demás. Con Promise.all,
-            // un solo rechazo dejaba toda la UI sin actualizar (datos viejos hasta refrescar).
+            // allSettled: que un fallo en una query no tumbe a las demás.
             const [statsR, expR, incR, metR, crR, csR, discR, prevDiscR] = await Promise.allSettled([
-                financeService.getStats(clinicId, start, end),
-                financeService.getExpenses(clinicId, start, end),
-                financeService.getIncomes(clinicId, start, end),
-                financeService.getItemMetrics(clinicId, start, end),
-                financeService.getCashRegisters(clinicId, start, end),
+                financeService.getStats(cid, start, end),
+                financeService.getExpenses(cid, start, end),
+                financeService.getIncomes(cid, start, end),
+                financeService.getItemMetrics(cid, start, end),
+                financeService.getCashRegisters(cid, start, end),
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name, currency').eq('id', clinicId).single()).then((r: any) => r),
-                financeService.getDiscountMetrics(clinicId, start, end),
-                financeService.getDiscountMetrics(clinicId, prevStart, prevEnd),
+                Promise.resolve((supabase as any).from('clinic_settings').select('clinic_name, currency').eq('id', cid).single()).then((r: any) => r),
+                financeService.getDiscountMetrics(cid, start, end),
+                financeService.getDiscountMetrics(cid, prevStart, prevEnd),
             ])
 
-            if (statsR.status === 'fulfilled') setStats(statsR.value)
-            if (expR.status === 'fulfilled') setExpenses(expR.value)
-            if (incR.status === 'fulfilled') setIncomes(incR.value)
-            setItemMetrics(metR.status === 'fulfilled' ? metR.value : null)
-            if (crR.status === 'fulfilled') setCashRegisters(crR.value)
             const cs = csR.status === 'fulfilled' ? (csR.value as any) : null
-            if (cs?.data?.clinic_name) setClinicName(cs.data.clinic_name)
-            if (cs?.data?.currency) setCurrency(cs.data.currency)
-            setDiscountMetrics(discR.status === 'fulfilled' ? discR.value : null)
-            // Sin ventas en el período anterior no hay comparación posible: null
-            // (se muestra un guion), nunca 0% — que se leería como "no descontaron".
-            setPrevDiscountPct(
-                prevDiscR.status === 'fulfilled' && prevDiscR.value && Number(prevDiscR.value.total_sales) > 0
-                    ? Number(prevDiscR.value.discount_pct)
-                    : null
-            )
-
             const failed = [statsR, expR, incR, metR, crR].filter(r => r.status === 'rejected')
             if (failed.length > 0) {
                 console.error('Finance: carga parcial con errores', failed.map(f => (f as PromiseRejectedResult).reason))
             }
-        } catch (error) {
-            console.error('Error loading finance data:', error)
-        } finally {
-            setLoading(false)
-        }
+
+            return {
+                stats: statsR.status === 'fulfilled' ? statsR.value : null,
+                expenses: expR.status === 'fulfilled' ? expR.value : [],
+                incomes: incR.status === 'fulfilled' ? incR.value : [],
+                itemMetrics: metR.status === 'fulfilled' ? metR.value : null,
+                cashRegisters: crR.status === 'fulfilled' ? crR.value : [],
+                clinicName: cs?.data?.clinic_name || (member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica',
+                currency: cs?.data?.currency || 'CLP',
+                discountMetrics: discR.status === 'fulfilled' ? discR.value : null,
+                // Sin ventas en el período anterior no hay comparación posible: null
+                // (se muestra un guion), nunca 0% — que se leería como "no descontaron".
+                prevDiscountPct: (prevDiscR.status === 'fulfilled' && prevDiscR.value && Number(prevDiscR.value.total_sales) > 0)
+                    ? Number(prevDiscR.value.discount_pct)
+                    : null,
+            }
+        },
+    })
+
+    type FinanceData = NonNullable<typeof financeQuery.data>
+    const FIN_EMPTY: FinanceData = {
+        stats: null, expenses: [], incomes: [], itemMetrics: null, cashRegisters: [],
+        clinicName: (member as any)?.clinic_name || (profile as any)?.clinic_name || 'Clínica',
+        currency: 'CLP', discountMetrics: null, prevDiscountPct: null,
+    }
+    const {
+        stats, expenses, incomes, itemMetrics, cashRegisters,
+        clinicName, currency, discountMetrics, prevDiscountPct,
+    } = financeQuery.data ?? FIN_EMPTY
+    const loading = financeQuery.isLoading
+
+    /** Refresca todos los datos de Finanzas tras una mutación. */
+    const loadData = () => { queryClient.invalidateQueries({ queryKey: financeKey }) }
+
+    /** Parche optimista sobre el caché de Finanzas (borrado de ingreso, cajas). */
+    const patchFinance = (fn: (d: FinanceData) => FinanceData) => {
+        queryClient.setQueryData<FinanceData>(financeKey, (old) => (old ? fn(old) : old))
     }
 
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
@@ -501,7 +510,7 @@ const Finance = () => {
         // queries en paralelo falla, el Promise.all cae al catch y la lista quedaría
         // con datos viejos hasta refrescar la página.
         const prevIncomes = incomes
-        setIncomes(curr => curr.filter(i => i.id !== incomeId))
+        patchFinance(d => ({ ...d, incomes: d.incomes.filter(i => i.id !== incomeId) }))
         try {
             // Revertir el stock ANTES de borrar — al borrar el ingreso, el FK de
             // inventory_movements.income_id (ON DELETE SET NULL) desvincularía los
@@ -513,7 +522,7 @@ const Finance = () => {
         } catch (error) {
             console.error('Error deleting income:', error)
             toast.error('Error al eliminar el ingreso')
-            setIncomes(prevIncomes) // revertir si el borrado falló
+            patchFinance(d => ({ ...d, incomes: prevIncomes })) // revertir si el borrado falló
         }
     }
 
@@ -653,10 +662,7 @@ const Finance = () => {
         setClosingCaja(true)
         try {
             const result = await financeService.closeCaja(clinicId, date, notes, user.id)
-            setCashRegisters(prev => {
-                const filtered = prev.filter(c => c.date !== date)
-                return [...filtered, result]
-            })
+            patchFinance(d => ({ ...d, cashRegisters: [...d.cashRegisters.filter(c => c.date !== date), result] }))
             setCajaToClose(null)
             toast.success('Caja cerrada correctamente')
         } catch (err) {
@@ -673,7 +679,7 @@ const Finance = () => {
         setReopeningCaja(date)
         try {
             const result = await financeService.reopenCaja(clinicId, date)
-            setCashRegisters(prev => prev.map(c => c.date === date ? result : c))
+            patchFinance(d => ({ ...d, cashRegisters: d.cashRegisters.map(c => c.date === date ? result : c) }))
             toast.success('Caja reabierta')
         } catch (err) {
             console.error('Error reabriendo caja:', err)
@@ -711,21 +717,20 @@ const Finance = () => {
         if (!clinicId || !user?.id) return
         try {
             await financeService.updateOpeningBalance(clinicId, date, amount, user.id)
-            // Actualizar el estado local sin recargar todo
-            setCashRegisters(prev => {
-                const existing = prev.find(c => c.date === date)
+            // Actualizar el caché sin recargar todo
+            patchFinance(d => {
+                const existing = d.cashRegisters.find(c => c.date === date)
                 if (existing) {
-                    return prev.map(c => c.date === date ? { ...c, opening_balance: amount } : c)
+                    return { ...d, cashRegisters: d.cashRegisters.map(c => c.date === date ? { ...c, opening_balance: amount } : c) }
                 }
-                // Si no existe en el estado, crear un registro temporal
-                return [...prev, {
+                return { ...d, cashRegisters: [...d.cashRegisters, {
                     id: `temp-${date}`, clinic_id: clinicId, date, status: 'open' as const,
                     opening_balance: amount, total_cobrado: 0, total_pendiente: 0,
                     total_efectivo: 0, total_transferencia: 0, total_tarjeta: 0, total_debito: 0,
                     total_gastos: 0, income_count: 0, notes: null, closed_by: null, closed_at: null,
                     reopened_by: null, reopened_at: null,
                     created_at: new Date().toISOString(),
-                }]
+                }] }
             })
             toast.success('Saldo inicial guardado')
         } catch (err) {

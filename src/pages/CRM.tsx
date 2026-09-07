@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import {
     Search,
@@ -66,13 +67,19 @@ const DEFAULT_STAGES = [
 
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
 
+interface CrmData {
+    stages: PipelineStage[]
+    prospects: Prospect[]
+    tags: CrmTag[]
+    prospectTags: Record<string, string[]>
+    services: { id: string; name: string }[]
+}
+const CRM_EMPTY: CrmData = { stages: [], prospects: [], tags: [], prospectTags: {}, services: [] }
+
 export default function CRM() {
     const { profile } = useAuth()
-    const [loading, setLoading] = useState(true)
-    const [stages, setStages] = useState<PipelineStage[]>([])
-    const [prospects, setProspects] = useState<Prospect[]>([])
-    const [tags, setTags] = useState<CrmTag[]>([])
-    const [prospectTags, setProspectTags] = useState<Record<string, string[]>>({})
+    const queryClient = useQueryClient()
+    const crmKey = ['crm', profile?.clinic_id] as const
     const [searchQuery, setSearchQuery] = useState('')
     const [filterTag, setFilterTag] = useState('')
 
@@ -105,30 +112,24 @@ export default function CRM() {
     // Cerrados ocultos por default
     const [showClosed, setShowClosed] = useState(false)
 
-    // Services for dropdown
-    const [services, setServices] = useState<{ id: string; name: string }[]>([])
-
-    // Fetch all data
-    useEffect(() => {
-        if (!profile?.clinic_id) return
-        fetchAll()
-    }, [profile?.clinic_id])
-
-    const fetchAll = async () => {
-        if (!profile?.clinic_id) return
-        setLoading(true)
-        try {
+    // ── Datos del CRM vía React Query — cacheados entre navegaciones (staleTime
+    //    global 5 min). Volver al CRM ya no repite las consultas ni muestra spinner.
+    const crmQuery = useQuery<CrmData>({
+        queryKey: crmKey,
+        enabled: !!profile?.clinic_id,
+        queryFn: async () => {
+            const cid = profile!.clinic_id
             // Stages
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let { data: stagesData } = await (supabase as any)
                 .from('crm_pipeline_stages')
                 .select('*')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', cid)
                 .order('position', { ascending: true })
 
             // Seed default stages if empty
             if (!stagesData || stagesData.length === 0) {
-                const inserts = DEFAULT_STAGES.map(s => ({ ...s, clinic_id: profile.clinic_id }))
+                const inserts = DEFAULT_STAGES.map(s => ({ ...s, clinic_id: cid }))
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: newStages } = await (supabase as any)
                     .from('crm_pipeline_stages')
@@ -136,27 +137,25 @@ export default function CRM() {
                     .select()
                 stagesData = newStages || []
             }
-            setStages(stagesData || [])
 
             // Prospects
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: prospectsData } = await (supabase as any)
                 .from('crm_prospects')
                 .select('*')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', cid)
                 .order('created_at', { ascending: false })
-            setProspects(prospectsData || [])
 
             // Tags
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: tagsData } = await (supabase as any)
                 .from('crm_tags')
                 .select('*')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', cid)
                 .order('name', { ascending: true })
-            setTags(tagsData || [])
 
             // Prospect-Tag relations
+            const ptMap: Record<string, string[]> = {}
             if (prospectsData && prospectsData.length > 0) {
                 const prospectIds = prospectsData.map((p: Prospect) => p.id)
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,15 +163,12 @@ export default function CRM() {
                     .from('crm_prospect_tags')
                     .select('prospect_id, tag_id')
                     .in('prospect_id', prospectIds)
-
-                const ptMap: Record<string, string[]> = {}
                 if (ptData) {
                     for (const pt of ptData) {
                         if (!ptMap[pt.prospect_id]) ptMap[pt.prospect_id] = []
                         ptMap[pt.prospect_id].push(pt.tag_id)
                     }
                 }
-                setProspectTags(ptMap)
             }
 
             // Services
@@ -180,14 +176,28 @@ export default function CRM() {
             const { data: svcData } = await (supabase as any)
                 .from("clinic_services")
                 .select('id, name')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', cid)
                 .order('name')
-            setServices(svcData || [])
-        } catch (err) {
-            console.error('Error fetching CRM data:', err)
-        } finally {
-            setLoading(false)
-        }
+
+            return {
+                stages: stagesData || [],
+                prospects: prospectsData || [],
+                tags: tagsData || [],
+                prospectTags: ptMap,
+                services: svcData || [],
+            }
+        },
+    })
+
+    const { stages, prospects, tags, prospectTags, services } = crmQuery.data ?? CRM_EMPTY
+    const loading = crmQuery.isLoading
+
+    /** Refresca todo el tablero tras una mutación. */
+    const fetchAll = () => { queryClient.invalidateQueries({ queryKey: crmKey }) }
+
+    /** Parche optimista sobre el caché del CRM (drag&drop, borrado, reorden). */
+    const patchCrm = (fn: (d: CrmData) => CrmData) => {
+        queryClient.setQueryData<CrmData>(crmKey, (old) => (old ? fn(old) : old))
     }
 
     // Stats
@@ -231,7 +241,7 @@ export default function CRM() {
         draggedProspect.current = null
 
         // Optimistic update
-        setProspects(prev => prev.map(p => p.id === prospectId ? { ...p, stage_id: stageId } : p))
+        patchCrm(d => ({ ...d, prospects: d.prospects.map(p => p.id === prospectId ? { ...p, stage_id: stageId } : p) }))
 
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -331,7 +341,7 @@ export default function CRM() {
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (supabase as any).from('crm_prospects').delete().eq('id', id)
-            setProspects(prev => prev.filter(p => p.id !== id))
+            patchCrm(d => ({ ...d, prospects: d.prospects.filter(p => p.id !== id) }))
             setShowDeleteConfirm(null)
         } catch (err) {
             console.error('Error deleting prospect:', err)
@@ -397,7 +407,7 @@ export default function CRM() {
 
         // Update positions numbers
         newStages.forEach((s, i) => s.position = i)
-        setStages(newStages)
+        patchCrm(d => ({ ...d, stages: newStages }))
 
         try {
             // Update all stages positions in DB

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
     Calendar,
     MessageSquare,
@@ -92,76 +93,30 @@ export default function Dashboard() {
     // tarjetas que solo tienen sentido con el agente activo.
     const { meetsPlan } = usePlan()
     const hasAI = meetsPlan('starter')
-    const [loading, setLoading] = useState(true)
-    const [stats, setStats] = useState<DashboardStats>({
-        appointmentsToday: 0,
-        messagesToday: 0,
-        activePatients: 0,
-        confirmationRate: 0
-    })
-
-    const [prevStats, setPrevStats] = useState({
-        appointments: 0,
-        prospects: 0,
-        aiMessages: 0,
-        reminders: 0,
-        cancelled: 0
-    })
-    
-    // New metrics
-    const [extraStats, setExtraStats] = useState({
-        remindersSent: 0,
-        manualReminders: 0,
-        newProspects: 0,
-        cancelledAppointments: 0,
-        aiMessages: 0,
-        aiAppointments: 0,
-        avgTicket: 0,
-    })
-
-    const [inventoryAlert, setInventoryAlert] = useState({ lowStock: 0, expiringSoon: 0 })
 
     const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
     const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
     const [showDatePicker, setShowDatePicker] = useState(false)
     const datePickerRef = useRef<HTMLDivElement>(null)
-    const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
-    const [recentMessages, setRecentMessages] = useState<Message[]>([])
-
-    // Services ranking data
-    const [servicesRanking, setServicesRanking] = useState<ServiceRanking[]>([])
-    const [conversionStats, setConversionStats] = useState({
-        consultations: 0,
-        converted: 0,
-        lost: 0,
-        rate: 0
-    })
-    const [satisfactionStats, setSatisfactionStats] = useState({
-        sent: 0,
-        responded: 0,
-        nps: 0,
-        average: 0
-    })
 
     const { getDateRange, getPreviousDateRange, toUTC } = useClinicTimezone()
 
-    // Estado real del agente IA (clinic_settings.ai_auto_respond)
-    const [aiActive, setAiActive] = useState<boolean | null>(null)
-    const [currency, setCurrency] = useState<string>('CLP')
-    useEffect(() => {
-        const fetchAiStatus = async () => {
-            if (!profile?.clinic_id) { setAiActive(null); return }
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Estado real del agente IA (clinic_settings.ai_auto_respond) — vía React Query,
+    // cacheado entre navegaciones.
+    const { data: aiStatusData } = useQuery({
+        queryKey: ['clinic-ai-status', profile?.clinic_id],
+        queryFn: async () => {
             const { data } = await (supabase as any)
                 .from('clinic_settings')
                 .select('ai_auto_respond, currency')
-                .eq('id', profile.clinic_id)
+                .eq('id', profile!.clinic_id)
                 .single()
-            setAiActive(data?.ai_auto_respond ?? false)
-            if (data?.currency) setCurrency(data.currency)
-        }
-        fetchAiStatus()
-    }, [profile?.clinic_id])
+            return { aiActive: data?.ai_auto_respond ?? false, currency: data?.currency || 'CLP' }
+        },
+        enabled: !!profile?.clinic_id,
+    })
+    const aiActive: boolean | null = aiStatusData?.aiActive ?? null
+    const currency = aiStatusData?.currency ?? 'CLP'
 
     // Créditos agotados: el agente puede tener ai_auto_respond=true y seguir mudo (sesión 83).
     const { exhausted: creditsExhausted, nearLimit: creditsNearLimit, unlimited: creditsUnlimited, totalUsed: creditsUsed, totalAvailable: creditsAvailable } = useAICreditsStatus(profile?.clinic_id)
@@ -179,16 +134,15 @@ export default function Dashboard() {
         return () => document.removeEventListener('mousedown', handler)
     }, [])
 
-    useEffect(() => {
-        let cancelled = false
-
-        const fetchDashboardData = async () => {
-            if (!user || !profile?.clinic_id) return
-            if (timeRange === 'custom' && !customRange) return
-
-            setLoading(true)
-
-            try {
+    // Datos del panel vía React Query — un solo fetch agregado, cacheado entre
+    // navegaciones y por cada rango de fechas (staleTime global 5 min). Volver al
+    // Dashboard ya no repite las ~19 consultas ni muestra spinner.
+    const customRangeKey = customRange ? `${customRange.start.getTime()}-${customRange.end.getTime()}` : null
+    const dashQuery = useQuery({
+        queryKey: ['dashboard', profile?.clinic_id, timeRange, customRangeKey],
+        enabled: !!user && !!profile?.clinic_id && (timeRange !== 'custom' || !!customRange),
+        queryFn: async () => {
+                if (!profile?.clinic_id) throw new Error('Sin clínica activa')
                 // Use clinic timezone for all date boundaries
                 const { start: monthStart } = getDateRange('month')
                 const startOfMonth = monthStart.toISOString()
@@ -358,9 +312,6 @@ export default function Dashboard() {
                     inventoryService.getInventoryStats(profile.clinic_id).catch(() => null),
                 ])
 
-                // Si el filtro cambió mientras esperábamos, descartar estos resultados
-                if (cancelled) return
-
                 // Process results
                 const appointments = appointmentsRes.data
                 const messages = messagesRes.data
@@ -368,17 +319,17 @@ export default function Dashboard() {
                 const inboundMessages = inboundMessagesRes.data
                 const surveys = surveysRes.data
 
-                setStats({
+                const stats: DashboardStats = {
                     appointmentsToday: appointmentsCountRes.count || 0,
                     messagesToday: messagesCountRes.count || 0,
                     activePatients: 0,
                     confirmationRate: 0
-                })
+                }
 
                 const currentProspectsCount = new Set(prospectsRes.data?.map((m: any) => m.phone_number)).size
                 const prevProspectsCount = new Set(prevProspectsRes.data?.map((m: any) => m.phone_number)).size
 
-                setExtraStats({
+                const extraStats = {
                     remindersSent: remindersCountRes.count || 0,
                     manualReminders: manualRemindersCountRes.count || 0,
                     newProspects: currentProspectsCount,
@@ -390,25 +341,26 @@ export default function Dashboard() {
                     avgTicket: itemMetricsRes?.sale_metrics?.avg_ticket
                         ?? itemMetricsRes?.appt_metrics?.avg_ticket
                         ?? 0,
-                })
+                }
 
-                setInventoryAlert({
+                const inventoryAlert = {
                     lowStock: inventoryStatsRes?.lowStock ?? 0,
                     expiringSoon: inventoryStatsRes?.expiringSoon ?? 0,
-                })
+                }
 
-                setPrevStats({
+                const prevStats = {
                     appointments: prevAppointmentsRes.count || 0,
                     prospects: prevProspectsCount,
                     aiMessages: prevAiMessagesRes.count || 0,
                     reminders: prevRemindersRes.count || 0,
                     cancelled: prevCancelledRes.count || 0
-                })
+                }
 
-                if (appointments) setUpcomingAppointments(appointments)
-                if (messages) setRecentMessages(messages)
+                const upcomingAppointments: Appointment[] = appointments || []
+                const recentMessages: Message[] = messages || []
 
                 // Service Ranking
+                let servicesRanking: ServiceRanking[] = []
                 if (monthAppointments && monthAppointments.length > 0) {
                     const serviceCounts: Record<string, number> = {}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -417,30 +369,29 @@ export default function Dashboard() {
                         serviceCounts[service] = (serviceCounts[service] || 0) + 1
                     })
                     const totalAppts = monthAppointments.length
-                    setServicesRanking(
-                        Object.entries(serviceCounts)
-                            .map(([name, count]) => ({
-                                name, count,
-                                percentage: Math.round((count / totalAppts) * 100),
-                                trend: 'stable' as const
-                            }))
-                            .sort((a, b) => b.count - a.count)
-                            .slice(0, 5)
-                    )
+                    servicesRanking = Object.entries(serviceCounts)
+                        .map(([name, count]) => ({
+                            name, count,
+                            percentage: Math.round((count / totalAppts) * 100),
+                            trend: 'stable' as const
+                        }))
+                        .sort((a, b) => b.count - a.count)
+                        .slice(0, 5)
                 }
 
                 // Conversion Rate
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const uniqueContacts = new Set(inboundMessages?.map((m: any) => m.phone_number)).size
                 const monthApptsCount = monthAppointments?.length || 0
-                setConversionStats({
+                const conversionStats = {
                     consultations: uniqueContacts,
                     converted: monthApptsCount,
                     lost: Math.max(0, uniqueContacts - monthApptsCount),
                     rate: uniqueContacts > 0 ? Math.round((monthApptsCount / uniqueContacts) * 100) : 0
-                })
+                }
 
                 // Satisfaction (NPS)
+                let satisfactionStats = { sent: 0, responded: 0, nps: 0, average: 0 }
                 if (surveys) {
                     const sent = surveys.length
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -456,19 +407,34 @@ export default function Dashboard() {
                         const detractors = ratings.filter((r: number) => r <= 3).length
                         nps = Math.round(((promoters - detractors) / ratings.length) * 100)
                     }
-                    setSatisfactionStats({ sent, responded, nps, average })
+                    satisfactionStats = { sent, responded, nps, average }
                 }
 
-            } catch (error) {
-                if (!cancelled) console.error('Error fetching dashboard data:', error)
-            } finally {
-                if (!cancelled) setLoading(false)
-            }
-        }
+                return {
+                    stats, extraStats, inventoryAlert, prevStats,
+                    upcomingAppointments, recentMessages,
+                    servicesRanking, conversionStats, satisfactionStats,
+                }
+        },
+    })
 
-        fetchDashboardData()
-        return () => { cancelled = true }
-    }, [user, profile?.clinic_id, timeRange, customRange])
+    const DASH_DEFAULTS = {
+        stats: { appointmentsToday: 0, messagesToday: 0, activePatients: 0, confirmationRate: 0 } as DashboardStats,
+        extraStats: { remindersSent: 0, manualReminders: 0, newProspects: 0, cancelledAppointments: 0, aiMessages: 0, aiAppointments: 0, avgTicket: 0 },
+        inventoryAlert: { lowStock: 0, expiringSoon: 0 },
+        prevStats: { appointments: 0, prospects: 0, aiMessages: 0, reminders: 0, cancelled: 0 },
+        upcomingAppointments: [] as Appointment[],
+        recentMessages: [] as Message[],
+        servicesRanking: [] as ServiceRanking[],
+        conversionStats: { consultations: 0, converted: 0, lost: 0, rate: 0 },
+        satisfactionStats: { sent: 0, responded: 0, nps: 0, average: 0 },
+    }
+    const {
+        stats, extraStats, inventoryAlert, prevStats,
+        upcomingAppointments, recentMessages,
+        servicesRanking, conversionStats, satisfactionStats,
+    } = dashQuery.data ?? DASH_DEFAULTS
+    const loading = dashQuery.isLoading
 
     if (loading) {
         return (
