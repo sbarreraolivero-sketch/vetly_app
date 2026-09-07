@@ -7511,3 +7511,55 @@ De paso (advisor `get_advisors(security)` = 1 ERROR): RLS habilitada en `require
 - **Las políticas `UPDATE` de `clinic_settings` no tienen granularidad de columna.** Cualquier columna sensible nueva (facturación, flags de acceso) necesita un trigger `BEFORE UPDATE` que la proteja de los requests con JWT de usuario — la RLS por sí sola deja al owner escribir toda la fila. Patrón: `IF auth.role() IN ('authenticated','anon') AND NOT is_platform_admin() THEN RAISE`.
 - **Para un pago "exclusivo" sin producto Paddle nuevo:** reusar `paddle-create-transaction` con un `type` propio de monto fijo (`custom_price` sobre el `PADDLE_CONTAINER_PRODUCT_ID`), gateado por un flag en DB que solo HQ puede setear, y re-verificado en el webhook. Funciona en Paddle live sin crear nada en el dashboard.
 - **Un formulario de onboarding de agente NO es un "¿lo hacen? + precio".** El detalle que evita bugs del agente es el protocolo: consulta previa, cuándo deriva, preparación del tutor, cómo se agenda. Cada regla real de Animalgrace (`ai_behavior_rules` + KB) se puede convertir en una pregunta del formulario.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 103, 2026-09-07)
+
+### Sistema de "Matriz de Precios" — UI (cierra el trabajo iniciado en sesión 102/backend, commit `bdec881`)
+
+Continuación directa del sistema genérico de matriz de precios (generaliza el hardcode de cirugía de Linares a algo configurable por cualquier clínica desde el dashboard, motivado por 3 cotizaciones incorrectas reales del agente al cruzar especie×sexo×peso×tramo a mano). El backend (`_shared/priceMatrix.ts`, el tool `calculate_matrix_price`, el schema de 3 tablas + RLS + RPC `replace_price_matrix`, y el seed de los 4 casos reales de Linares/Santiago) ya estaba commiteado y verificado con 11/11 casos reales contra el entorno desplegado. Faltaba la mitad de UI, pedida explícitamente por el usuario como "una sección dentro de Configuración que junte la configuración de todos los servicios ahí mismo".
+
+**`src/components/settings/PriceMatrixEditor.tsx`** (nuevo): mismo patrón que "Logística Pro" (`KnowledgeBase.tsx`) — estado anidado en memoria, tabla editable con inputs inline, botón único "Guardar matriz" que reemplaza el set completo de celdas/modificadores vía `replace_price_matrix`. 4 presets fijos (Cirugía simple, Cirugía con anestesia, Destartraje simple, Destartraje con anestesia) que cubren los 4 casos reales conocidos — no dimensiones libres arbitrarias. Las 3 celdas T1/T2/T3 de una misma combinación se agrupan en una sola fila de la UI (una fila = una combinación real, con 3 precios), aunque se persisten como 3 filas de `clinic_price_matrix_cells`.
+
+**`src/pages/Settings.tsx`** — nueva tab **"Servicios y Precios"** (entre "Clínica" y "Diseño de marca"), que unifica en un solo lugar:
+- El CRUD de Servicios existente, movido tal cual desde la tab "Clínica" (mismos estados/handlers, mismo modal).
+- `<PriceMatrixEditor clinicId={clinicId} />` montado arriba.
+- Nuevo campo `pricing_mode` (`'fixed'`|`'matrix'`) + `price_matrix_id` en el modal de servicio: un toggle "Fijo/Por matriz" (solo visible si la clínica ya tiene ≥1 matriz configurada — la gran mayoría de servicios no lo necesita) que reemplaza el input de precio por un `<select>` de las matrices de la clínica. Un servicio "por matriz" guarda `price: 0` como piso de compatibilidad para pantallas que aún leen `.price` como número plano (Finanzas, reserva pública) — deuda conocida y documentada en el propio código, no oculta.
+- Badge amarillo "Por matriz" en el listado de servicios; la línea de precio muestra "precio según matriz" en vez de un monto.
+- Deep-link `?tab=services_pricing` agregado al whitelist existente.
+
+**Bug propio encontrado durante la sesión — ediciones revertidas a mitad de trabajo.** Varias ediciones de estado/handlers en `Settings.tsx` (la query de matrices en el `Promise.all`, el mapeo de `pricing_mode`/`price_matrix_id` en `setServices`, los cambios en `resetServiceForm`/`handleEditService`/`handleSaveService`) se aplicaron correctamente (el tool de edición confirmó éxito) pero luego **desaparecieron del archivo sin que se ejecutara ningún edit que las tocara** — confirmado con `grep` antes/después y con `tsc --noEmit` fallando con "Cannot find name" para variables que sí se habían agregado. Causa más probable: el archivo `Settings.tsx` es enorme (~3000 líneas) y coexiste con una sesión concurrente activa en el mismo repo (confirmada real: un commit `d6f038d` de otra sesión, migración de React Query en CRM/Dashboard/Finance/Messages, aterrizó en `main` mientras esta sesión corría) — no se pudo aislar la causa técnica exacta, pero **se detectó a tiempo re-verificando con `grep` después de cada tanda de edits**, y se reaplicaron los cambios perdidos hasta que `tsc --noEmit` + `npm run build` quedaron limpios y estables en 2 verificaciones consecutivas.
+
+**Verificación:**
+- `npx tsc --noEmit` y `npm run build`: limpios, 0 errores.
+- SQL directo contra producción: las 3 tablas nuevas con RLS habilitada y scoped por `is_clinic_member(clinic_id)`; `replace_price_matrix` sin `EXECUTE` para `anon` (sí para `authenticated`); los 4 casos reales (cirugía y destartraje de Linares y Santiago) confirmados seedeados con su conteo de celdas real.
+- `get_advisors(security)`: 0 ERROR, 0 hallazgos nuevos relacionados a `clinic_price_matri*` (152 WARN preexistentes, mismo baseline histórico del proyecto).
+- **Verificación visual (Playwright) bloqueada por flakiness del entorno, no del código** — ver nota abajo.
+
+#### Nota: verificación visual no completada — causa acotada a environment, no a este cambio
+
+Se intentó repetidamente verificar la UI nueva con el patrón ya establecido del proyecto (sesión inyectada vía magic-link + Playwright contra `Google Chrome` del sistema, cuenta de prueba `sparkcabin.shop@gmail.com`). En todos los intentos, `AuthContext.fetchProfile()` reportó "Attempt N failed to fetch profile" y terminó redirigiendo a `/login` — **el mismo síntoma exacto ya documentado en la sesión anterior con una cuenta distinta**, así que se investigó a fondo antes de descartarlo como "cuenta específica":
+
+- Un `fetch()` directo a `/rest/v1/user_profiles` con el mismo token, ejecutado dentro de la misma página vía `page.evaluate`, siempre devolvió `200` en 250ms–1.3s — la query y la RLS están sanas.
+- Trazando el ciclo de vida real de la request (`page.on('request'/'response')`) durante una carga normal, la request a `user_profiles` **no se emitía en absoluto** hasta los ~17.4s de la carga — los 2 primeros reintentos de `fetchProfile` fallaban sin siquiera llegar a emitir la llamada de red, y para cuando la request finalmente salía (+17.4s), la propia app ya se había rendido (`"Auth initialization timeout — forcing loading to false"` a los 15.8s) y redirigido a `/login`.
+- Se descartó una hora de exploración: perfiles de Chrome huérfanos de corridas previas (0 procesos de Chrome real corriendo antes de cada intento), contención de Web Locks entre sesiones concurrentes (arquitectónicamente poco probable — cada `chromium.launch()` de Playwright usa un perfil temporal aislado), e incidente de plataforma de Supabase (descartado: `curl` directo a la API REST fue consistentemente rápido, ~250-300ms, en paralelo a los intentos fallidos).
+- **Se confirmó una ventana real de inestabilidad de red del entorno**: en medio de esta investigación, `git fetch`/`git push` a GitHub fallaron con `Failed to connect to github.com port 443` — y, minutos después, con la red ya restablecida (push exitoso), un reintento de Playwright **siguió fallando igual**, así que la inestabilidad de red no es la explicación completa tampoco.
+- Se detectó una **segunda sesión de Claude Code concurrente activa en este mismo repositorio** (commit `d6f038d`, ajeno a este trabajo, aterrizado en `main` mientras esta sesión corría) — coincide con el patrón ya documentado repetidas veces en este mismo archivo (sesiones 66/87/89/91/93/95/99) de colisiones y contención entre sesiones paralelas sobre la misma máquina/repo. Queda como la hipótesis más plausible sin poder confirmarse de forma concluyente.
+
+**Conclusión:** el código en sí está verificado por otras vías igual de rigurosas (tipos, build, SQL directo contra producción, seguridad) — el bloqueo es de la herramienta de verificación visual en este entorno puntual, no evidencia de un defecto en el cambio. Se recomienda repetir la verificación visual de esta tab (recorrido "recrear los 4 casos reales desde la interfaz" que pide el plan original) en una sesión sin contención de recursos compartidos, o directamente por el usuario en `vetly.pro/app/settings?tab=services_pricing`.
+
+**Deploy:** commit `6b233d8`, pusheado a `main` (Vercel despliega el frontend automáticamente).
+
+### Pendiente (según el plan original de la matriz de precios)
+
+- [ ] Verificación visual real de la tab "Servicios y Precios" (bloqueada esta sesión, ver nota arriba).
+- [ ] Recrear los 4 casos reales desde la interfaz y comparar contra las filas cargadas por SQL (deben ser idénticas) — paso 5 del plan, requiere lo anterior.
+- [ ] Confirmar con tráfico real que `calculate_matrix_price` se llama correctamente en conversaciones nuevas (esterilización/destartraje).
+- [ ] Tras el período de verificación: eliminar `calculate_surgery_price`, su `case`, y `LINARES_SURGERY_PRICES`/`calculateSurgeryPriceLinares` del código — deliberadamente no se toca todavía, sigue delegando en `lookupMatrixPrice` para no tener dos fuentes de verdad durante la transición.
+
+### Reglas permanentes de esta sesión
+
+- **Cuando ediciones ya confirmadas como exitosas desaparecen sin que se ejecute ningún edit que las toque, re-verificar con `grep` antes de seguir construyendo encima** — no asumir que el estado mental coincide con el estado real del archivo, sobre todo en archivos grandes o con sesiones concurrentes activas sobre el mismo repo. `tsc --noEmit` después de cada tanda de cambios los detectó de inmediato.
+- **Antes de dar por buena una hipótesis de "cuenta específica" para un fallo de verificación, reproducirlo con una segunda cuenta.** El síntoma "Attempt N failed to fetch profile" se había atribuido a una cuenta puntual en la sesión anterior; esta sesión demostró que es reproducible con la cuenta "conocida como buena" también — la causa real está en el entorno de verificación, no en ninguna cuenta.
+- **Un bloqueo de verificación visual no invalida un cambio verificado por otras vías igual de rigurosas** (tipos, build, SQL directo, seguridad) — hay que documentarlo con honestidad como una limitación de la sesión, no forzar una verificación que el entorno no permite completar de forma confiable, ni tampoco dar el cambio por "verificado visualmente" cuando no lo fue.
