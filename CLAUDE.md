@@ -7587,3 +7587,85 @@ El usuario preguntó, tras confirmar visualmente la UI, si debía limpiarse la K
 - Respaldo previo en `prompt_backups`, label `pre_fix_tablas_residuales_precio_matriz_2026_09_07` (3 filas: `ai_behavior_rules` de ambas clínicas + el KB de logística de Linares).
 
 **Regla permanente:** al migrar un sistema de precios de "tabla en texto" a "función determinística", no basta con limpiar el documento KB principal — hay que buscar en **todos** los documentos y en `ai_behavior_rules` cualquier instrucción tipo "consulta/usa/lee la tabla X" o "fórmula: base + recargo", incluyendo documentos secundarios de logística que referencian el mismo servicio desde otro ángulo (acá, el doc de logística quirúrgica tenía su propia versión de la fórmula, independiente del doc de precios). Un `grep` de la palabra "tabla" combinado con revisión manual de cada match es más confiable que asumir que "ya se limpió" porque el documento principal quedó bien.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 104, 2026-09-07)
+
+> Sesión paralela a la 103 (matriz de precios). Ambas corrieron el mismo día sobre el mismo repo — la 104 tocó solo páginas de frontend (`Tutors/Patients/PatientProfile/Dashboard/Finance/Messages/CRM`, `TutorDetails`, `DashboardLayout`, `AuthContext`) + una migración de índices; la 103 tocó `Settings.tsx` + `PriceMatrixEditor.tsx` + webhooks/KB de precios. Cero solapamiento de archivos.
+
+### Auditoría de 6 defectos de móvil/velocidad reportados con capturas (commit `f835ebe`)
+
+Claudia reportó, con 3 capturas: banner "corrido" en Tutores y Citas en móvil, logout lento, lápiz de editar mascota invisible en móvil, retrocesos lentos, falta de comprobante de ingreso en Finanzas, y pidió una revisión general de adaptación móvil.
+
+#### 1 · Banners no responsive → scroll horizontal de toda la página
+
+El banner de **Finanzas** ya tenía el patrón responsive (sesión 33). **Tutores, Citas y Pacientes** se quedaron con el patrón viejo: la fila de stats (`flex items-center gap-6`, 3 números + 2 divisores) **sin `flex-wrap`**, y la fila de botones (`flex items-center gap-2`) sin wrap. En ~300px el contenido desbordaba el ancho, y como `<main>` era `overflow-auto`, la página scrolleaba horizontal → todo se veía "corrido" hacia la izquierda.
+
+**Fix:** patrón de Finanzas aplicado a los 3 banners + barrido de CRM/Plantillas/Conocimiento/Fidelización/Integraciones/Configuración + `TutorDetails`:
+- Fila superior: `flex items-start justify-between gap-4` → `flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4`
+- Stats: `+ flex-wrap`, `gap-4 sm:gap-6`, números `text-xl sm:text-2xl`
+- Botones: `+ flex-wrap`, padding compacto `px-3 py-2`, `<span className="hidden sm:inline">` para acortar texto en móvil (ej. "Importar datos" → "Importar")
+- Ícono decorativo: `hidden sm:flex`
+- Padding `p-6 sm:p-8` → `p-5 sm:p-8`, título `text-2xl sm:text-3xl` → `text-xl sm:text-3xl`
+- **Red de seguridad:** `<main>` en `DashboardLayout.tsx` pasó de `overflow-auto` a `overflow-y-auto overflow-x-hidden` — si alguna página futura deja una fila que desborda, se recorta en vez de arrastrar la pantalla (las tablas anchas tienen su propio `overflow-x-auto`, no las afecta).
+
+#### 2 · Logout lento
+
+`AuthContext.signOut` hacía `await supabase.auth.signOut()` (scope global — revoca el token en TODOS los dispositivos, round-trip a Supabase). El botón quedaba congelado 1-3s. **Fix:** limpia el estado local + `localStorage.clear()` de inmediato, y dispara `supabase.auth.signOut({ scope: 'global' })` en segundo plano sin `await`.
+
+#### 3 · Lápiz de editar mascota invisible en móvil
+
+`TutorDetails.tsx` — los botones editar/eliminar de la tarjeta de mascota tenían `opacity-0 group-hover:opacity-100` (solo-hover, sin equivalente touch). **Fix:** `opacity-100 sm:opacity-0 sm:group-hover:opacity-100` + fondo `bg-white/70 sm:bg-transparent` + área táctil más grande (`p-2 sm:p-1.5`) + `aria-label`.
+
+#### 4 · Retrocesos lentos
+
+**Causa raíz (a):** `TutorDetails` abría la ficha del paciente con `window.location.href = /app/patients/${pet.id}` → **recarga completa de la SPA** (re-descarga JS, re-inicializa `AuthContext`, re-consulta clínica). Y el "volver" después también, porque quedabas en una app recién recargada sin caché. **Fix:** `navigate(...)` de react-router + `state: { fromTutorId }`. Mismo fix en `Dashboard.tsx` (link a Mensajes).
+
+**Causa raíz (b):** Tutores, Pacientes y Ficha del paciente **no usaban React Query** — cada visita repetía todas las consultas con spinner. **Fix:** migradas a `useQuery` (staleTime global 5 min). Volver a una página ya visitada es instantáneo, sin spinner.
+
+**Causa raíz (c):** no había botón de retroceso claro en la ficha del paciente (solo un breadcrumb de `text-xs`). **Fix:** botón **"← Volver a {tutor}"** prominente; el breadcrumb chico queda solo en desktop (`hidden sm:flex`). `goBack()` prioriza: `state.fromTutorId` → reabre la ficha del tutor (lista cacheada, instantáneo) → `navigate(-1)` si hay historial → fallback al listado del tutor.
+
+**Índices de cobertura** (migración `20260906235112_add_hot_path_covering_indexes.sql`, detectados con `get_advisors(performance)` — FKs sin índice en los filtros de las páginas de más tráfico):
+`medical_history/vaccines/deworming` por `patient_id` · `patients/incomes` por `clinic_id` (+ `incomes` compuesto con `date`) · `appointments/incomes` por `tutor_id` (parcial `WHERE ... IS NOT NULL`) · `appointment_items` por `appointment_id`.
+El resto de `get_advisors(performance)` son `multiple_permissive_policies` (416) y `auth_rls_initplan` (109) — deuda histórica del proyecto, no regresiones.
+
+#### 5 · Comprobante de ingreso en Finanzas
+
+Cuando Finanzas pasó a "solo ingresos manuales" (sesión 44) se quitó el comprobante y nunca se re-agregó para ingresos. `VisitReceipt.tsx` quedó como código muerto. **Fix — `src/components/finance/IncomeReceipt.tsx` (nuevo):**
+- Botón **"Comprobante"** por ingreso en el tab Ingresos **y** en la lista de la caja del día (`CajaDelDia.tsx` gana prop `onIncomeReceipt`, visible incluso con la caja cerrada).
+- Modal (`createPortal`) con vista previa: nombre/dirección/teléfono de la clínica (fetch de `clinic_settings` al abrir), tutor, fecha, detalle de ítems (`services[]` o descripción), descuento, canje de fidelización, total, método de pago, notas.
+- **Imprimir / PDF**: `window.open` + `window.print()` con HTML autocontenido, todo interpolado con `esc()` (regla anti-XSS de sesión 41).
+- **Enviar por WhatsApp**: link `wa.me/{tutorPhone}?text=...` con el resumen pre-escrito — **funciona en cualquier clínica sin API de WhatsApp ni plantillas aprobadas** (a diferencia de `send-visit-receipt`, que apunta a YCloud). Si el ingreso no tiene `tutor_id` → `wa.me/?text=...` para elegir contacto.
+- **Bug UTC corregido en el propio componente:** `format(new Date(income.date), ...)` mostraba el día anterior (`income.date` es `'YYYY-MM-DD'` → `new Date()` lo lee como UTC medianoche). Helper `parseLocalDay(d)` = `new Date(\`${d}T12:00:00\`)` (mismo patrón que Finance.tsx).
+
+### Migración a React Query de las 4 páginas restantes (commit `d6f038d`)
+
+Completa lo iniciado en `f835ebe`. Dashboard/Finance/Messages/CRM hacían `useEffect` + fetch crudo y repetían todo con spinner en cada visita.
+
+- **Dashboard**: un solo `useQuery` agregado por `['dashboard', clinicId, timeRange, customRangeKey]` — las ~19 consultas del `Promise.all` no se repiten al volver. El `cancelled` flag manual se elimina (RQ lo maneja). El estado del agente (`ai_auto_respond`/`currency`) también pasa a query (`['clinic-ai-status', clinicId]`).
+- **Finanzas**: `useQuery` por `['finance', clinicId, filterType, customRangeKey, timezone]`, devuelve `{ stats, expenses, incomes, itemMetrics, cashRegisters, clinicName, currency, discountMetrics, prevDiscountPct }`. `loadData()` → wrapper de `invalidateQueries` (no se tocan los ~7 call sites). Borrado de ingreso + cajas (abrir/cerrar/reabrir/saldo inicial) usan `patchFinance(fn)` = `queryClient.setQueryData` optimista.
+- **Mensajes**: **solo la LISTA de conversaciones** se migró a `useQuery(['conversations', clinicId])`. La vista de mensajes por teléfono (`messages`, `fetchMessages`) queda en estado local — tiene efectos de `is_read` y append en vivo por realtime, más frágiles de mover. El handler de realtime + toggle IA + envío llaman `invalidateQueries`/`patchConversations`. La auto-selección de la primera conversación (desktop) se movió a un `useEffect` sobre `convQuery.data`.
+- **CRM**: `useQuery(['crm', clinicId])` → `{ stages, prospects, tags, prospectTags, services }` (la siembra de etapas por defecto queda dentro de la queryFn). `fetchAll()` → invalidate. Drag&drop, borrado de prospecto y reorden de etapas usan `patchCrm(fn)`.
+
+**Patrón establecido (documentado en memoria `react-query-migration-partial`):**
+- Un `useQuery` agregado por página. Si hay varios `setState`, la queryFn devuelve **UN objeto** y se destructura con `?? DEFAULTS`.
+- `fetchX()` / `loadData()` = wrappers de `invalidateQueries` → no tocar los call sites de mutaciones.
+- Updates optimistas: helper `patchX(fn) = queryClient.setQueryData(key, old => old ? fn(old) : old)`.
+- El `error` de `useQuery` es `Error|null` → `(error as Error)?.message` al renderizar.
+- Dentro de queryFn, `if (!profile?.clinic_id) throw ...` para narrowing de TS aunque `enabled` ya lo garantice.
+
+**Verificado con navegador real (Playwright + Chrome del sistema, navegación por sidebar, cuenta de prueba `sparkcabin.shop@gmail.com` / "Clinica de prueba Core", datos `TEST *` insertados por SQL y borrados al terminar):**
+- 6 flujos de móvil (viewport 390px): **0 desborde horizontal**, lápiz de editar `visible=true opacity=1`, "Volver" regresa a la ficha del tutor, comprobante abre con el total correcto.
+- Segunda visita a Finanzas/CRM/Mensajes: **350-850ms desde caché vs 1600-1900ms la 1ª**, sin spinner "Cargando…".
+- 0 errores de consola nuevos (queda un `validateDOMNesting` preexistente en Messages, `<button>` dentro de `<button>`, no relacionado).
+
+**Deploy verificado en producción** (`vetly.pro`): los marcadores string (`"clinic-ai-status"`, `["finance"`, `["conversations"`, `"crm"` + `invalidateQueries`) presentes en los chunks lazy `Dashboard-*.js` / `Finance-*.js` / `Messages-*.js` / `CRM-*.js`.
+
+### Reglas permanentes de esta sesión
+
+- **`page.goto` en Playwright NO conserva el caché de React Query** — una recarga dura del navegador crea un `QueryClient` nuevo (no hay persistencia). El beneficio del caché aplica solo a la navegación client-side (clic en el sidebar). Testear el caché con clics de menú, nunca con `goto`.
+- **`window.location.href` para navegación interna es el peor enemigo de la velocidad percibida** — recarga toda la SPA. Siempre `navigate()` de react-router para rutas `/app/*`.
+- **Un identificador de función local (`patchFinance`, `patchConversations`) NO sirve como marcador de verificación de deploy** — la minificación lo renombra. Usar strings literales que sobrevivan: query keys (`["finance"`), textos de UI, nombres de columna SQL entre comillas.
+- **En un banner, la fila de stats necesita `flex-wrap` explícito** aunque tenga solo 3 elementos — 3 números + 2 divisores + `gap-6` desborda ~300px y, sin `overflow-x-hidden` en `<main>`, arrastra toda la página.
+- **La red estuvo intermitente para GitHub durante toda la sesión** — `git push` necesitó bucles de reintento (`for i in 1..5; do push || sleep 30; done`). El commit local siempre estuvo a salvo; solo el push falló.
