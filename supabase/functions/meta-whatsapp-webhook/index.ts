@@ -15,6 +15,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCreditStatus, notifyCreditsExhausted, creditCostForModel } from "../_shared/aiCredits.ts";
+import { lookupMatrixPrice, getClinicPriceMatrices, buildMatrixPromptBlock } from "../_shared/priceMatrix.ts";
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 const VERIFY_TOKEN = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? "";
@@ -434,8 +435,15 @@ const functions = [
     },
   },
   {
+    // DEPRECADO — en transición hacia calculate_matrix_price (matrix_key
+    // "cirugia_esterilizacion_castracion"), que reemplaza el hardcode de
+    // LINARES_SURGERY_PRICES por la tabla configurable desde Ajustes →
+    // Servicios y Precios, usable por cualquier clínica. Se deja este tool
+    // vivo (delegando en el mismo lookup, ver processFunc) solo mientras dura
+    // el período de verificación con tráfico real — eliminar junto con
+    // LINARES_SURGERY_PRICES/calculateSurgeryPriceLinares una vez confirmado.
     name: "calculate_surgery_price",
-    description: "SOLO Linares. Calcula el precio EXACTO de esterilización/castración — úsala SIEMPRE en vez de leer la tabla de precios tú mismo, ni siquiera para hacer un cálculo mental rápido. Cruzar especie+sexo+peso+tramo a mano ya causó cotizaciones incorrectas reales. Requiere especie y sexo confirmados con el tutor, peso (obligatorio si es perro) y los minutos de traslado del bloque [LOGÍSTICA: Pabellón más cercano... a N min] de tu contexto — nunca inventes esos minutos. Usa EXCLUSIVAMENTE el price_total que te devuelva.",
+    description: "OBSOLETO — usa calculate_matrix_price con matrix_key='cirugia_esterilizacion_castracion' en su lugar. Este tool sigue funcionando (mismos datos) solo por compatibilidad temporal.",
     parameters: {
       type: "object",
       properties: {
@@ -446,6 +454,24 @@ const functions = [
         in_heat_or_pregnant: { type: "boolean", description: "true si la hembra está en celo o preñada (agrega $20.000 de recargo)" },
       },
       required: ["species", "sex", "travel_minutes"],
+    },
+  },
+  {
+    name: "calculate_matrix_price",
+    description: "Calcula el precio EXACTO de un servicio cuyo precio depende de variables (especie, sexo, peso, anestesia, tramo de traslado) — úsala SIEMPRE en vez de leer una tabla tú mismo, ni siquiera para un cálculo mental rápido. Usa exactamente uno de los matrix_key listados en el bloque MATRICES DE PRECIO de tu contexto para ESTA clínica; no inventes uno ni la uses si la clínica no tiene esa matriz configurada. Usa EXCLUSIVAMENTE el price_total que te devuelva.",
+    parameters: {
+      type: "object",
+      properties: {
+        matrix_key: { type: "string", description: "Clave exacta tomada del bloque MATRICES DE PRECIO de tu contexto." },
+        species: { type: "string", enum: ["perro", "gato"], description: "Especie de la mascota" },
+        sex: { type: "string", enum: ["hembra", "macho"], description: "Requerido solo si la matriz lo pide." },
+        procedure_type: { type: "string", enum: ["esterilizacion", "castracion", "criptorquideo"], description: "Requerido solo si la matriz lo pide." },
+        weight_kg: { type: "number", description: "Peso en kilos. Requerido solo si la matriz lo pide para esta especie." },
+        anesthesia_type: { type: "string", enum: ["inyectable", "inhalatoria"], description: "Requerido solo si la matriz lo pide." },
+        travel_minutes: { type: "number", description: "Minutos al centro/pabellón más cercano, tomados literalmente del bloque [LOGÍSTICA] de tu contexto. Requerido solo si la matriz usa tramo." },
+        in_heat_or_pregnant: { type: "boolean", description: "true si la hembra está en celo o preñada, cuando la matriz tenga ese recargo." },
+      },
+      required: ["matrix_key", "species"],
     },
   },
   {
@@ -1403,6 +1429,7 @@ const getKnowledgeSummary = async (sb: ReturnType<typeof createClient>, clinicId
 // llama en la práctica. Estos 3 se fuerzan completos cuando el mensaje toca el tema.
 const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell"] },
+  { title: "Protocolo_de_Destartraje", keywords: ["destartraje", "limpieza dental", "sarro", "placa dental"] },
   { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
   { title: "PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE", keywords: ["eutan", "sacrific", "dormir a mi", "dormirlo", "dormirla", "dormir al", "dormir a la", "que no sufra", "no siga sufriendo", "no sufra mas", "no sufra más", "descanse en paz", "quitarle el sufrimiento", "dejarla ir", "dejarlo ir", "ponerle fin"] },
@@ -1792,8 +1819,13 @@ const processFunc = async (
     case "request_scheduling_coordination":
       return requestSchedulingCoordination(sb, clinicId, phone, args, clinic);
     case "calculate_surgery_price":
+      // Delega en el mismo lookup que calculate_matrix_price (en vez de
+      // LINARES_SURGERY_PRICES) para no tener dos fuentes de verdad
+      // divergentes durante la transición. Ver comentario del tool.
       if (clinicId !== CLINIC_ANIMALGRACE_ID) return { error: "Esta herramienta solo está disponible para Linares." };
-      return calculateSurgeryPriceLinares(args);
+      return lookupMatrixPrice(sb, clinicId, "cirugia_esterilizacion_castracion", args);
+    case "calculate_matrix_price":
+      return lookupMatrixPrice(sb, clinicId, args.matrix_key, args);
     case "tag_patient":
       return tagPatient(sb, clinicId, phone, args);
     default:
@@ -2445,7 +2477,9 @@ Deno.serve(async (req) => {
           // ORDER BY id: garantiza el mismo orden de filas entre llamadas — necesario
           // para que el prompt caching de OpenAI funcione (ver ycloud-whatsapp-webhook).
           const knowledgeSummary = await getKnowledgeSummary(sb, clinic.id);
-          const { data: realServices } = await sb.from("clinic_services").select("name, duration, price, ai_description").eq("clinic_id", clinic.id).order("id", { ascending: true });
+          const { data: realServices } = await sb.from("clinic_services").select("name, duration, price, ai_description, pricing_mode, price_matrix_id").eq("clinic_id", clinic.id).order("id", { ascending: true });
+          const clinicMatrices = await getClinicPriceMatrices(sb, clinic.id);
+          const matrixById = new Map(clinicMatrices.map((m) => [m.id, m]));
           // Campos vacíos omitidos en vez de rellenados con placeholder — hoy el 100% de
           // los servicios tiene ai_description en null, así que "Sin detalles específicos."
           // sumaba ~2.550 caracteres de ruido al prompt en cada llamada a OpenAI.
@@ -2453,11 +2487,18 @@ Deno.serve(async (req) => {
             ? realServices.map((s: any) => {
               const item: Record<string, string> = { nombre: s.name };
               if (s.duration) item.duracion = `${s.duration} min`;
-              item.precio = `$${s.price.toLocaleString("es-CL")}`;
+              // Servicio con precio por matriz: nunca un número fijo — refuerzo
+              // redundante intencional del bloque MATRICES DE PRECIO de más abajo,
+              // por si el modelo mira esta lista en vez de ese bloque.
+              const linkedMatrix = s.pricing_mode === "matrix" ? matrixById.get(s.price_matrix_id) : null;
+              item.precio = linkedMatrix
+                ? `Ver matriz (usa calculate_matrix_price con matrix_key="${linkedMatrix.matrix_key}")`
+                : `$${s.price.toLocaleString("es-CL")}`;
               if (s.ai_description) item.info_importante = s.ai_description;
               return item;
             })
             : clinic.services || [];
+          const matrixPromptBlock = buildMatrixPromptBlock(clinicMatrices);
 
           const daysMap: Record<string, string> = { monday: "lunes", tuesday: "martes", wednesday: "miércoles", thursday: "jueves", friday: "viernes", saturday: "sábado", sunday: "domingo" };
           const hoursSummary = Object.entries(clinic.working_hours || {}).map(([day, h]: [string, any]) => {
@@ -2619,7 +2660,7 @@ ${(clinic.ai_behavior_rules || "").replace(/`/g, "'")}
 --------------------------------------------------------
 
 LISTA OFICIAL DE SERVICIOS Y PRECIOS:
-${JSON.stringify(servicesForPrompt)}
+${JSON.stringify(servicesForPrompt)}${matrixPromptBlock}
 
 BASE DE CONOCIMIENTO (PROTOCOLOS Y DETALLES ACTUALIZADOS):
 ${knowledgeSummary}
