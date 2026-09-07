@@ -2579,6 +2579,12 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
   { title: "PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE", keywords: ["eutan", "sacrific", "dormir a mi", "dormirlo", "dormirla", "dormir al", "dormir a la", "que no sufra", "no siga sufriendo", "no sufra mas", "no sufra más", "descanse en paz", "quitarle el sufrimiento", "dejarla ir", "dejarlo ir", "ponerle fin"] },
   { title: "PROTOCOLO_ECOGRAFIA_Y_RADIOGRAFIA_ANIMALGRACE", keywords: ["ecograf", "radiograf", "rayos x", "eco abdominal", "eco de abdomen", "imagenolog"] },
+  // Sesión 97 (Linares) — bloque del mínimo $15.000 + piso $6.000 desparasitación/corte
+  // de uñas + excepción "2+ mascotas corte de uñas" movido del prompt a este doc (§3B).
+  { title: "PROTOCOLO_LOGISTICA_SERVICIOS_GENERALES", keywords: [
+    "recargo", "traslado", "uña", "corte de uña", "desparasit", "antiparasit", "parasit",
+    "mínimo", "minimo", "monto minimo", "monto mínimo",
+  ] },
   // Sesión 95: la IA cotizó Alizin en $40.000 para una perra de 4-5 kg (el tarifario real
   // parte en $75.000 hasta 5 kg). Puro invento — el doc no está en el top-5 del resumen y
   // get_knowledge casi nunca se llama. Se fuerza completo cuando el mensaje toca "monta no
@@ -2620,6 +2626,7 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
   // de que la IA decida llamar get_knowledge.
   { title: "#PROTOCOLO_LOGISTICA_SANTIAGO_SERVICIOS_GENERALES", keywords: [
     "recargo", "traslado",
+    "uña", "corte de uña", "desparasit", "antiparasit", "parasit", "mínimo", "minimo",
     "santiago centro", "ñuñoa", "nunoa", "conchali", "conchalí", "recoleta", "cerro navia",
     "pudahuel", "quinta normal", "maipu", "maipú", "san bernardo", "cerrillos",
     "san joaquin", "san joaquín", "peñalolen", "penalolen", "peñalolén", "puente alto",
