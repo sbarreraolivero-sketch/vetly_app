@@ -32,6 +32,7 @@ import {
     Package,
     Gift,
     LifeBuoy,
+    Scissors,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -71,6 +72,7 @@ const navigationSections = [
             { name: 'Pacientes', href: '/app/patients', icon: Heart, pageKey: 'patients' as PageKey },
             { name: 'CRM', href: '/app/crm', icon: Target, pageKey: 'crm' as PageKey },
             { name: 'Citas Médicas', href: '/app/appointments', icon: Calendar, pageKey: 'appointments' as PageKey },
+            { name: 'Estética', href: '/app/grooming', icon: Scissors, pageKey: 'grooming' as PageKey },
             { name: 'Recordatorios', href: '/app/reminders', icon: Clock, pageKey: 'reminders' as PageKey },
             { name: 'Finanzas', href: '/app/finance', icon: DollarSign, pageKey: 'finance' as PageKey },
             { name: 'Inventario', href: '/app/inventory', icon: Package, pageKey: 'inventory' as PageKey },
@@ -380,7 +382,8 @@ export default function DashboardLayout() {
             (profile as any)?.role === 'admin' ? 'Administrador' :
                 (profile as any)?.role === 'professional' ? 'Profesional' :
                     (profile as any)?.role === 'receptionist' ? 'Recepción' :
-                        'Staff'
+                        (profile as any)?.role === 'groomer' ? 'Peluquero/a' :
+                            'Staff'
     )
 
     const [showMobileMenu, setShowMobileMenu] = useState(false)

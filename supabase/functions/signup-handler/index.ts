@@ -387,6 +387,15 @@ Deno.serve(async (req: Request) => {
             );
         }
 
+        // 4a-bis. Biblioteca de consentimientos (no fatal — nunca bloquea el
+        // registro). seed_consent_templates es idempotente por (clinic_id, template_key).
+        try {
+            const { error: seedErr } = await supabaseAdmin.rpc("seed_consent_templates", { p_clinic_id: clinicData.id });
+            if (seedErr) console.warn("Consent template seed failed (non-fatal):", seedErr);
+        } catch (e) {
+            console.warn("Consent template seed failed (non-fatal):", e);
+        }
+
         // 4b. Referral B2B capture (non-fatal — never blocks signup)
         if (referral_code) {
             try {

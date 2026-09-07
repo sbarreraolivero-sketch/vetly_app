@@ -32,6 +32,7 @@ const AdminLayout = lazy(() => import('./components/layout/AdminLayout'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Messages = lazy(() => import('./pages/Messages'))
 const Appointments = lazy(() => import('./pages/Appointments'))
+const Grooming = lazy(() => import('./pages/Grooming'))
 const Reminders = lazy(() => import('./pages/Reminders'))
 const Tutors = lazy(() => import('./pages/Tutors'))
 const Patients = lazy(() => import('./pages/Patients'))
@@ -50,6 +51,8 @@ const Support = lazy(() => import('./pages/Support'))
 const ReferralRedirect = lazy(() => import('./pages/ReferralRedirect'))
 const PetOwnerPortal = lazy(() => import('./pages/PetOwnerPortal'))
 const PublicPrescription = lazy(() => import('./pages/PublicPrescription'))
+const PublicConsent = lazy(() => import('./pages/PublicConsent'))
+const PublicGroomingReport = lazy(() => import('./pages/PublicGroomingReport'))
 const BookOnboardingCall = lazy(() => import('./pages/BookOnboardingCall'))
 const PublicBooking = lazy(() => import('./pages/PublicBooking'))
 const Pricing = lazy(() => import('./pages/Pricing'))
@@ -139,6 +142,8 @@ function MainRoutes() {
                     <Route path="/r/:code" element={<ReferralRedirect />} />
                     <Route path="/p/:code" element={<PetOwnerPortal />} />
                     <Route path="/receta/:token" element={<PublicPrescription />} />
+                    <Route path="/consentimiento/:token" element={<PublicConsent />} />
+                    <Route path="/estetica/:token" element={<PublicGroomingReport />} />
                     <Route path="/agendar" element={<BookOnboardingCall />} />
                     <Route path="/reservar/:slug" element={<PublicBooking />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -206,6 +211,13 @@ function MainRoutes() {
                         <Route path="appointments" element={
                             <SubscriptionGuard>
                                 <Appointments />
+                            </SubscriptionGuard>
+                        } />
+                        <Route path="grooming" element={
+                            <SubscriptionGuard>
+                                <PermissionGuard pageKey="grooming">
+                                    <Grooming />
+                                </PermissionGuard>
                             </SubscriptionGuard>
                         } />
                         <Route path="reminders" element={

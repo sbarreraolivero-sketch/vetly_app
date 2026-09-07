@@ -6,7 +6,8 @@ import {
     Syringe, ShieldAlert, FileText,
     Plus, Edit2, Trash2, Heart,
     Activity, ClipboardList, Save, X, Bell,
-    Pill, Printer, MessageCircle, Mail, ArrowLeft
+    Pill, Printer, MessageCircle, Mail, ArrowLeft,
+    FileSignature, Link2, CheckCircle2, Scissors
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
@@ -17,6 +18,8 @@ import { MedicalEventForm, MedicalHistoryEvent } from '@/components/patients/Med
 import { VaccineForm, VaccineEvent } from '@/components/patients/VaccineForm'
 import { DewormingForm, DewormingEvent } from '@/components/patients/DewormingForm'
 import { PrescriptionForm, Prescription } from '@/components/patients/PrescriptionForm'
+import { ConsentForm } from '@/components/patients/ConsentForm'
+import { GroomingProfileCard } from '@/components/grooming/GroomingProfileCard'
 import { PatientFiles } from '@/components/patients/PatientFiles'
 import { PatientReminders } from '@/components/patients/PatientReminders'
 
@@ -25,7 +28,7 @@ export default function PatientProfile() {
     const navigate = useNavigate()
     const location = useLocation()
     const queryClient = useQueryClient()
-    const [activeTab, setActiveTab] = useState<'history' | 'medical' | 'vaccines' | 'deworming' | 'prescriptions' | 'files' | 'reminders'>('history')
+    const [activeTab, setActiveTab] = useState<'history' | 'medical' | 'vaccines' | 'deworming' | 'prescriptions' | 'consents' | 'grooming' | 'files' | 'reminders'>('history')
 
     // ── Datos vía React Query — cacheados entre navegaciones (staleTime global 5 min).
     //    Volver a esta ficha (o abrir otra ya visitada) es instantáneo, sin spinner.
@@ -137,12 +140,53 @@ export default function PatientProfile() {
         enabled: !!id,
     })
 
+    const { data: consents = [] } = useQuery<any[]>({
+        queryKey: ['patient-consents', id],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from('consent_records')
+                .select('id, template_title, template_key, status, required_signature_mode, acceptance_method, public_token, signed_at, signer_name, created_at')
+                .eq('patient_id', id as string)
+                .order('created_at', { ascending: false })
+            if (error) throw error
+            return (data as any) || []
+        },
+        enabled: !!id,
+    })
+
     // Refrescos tras alta/edición/borrado — invalidan la query correspondiente.
     // Mantienen la firma `fetchX()` para no tocar los ~10 puntos de llamada.
     const fetchTimeline = () => queryClient.invalidateQueries({ queryKey: ['patient-history', id] })
     const fetchVaccines = () => queryClient.invalidateQueries({ queryKey: ['patient-vaccines', id] })
     const fetchDewormings = () => queryClient.invalidateQueries({ queryKey: ['patient-deworming', id] })
     const fetchPrescriptions = () => queryClient.invalidateQueries({ queryKey: ['patient-prescriptions', id] })
+    const fetchConsents = () => queryClient.invalidateQueries({ queryKey: ['patient-consents', id] })
+
+    const { data: groomingSessions = [] } = useQuery<any[]>({
+        queryKey: ['patient-grooming-sessions', id],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from('grooming_sessions').select('*').eq('patient_id', id as string)
+                .order('session_date', { ascending: false })
+            if (error) throw error
+            return (data as any) || []
+        },
+        enabled: !!id,
+    })
+    const [sendingReport, setSendingReport] = useState<string | null>(null)
+    const handleSendReport = async (sid: string, channel: 'whatsapp' | 'email') => {
+        setSendingReport(`${sid}:${channel}`)
+        try {
+            const { data, error } = await supabase.functions.invoke('send-grooming-report', { body: { session_id: sid, channel } })
+            if (error) throw error
+            if (!(data as any)?.success) throw new Error((data as any)?.error || 'No se pudo enviar')
+            toast.success(channel === 'whatsapp' ? 'Reporte enviado por WhatsApp' : 'Reporte enviado por correo')
+        } catch (e: any) {
+            toast.error(e?.message || 'No se pudo enviar')
+        } finally {
+            setSendingReport(null)
+        }
+    }
 
     // Records / forms UI state
     const [showEventForm, setShowEventForm] = useState(false)
@@ -153,6 +197,8 @@ export default function PatientProfile() {
     const [editingDeworming, setEditingDeworming] = useState<DewormingEvent | null>(null)
     const [showPrescriptionForm, setShowPrescriptionForm] = useState(false)
     const [sendingRx, setSendingRx] = useState<string | null>(null)
+    const [showConsentForm, setShowConsentForm] = useState(false)
+    const [sendingConsent, setSendingConsent] = useState<string | null>(null)
 
     // Clinical Info editing state
     const [isEditingClinical, setIsEditingClinical] = useState(false)
@@ -201,6 +247,36 @@ export default function PatientProfile() {
         } finally {
             setSendingRx(null)
         }
+    }
+
+    const handleDeleteConsent = async (cid: string) => {
+        if (!confirm('¿Eliminar este consentimiento?')) return
+        try {
+            const { error } = await (supabase as any).from('consent_records').delete().eq('id', cid)
+            if (error) throw error
+            fetchConsents()
+        } catch (e: any) {
+            toast.error(e?.message || 'No se pudo eliminar el consentimiento')
+        }
+    }
+
+    const handleSendConsent = async (cid: string, channel: 'whatsapp' | 'email') => {
+        setSendingConsent(`${cid}:${channel}`)
+        try {
+            const { data, error } = await supabase.functions.invoke('send-consent', { body: { consent_id: cid, channel } })
+            if (error) throw error
+            if (!(data as any)?.success) throw new Error((data as any)?.error || 'No se pudo enviar')
+            toast.success(channel === 'whatsapp' ? 'Enviado por WhatsApp' : 'Enviado por correo')
+        } catch (e: any) {
+            toast.error(e?.message || 'No se pudo enviar')
+        } finally {
+            setSendingConsent(null)
+        }
+    }
+
+    const handleCopyConsentLink = (token: string) => {
+        navigator.clipboard.writeText(`${window.location.origin}/consentimiento/${token}`)
+        toast.success('Enlace copiado')
     }
 
     const handleDeleteVaccine = async (vid: string) => {
@@ -576,6 +652,32 @@ export default function PatientProfile() {
                             <span>Recetas</span>
                         </div>
                         {activeTab === 'prescriptions' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-600" />}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('consents')}
+                        className={cn(
+                            "px-8 h-full text-xs font-bold uppercase tracking-widest transition-all relative border-l border-silk-beige whitespace-nowrap",
+                            activeTab === 'consents' ? "text-primary-700 bg-primary-50/30" : "text-charcoal/40 hover:text-charcoal/60 hover:bg-ivory"
+                        )}
+                    >
+                        <div className="flex items-center gap-3">
+                            <FileSignature className="w-4 h-4" />
+                            <span>Consentimientos</span>
+                        </div>
+                        {activeTab === 'consents' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-600" />}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('grooming')}
+                        className={cn(
+                            "px-8 h-full text-xs font-bold uppercase tracking-widest transition-all relative border-l border-silk-beige whitespace-nowrap",
+                            activeTab === 'grooming' ? "text-primary-700 bg-primary-50/30" : "text-charcoal/40 hover:text-charcoal/60 hover:bg-ivory"
+                        )}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Scissors className="w-4 h-4" />
+                            <span>Estética</span>
+                        </div>
+                        {activeTab === 'grooming' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-600" />}
                     </button>
                     <button
                         onClick={() => setActiveTab('files')}
@@ -967,6 +1069,145 @@ export default function PatientProfile() {
                         </div>
                     )}
 
+                    {activeTab === 'consents' && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="flex justify-between items-center bg-white p-4 rounded-soft border border-silk-beige shadow-sm">
+                                <div>
+                                    <h3 className="font-bold text-charcoal uppercase tracking-tighter">Consentimientos</h3>
+                                    <p className="text-xs text-charcoal/50">Firmables por enlace — sin imprimir</p>
+                                </div>
+                                <button onClick={() => setShowConsentForm(true)} className="btn-primary py-2 px-4 flex items-center gap-2 text-sm shadow-premium">
+                                    <Plus className="w-4 h-4" /> Emitir
+                                </button>
+                            </div>
+
+                            {consents.length === 0 ? (
+                                <div className="text-center py-16 bg-white rounded-soft border border-dashed border-silk-beige shadow-sm">
+                                    <FileSignature className="w-12 h-12 text-primary-200 mx-auto mb-3" />
+                                    <h3 className="text-charcoal font-black uppercase tracking-tighter text-lg">Sin consentimientos</h3>
+                                    <p className="text-charcoal/40 text-sm mt-1 max-w-sm mx-auto font-medium">Emite un consentimiento y envíalo al tutor para que lo firme desde su teléfono.</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {consents.map((c: any) => {
+                                        const badge = c.status === 'signed'
+                                            ? { text: 'Firmado', cls: 'bg-emerald-100 text-emerald-700' }
+                                            : c.status === 'declined'
+                                                ? { text: 'Rechazado', cls: 'bg-red-100 text-red-700' }
+                                                : { text: 'Pendiente', cls: 'bg-amber-100 text-amber-700' }
+                                        return (
+                                            <div key={c.id} className="bg-white p-5 rounded-soft border border-silk-beige shadow-sm transition-all hover:border-primary-200 hover:shadow-soft-md">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
+                                                        {c.status === 'signed' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <FileSignature className="w-5 h-5 text-primary-500" />}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <h4 className="font-bold text-charcoal">{c.template_title}</h4>
+                                                            <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", badge.cls)}>{badge.text}</span>
+                                                        </div>
+                                                        <p className="text-xs text-charcoal/60 mt-1">
+                                                            {new Date(c.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                            {c.status === 'signed' && c.signer_name ? ` · Firmado por ${c.signer_name}` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-silk-beige">
+                                                    <button onClick={() => window.open(`/consentimiento/${c.public_token}${c.status === 'signed' ? '?print=1' : ''}`, '_blank', 'noopener')}
+                                                        className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50">
+                                                        {c.status === 'signed' ? <><Printer className="w-3.5 h-3.5" /> Ver / Imprimir</> : <><FileSignature className="w-3.5 h-3.5" /> Abrir</>}
+                                                    </button>
+                                                    {c.status !== 'signed' && (
+                                                        <>
+                                                            <button onClick={() => handleSendConsent(c.id, 'whatsapp')} disabled={sendingConsent === `${c.id}:whatsapp`}
+                                                                className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-emerald-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-emerald-50 disabled:opacity-40">
+                                                                <MessageCircle className="w-3.5 h-3.5" /> {sendingConsent === `${c.id}:whatsapp` ? 'Enviando...' : 'WhatsApp'}
+                                                            </button>
+                                                            <button onClick={() => handleSendConsent(c.id, 'email')} disabled={sendingConsent === `${c.id}:email` || !tutor?.email}
+                                                                title={tutor?.email ? '' : 'El tutor no tiene correo registrado'}
+                                                                className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50 disabled:opacity-40">
+                                                                <Mail className="w-3.5 h-3.5" /> {sendingConsent === `${c.id}:email` ? 'Enviando...' : 'Correo'}
+                                                            </button>
+                                                            <button onClick={() => handleCopyConsentLink(c.public_token)}
+                                                                className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50">
+                                                                <Link2 className="w-3.5 h-3.5" /> Copiar enlace
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <button onClick={() => handleDeleteConsent(c.id)}
+                                                        className="text-xs font-bold uppercase tracking-widest text-charcoal/40 hover:text-red-500 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-red-50 ml-auto">
+                                                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'grooming' && (
+                        <div className="space-y-6 animate-fade-in">
+                            <GroomingProfileCard
+                                patientId={id!}
+                                clinicId={(patient as any)?.clinic_id || ''}
+                                patientBreed={patient?.breed}
+                                patientWeight={(patient as any)?.weight}
+                            />
+                            <div className="bg-white p-4 rounded-soft border border-silk-beige shadow-sm">
+                                <h3 className="font-bold text-charcoal uppercase tracking-tighter mb-3">Historial de sesiones</h3>
+                                {groomingSessions.length === 0 ? (
+                                    <p className="text-sm text-charcoal/40 italic">Sin sesiones de estética registradas.</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {groomingSessions.map((s: any) => {
+                                            const svcCount = Array.isArray(s.services) ? s.services.length : 0
+                                            const closed = svcCount > 0 || (s.after_photos?.length ?? 0) > 0
+                                            return (
+                                                <div key={s.id} className="border border-silk-beige rounded-soft p-4">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-charcoal text-sm">
+                                                                {new Date(s.session_date + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                            </p>
+                                                            <p className="text-xs text-charcoal/60 mt-0.5">
+                                                                {svcCount > 0 ? s.services.map((x: any) => x.name).join(', ') : (closed ? '' : 'En proceso')}
+                                                            </p>
+                                                            {s.findings && <p className="text-xs text-charcoal/50 mt-1 line-clamp-2">{s.findings}</p>}
+                                                            {s.next_visit_date && <p className="text-[11px] text-emerald-700 mt-1">Próxima visita: {new Date(s.next_visit_date + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</p>}
+                                                        </div>
+                                                        <div className="flex gap-1 shrink-0">
+                                                            {(s.before_photos || []).slice(0, 1).map((u: string, i: number) => <img key={i} src={u} alt="" className="w-12 h-12 rounded object-cover border border-silk-beige" />)}
+                                                            {(s.after_photos || []).slice(0, 1).map((u: string, i: number) => <img key={i} src={u} alt="" className="w-12 h-12 rounded object-cover border border-silk-beige" />)}
+                                                        </div>
+                                                    </div>
+                                                    {closed && (
+                                                        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-silk-beige">
+                                                            <button onClick={() => window.open(`/estetica/${s.public_token}?print=1`, '_blank', 'noopener')}
+                                                                className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50">
+                                                                <Printer className="w-3.5 h-3.5" /> Ver reporte
+                                                            </button>
+                                                            <button onClick={() => handleSendReport(s.id, 'whatsapp')} disabled={sendingReport === `${s.id}:whatsapp`}
+                                                                className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-emerald-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-emerald-50 disabled:opacity-40">
+                                                                <MessageCircle className="w-3.5 h-3.5" /> {sendingReport === `${s.id}:whatsapp` ? 'Enviando...' : 'WhatsApp'}
+                                                            </button>
+                                                            <button onClick={() => handleSendReport(s.id, 'email')} disabled={sendingReport === `${s.id}:email` || !tutor?.email}
+                                                                title={tutor?.email ? '' : 'El tutor no tiene correo registrado'}
+                                                                className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50 disabled:opacity-40">
+                                                                <Mail className="w-3.5 h-3.5" /> {sendingReport === `${s.id}:email` ? 'Enviando...' : 'Correo'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'files' && (
                         <div className="space-y-6 animate-fade-in">
                             <PatientFiles patientId={id!} />
@@ -1029,6 +1270,15 @@ export default function PatientProfile() {
                     tutorName={tutor?.name}
                     onClose={() => setShowPrescriptionForm(false)}
                     onSave={() => fetchPrescriptions()}
+                />
+            )}
+
+            {showConsentForm && (
+                <ConsentForm
+                    patient={patient}
+                    tutor={tutor}
+                    onClose={() => setShowConsentForm(false)}
+                    onSave={() => fetchConsents()}
                 />
             )}
         </div>

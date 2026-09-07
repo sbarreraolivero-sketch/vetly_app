@@ -164,6 +164,8 @@ export default function Appointments() {
                 .from('appointments')
                 .select('*')
                 .eq('clinic_id', clinicIdForQueries as string)
+                // Las citas de estética viven en /app/grooming — fuera de la agenda médica.
+                .or('appointment_type.is.null,appointment_type.eq.medical')
                 .gte('appointment_date', threeMonthsAgo.toISOString())
                 .order('appointment_date', { ascending: false })
             if (error) throw error

@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Mail, Shield, User, Clock, Copy, Loader2, RotateCcw, X, Lock } from 'lucide-react'
+import { Plus, Trash2, Mail, Shield, User, Clock, Copy, Loader2, RotateCcw, X, Lock, Scissors } from 'lucide-react'
 import { teamService, type ClinicMember } from '@/services/teamService'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -57,6 +57,10 @@ const PAGE_SECTIONS: { label: string; items: { key: PageKey; label: string }[] }
             { key: 'integrations', label: 'Integraciones' },
             { key: 'ai_settings', label: 'Ajustes IA' },
         ],
+    },
+    {
+        label: 'Estética',
+        items: [{ key: 'grooming', label: 'Área de Estética' }],
     },
     {
         label: 'Configuración',
@@ -131,6 +135,7 @@ const ROLE_LABELS: Record<string, string> = {
     professional: 'Profesional',
     receptionist: 'Recepción',
     vet_assistant: 'Asistente',
+    groomer: 'Peluquero/a',
 }
 
 function hasCustomPermissions(m: ClinicMember): boolean {
@@ -146,7 +151,7 @@ export default function Team() {
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInviting, setIsInviting] = useState(false)
     const [inviteEmail, setInviteEmail] = useState('')
-    const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist' | 'vet_assistant'>('professional')
+    const [inviteRole, setInviteRole] = useState<'admin' | 'professional' | 'receptionist' | 'vet_assistant' | 'groomer'>('professional')
     const [inviteName, setInviteName] = useState('')
     const [maxUsers, setMaxUsers] = useState(2)
     const [maxAgendas, setMaxAgendas] = useState(1)
@@ -462,6 +467,7 @@ export default function Team() {
                                             {(m.role === 'owner' || m.role === 'admin') && <Shield size={12} />}
                                             {m.role === 'professional' && <User size={12} />}
                                             {m.role === 'receptionist' && <Clock size={12} />}
+                                            {m.role === 'groomer' && <Scissors size={12} />}
                                             {ROLE_LABELS[m.role] ?? m.role}
                                         </span>
                                     </td>
@@ -565,6 +571,11 @@ export default function Team() {
                                         className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'vet_assistant' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}>
                                         <div className="font-medium text-charcoal mb-1">Asistente</div>
                                         <div className="text-xs text-charcoal/50">Agendas, pacientes y finanzas.</div>
+                                    </button>
+                                    <button type="button" onClick={() => setInviteRole('groomer')}
+                                        className={`p-3 rounded-lg border text-left transition-all ${inviteRole === 'groomer' ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-silk-beige hover:border-silk-beige/60'}`}>
+                                        <div className="font-medium text-charcoal mb-1">Peluquero/a</div>
+                                        <div className="text-xs text-charcoal/50">Solo el Área de Estética, fichas y tutores.</div>
                                     </button>
                                 </div>
                             </div>

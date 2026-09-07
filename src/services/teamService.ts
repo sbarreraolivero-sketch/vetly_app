@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase'
 import type { MemberPermissions } from '@/lib/permissions'
 
-export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant'
+export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant' | 'groomer'
 export type MemberStatus = 'active' | 'invited' | 'disabled'
 
 export interface ClinicMember {

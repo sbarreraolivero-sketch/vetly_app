@@ -2,6 +2,7 @@
 export type PageKey =
   | 'dashboard'
   | 'appointments'
+  | 'grooming'
   | 'patients'
   | 'tutors'
   | 'messages'
@@ -38,11 +39,12 @@ export interface MemberPermissions {
   actions: Record<ActionKey, boolean>
 }
 
-export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant'
+export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant' | 'groomer'
 
 const ALL_PAGES: Record<PageKey, boolean> = {
   dashboard: true,
   appointments: true,
+  grooming: true,
   patients: true,
   tutors: true,
   messages: true,
@@ -88,6 +90,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
     pages: {
       dashboard: true,
       appointments: true,
+      grooming: true,
       patients: true,
       tutors: true,
       messages: true,
@@ -124,6 +127,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
     pages: {
       dashboard: true,
       appointments: true,
+      grooming: true,
       patients: true,
       tutors: true,
       messages: true,
@@ -160,6 +164,7 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
     pages: {
       dashboard: true,
       appointments: true,
+      grooming: false,
       patients: true,
       tutors: true,
       messages: false,
@@ -188,6 +193,45 @@ export const ROLE_DEFAULTS: Record<UserRole, MemberPermissions> = {
       tutors_delete: false,
       appointments_create: true,
       appointments_edit: true,
+      appointments_delete: false,
+      export_data: false,
+    },
+  },
+  // Peluquero/a — acceso acotado al Área de Estética, fichas y tutores.
+  // Sin finanzas, sin agenda médica, sin CRM/campañas, sin configuración ni IA.
+  groomer: {
+    pages: {
+      dashboard: true,
+      appointments: false,
+      grooming: true,
+      patients: true,
+      tutors: true,
+      messages: false,
+      crm: false,
+      campaigns: false,
+      reminders: false,
+      knowledge_base: false,
+      finance: false,
+      inventory: false,
+      ai_settings: false,
+      settings: false,
+      loyalty: false,
+      templates: false,
+      integrations: false,
+      partner_referral: false,
+      support: true,
+    },
+    actions: {
+      dashboard_metrics: false,
+      finance_metrics: false,
+      patients_create: true,
+      patients_edit: true,
+      patients_delete: false,
+      tutors_create: true,
+      tutors_edit: true,
+      tutors_delete: false,
+      appointments_create: false,
+      appointments_edit: false,
       appointments_delete: false,
       export_data: false,
     },

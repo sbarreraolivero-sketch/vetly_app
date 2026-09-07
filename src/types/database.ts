@@ -291,6 +291,7 @@ export interface Database {
                     longitude: number | null
                     duration_minutes: number
                     email: string | null
+                    appointment_type: 'medical' | 'grooming'
                 }
                 Insert: {
                     id?: string
@@ -300,6 +301,7 @@ export interface Database {
                     service?: string | null
                     appointment_date: string
                     duration?: number
+                    appointment_type?: 'medical' | 'grooming'
                     status?: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
                     notes?: string | null
                     reminder_sent?: boolean

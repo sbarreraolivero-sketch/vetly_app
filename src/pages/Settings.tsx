@@ -41,8 +41,11 @@ import {
     Palette,
     Info,
     DollarSign,
+    FileSignature,
 } from 'lucide-react'
 import { PriceMatrixEditor } from '@/components/settings/PriceMatrixEditor'
+import { GroomingPriceEditor } from '@/components/settings/GroomingPriceEditor'
+import { ConsentTemplatesEditor } from '@/components/settings/ConsentTemplatesEditor'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
 import { usePlan } from '@/hooks/usePlan'
@@ -61,6 +64,7 @@ const tabs = [
     { id: 'profile', label: 'Mi Perfil', icon: User },
     { id: 'clinic', label: 'Clínica', icon: Building2 },
     { id: 'services_pricing', label: 'Servicios y Precios', icon: DollarSign },
+    { id: 'consents', label: 'Consentimientos', icon: FileSignature },
     { id: 'branding', label: 'Diseño de marca', icon: Palette },
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'subscription', label: 'Plan', icon: CreditCard },
@@ -167,6 +171,10 @@ export default function Settings() {
     // elegida (calculate_matrix_price), no se guarda un número acá.
     const [newServicePricingMode, setNewServicePricingMode] = useState<'fixed' | 'matrix'>('fixed')
     const [newServicePriceMatrixId, setNewServicePriceMatrixId] = useState<string>('')
+    // 'medical' = servicio clínico (default). 'grooming' = servicio de estética
+    // — aparece en /app/grooming y su precio puede variar por talla/pelaje/raza
+    // (grooming_price_rules), no por la matriz de la IA.
+    const [newServiceCategory, setNewServiceCategory] = useState<'medical' | 'grooming'>('medical')
     const [priceMatrices, setPriceMatrices] = useState<{ id: string; label: string }[]>([])
     const [inventoryProducts, setInventoryProducts] = useState<any[]>([])
 
@@ -390,7 +398,7 @@ export default function Settings() {
             // Estaba en la whitelist pero no tiene bloque de render — cualquier
             // link viejo a esta URL mostraba una pantalla en blanco.
             navigate('/app/reminders', { replace: true })
-        } else if (tabParam && ['profile', 'clinic', 'branding', 'team', 'schedule', 'subscription', 'notifications', 'tags'].includes(tabParam)) {
+        } else if (tabParam && ['profile', 'clinic', 'services_pricing', 'consents', 'branding', 'team', 'schedule', 'subscription', 'notifications', 'tags'].includes(tabParam)) {
             setActiveTab(tabParam)
             if (window.innerWidth < 768) setShowMobileList(false)
         }
@@ -419,7 +427,7 @@ export default function Settings() {
                     safe((supabase as any).from('notification_preferences').select('*').eq('clinic_id', clinicId).single()),
                     safe((supabase as any).from('clinic_settings').select('*').eq('id', clinicId).single()),
                     safe((supabase as any).from('subscriptions').select('*').eq('clinic_id', clinicId).single()),
-                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty, is_public_bookable, pricing_mode, price_matrix_id').eq('clinic_id', clinicId)),
+                    safe((supabase as any).from('clinic_services').select('id, name, duration, price, ai_description, linked_product_id, linked_product_qty, is_public_bookable, pricing_mode, price_matrix_id, category').eq('clinic_id', clinicId)),
                     safe((supabase as any).rpc('get_clinic_professionals', { p_clinic_id: clinicId })),
                     safe((supabase as any).from('inventory_products').select('id, name, unit, stock_quantity').eq('clinic_id', clinicId).eq('is_active', true).order('name')),
                     safe((supabase as any).from('clinic_price_matrices').select('id, label').eq('clinic_id', clinicId).eq('status', 'active').order('created_at', { ascending: true })),
@@ -506,6 +514,7 @@ export default function Settings() {
                         publicBookable: s.is_public_bookable,
                         pricingMode: s.pricing_mode || 'fixed',
                         priceMatrixId: s.price_matrix_id,
+                        category: s.category || 'medical',
                     })))
                 }
 
@@ -956,6 +965,7 @@ export default function Settings() {
         setNewServicePublicBookable(false)
         setNewServicePricingMode('fixed')
         setNewServicePriceMatrixId('')
+        setNewServiceCategory('medical')
     }
 
     const handleEditService = async (service: any) => {
@@ -968,6 +978,7 @@ export default function Settings() {
         setNewServicePublicBookable(!!service.publicBookable)
         setNewServicePricingMode(service.pricingMode === 'matrix' ? 'matrix' : 'fixed')
         setNewServicePriceMatrixId(service.priceMatrixId || '')
+        setNewServiceCategory(service.category === 'grooming' ? 'grooming' : 'medical')
         setShowServiceModal(true)
 
         // Load assigned professionals for this service
@@ -1018,6 +1029,7 @@ export default function Settings() {
                 is_public_bookable: newServicePublicBookable,
                 pricing_mode: newServicePricingMode,
                 price_matrix_id: newServicePricingMode === 'matrix' ? newServicePriceMatrixId : null,
+                category: newServiceCategory,
             }
 
             let savedServiceId = editingServiceId
@@ -1044,6 +1056,7 @@ export default function Settings() {
                     publicBookable: serviceData.is_public_bookable,
                     pricingMode: serviceData.pricing_mode,
                     priceMatrixId: serviceData.price_matrix_id,
+                    category: serviceData.category,
                 } : s))
             } else {
                 // Insert new service
@@ -1069,6 +1082,7 @@ export default function Settings() {
                     publicBookable: data.is_public_bookable,
                     pricingMode: data.pricing_mode,
                     priceMatrixId: data.price_matrix_id,
+                    category: data.category,
                 }])
             }
 
@@ -1774,6 +1788,7 @@ export default function Settings() {
                     {activeTab === 'services_pricing' && (
                         <div className="space-y-6">
                             <PriceMatrixEditor clinicId={clinicId} />
+                            <GroomingPriceEditor clinicId={clinicId} />
 
                             {/* Services */}
                             <div className="card-soft p-4 sm:p-6">
@@ -1836,6 +1851,11 @@ export default function Settings() {
                                                             Por matriz
                                                         </span>
                                                     )}
+                                                    {service.category === 'grooming' && (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                                                            Estética
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="text-sm text-charcoal/50">
                                                     {service.duration} minutos · {service.pricingMode === 'matrix'
@@ -1895,6 +1915,22 @@ export default function Settings() {
                                                     onChange={(e) => setNewServiceName(e.target.value)}
                                                     className="input-soft"
                                                 />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-charcoal mb-2">Tipo de servicio</label>
+                                                <div className="flex text-xs rounded-lg border border-silk-beige overflow-hidden w-fit">
+                                                    <button type="button" onClick={() => setNewServiceCategory('medical')}
+                                                        className={cn('px-4 py-1.5 font-bold uppercase tracking-wide', newServiceCategory === 'medical' ? 'bg-primary-500 text-white' : 'bg-white text-charcoal/50')}>
+                                                        Médico
+                                                    </button>
+                                                    <button type="button" onClick={() => setNewServiceCategory('grooming')}
+                                                        className={cn('px-4 py-1.5 font-bold uppercase tracking-wide', newServiceCategory === 'grooming' ? 'bg-primary-500 text-white' : 'bg-white text-charcoal/50')}>
+                                                        Estética
+                                                    </button>
+                                                </div>
+                                                {newServiceCategory === 'grooming' && (
+                                                    <p className="text-[11px] text-charcoal/50 mt-1">Aparece en el Área de Estética. Su precio puede variar por talla/pelaje/raza en "Reglas de precio de estética" (abajo).</p>
+                                                )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
@@ -2122,6 +2158,12 @@ export default function Settings() {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === 'consents' && (
+                        <div className="space-y-6">
+                            <ConsentTemplatesEditor clinicId={clinicId} />
                         </div>
                     )}
 
