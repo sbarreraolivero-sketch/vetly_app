@@ -1056,27 +1056,27 @@ export default function Appointments() {
         <div className="space-y-6 animate-fade-in pb-20">
             {/* Banner */}
             <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-2">Clínica</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                            <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1.5">Clínica</p>
+                            <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">
                                 {isProfessional
                                     ? `Mis Citas — ${profile?.full_name || 'Personal'}`
                                     : professionalFilter === 'all'
                                         ? 'Agenda de la Clínica'
                                         : `Agenda — ${professionals.find(p => p.member_id === professionalFilter)?.first_name || ''}`}
                             </h1>
-                            <p className="text-sm text-primary-100/80 font-light mt-1">
+                            <p className="text-xs sm:text-sm text-primary-100/80 font-light mt-1">
                                 {isProfessional ? 'Tu agenda personal de consultas y seguimientos.' : 'Consultas, cirugías y seguimientos de toda la clínica.'}
                             </p>
                         </div>
-                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                        <div className="hidden sm:flex w-12 h-12 bg-white/15 rounded-2xl items-center justify-center shrink-0">
                             <CalendarIcon className="w-6 h-6 text-white" />
                         </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
-                        <div className="flex items-center gap-6 flex-wrap">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-5 sm:mt-6 pt-4 sm:pt-5 border-t border-white/10">
+                        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
                             <div>
                                 <p className="text-2xl font-black text-white">
                                     {appointments.filter(a => new Date(a.appointment_date).toDateString() === new Date().toDateString()).length}
@@ -1105,10 +1105,10 @@ export default function Appointments() {
                                 <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Completadas</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 onClick={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-                                className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+                                className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-3 py-2 rounded-xl transition-colors"
                             >
                                 {viewMode === 'list' ? <CalendarIcon className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
                                 <span>{viewMode === 'list' ? 'Calendario' : 'Lista'}</span>
@@ -1117,7 +1117,7 @@ export default function Appointments() {
                                 <>
                                     <button
                                         onClick={() => openBlockModal(new Date())}
-                                        className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+                                        className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-3 py-2 rounded-xl transition-colors"
                                     >
                                         <XCircle className="w-4 h-4" />
                                         Bloquear
@@ -1132,7 +1132,7 @@ export default function Appointments() {
                                             })
                                             setShowModal(true)
                                         }}
-                                        className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm"
+                                        className="flex items-center gap-1.5 bg-white text-primary-700 font-bold text-sm px-3 py-2 rounded-xl hover:bg-primary-50 transition-colors shadow-sm whitespace-nowrap"
                                     >
                                         <Plus className="w-4 h-4" />
                                         Nueva Cita

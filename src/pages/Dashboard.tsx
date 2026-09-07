@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     Calendar,
     MessageSquare,
@@ -85,6 +86,7 @@ interface ServiceRanking {
 
 export default function Dashboard() {
     const { user, profile } = useAuth()
+    const navigate = useNavigate()
     const { can, canAccess } = usePermissions()
     // hasAI: el plan incluye agente conversacional. Rige el bloqueo de las
     // tarjetas que solo tienen sentido con el agente activo.
@@ -984,7 +986,7 @@ export default function Dashboard() {
                             <p className="text-charcoal/40 text-center py-8 text-sm">No hay mensajes recientes.</p>
                         ) : (
                             recentMessages.map((message) => (
-                                <div key={message.id} className="p-3 rounded-xl hover:bg-ivory transition-colors cursor-pointer" onClick={() => window.location.href = `/app/messages`}>
+                                <div key={message.id} className="p-3 rounded-xl hover:bg-ivory transition-colors cursor-pointer" onClick={() => navigate('/app/messages')}>
                                     <div className="flex items-start gap-3">
                                         <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center shrink-0">
                                             <MessageSquare className="w-3.5 h-3.5 text-sky-600" />

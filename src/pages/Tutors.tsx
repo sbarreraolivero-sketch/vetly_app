@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     Plus,
     Search,
@@ -43,71 +44,55 @@ interface TagSummary {
 
 export default function Tutors() {
     const { profile, clinics } = useAuth()
+    const queryClient = useQueryClient()
     const [showHistoryImport, setShowHistoryImport] = useState(false)
     const navigate = useNavigate()
     const location = useLocation()
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [contacts, setContacts] = useState<Contact[]>([])
     const [showTagSidebar, setShowTagSidebar] = useState(false)
     const [editingTutor, setEditingTutor] = useState<any | null>(null)
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
-    const [tagSummaries, setTagSummaries] = useState<TagSummary[]>([])
     const [selectedTag, setSelectedTag] = useState<string | null>(null)
 
     // Modal states
     const [isFormOpen, setIsFormOpen] = useState(false)
 
-    const fetchContacts = async () => {
-        if (!profile?.clinic_id) return
-        setLoading(true)
-        setError(null)
-        try {
+    // Datos vía React Query — cacheados entre navegaciones (staleTime global 5 min en
+    // main.tsx). Volver a esta página desde la ficha de un tutor/paciente ya no repite
+    // el RPC ni muestra spinner: sale del caché al instante.
+    const clinicId = profile?.clinic_id
+
+    const { data: contacts = [], isLoading: loading, error, refetch } = useQuery<Contact[]>({
+        queryKey: ['unified-contacts', clinicId],
+        queryFn: async () => {
             const { data, error: rpcError } = await (supabase as any).rpc('get_unified_contacts', {
-                p_clinic_id: profile.clinic_id
+                p_clinic_id: clinicId,
             })
-
             if (rpcError) throw rpcError
-
             // Focus on tutors as CRM is no longer used
-            const onlyTutors = (data || []).filter((c: any) => c.type === 'tutor')
-            setContacts(onlyTutors)
-        } catch (error: any) {
-            console.error('Error fetching tutors:', error)
-            setError(error.message || 'Error al cargar contactos')
-        } finally {
-            setLoading(false)
-        }
-    }
+            return ((data || []) as any[]).filter((c: any) => c.type === 'tutor')
+        },
+        enabled: !!clinicId,
+    })
 
-    const fetchTagSummaries = async () => {
-        if (!profile?.clinic_id) return
-        try {
+    const { data: tagSummaries = [] } = useQuery<TagSummary[]>({
+        queryKey: ['tag-counts', clinicId],
+        queryFn: async () => {
             const { data, error: tagError } = await (supabase as any).rpc('get_tag_counts', {
-                p_clinic_id: profile.clinic_id
+                p_clinic_id: clinicId,
             })
-            if (!tagError) {
-                setTagSummaries(data || [])
-            }
-        } catch (error) {
-            console.error('Error fetching tag summaries:', error)
-        }
+            if (tagError) throw tagError
+            return data || []
+        },
+        enabled: !!clinicId,
+    })
+
+    /** Refresca ambos datasets tras un alta/edición/borrado. */
+    const fetchContacts = () => {
+        queryClient.invalidateQueries({ queryKey: ['unified-contacts', clinicId] })
+        queryClient.invalidateQueries({ queryKey: ['tag-counts', clinicId] })
     }
-
-    // Carga inicial inmediata al montar o cambiar clínica
-    useEffect(() => {
-        fetchContacts()
-        fetchTagSummaries()
-    }, [profile?.clinic_id])
-
-    // Búsqueda con debounce — solo cuando el usuario escribe
-    useEffect(() => {
-        if (!searchQuery) return
-        const timer = setTimeout(() => fetchContacts(), 400)
-        return () => clearTimeout(timer)
-    }, [searchQuery])
 
     // Auto-open tutor when navigating from PatientProfile breadcrumb
     useEffect(() => {
@@ -164,49 +149,49 @@ export default function Tutors() {
                 <div className="space-y-6 animate-fade-in relative min-h-screen pb-20">
                     {/* Page Banner */}
                     <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
-                        <div className="p-6 sm:p-8">
-                            <div className="flex items-start justify-between gap-4">
+                        <div className="p-5 sm:p-8">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-2">Clínica</p>
-                                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Tutores y Prospectos</h1>
-                                    <p className="text-sm text-primary-100/80 font-light mt-1">Dueños de mascotas y leads en un solo lugar.</p>
+                                    <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1.5">Clínica</p>
+                                    <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">Tutores y Prospectos</h1>
+                                    <p className="text-xs sm:text-sm text-primary-100/80 font-light mt-1">Dueños de mascotas y leads en un solo lugar.</p>
                                 </div>
-                                <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                                <div className="hidden sm:flex w-12 h-12 bg-white/15 rounded-2xl items-center justify-center shrink-0">
                                     <Users className="w-6 h-6 text-white" />
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
-                                <div className="flex items-center gap-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-5 sm:mt-6 pt-4 sm:pt-5 border-t border-white/10">
+                                <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
                                     <div>
-                                        <p className="text-2xl font-black text-white">{contacts.length}</p>
+                                        <p className="text-xl sm:text-2xl font-black text-white">{contacts.length}</p>
                                         <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Total</p>
                                     </div>
                                     <div className="w-px h-8 bg-white/15" />
                                     <div>
-                                        <p className="text-2xl font-black text-white">{contacts.filter(c => c.tags && c.tags.length > 0).length}</p>
+                                        <p className="text-xl sm:text-2xl font-black text-white">{contacts.filter(c => c.tags && c.tags.length > 0).length}</p>
                                         <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Con Etiquetas</p>
                                     </div>
                                     <div className="w-px h-8 bg-white/15" />
                                     <div>
-                                        <p className="text-2xl font-black text-white">{tagSummaries.length}</p>
+                                        <p className="text-xl sm:text-2xl font-black text-white">{tagSummaries.length}</p>
                                         <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Segmentos</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     <button
                                         onClick={() => setShowHistoryImport(true)}
                                         title="¿Vienes de otro sistema? Sube el Excel o CSV que exportaste y la IA crea dueños, mascotas e historial"
-                                        className="btn-ghost flex items-center gap-2 self-start sm:self-auto bg-white border border-silk-beige"
+                                        className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-3 py-2 rounded-xl transition-colors"
                                     >
-                                        <Upload className="w-4 h-4" /> Importar datos
+                                        <Upload className="w-4 h-4" /> <span className="hidden sm:inline">Importar datos</span><span className="sm:hidden">Importar</span>
                                     </button>
                                     <button
                                         onClick={() => {
                                             setEditingTutor(null)
                                             setIsFormOpen(true)
                                         }}
-                                        className="flex items-center gap-2 bg-white text-primary-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary-50 transition-colors shadow-sm"
+                                        className="flex items-center gap-1.5 bg-white text-primary-700 font-bold text-sm px-3 py-2 rounded-xl hover:bg-primary-50 transition-colors shadow-sm"
                                     >
                                         <Plus className="w-4 h-4" />
                                         Nuevo Tutor
@@ -271,8 +256,8 @@ export default function Tutors() {
                                                 <tr>
                                                     <td colSpan={4} className="py-20 text-center text-red-500">
                                                         <div className="flex flex-col items-center gap-2">
-                                                            <p>Error: {error}</p>
-                                                            <button onClick={() => fetchContacts()} className="text-sm underline">Reintentar</button>
+                                                            <p>Error: {(error as Error)?.message || 'No se pudieron cargar los tutores'}</p>
+                                                            <button onClick={() => refetch()} className="text-sm underline">Reintentar</button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -383,8 +368,8 @@ export default function Tutors() {
                                     </>
                                 ) : error ? (
                                     <div className="py-20 text-center bg-white rounded-2xl border border-silk-beige text-red-500 px-4">
-                                        <p className="mb-2 text-sm">Error: {error}</p>
-                                        <button onClick={() => fetchContacts()} className="text-xs underline bg-red-50 px-3 py-1 rounded-full">Reintentar</button>
+                                        <p className="mb-2 text-sm">Error: {(error as Error)?.message || 'No se pudieron cargar los tutores'}</p>
+                                        <button onClick={() => refetch()} className="text-xs underline bg-red-50 px-3 py-1 rounded-full">Reintentar</button>
                                     </div>
                                 ) : filteredContacts.length === 0 ? (
                                     <div className="py-20 text-center text-charcoal/50 bg-white rounded-2xl border border-silk-beige">

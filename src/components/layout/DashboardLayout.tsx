@@ -748,8 +748,11 @@ export default function DashboardLayout() {
                     </div>
                 </header>
 
-                {/* Page Content */}
-                <main className="flex-1 overflow-auto p-3 sm:p-6 scrollbar-soft">
+                {/* Page Content — overflow-x-hidden es una red de seguridad: si alguna
+                    página deja una fila que desborda a lo ancho en móvil, se recorta en vez
+                    de arrastrar toda la pantalla (las tablas anchas tienen su propio
+                    overflow-x-auto, así que no las afecta). */}
+                <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 scrollbar-soft">
                     <Outlet />
                 </main>
             </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     Phone, Mail, MapPin,
     Plus, Edit2, Trash2, ArrowLeft,
@@ -26,6 +27,7 @@ const getSexLabel = (sex: string | null | undefined) => {
 
 export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
     const { profile } = useAuth()
+    const navigate = useNavigate()
     const [activeTab, setActiveTab] = useState<'patients' | 'info' | 'finances'>('patients')
     const [patients, setPatients] = useState<Patient[]>([])
     const [loadingPatients, setLoadingPatients] = useState(false)
@@ -211,8 +213,8 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
         <div className="space-y-6 animate-fade-in relative pb-20">
             {/* Page Banner */}
             <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                         <div className="flex-1 min-w-0">
                             <button
                                 onClick={onBack}
@@ -222,15 +224,15 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                                 Tutores
                             </button>
                             <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1">Clínica / Tutores</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">{tutor.name}</h1>
+                            <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white break-words">{tutor.name}</h1>
                         </div>
-                        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                        <div className="hidden sm:flex w-14 h-14 bg-white/20 rounded-2xl items-center justify-center shrink-0">
                             <span className="text-2xl font-black text-white">{tutor.name?.charAt(0).toUpperCase()}</span>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-5 border-t border-white/10">
-                        <div className="flex flex-wrap items-center gap-5">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mt-5 sm:mt-6 pt-4 sm:pt-5 border-t border-white/10">
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                             <div className="flex items-center gap-2">
                                 <Phone className="w-3.5 h-3.5 text-primary-200" />
                                 <span className="text-sm font-bold text-white">{formatPhoneNumber(tutor.phone_number) || '—'}</span>
@@ -317,7 +319,7 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                                     <div
                                         key={pet.id}
                                         className="group bg-white rounded-2xl border border-silk-beige hover:border-primary-200 hover:shadow-soft-md transition-all cursor-pointer overflow-hidden"
-                                        onClick={() => { window.location.href = `/app/patients/${pet.id}` }}
+                                        onClick={() => navigate(`/app/patients/${pet.id}`, { state: { fromTutorId: tutor.id } })}
                                     >
                                         {/* Card header strip */}
                                         <div className="bg-primary-50 px-5 py-4 flex items-center justify-between border-b border-primary-100/50">
@@ -341,15 +343,17 @@ export function TutorDetails({ tutor, onBack, onUpdate }: TutorDetailsProps) {
                                                 </span>
                                                 <button
                                                     onClick={() => { setEditingPet(pet); setShowPetForm(true) }}
-                                                    className="p-1.5 hover:bg-white rounded-lg text-charcoal/40 hover:text-primary-600 transition-colors opacity-0 group-hover:opacity-100"
+                                                    aria-label="Editar mascota"
+                                                    className="p-2 sm:p-1.5 bg-white/70 sm:bg-transparent hover:bg-white rounded-lg text-charcoal/60 sm:text-charcoal/40 hover:text-primary-600 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                                                 >
-                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                    <Edit2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeletePet(pet.id, pet.name)}
-                                                    className="p-1.5 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                    aria-label="Eliminar mascota"
+                                                    className="p-2 sm:p-1.5 bg-white/70 sm:bg-transparent hover:bg-red-50 rounded-lg text-charcoal/60 sm:text-charcoal/40 hover:text-red-500 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                                                 >
-                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                                                 </button>
                                             </div>
                                         </div>

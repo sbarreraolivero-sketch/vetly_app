@@ -451,13 +451,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const signOut = async () => {
-        await supabase.auth.signOut()
+        // Limpieza local inmediata — la UI queda deslogueada al instante, sin esperar
+        // ninguna respuesta del servidor de Supabase (antes se hacía `await signOut()`
+        // con scope global, que revoca el token en TODOS los dispositivos y frenaba el
+        // botón 1-3s).
         setUser(null)
         setProfile(null)
+        setMember(null)
         setSubscription(null)
         setSession(null)
         setClinics([])
-        localStorage.clear()
+        try { localStorage.clear() } catch { /* modo incógnito */ }
+
+        // Revoca la sesión (local + servidor) en segundo plano. No se espera.
+        void supabase.auth.signOut({ scope: 'global' }).catch(() => { /* ya limpiamos local */ })
     }
 
     const connectGoogleCalendar = async () => {

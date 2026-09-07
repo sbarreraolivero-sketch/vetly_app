@@ -16,6 +16,7 @@ import {
     Wallet,
     ExternalLink,
     Paperclip,
+    FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CashRegister } from '@/services/financeService'
@@ -56,6 +57,7 @@ interface CajaDelDiaProps {
     onSetOpeningBalance: (date: string, amount: number) => void
     onDownloadReport: (date: string) => void
     onViewReceipt?: (storagePath: string) => void
+    onIncomeReceipt?: (incomeId: string) => void
     onEditIncome?: (incomeId: string) => void
     onDeleteIncome?: (incomeId: string, description: string) => void
     onEditExpense?: (expenseId: string) => void
@@ -115,6 +117,7 @@ export function CajaDelDia({
     onSetOpeningBalance,
     onDownloadReport,
     onViewReceipt,
+    onIncomeReceipt,
     onEditIncome,
     onDeleteIncome,
     onEditExpense,
@@ -304,9 +307,18 @@ export function CajaDelDia({
                                 <span className="text-xs font-bold text-charcoal shrink-0">
                                     {fmt(inc.amount ?? 0)}
                                 </span>
-                                {!isClosed && (onEditIncome || onDeleteIncome) && (
+                                {(onIncomeReceipt || (!isClosed && (onEditIncome || onDeleteIncome))) && (
                                     <div className="flex items-center gap-0.5 shrink-0">
-                                        {onEditIncome && (
+                                        {onIncomeReceipt && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onIncomeReceipt(inc.id) }}
+                                                className="p-1.5 text-charcoal/30 hover:text-emerald-600 active:text-emerald-600 transition-colors rounded"
+                                                title="Ver comprobante"
+                                            >
+                                                <FileText className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                        {!isClosed && onEditIncome && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onEditIncome(inc.id) }}
                                                 className="p-1.5 text-charcoal/30 hover:text-primary-600 active:text-primary-600 transition-colors rounded"
@@ -315,7 +327,7 @@ export function CajaDelDia({
                                                 <Pencil className="w-3.5 h-3.5" />
                                             </button>
                                         )}
-                                        {onDeleteIncome && (
+                                        {!isClosed && onDeleteIncome && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onDeleteIncome(inc.id, inc.description) }}
                                                 className="p-1.5 text-charcoal/30 hover:text-red-500 active:text-red-500 transition-colors rounded"

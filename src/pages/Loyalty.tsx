@@ -234,14 +234,14 @@ export default function Loyalty() {
         <div className="space-y-6 animate-fade-in">
             {/* Banner */}
             <div className="bg-gradient-to-br from-violet-500 to-violet-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest text-violet-200 mb-2">Marketing</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Fidelización & Referidos</h1>
-                            <p className="text-sm text-violet-100/80 font-light mt-1">Programa de lealtad y crecimiento orgánico de tu clínica.</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-violet-200 mb-1.5">Marketing</p>
+                            <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">Fidelización & Referidos</h1>
+                            <p className="text-xs sm:text-sm text-violet-100/80 font-light mt-1">Programa de lealtad y crecimiento orgánico de tu clínica.</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="hidden sm:flex items-center gap-3">
                             <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
                                 <Trophy className="w-6 h-6 text-white" />
                             </div>

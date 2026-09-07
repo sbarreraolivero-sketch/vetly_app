@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { 
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
     Dog,
     Syringe, ShieldAlert, FileText,
     Plus, Edit2, Trash2, Heart,
     Activity, ClipboardList, Save, X, Bell,
-    Pill, Printer, MessageCircle, Mail
+    Pill, Printer, MessageCircle, Mail, ArrowLeft
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
@@ -22,28 +23,134 @@ import { PatientReminders } from '@/components/patients/PatientReminders'
 export default function PatientProfile() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
-    
-    const [loading, setLoading] = useState(true)
-    const [patient, setPatient] = useState<Patient | null>(null)
-    const [tutor, setTutor] = useState<Tutor | null>(null)
-    const [clinicalInfo, setClinicalInfo] = useState<ClinicalRecord | null>(null)
+    const location = useLocation()
+    const queryClient = useQueryClient()
     const [activeTab, setActiveTab] = useState<'history' | 'medical' | 'vaccines' | 'deworming' | 'prescriptions' | 'files' | 'reminders'>('history')
-    
-    // Records state (Timeline)
-    const [historyEvents, setHistoryEvents] = useState<MedicalHistoryEvent[]>([])
+
+    // ── Datos vía React Query — cacheados entre navegaciones (staleTime global 5 min).
+    //    Volver a esta ficha (o abrir otra ya visitada) es instantáneo, sin spinner.
+    //    Cada bloque es su propia query: el header aparece apenas resuelve el paciente,
+    //    las pestañas se llenan a medida que llegan sin bloquear la página.
+    const patientQuery = useQuery({
+        queryKey: ['patient-profile', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('patients')
+                .select('*, tutors(*)')
+                .eq('id', id as string)
+                .single()
+            if (error) throw error
+            return data
+        },
+        enabled: !!id,
+    })
+    const patient = (patientQuery.data as Patient | undefined) ?? null
+    const tutor = ((patientQuery.data as any)?.tutors as Tutor | null) ?? null
+    const loading = patientQuery.isLoading
+
+    /** Volver:
+     *  1. Se abrió desde la ficha de un tutor → reabre esa ficha directo (la lista
+     *     de tutores está cacheada, se abre al instante).
+     *  2. Se llegó desde otra parte de la app (listado de Pacientes, etc.) →
+     *     retrocede en el historial, vuelve exactamente a donde estaba.
+     *  3. Link directo / recarga → cae al listado del tutor. */
+    const goBack = () => {
+        const fromTutorId = (location.state as { fromTutorId?: string } | null)?.fromTutorId
+        if (fromTutorId) {
+            navigate('/app/tutors', { state: { tutorId: fromTutorId } })
+        } else if (location.key !== 'default' && window.history.length > 1) {
+            navigate(-1)
+        } else if (tutor?.id) {
+            navigate('/app/tutors', { state: { tutorId: tutor.id } })
+        } else {
+            navigate('/app/tutors')
+        }
+    }
+
+    // Ficha inexistente / sin acceso → al listado de tutores (mismo comportamiento que antes).
+    useEffect(() => {
+        if (patientQuery.isError) {
+            console.error('Error fetching pet profile:', patientQuery.error)
+            navigate('/app/tutors')
+        }
+    }, [patientQuery.isError])
+
+    const clinicalQuery = useQuery({
+        queryKey: ['patient-clinical', id],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('clinical_records')
+                .select('*')
+                .eq('patient_id', id as string)
+                .maybeSingle()
+            return (data as ClinicalRecord | null) ?? null
+        },
+        enabled: !!id,
+    })
+    const clinicalInfo = clinicalQuery.data ?? null
+
+    const { data: historyEvents = [] } = useQuery<MedicalHistoryEvent[]>({
+        queryKey: ['patient-history', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('medical_history').select('*').eq('patient_id', id as string)
+                .order('event_date', { ascending: false })
+            if (error) throw error
+            return (data as any) || []
+        },
+        enabled: !!id,
+    })
+
+    const { data: vaccines = [] } = useQuery<VaccineEvent[]>({
+        queryKey: ['patient-vaccines', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('vaccines').select('*').eq('patient_id', id as string)
+                .order('application_date', { ascending: false })
+            if (error) throw error
+            return (data as any) || []
+        },
+        enabled: !!id,
+    })
+
+    const { data: dewormings = [] } = useQuery<DewormingEvent[]>({
+        queryKey: ['patient-deworming', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('deworming').select('*').eq('patient_id', id as string)
+                .order('application_date', { ascending: false })
+            if (error) throw error
+            return (data as any) || []
+        },
+        enabled: !!id,
+    })
+
+    const { data: prescriptions = [] } = useQuery<Prescription[]>({
+        queryKey: ['patient-prescriptions', id],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from('prescriptions').select('*').eq('patient_id', id as string)
+                .order('issued_date', { ascending: false })
+            if (error) throw error
+            return (data as any) || []
+        },
+        enabled: !!id,
+    })
+
+    // Refrescos tras alta/edición/borrado — invalidan la query correspondiente.
+    // Mantienen la firma `fetchX()` para no tocar los ~10 puntos de llamada.
+    const fetchTimeline = () => queryClient.invalidateQueries({ queryKey: ['patient-history', id] })
+    const fetchVaccines = () => queryClient.invalidateQueries({ queryKey: ['patient-vaccines', id] })
+    const fetchDewormings = () => queryClient.invalidateQueries({ queryKey: ['patient-deworming', id] })
+    const fetchPrescriptions = () => queryClient.invalidateQueries({ queryKey: ['patient-prescriptions', id] })
+
+    // Records / forms UI state
     const [showEventForm, setShowEventForm] = useState(false)
     const [editingEvent, setEditingEvent] = useState<MedicalHistoryEvent | null>(null)
-
-    // Vaccines & Deworming state
-    const [vaccines, setVaccines] = useState<VaccineEvent[]>([])
-    const [dewormings, setDewormings] = useState<DewormingEvent[]>([])
     const [showVaccineForm, setShowVaccineForm] = useState(false)
     const [editingVaccine, setEditingVaccine] = useState<VaccineEvent | null>(null)
     const [showDewormingForm, setShowDewormingForm] = useState(false)
     const [editingDeworming, setEditingDeworming] = useState<DewormingEvent | null>(null)
-
-    // Recetas médicas
-    const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
     const [showPrescriptionForm, setShowPrescriptionForm] = useState(false)
     const [sendingRx, setSendingRx] = useState<string | null>(null)
 
@@ -56,103 +163,17 @@ export default function PatientProfile() {
     })
     const [savingClinical, setSavingClinical] = useState(false)
 
+    // Sincroniza el formulario de antecedentes cuando llegan (o cambian) los datos,
+    // salvo que se esté editando en ese momento.
     useEffect(() => {
-        if (id) {
-            fetchPatientData()
+        if (clinicalInfo && !isEditingClinical) {
+            setClinicalFormData({
+                allergies: clinicalInfo.allergies || '',
+                chronic_conditions: clinicalInfo.chronic_conditions || '',
+                general_notes: clinicalInfo.general_notes || '',
+            })
         }
-    }, [id])
-
-    const fetchPatientData = async () => {
-        if (!id) return
-        setLoading(true)
-        try {
-            // Fetch Patient with Tutor join
-            const { data: pet, error } = await supabase
-                .from('patients')
-                .select('*, tutors(*)')
-                .eq('id', id as string)
-                .single()
-
-            if (error) throw error
-            setPatient(pet as Patient)
-            setTutor((pet as any).tutors)
-            
-            // Fetch Permanent Clinical Record (General Notes, Allergies)
-            const { data: cData } = await supabase
-                .from('clinical_records')
-                .select('*')
-                .eq('patient_id', id as string)
-                .maybeSingle()
-            
-            const typedCData = cData as ClinicalRecord | null
-            setClinicalInfo(typedCData)
-            if (typedCData) {
-                setClinicalFormData({
-                    allergies: typedCData.allergies || '',
-                    chronic_conditions: typedCData.chronic_conditions || '',
-                    general_notes: typedCData.general_notes || ''
-                })
-            }
-
-            // Fetch Medical Timeline
-            fetchTimeline()
-            fetchVaccines()
-            fetchDewormings()
-            fetchPrescriptions()
-        } catch (error) {
-            console.error('Error fetching pet profile:', error)
-            navigate('/app/tutors')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const fetchTimeline = async () => {
-        if (!id) return
-        try {
-            const { data, error } = await supabase
-                .from('medical_history')
-                .select('*')
-                .eq('patient_id', id)
-                .order('event_date', { ascending: false })
-
-            if (error) throw error
-            setHistoryEvents(data as any || [])
-        } catch (error) {
-            console.error('Error fetching timeline:', error)
-        }
-    }
-
-    const fetchVaccines = async () => {
-        if (!id) return
-        try {
-            const { data, error } = await supabase.from('vaccines').select('*').eq('patient_id', id).order('application_date', { ascending: false })
-            if (error) throw error
-            setVaccines(data as any || [])
-        } catch (error) { console.error('Error fetching vaccines:', error) }
-    }
-
-    const fetchDewormings = async () => {
-        if (!id) return
-        try {
-            const { data, error } = await supabase.from('deworming').select('*').eq('patient_id', id).order('application_date', { ascending: false })
-            if (error) throw error
-            setDewormings(data as any || [])
-        } catch (error) { console.error('Error fetching dewormings:', error) }
-    }
-
-    const fetchPrescriptions = async () => {
-        if (!id) return
-        try {
-            const { data, error } = await (supabase as any)
-                .from('prescriptions')
-                .select('*')
-                .eq('patient_id', id)
-                .order('issued_date', { ascending: false })
-            if (error) throw error
-            setPrescriptions((data as any) || [])
-        } catch (error) { console.error('Error fetching prescriptions:', error) }
-    }
+    }, [clinicalInfo])
 
     const handleDeletePrescription = async (rxId: string) => {
         if (!confirm('¿Eliminar esta receta?')) return
@@ -230,7 +251,7 @@ export default function PatientProfile() {
                 .select('*')
                 .eq('patient_id', id)
                 .maybeSingle()
-            setClinicalInfo(newData as any)
+            queryClient.setQueryData(['patient-clinical', id], (newData as ClinicalRecord | null) ?? null)
             setIsEditingClinical(false)
         } catch (error) {
             console.error('Error saving clinical info:', error)
@@ -280,7 +301,16 @@ export default function PatientProfile() {
         <div className="space-y-6 animate-fade-in pb-20">
             {/* Header / Breadcrumbs */}
             <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2 text-xs font-bold font-bold text-charcoal/40 uppercase tracking-widest">
+                <button
+                    onClick={goBack}
+                    className="flex items-center gap-2 self-start text-xs font-black uppercase tracking-widest text-charcoal/60 hover:text-primary-600 bg-white border border-silk-beige hover:border-primary-200 px-3 py-2 rounded-full transition-colors"
+                >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    {(location.state as { fromTutorId?: string } | null)?.fromTutorId && tutor?.name
+                        ? `Volver a ${tutor.name}`
+                        : 'Volver'}
+                </button>
+                <div className="hidden sm:flex items-center gap-2 text-xs font-bold font-bold text-charcoal/40 uppercase tracking-widest">
                     <button onClick={() => navigate('/app/tutors')} className="hover:text-primary-600 transition-colors">Tutores</button>
                     <span>/</span>
                     <button

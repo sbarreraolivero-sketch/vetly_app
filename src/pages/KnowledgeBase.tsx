@@ -427,14 +427,14 @@ export default function KnowledgeBase() {
         <div className="space-y-6 animate-fade-in">
             {/* Banner */}
             <div className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest text-amber-200 mb-2">Configuración</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Base de Conocimiento</h1>
-                            <p className="text-sm text-amber-100/80 font-light mt-1">Entrena a tu agente IA con la información de tu clínica.</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-amber-200 mb-1.5">Configuración</p>
+                            <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">Base de Conocimiento</h1>
+                            <p className="text-xs sm:text-sm text-amber-100/80 font-light mt-1">Entrena a tu agente IA con la información de tu clínica.</p>
                         </div>
-                        <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                        <div className="hidden sm:flex w-12 h-12 bg-white/15 rounded-2xl items-center justify-center shrink-0">
                             <BookOpen className="w-6 h-6 text-white" />
                         </div>
                     </div>

@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { 
     Dog, 
     Search, 
@@ -31,38 +32,26 @@ type PatientWithTutor = {
 export default function Patients() {
     const { profile } = useAuth()
     const navigate = useNavigate()
-    const [loading, setLoading] = useState(true)
-    const [patients, setPatients] = useState<PatientWithTutor[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [speciesFilter, setSpeciesFilter] = useState<'all' | 'dog' | 'cat' | 'other'>('all')
 
-    useEffect(() => {
-        fetchPatients()
-    }, [profile?.clinic_id])
-
-    const fetchPatients = async () => {
-        if (!profile?.clinic_id) {
-            setLoading(false)
-            return
-        }
-        setLoading(true)
-        try {
+    // Vía React Query — cacheado entre navegaciones. Volver desde la ficha de un
+    // paciente ya no repite la consulta ni muestra spinner.
+    const { data: patients = [], isLoading: loading } = useQuery<PatientWithTutor[]>({
+        queryKey: ['patients-with-tutor', profile?.clinic_id],
+        queryFn: async () => {
             const { data, error } = await supabase
                 .from('patients')
                 .select('*, tutors(id, name)')
-                .eq('clinic_id', profile.clinic_id)
+                .eq('clinic_id', profile!.clinic_id)
                 .is('death_date', null)
                 .order('created_at', { ascending: false })
                 .limit(500)
-
             if (error) throw error
-            setPatients((data as any) || [])
-        } catch (error) {
-            console.error('Error fetching patients:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
+            return (data as any) || []
+        },
+        enabled: !!profile?.clinic_id,
+    })
 
     const filteredPatients = useMemo(() => {
         return patients.filter(p => {
@@ -101,32 +90,32 @@ export default function Patients() {
             <div className="space-y-6 animate-fade-in pb-20">
                 {/* Banner */}
                 <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl overflow-hidden shadow-soft-md">
-                    <div className="p-6 sm:p-8">
-                        <div className="flex items-start justify-between gap-4">
+                    <div className="p-5 sm:p-8">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-2">Clínica</p>
-                                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Pacientes</h1>
-                                <p className="text-sm text-primary-100/80 font-light mt-1">Fichas clínicas, tratamientos y evoluciones de todas las mascotas.</p>
+                                <p className="text-xs font-black uppercase tracking-widest text-primary-200 mb-1.5">Clínica</p>
+                                <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">Pacientes</h1>
+                                <p className="text-xs sm:text-sm text-primary-100/80 font-light mt-1">Fichas clínicas, tratamientos y evoluciones de todas las mascotas.</p>
                             </div>
-                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <div className="hidden sm:flex w-12 h-12 bg-white/15 rounded-2xl items-center justify-center shrink-0">
                                 <Dog className="w-6 h-6 text-white" />
                             </div>
                         </div>
-                        <div className="flex items-center gap-6 mt-6 pt-5 border-t border-white/10">
+                        <div className="flex items-center gap-4 sm:gap-6 flex-wrap mt-5 sm:mt-6 pt-4 sm:pt-5 border-t border-white/10">
                             <div>
-                                <p className="text-2xl font-black text-white">{patients.length}</p>
+                                <p className="text-xl sm:text-2xl font-black text-white">{patients.length}</p>
                                 <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Total</p>
                             </div>
                             <div className="w-px h-8 bg-white/15" />
                             <div>
-                                <p className="text-2xl font-black text-white">
+                                <p className="text-xl sm:text-2xl font-black text-white">
                                     {patients.filter(p => { const s = (p.species ?? '').toLowerCase(); return s.includes('canin') || s.includes('perr') }).length}
                                 </p>
                                 <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Caninos</p>
                             </div>
                             <div className="w-px h-8 bg-white/15" />
                             <div>
-                                <p className="text-2xl font-black text-white">
+                                <p className="text-xl sm:text-2xl font-black text-white">
                                     {patients.filter(p => { const s = (p.species ?? '').toLowerCase(); return s.includes('felin') || s.includes('gat') }).length}
                                 </p>
                                 <p className="text-xs font-black text-primary-200 uppercase tracking-widest mt-0.5">Felinos</p>

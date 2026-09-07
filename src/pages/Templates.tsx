@@ -168,24 +168,24 @@ export default function Templates() {
         <div className="max-w-6xl mx-auto space-y-6">
             {/* Banner */}
             <div className="bg-gradient-to-br from-sky-500 to-sky-700 rounded-2xl overflow-hidden shadow-soft-md">
-                <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="p-5 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-2">Principal</p>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Plantillas de WhatsApp</h1>
-                            <p className="text-sm text-sky-100/80 font-light mt-1">Mensajes pre-aprobados por Meta para recordatorios y campañas.</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-sky-200 mb-1.5">Principal</p>
+                            <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">Plantillas de WhatsApp</h1>
+                            <p className="text-xs sm:text-sm text-sky-100/80 font-light mt-1">Mensajes pre-aprobados por Meta para recordatorios y campañas.</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
                             {!isCreating && (
                                 <button
                                     onClick={() => setIsCreating(true)}
-                                    className="flex items-center gap-2 bg-white text-sky-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm"
+                                    className="flex items-center gap-1.5 bg-white text-sky-700 font-bold text-sm px-3 py-2 rounded-xl hover:bg-sky-50 transition-colors shadow-sm"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Nueva Plantilla
                                 </button>
                             )}
-                            <div className="w-12 h-12 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <div className="hidden sm:flex w-12 h-12 bg-white/15 rounded-2xl items-center justify-center shrink-0">
                                 <MessageSquare className="w-6 h-6 text-white" />
                             </div>
                         </div>

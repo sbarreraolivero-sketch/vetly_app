@@ -16,6 +16,7 @@ import {
     CalendarRange,
     Lightbulb,
     Tag,
+    FileText,
 } from 'lucide-react'
 import {
     startOfDay, endOfDay,
@@ -39,6 +40,7 @@ import { inventoryService } from '@/services/inventoryService'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
 import { printCajaReport } from '@/components/finance/CajaReport'
+import { IncomeReceipt } from '@/components/finance/IncomeReceipt'
 import { ExportModal } from '@/components/finance/ExportModal'
 import { cn } from '@/lib/utils'
 import { CURRENCY_SYMBOLS, CURRENCY_LOCALES, CURRENCIES_WITHOUT_DECIMALS } from '@/lib/currency'
@@ -234,6 +236,7 @@ const Finance = () => {
     }
 
     const [editingIncome, setEditingIncome] = useState<any | null>(null)
+    const [receiptIncome, setReceiptIncome] = useState<Income | null>(null)
     const [incomeDefaultDate, setIncomeDefaultDate] = useState<string | undefined>(undefined)
     const [showExportModal, setShowExportModal] = useState(false)
     const [showCajaExpenseModal, setShowCajaExpenseModal] = useState(false)
@@ -1207,6 +1210,10 @@ const Finance = () => {
                                         onSetOpeningBalance={handleSetOpeningBalance}
                                         onDownloadReport={handleDownloadCajaReport}
                                         onViewReceipt={handleViewReceipt}
+                                        onIncomeReceipt={(incomeId) => {
+                                            const inc = incomes.find(i => i.id === incomeId)
+                                            if (inc) setReceiptIncome(inc)
+                                        }}
                                         onEditIncome={(incomeId) => {
                                             const inc = incomes.find(i => i.id === incomeId)
                                             if (inc) setEditingIncome(inc)
@@ -1331,6 +1338,12 @@ const Finance = () => {
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <div className="inline-flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => setReceiptIncome(income)}
+                                                        className="text-emerald-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+                                                    >
+                                                        <FileText className="w-3 h-3" /> Comprobante
+                                                    </button>
                                                     <button
                                                         onClick={() => setEditingIncome(income)}
                                                         className="text-primary-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"
@@ -1683,6 +1696,17 @@ const Finance = () => {
                     editingIncome={editingIncome}
                     onClose={() => setEditingIncome(null)}
                     onSuccess={handleUpdateIncome}
+                />
+            )}
+
+            {/* Comprobante de ingreso — imprimir/PDF + enviar por WhatsApp */}
+            {receiptIncome && clinicId && (
+                <IncomeReceipt
+                    income={receiptIncome}
+                    clinicId={clinicId}
+                    clinicName={clinicName}
+                    currency={currencySymbol}
+                    onClose={() => setReceiptIncome(null)}
                 />
             )}
 
