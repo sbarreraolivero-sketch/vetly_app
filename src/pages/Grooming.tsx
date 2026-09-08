@@ -102,7 +102,24 @@ export default function Grooming() {
         enabled: !!clinicId,
     })
 
-    const refresh = () => queryClient.invalidateQueries({ queryKey: ['grooming-appointments', clinicId] })
+    // Citas con una sesión de estética ya iniciada (ingreso hecho) — para
+    // distinguir "esperando" de "en proceso" en la cola del día.
+    const { data: sessionApptIds = [] } = useQuery<string[]>({
+        queryKey: ['grooming-session-appts', clinicId],
+        queryFn: async () => {
+            const { data } = await (supabase as any)
+                .from('grooming_sessions').select('appointment_id')
+                .eq('clinic_id', clinicId).not('appointment_id', 'is', null)
+            return ((data as any[]) || []).map(r => r.appointment_id)
+        },
+        enabled: !!clinicId,
+    })
+    const hasSession = (id: string) => sessionApptIds.includes(id)
+
+    const refresh = () => {
+        queryClient.invalidateQueries({ queryKey: ['grooming-appointments', clinicId] })
+        queryClient.invalidateQueries({ queryKey: ['grooming-session-appts', clinicId] })
+    }
 
     const assignGroomer = async (apptId: string, memberId: string) => {
         await (supabase as any).from('appointments').update({ professional_id: memberId || null }).eq('id', apptId)
@@ -121,7 +138,9 @@ export default function Grooming() {
         return { today: t, upcoming: u }
     }, [appts, todayStr])
 
-    const waiting = today.filter(a => a.status === 'pending' || a.status === 'confirmed')
+    const openToday = today.filter(a => a.status === 'pending' || a.status === 'confirmed')
+    const waiting = openToday.filter(a => !hasSession(a.id))
+    const inProgress = openToday.filter(a => hasSession(a.id))
     const done = today.filter(a => a.status === 'completed')
 
     const calendarEvents = useMemo<CalendarEvent[]>(() => {
@@ -160,13 +179,18 @@ export default function Grooming() {
         return g ? [g.first_name, g.last_name].filter(Boolean).join(' ') : ''
     }
 
-    const Card = ({ a, isDone }: { a: GroomingAppt; isDone?: boolean }) => (
-        <div className="bg-white p-4 rounded-soft border border-silk-beige shadow-sm">
+    const Card = ({ a, isDone, inProgress }: { a: GroomingAppt; isDone?: boolean; inProgress?: boolean }) => (
+        <div className={`bg-white p-4 rounded-soft border shadow-sm ${inProgress ? 'border-primary-300 ring-1 ring-primary-200' : 'border-silk-beige'}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <p className="font-bold text-charcoal">{a.patient_name}</p>
                     <p className="text-xs text-charcoal/50">{a.tutor_name || 'Sin tutor'} · {fmtTime(a.appointment_date)}</p>
                     {a.service && <p className="text-xs text-charcoal/60 mt-1">{a.service}</p>}
+                    {inProgress && (
+                        <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold uppercase tracking-wider bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                            <ClipboardCheck className="w-3 h-3" /> Ingresado · en proceso
+                        </span>
+                    )}
                     {!isDone && a.patient_id && (
                         <div className="mt-1.5">
                             <ConsentBadge
@@ -192,7 +216,7 @@ export default function Grooming() {
                 {!isDone && (
                     <>
                         <button onClick={() => setIntakeAppt(a)} className="text-xs font-bold uppercase tracking-widest text-charcoal/60 hover:text-primary-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded hover:bg-primary-50">
-                            <ClipboardCheck className="w-3.5 h-3.5" /> Ingreso
+                            <ClipboardCheck className="w-3.5 h-3.5" /> {inProgress ? 'Ver ingreso' : 'Ingreso'}
                         </button>
                         <button onClick={() => setClosureAppt(a)} disabled={!a.patient_id}
                             title={a.patient_id ? '' : 'La cita no tiene paciente vinculado'}
@@ -275,6 +299,15 @@ export default function Grooming() {
                             <div className="grid gap-3 sm:grid-cols-2">{waiting.map(a => <Card key={a.id} a={a} />)}</div>
                         )}
                     </section>
+
+                    {inProgress.length > 0 && (
+                        <section>
+                            <h2 className="text-sm font-black uppercase tracking-widest text-charcoal/50 mb-3 flex items-center gap-2">
+                                <ClipboardCheck className="w-4 h-4" /> Hoy — en proceso ({inProgress.length})
+                            </h2>
+                            <div className="grid gap-3 sm:grid-cols-2">{inProgress.map(a => <Card key={a.id} a={a} inProgress />)}</div>
+                        </section>
+                    )}
 
                     {done.length > 0 && (
                         <section>

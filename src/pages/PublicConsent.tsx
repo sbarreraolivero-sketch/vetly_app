@@ -79,6 +79,10 @@ export default function PublicConsent() {
     const [readAck, setReadAck] = useState(false)
     const [checks, setChecks] = useState<Record<string, boolean>>({})
     const [drawnBlob, setDrawnBlob] = useState<Blob | null>(null)
+    // 'accept' = aceptar con casilla · 'draw' = dibujar la firma. Dibujar
+    // siempre está disponible (es un método más fuerte que 'typed'/'one_click',
+    // que sign-consent acepta). Solo se fuerza cuando la plantilla exige 'drawn'.
+    const [sigMode, setSigMode] = useState<'accept' | 'draw'>('accept')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -103,6 +107,7 @@ export default function PublicConsent() {
         if (data?.consent && signerName === '' && data.consent.tutor_name) {
             setSignerName(data.consent.tutor_name)
         }
+        if (data?.consent?.required_signature_mode === 'drawn') setSigMode('draw')
     }, [data])
 
     const brand = data?.clinic.brand_color || '#0d9488'
@@ -134,7 +139,7 @@ export default function PublicConsent() {
         if (!data || !token) return
         setError(null)
         if (!signerName.trim()) { setError('Escribe tu nombre completo.'); return }
-        if (method === 'one_click' && !readAck) { setError('Marca la casilla para confirmar que leíste el documento.'); return }
+        if (method !== 'drawn' && !readAck) { setError('Marca la casilla para confirmar que leíste el documento.'); return }
         if (method === 'drawn' && !drawnBlob) { setError('Dibuja tu firma y toca "Usar esta firma".'); return }
         for (const c of data.consent.checkboxes || []) {
             if (c.required && !checks[c.key]) { setError(`Debes marcar: "${c.label}"`); return }
@@ -321,15 +326,27 @@ export default function PublicConsent() {
                                     </div>
                                 </div>
 
-                                {mode === 'drawn' && (
-                                    <div>
-                                        <label className="text-xs font-bold text-charcoal/60 mb-1 block">Dibuja tu firma</label>
-                                        <SignaturePad onSave={(blob) => setDrawnBlob(blob)} />
-                                        {drawnBlob && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Firma lista</p>}
+                                {/* Elegir método — dibujar siempre disponible; solo se fuerza si la plantilla exige firma dibujada */}
+                                {mode !== 'drawn' && (
+                                    <div className="flex text-xs rounded-lg border border-silk-beige overflow-hidden w-full">
+                                        <button type="button" onClick={() => setSigMode('accept')}
+                                            className={`flex-1 px-3 py-2 font-bold ${sigMode === 'accept' ? 'bg-primary-500 text-white' : 'bg-white text-charcoal/50'}`}>
+                                            Aceptar
+                                        </button>
+                                        <button type="button" onClick={() => setSigMode('draw')}
+                                            className={`flex-1 px-3 py-2 font-bold ${sigMode === 'draw' ? 'bg-primary-500 text-white' : 'bg-white text-charcoal/50'}`}>
+                                            Dibujar mi firma
+                                        </button>
                                     </div>
                                 )}
 
-                                {mode !== 'drawn' && (
+                                {sigMode === 'draw' ? (
+                                    <div>
+                                        <label className="text-xs font-bold text-charcoal/60 mb-1 block">Dibuja tu firma y toca "Usar esta firma"</label>
+                                        <SignaturePad onSave={(blob) => setDrawnBlob(blob)} />
+                                        {drawnBlob && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Firma lista</p>}
+                                    </div>
+                                ) : (
                                     <label className="flex items-start gap-2 text-sm text-charcoal/80">
                                         <input type="checkbox" className="mt-1" checked={readAck} onChange={e => setReadAck(e.target.checked)} />
                                         <span>He leído y acepto este consentimiento en representación de la mascota. <span className="text-red-500">*</span></span>
@@ -339,7 +356,7 @@ export default function PublicConsent() {
                                 {error && <p className="text-sm text-red-600">{error}</p>}
 
                                 <button
-                                    onClick={() => handleSign(mode === 'drawn' ? 'drawn' : (mode === 'typed' ? 'typed' : 'one_click'))}
+                                    onClick={() => handleSign(sigMode === 'draw' ? 'drawn' : (mode === 'typed' ? 'typed' : 'one_click'))}
                                     disabled={submitting}
                                     className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50"
                                     style={{ background: `linear-gradient(135deg, ${brand}, ${brandTo})` }}
