@@ -22,7 +22,9 @@ function ConsentBadge({ clinicId, patientId, patientName, tutor }: {
         queryKey: ['consent-status', patientId, 'estetica'],
         queryFn: () => consentService.getConsentStatus(clinicId, patientId, 'estetica'),
         enabled: !!clinicId && !!patientId,
-        staleTime: 1000 * 60 * 5,
+        // la firma pasa en otra pestaña — refrescar al volver el foco
+        staleTime: 0,
+        refetchOnWindowFocus: true,
     })
     if (!data || data.state === 'valid') return null
     const txt = data.state === 'expired' ? 'Consentimiento vencido'

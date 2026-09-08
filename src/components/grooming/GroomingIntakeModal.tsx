@@ -58,17 +58,15 @@ export function GroomingIntakeModal({ patient, tutor, appointmentId, onClose, on
     const handleSave = async () => {
         setSaving(true)
         try {
+            // Solo los campos del ingreso — upsertProfile ya no pisa el resto.
             await groomingService.upsertProfile({
                 patient_id: patient.id,
                 clinic_id: patient.clinic_id,
                 temperament: temperament || null,
                 matting_policy_ack: mattingAck,
                 medical_alerts: medicalAlerts.trim() || null,
-                // no se tocan los demás campos persistentes en el ingreso
-                coat_type: null, coat_length: null, size_category: null, preferred_cut: null,
-                cut_reference_photo_url: null, products_notes: null, product_allergies: null, handling_notes: null,
-            } as any)
-        } catch { /* la ficha completa se edita en la pestaña Estética */ }
+            })
+        } catch (e) { console.error('[intake] no se pudo guardar la ficha', e) }
 
         try {
             const mattLbl = MATTING.find(m => m.v === matting)?.l || matting

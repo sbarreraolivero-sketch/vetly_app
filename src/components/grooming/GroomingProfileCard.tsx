@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
-import { Scissors, Loader2, Save, AlertTriangle } from 'lucide-react'
+import { Scissors, Loader2, Save, AlertTriangle, Check } from 'lucide-react'
 import { groomingService, COAT_TYPES, SIZE_CATEGORIES, TEMPERAMENTS, SIZE_LABEL, TEMPERAMENT_LABEL, type GroomingProfile } from '@/services/groomingService'
 import { PhotoUpload } from '@/components/patients/PhotoUpload'
 
@@ -28,17 +28,25 @@ export function GroomingProfileCard({ patientId, clinicId }: Props) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [refPhoto, setRefPhoto] = useState<File | null>(null)
+    const [dirty, setDirty] = useState(false)
+    const [savedOk, setSavedOk] = useState(false)
 
     useEffect(() => {
         ;(async () => {
             setLoading(true)
             const p = await groomingService.getProfile(patientId)
             setProfile(p ? { ...empty(patientId, clinicId), ...p } : empty(patientId, clinicId))
+            setDirty(false)
+            setSavedOk(false)
             setLoading(false)
         })()
     }, [patientId, clinicId])
 
-    const set = (k: keyof GroomingProfile, v: any) => setProfile(p => ({ ...p, [k]: v }))
+    const set = (k: keyof GroomingProfile, v: any) => {
+        setProfile(p => ({ ...p, [k]: v }))
+        setDirty(true)
+        setSavedOk(false)
+    }
 
     const save = async () => {
         setSaving(true)
@@ -52,8 +60,12 @@ export function GroomingProfileCard({ patientId, clinicId }: Props) {
                 refUrl = supabase.storage.from('patient-documents').getPublicUrl(path).data.publicUrl
             }
             await groomingService.upsertProfile({ ...profile, cut_reference_photo_url: refUrl })
-            setProfile(p => ({ ...p, cut_reference_photo_url: refUrl }))
+            // Re-lee desde la DB para reflejar el estado real (confirma que quedó guardado).
+            const fresh = await groomingService.getProfile(patientId)
+            setProfile(fresh ? { ...empty(patientId, clinicId), ...fresh } : { ...profile, cut_reference_photo_url: refUrl })
             setRefPhoto(null)
+            setDirty(false)
+            setSavedOk(true)
             toast.success('Ficha de estética guardada')
         } catch (e: any) {
             toast.error(e.message || 'No se pudo guardar')
@@ -102,7 +114,7 @@ export function GroomingProfileCard({ patientId, clinicId }: Props) {
                 <div>
                     <PhotoUpload
                         selectedFile={refPhoto}
-                        onFileSelect={setRefPhoto}
+                        onFileSelect={(f) => { setRefPhoto(f); setDirty(true); setSavedOk(false) }}
                         onClear={() => setRefPhoto(null)}
                     />
                     {!refPhoto && profile.cut_reference_photo_url && (
@@ -146,7 +158,13 @@ export function GroomingProfileCard({ patientId, clinicId }: Props) {
                 El tutor aceptó la política de rapado por nudos severos
             </label>
 
-            <div className="flex justify-end pt-2 border-t border-silk-beige">
+            <div className="flex justify-end items-center gap-3 pt-2 border-t border-silk-beige">
+                {savedOk && !dirty && (
+                    <span className="text-xs font-bold text-emerald-600 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Guardado</span>
+                )}
+                {dirty && (
+                    <span className="text-xs font-bold text-amber-600">Sin guardar</span>
+                )}
                 <button onClick={save} disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-50">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
                 </button>

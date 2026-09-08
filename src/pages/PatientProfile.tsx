@@ -7,7 +7,7 @@ import {
     Plus, Edit2, Trash2, Heart,
     Activity, ClipboardList, Save, X, Bell,
     Pill, Printer, MessageCircle, Mail, ArrowLeft,
-    FileSignature, Link2, CheckCircle2, Scissors
+    FileSignature, Link2, CheckCircle2, Scissors, RefreshCw
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
@@ -152,6 +152,10 @@ export default function PatientProfile() {
             return (data as any) || []
         },
         enabled: !!id,
+        // La firma ocurre en otra pestaña (/consentimiento/:token). Sin esto, al
+        // volver el estado seguía "pendiente" hasta pasados los 5 min de staleTime.
+        staleTime: 0,
+        refetchOnWindowFocus: true,
     })
 
     // Refrescos tras alta/edición/borrado — invalidan la query correspondiente.
@@ -1076,9 +1080,15 @@ export default function PatientProfile() {
                                     <h3 className="font-bold text-charcoal uppercase tracking-tighter">Consentimientos</h3>
                                     <p className="text-xs text-charcoal/50">Firmables por enlace — sin imprimir</p>
                                 </div>
-                                <button onClick={() => setShowConsentForm(true)} className="btn-primary py-2 px-4 flex items-center gap-2 text-sm shadow-premium">
-                                    <Plus className="w-4 h-4" /> Emitir
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => fetchConsents()} title="Actualizar"
+                                        className="p-2 rounded-soft text-charcoal/40 hover:text-primary-600 hover:bg-primary-50">
+                                        <RefreshCw className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => setShowConsentForm(true)} className="btn-primary py-2 px-4 flex items-center gap-2 text-sm shadow-premium">
+                                        <Plus className="w-4 h-4" /> Emitir
+                                    </button>
+                                </div>
                             </div>
 
                             {consents.length === 0 ? (

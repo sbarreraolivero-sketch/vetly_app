@@ -97,24 +97,27 @@ export const groomingService = {
         return data ?? null
     },
 
-    async upsertProfile(p: GroomingProfile): Promise<void> {
-        const { error } = await (supabase as any)
-            .from('grooming_profiles')
-            .upsert({
-                patient_id: p.patient_id,
-                clinic_id: p.clinic_id,
-                coat_type: p.coat_type || null,
-                coat_length: p.coat_length || null,
-                size_category: p.size_category || null,
-                preferred_cut: p.preferred_cut || null,
-                cut_reference_photo_url: p.cut_reference_photo_url || null,
-                products_notes: p.products_notes || null,
-                product_allergies: p.product_allergies || null,
-                temperament: p.temperament || null,
-                handling_notes: p.handling_notes || null,
-                matting_policy_ack: !!p.matting_policy_ack,
-                medical_alerts: p.medical_alerts || null,
-            }, { onConflict: 'patient_id' })
+    // Guarda la ficha SIN pisar campos que no vengan en el payload. Antes hacía
+    // un upsert completo, así que el ingreso (que solo trae temperamento/alertas)
+    // borraba pelaje/talla/corte que se hubieran cargado en la pestaña Estética.
+    async upsertProfile(p: Partial<GroomingProfile> & { patient_id: string; clinic_id: string }): Promise<void> {
+        const FIELDS: (keyof GroomingProfile)[] = [
+            'coat_type', 'coat_length', 'size_category', 'preferred_cut', 'cut_reference_photo_url',
+            'products_notes', 'product_allergies', 'temperament', 'handling_notes', 'matting_policy_ack', 'medical_alerts',
+        ]
+        const row: Record<string, unknown> = {}
+        for (const f of FIELDS) {
+            if (!(f in p)) continue
+            const v = (p as any)[f]
+            row[f] = f === 'matting_policy_ack' ? !!v : (v || null)
+        }
+
+        const { data: existing } = await (supabase as any)
+            .from('grooming_profiles').select('id').eq('patient_id', p.patient_id).maybeSingle()
+
+        const { error } = existing?.id
+            ? await (supabase as any).from('grooming_profiles').update(row).eq('id', existing.id)
+            : await (supabase as any).from('grooming_profiles').insert({ patient_id: p.patient_id, clinic_id: p.clinic_id, ...row })
         if (error) throw error
     },
 
