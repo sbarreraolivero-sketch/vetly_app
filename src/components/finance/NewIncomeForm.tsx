@@ -130,11 +130,12 @@ interface NewIncomeFormProps {
         loyalty_redeemed?: number
         /** Tutor que recomendó a este cliente, elegido a mano en su primera compra. */
         referrer_id?: string
-    }) => void
+    }) => void | Promise<void>
 }
 
 export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, defaultDate }: NewIncomeFormProps) {
     const isEdit = !!editingIncome
+    const [isSubmitting, setIsSubmitting] = useState(false)
     const [description, setDescription] = useState(editingIncome?.description ?? '')
     // Fallback en hora local de Chile, nunca UTC (toISOString desplaza la fecha después de las 20:00 CLT)
     const [date, setDate] = useState(editingIncome?.date ?? defaultDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' }))
@@ -522,8 +523,9 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         updateDescription(selectedServices, selectedProducts, newList)
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (isSubmitting) return   // evita doble/triple envío mientras se guarda
         if (finalAmount <= 0 && subtotal <= 0) return
         if (discountReasonMissing) return
         if (tutorRequired) return
@@ -543,21 +545,27 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
             })),
             ...customItems.map(i => ({ id: `custom-${Date.now()}-${Math.random()}`, name: i.name, price: i.price, quantity: 1, type: 'custom' })),
         ]
-        onSuccess({
-            description,
-            amount:          finalAmount,
-            discount:        discountAmount,
-            discount_reason: effectiveDiscountReason || undefined,
-            iva_amount:      ivaAmount || undefined,
-            category:        autoCategory,
-            date,
-            tutor_id:        selectedTutor?.id,
-            services:        allServices.length > 0 ? allServices : undefined,
-            notes:           notes.trim() || undefined,
-            payment_method:  paymentMethod || undefined,
-            loyalty_redeemed: redeemAmount || 0,
-            referrer_id:      canAssignReferrer && referrerId ? referrerId : undefined,
-        })
+        setIsSubmitting(true)
+        try {
+            await onSuccess({
+                description,
+                amount:          finalAmount,
+                discount:        discountAmount,
+                discount_reason: effectiveDiscountReason || undefined,
+                iva_amount:      ivaAmount || undefined,
+                category:        autoCategory,
+                date,
+                tutor_id:        selectedTutor?.id,
+                services:        allServices.length > 0 ? allServices : undefined,
+                notes:           notes.trim() || undefined,
+                payment_method:  paymentMethod || undefined,
+                loyalty_redeemed: redeemAmount || 0,
+                referrer_id:      canAssignReferrer && referrerId ? referrerId : undefined,
+            })
+            // en éxito el padre cierra el modal (se desmonta) — no hace falta resetear
+        } catch {
+            setIsSubmitting(false)   // permitir reintento si el guardado falló
+        }
     }
 
     return (
@@ -1141,14 +1149,15 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 </form>
 
                 <div className="p-6 border-t border-silk-beige flex justify-end gap-3 bg-ivory rounded-b-soft">
-                    <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+                    <button type="button" onClick={onClose} disabled={isSubmitting} className="btn-ghost disabled:opacity-50">Cancelar</button>
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={(finalAmount <= 0 && subtotal <= 0) || discountReasonMissing || tutorRequired}
-                        className="btn-primary disabled:opacity-50"
+                        disabled={isSubmitting || (finalAmount <= 0 && subtotal <= 0) || discountReasonMissing || tutorRequired}
+                        className="btn-primary disabled:opacity-50 flex items-center gap-2"
                     >
-                        {isEdit ? 'Guardar cambios' : 'Registrar Ingreso'}
+                        {isSubmitting && <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                        {isSubmitting ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar Ingreso'}
                     </button>
                 </div>
             </div>

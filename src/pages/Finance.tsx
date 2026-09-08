@@ -129,6 +129,7 @@ const Finance = () => {
     const [reopeningCaja, setReopeningCaja] = useState<string | null>(null)  // date en proceso de reapertura
     const [showExpenseModal, setShowExpenseModal] = useState(false)
     const [showIncomeModal, setShowIncomeModal] = useState(false)
+    const [savingExpense, setSavingExpense] = useState(false)
     const [filterType, setFilterType] = useState<'day' | 'week' | 'month' | 'year' | 'custom'>('month')
     const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null)
     const [showDatePicker, setShowDatePicker] = useState(false)
@@ -345,6 +346,7 @@ const Finance = () => {
     // ── Expense handlers ──
     const handleAddExpense = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (savingExpense) return   // evita doble/triple envío mientras se guarda
         if (!clinicId) {
             toast.error('No se pudo identificar la clínica')
             return
@@ -357,6 +359,7 @@ const Finance = () => {
         const category = form.category.value
         const date = form.date.value
 
+        setSavingExpense(true)
         try {
             await financeService.addExpense({
                 clinic_id: clinicId,
@@ -371,6 +374,8 @@ const Finance = () => {
         } catch (error) {
             console.error('Error adding expense:', error)
             toast.error('Error al registrar el gasto')
+        } finally {
+            setSavingExpense(false)
         }
     }
 
@@ -473,6 +478,7 @@ const Finance = () => {
         } catch (error) {
             console.error('Error adding income:', error)
             toast.error('Error al registrar el ingreso')
+            throw error   // re-lanza para que el formulario reactive el botón
         }
     }
 
@@ -500,6 +506,7 @@ const Finance = () => {
         } catch (error) {
             console.error('Error updating income:', error)
             toast.error('Error al actualizar el ingreso')
+            throw error   // re-lanza para que el formulario reactive el botón
         }
     }
 
@@ -1671,12 +1678,14 @@ const Finance = () => {
                                 <button
                                     type="button"
                                     onClick={() => setShowExpenseModal(false)}
-                                    className="btn-secondary"
+                                    disabled={savingExpense}
+                                    className="btn-secondary disabled:opacity-50"
                                 >
                                     Cancelar
                                 </button>
-                                <button type="submit" className="btn-primary">
-                                    Guardar Gasto
+                                <button type="submit" disabled={savingExpense} className="btn-primary disabled:opacity-50 flex items-center gap-2">
+                                    {savingExpense && <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                                    {savingExpense ? 'Guardando…' : 'Guardar Gasto'}
                                 </button>
                             </div>
                         </form>
