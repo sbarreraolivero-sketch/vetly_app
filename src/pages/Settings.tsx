@@ -44,7 +44,7 @@ import {
     FileSignature,
 } from 'lucide-react'
 import { PriceMatrixEditor } from '@/components/settings/PriceMatrixEditor'
-import { GroomingPriceEditor } from '@/components/settings/GroomingPriceEditor'
+import { GroomingServicesSection } from '@/components/settings/GroomingServicesSection'
 import { ConsentTemplatesEditor } from '@/components/settings/ConsentTemplatesEditor'
 import { cn } from '@/lib/utils'
 import { PlanGate } from '@/components/common/PlanGate'
@@ -1788,15 +1788,11 @@ export default function Settings() {
                     {activeTab === 'services_pricing' && (
                         <div className="space-y-6">
                             <PriceMatrixEditor clinicId={clinicId} />
-                            <GroomingPriceEditor
-                                clinicId={clinicId}
-                                groomingServices={services.filter((s: any) => s.category === 'grooming').map((s: any) => ({ id: s.id, name: s.name }))}
-                            />
 
-                            {/* Services */}
+                            {/* Servicios Veterinarios */}
                             <div className="card-soft p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
-                                    <h2 className="text-lg font-semibold text-charcoal">Servicios</h2>
+                                    <h2 className="text-lg font-semibold text-charcoal">Servicios Veterinarios</h2>
                                     {serviceSaved && (
                                         <div className="flex items-center gap-2 text-emerald-600 text-sm animate-fade-in bg-emerald-50 px-4 py-2 rounded-soft border border-emerald-100">
                                             <CheckCircle2 className="w-4 h-4" />
@@ -1819,7 +1815,7 @@ export default function Settings() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    {services.map((service) => (
+                                    {services.filter((s: any) => s.category !== 'grooming').map((service) => (
                                         <div
                                             key={service.id}
                                             className="flex items-center gap-4 p-4 bg-ivory rounded-soft"
@@ -1884,11 +1880,27 @@ export default function Settings() {
                                             </div>
                                         </div>
                                     ))}
-                                    {services.length === 0 && (
-                                        <p className="text-center text-charcoal/50 py-8">No hay servicios configurados. Agrega tu primer servicio.</p>
+                                    {services.filter((s: any) => s.category !== 'grooming').length === 0 && (
+                                        <p className="text-center text-charcoal/50 py-8">No hay servicios veterinarios configurados. Agrega tu primer servicio.</p>
                                     )}
                                 </div>
                             </div>
+
+                            <GroomingServicesSection
+                                clinicId={clinicId}
+                                currency={currency}
+                                groomingServices={services.filter((s: any) => s.category === 'grooming')}
+                                onAdd={() => {
+                                    setAssignedProfessionals({})
+                                    setPrimaryProfessional('')
+                                    setEditingServiceId(null)
+                                    resetServiceForm()
+                                    setNewServiceCategory('grooming')
+                                    setShowServiceModal(true)
+                                }}
+                                onEdit={handleEditService}
+                                onDelete={handleDeleteService}
+                            />
 
                             {/* Add/Edit Service Modal */}
                             {showServiceModal && (
@@ -1932,7 +1944,7 @@ export default function Settings() {
                                                     </button>
                                                 </div>
                                                 {newServiceCategory === 'grooming' && (
-                                                    <p className="text-[11px] text-charcoal/50 mt-1">Aparece en el Área de Estética. Al guardarlo, esta misma pestaña muestra "Reglas de precio de estética" (arriba de la lista de Servicios) para definir su precio por talla, pelaje o raza. Si no agregas reglas, se cobra el precio fijo de aquí.</p>
+                                                    <p className="text-[11px] text-charcoal/50 mt-1">Aparece en el Área de Estética y en la sección "Servicios de Estética" más abajo. Ahí puedes expandirlo para definir su precio y duración por talla, pelaje o raza. Sin reglas, se usa el precio y la duración de aquí.</p>
                                                 )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">

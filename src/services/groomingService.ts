@@ -171,16 +171,32 @@ export const groomingService = {
         return (data as any[]) || []
     },
 
-    async priceLookup(serviceId: string, size?: string | null, coat?: string | null, weight?: number | null, breed?: string | null): Promise<number | null> {
-        const { data, error } = await (supabase as any).rpc('grooming_price_lookup', {
+    // Resuelve precio + duración de la regla de estética más específica que
+    // coincida con la ficha de la mascota. Devuelve nulls si no hay regla.
+    async resolveRule(serviceId: string, size?: string | null, coat?: string | null, weight?: number | null, breed?: string | null): Promise<{ price: number | null; duration_minutes: number | null }> {
+        const { data, error } = await (supabase as any).rpc('grooming_rule_resolve', {
             p_service_id: serviceId,
             p_size: size || null,
             p_coat: coat || null,
             p_weight: weight ?? null,
             p_breed: breed || null,
         })
-        if (error) return null
-        return data ?? null
+        if (error || !data) return { price: null, duration_minutes: null }
+        return { price: data.price ?? null, duration_minutes: data.duration_minutes ?? null }
+    },
+
+    async priceLookup(serviceId: string, size?: string | null, coat?: string | null, weight?: number | null, breed?: string | null): Promise<number | null> {
+        return (await this.resolveRule(serviceId, size, coat, weight, breed)).price
+    },
+
+    // Igual que resolveRule pero tomando la talla/pelaje/peso/raza de la ficha de
+    // la mascota. Útil al agendar: da la duración real del bloque de calendario.
+    async resolveServiceForPatient(serviceId: string, patientId: string): Promise<{ price: number | null; duration_minutes: number | null }> {
+        const [prof, { data: pat }] = await Promise.all([
+            this.getProfile(patientId),
+            (supabase as any).from('patients').select('weight, breed').eq('id', patientId).maybeSingle(),
+        ])
+        return this.resolveRule(serviceId, prof?.size_category ?? null, prof?.coat_type ?? null, (pat as any)?.weight ?? null, (pat as any)?.breed ?? null)
     },
 
     // Sube varias fotos a patient-documents/{clinic}/{patient}/grooming/{sessionId}/...

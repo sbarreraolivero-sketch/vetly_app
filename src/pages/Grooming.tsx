@@ -517,6 +517,12 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
             const r = resolved || await resolveContacts()
             if (!r) { setSaving(false); return }
             const svc = services.find(s => s.id === serviceId)
+            // Duración real según las reglas de estética (talla/pelaje/raza de la ficha).
+            let dur = svc?.duration || 60
+            if (serviceId && r.patientId) {
+                const rule = await groomingService.resolveServiceForPatient(serviceId, r.patientId)
+                if (rule.duration_minutes) dur = rule.duration_minutes
+            }
             const phone = tutorMode === 'new'
                 ? newTutorPhone.replace(/\D/g, '')
                 : (tutors.find(t => t.id === r.tutorId)?.phone_number || '').replace(/\D/g, '')
@@ -534,7 +540,7 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
                 service: svc?.name || 'Estética',
                 appointment_date: new Date(`${date}T${time}:00`).toISOString(),
                 professional_id: groomerId || null,
-                duration_minutes: svc?.duration || 60,
+                duration_minutes: dur,
             })
             if (error) throw error
             toast.success('Cita de estética creada')
