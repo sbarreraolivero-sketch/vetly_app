@@ -712,7 +712,7 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
                 </div>
                 <div className="p-4 border-t border-silk-beige flex justify-end gap-2">
                     <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-bold text-charcoal/60 hover:bg-charcoal/5">Cancelar</button>
-                    <button onClick={create} disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-50">
+                    <button onClick={create} disabled={saving || resolving} className="btn-primary flex items-center gap-2 disabled:opacity-50">
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Crear
                     </button>
                 </div>

@@ -80,10 +80,12 @@ export const groomingService = {
     async findOrCreatePatient(clinicId: string, tutorId: string, name: string, species?: string | null): Promise<string> {
         const nm = name.trim()
         if (!nm) throw new Error('Falta el nombre de la mascota')
+        // match case-insensitive en JS — evita que %/_ del nombre actúen como comodín en ILIKE
         const { data: existing } = await (supabase as any)
-            .from('patients').select('id')
-            .eq('tutor_id', tutorId).eq('status', 'alive').ilike('name', nm).limit(1)
-        if (existing && existing.length > 0) return existing[0].id
+            .from('patients').select('id, name')
+            .eq('tutor_id', tutorId).eq('status', 'alive')
+        const hit = (existing as any[] | null)?.find(p => (p.name || '').trim().toLowerCase() === nm.toLowerCase())
+        if (hit) return hit.id
         const { data, error } = await (supabase as any).from('patients')
             .insert({ clinic_id: clinicId, tutor_id: tutorId, name: nm, species: species || null })
             .select('id').single()
@@ -105,19 +107,19 @@ export const groomingService = {
             'coat_type', 'coat_length', 'size_category', 'preferred_cut', 'cut_reference_photo_url',
             'products_notes', 'product_allergies', 'temperament', 'handling_notes', 'matting_policy_ack', 'medical_alerts',
         ]
-        const row: Record<string, unknown> = {}
+        const row: Record<string, unknown> = { patient_id: p.patient_id, clinic_id: p.clinic_id }
         for (const f of FIELDS) {
             if (!(f in p)) continue
             const v = (p as any)[f]
             row[f] = f === 'matting_policy_ack' ? !!v : (v || null)
         }
 
-        const { data: existing } = await (supabase as any)
-            .from('grooming_profiles').select('id').eq('patient_id', p.patient_id).maybeSingle()
-
-        const { error } = existing?.id
-            ? await (supabase as any).from('grooming_profiles').update(row).eq('id', existing.id)
-            : await (supabase as any).from('grooming_profiles').insert({ patient_id: p.patient_id, clinic_id: p.clinic_id, ...row })
+        // upsert atómico: en conflicto solo actualiza las columnas presentes en
+        // `row` (PostgREST arma el ON CONFLICT DO UPDATE SET solo con esas), así
+        // el ingreso no pisa pelaje/talla/corte que no manda.
+        const { error } = await (supabase as any)
+            .from('grooming_profiles')
+            .upsert(row, { onConflict: 'patient_id' })
         if (error) throw error
     },
 
