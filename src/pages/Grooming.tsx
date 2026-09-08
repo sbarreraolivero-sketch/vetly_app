@@ -217,7 +217,9 @@ export default function Grooming() {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-primary-200">Clínica</p>
-                        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight mt-1">Estética</h1>
+                        {/* text-white explícito: la regla base `h1 { text-charcoal }` de
+                            index.css gana sobre el text-white heredado del contenedor. */}
+                        <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight mt-1 text-white">Estética</h1>
                         <p className="text-primary-100 text-xs sm:text-sm mt-1">La cola del día y la agenda de peluquería.</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 self-start flex-wrap">
