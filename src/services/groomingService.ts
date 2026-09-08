@@ -256,7 +256,9 @@ export const groomingService = {
                         clinic_id: params.clinicId,
                         patient_id: params.patientId,
                         tutor_id: params.tutorId,
-                        title: 'Baño',
+                        // se inyecta como {{2}} en la plantilla del recordatorio de baño
+                        // ("...del próximo baño de Fito") — minúscula para leer bien.
+                        title: 'baño',
                         scheduled_date: scheduled,
                         type: 'grooming',
                         whatsapp_template: cs.grooming_reminder_template,

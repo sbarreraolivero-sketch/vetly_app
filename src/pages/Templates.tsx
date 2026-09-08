@@ -329,6 +329,27 @@ export default function Templates() {
                             <button
                                 onClick={() => {
                                     setNewTemplate({
+                                        name: 'recordatorio_bano',
+                                        category: 'UTILITY',
+                                        body: '¡Hola! 👋 Te escribimos de {{5}} para recordarte que ya se acerca la fecha del próximo {{2}} de {{1}} 🛁.\n\nLa fecha sugerida es el {{3}} ({{4}}).\n\n¿Te gustaría que coordinemos la hora? 🐾',
+                                        buttons: ['Agendar ahora']
+                                    })
+                                    setVariableExamples({
+                                        1: 'Fito',
+                                        2: 'baño',
+                                        3: 'viernes, 12 de septiembre',
+                                        4: 'durante el día',
+                                        5: 'AnimalGrace'
+                                    })
+                                }}
+                                className="text-left p-3 rounded-lg border border-silk-beige bg-white hover:border-sky-300 hover:shadow-soft-sm transition-all text-sm group"
+                            >
+                                <div className="font-bold text-charcoal mb-1 group-hover:text-sky-600 transition-colors">Recordatorio de Baño</div>
+                                <div className="text-charcoal/60 text-xs line-clamp-2">¡Hola! 👋 Te escribimos de {'{{5}}'} para recordarte que ya se acerca la fecha del próximo baño de {'{{1}}'}...</div>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setNewTemplate({
                                         name: 'aviso_coordinadora_agenda',
                                         category: 'UTILITY',
                                         body: '🐾 Nueva solicitud de agenda — revisar ruta\n\nTutor: {{1}}\nMascota: {{2}}\nServicio: {{3}}\nDirección: {{4}}\nDisponibilidad: {{5}}\n\nAutoriza los horarios en Citas Médicas.',
