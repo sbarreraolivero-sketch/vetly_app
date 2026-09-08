@@ -170,6 +170,8 @@ export default function Reminders() {
                     vaccine_reminder_template: settings.vaccine_reminder_template,
                     deworming_reminder_template: settings.deworming_reminder_template,
                     checkup_reminder_template: settings.checkup_reminder_template,
+                    grooming_reminder_template: settings.grooming_reminder_template,
+                    grooming_reminder_lead_days: settings.grooming_reminder_lead_days ?? 3,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.clinic_id)
@@ -221,7 +223,7 @@ export default function Reminders() {
             return { area }
         } else {
             const groupedByType = medicalLogs.reduce((acc, log) => {
-                const type = log.type === 'vaccine' ? 'Vacuna' : log.type === 'deworming' ? 'Desparasitación' : 'Control'
+                const type = log.type === 'vaccine' ? 'Vacuna' : log.type === 'deworming' ? 'Desparasitación' : log.type === 'grooming' ? 'Baño' : 'Control'
                 if (!acc[type]) acc[type] = { type, count: 0 }
                 acc[type].count += 1
                 return acc
@@ -809,6 +811,24 @@ export default function Reminders() {
                                                 labelClassName="text-charcoal/60 text-xs font-bold uppercase tracking-wider"
                                             />
                                         </div>
+                                        <div className="bg-ivory p-4 rounded-xl border border-silk-beige space-y-2">
+                                            <TemplateSelector
+                                                label="Estética / Baño"
+                                                value={settings.grooming_reminder_template || ''}
+                                                onChange={v => setSettings({ ...settings, grooming_reminder_template: v })}
+                                                labelClassName="text-charcoal/60 text-xs font-bold uppercase tracking-wider"
+                                            />
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <label className="text-charcoal/60 text-xs font-bold uppercase tracking-wider">Enviar</label>
+                                                <input
+                                                    type="number" min={0} max={30}
+                                                    value={settings.grooming_reminder_lead_days ?? 3}
+                                                    onChange={e => setSettings({ ...settings, grooming_reminder_lead_days: Number(e.target.value) })}
+                                                    className="input-soft py-1 w-16 text-xs"
+                                                />
+                                                <span className="text-charcoal/50 text-xs">días antes de la próxima visita sugerida</span>
+                                            </div>
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -1049,11 +1069,13 @@ export default function Reminders() {
                                                             log.type === 'confirmation' && "bg-emerald-100 text-emerald-700",
                                                             log.type === 'vaccine' && "bg-purple-100 text-purple-700",
                                                             log.type === 'deworming' && "bg-orange-100 text-orange-700",
+                                                            log.type === 'grooming' && "bg-primary-100 text-primary-700",
                                                             log.type === 'manual_wa' && "bg-[#25D366]/15 text-[#128C4B]",
-                                                            !['24h', '2h', 'confirmation', 'vaccine', 'deworming', 'manual_wa'].includes(log.type) && "bg-silk-beige/50 text-charcoal/60"
+                                                            !['24h', '2h', 'confirmation', 'vaccine', 'deworming', 'grooming', 'manual_wa'].includes(log.type) && "bg-silk-beige/50 text-charcoal/60"
                                                         )}>
                                                             {log.type === 'vaccine' ? 'Vacuna'
                                                                 : log.type === 'deworming' ? 'Desparasitación'
+                                                                : log.type === 'grooming' ? 'Baño'
                                                                 : log.type === 'manual_wa' ? 'Manual'
                                                                 : log.type}
                                                         </span>

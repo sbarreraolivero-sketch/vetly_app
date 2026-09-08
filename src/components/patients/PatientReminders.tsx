@@ -110,7 +110,7 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
                                                 </span>
                                                 {rem.type && (
                                                     <span className="text-[10px] font-bold text-primary-600 uppercase tracking-widest">
-                                                        {rem.type === 'vaccine' ? 'Vacuna' : rem.type === 'deworming' ? 'Desparasitación' : rem.type}
+                                                        {rem.type === 'vaccine' ? 'Vacuna' : rem.type === 'deworming' ? 'Desparasitación' : rem.type === 'grooming' ? 'Baño' : rem.type === 'checkup' ? 'Control' : rem.type}
                                                     </span>
                                                 )}
                                             </div>

@@ -1,13 +1,51 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Scissors, Plus, Loader2, ClipboardCheck, CheckCircle2, Clock, Calendar, X } from 'lucide-react'
+import { Scissors, Plus, Loader2, ClipboardCheck, CheckCircle2, Clock, Calendar, X, ShieldAlert, CalendarDays, LayoutList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { toast } from 'react-hot-toast'
 import { GroomingIntakeModal } from '@/components/grooming/GroomingIntakeModal'
 import { GroomingClosureModal } from '@/components/grooming/GroomingClosureModal'
+import { ConsentForm } from '@/components/patients/ConsentForm'
+import { CalendarView, CalendarEvent } from '@/components/calendar/CalendarView'
+import { MobileCalendarView } from '@/components/calendar/MobileCalendarView'
 import { groomingService } from '@/services/groomingService'
+import { consentService } from '@/services/consentService'
+
+function ConsentBadge({ clinicId, patientId, patientName, tutor }: {
+    clinicId: string; patientId: string; patientName: string; tutor?: { id: string; name?: string | null } | null
+}) {
+    const [showForm, setShowForm] = useState(false)
+    const qc = useQueryClient()
+    const { data } = useQuery({
+        queryKey: ['consent-status', patientId, 'estetica'],
+        queryFn: () => consentService.getConsentStatus(clinicId, patientId, 'estetica'),
+        enabled: !!clinicId && !!patientId,
+        staleTime: 1000 * 60 * 5,
+    })
+    if (!data || data.state === 'valid') return null
+    const txt = data.state === 'expired' ? 'Consentimiento vencido'
+        : data.state === 'outdated' ? 'Consentimiento desactualizado'
+        : 'Falta consentimiento'
+    return (
+        <>
+            <button onClick={() => setShowForm(true)}
+                className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full hover:bg-amber-200">
+                <ShieldAlert className="w-3 h-3" /> {txt}
+            </button>
+            {showForm && (
+                <ConsentForm
+                    patient={{ id: patientId, name: patientName, clinic_id: clinicId } as any}
+                    tutor={tutor as any}
+                    initialTemplateKey="estetica"
+                    onClose={() => { setShowForm(false); qc.invalidateQueries({ queryKey: ['consent-status', patientId, 'estetica'] }) }}
+                    onSave={() => qc.invalidateQueries({ queryKey: ['consent-status', patientId, 'estetica'] })}
+                />
+            )}
+        </>
+    )
+}
 
 interface GroomingAppt {
     id: string
@@ -19,6 +57,7 @@ interface GroomingAppt {
     service: string | null
     status: string
     professional_id: string | null
+    duration_minutes?: number | null
 }
 
 export default function Grooming() {
@@ -31,15 +70,18 @@ export default function Grooming() {
     const [intakeAppt, setIntakeAppt] = useState<GroomingAppt | null>(null)
     const [closureAppt, setClosureAppt] = useState<GroomingAppt | null>(null)
     const [showNew, setShowNew] = useState(false)
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+    const [actionAppt, setActionAppt] = useState<GroomingAppt | null>(null)
+    const [newDefaults, setNewDefaults] = useState<{ date?: string; time?: string }>({})
 
     const { data: appts = [], isLoading } = useQuery<GroomingAppt[]>({
         queryKey: ['grooming-appointments', clinicId],
         queryFn: async () => {
-            const from = new Date(Date.now() - 86400000).toISOString()
-            const to = new Date(Date.now() + 14 * 86400000).toISOString()
+            const from = new Date(Date.now() - 30 * 86400000).toISOString()
+            const to = new Date(Date.now() + 60 * 86400000).toISOString()
             const { data, error } = await supabase
                 .from('appointments')
-                .select('id, patient_id, patient_name, tutor_id, tutor_name, appointment_date, service, status, professional_id')
+                .select('id, patient_id, patient_name, tutor_id, tutor_name, appointment_date, service, status, professional_id, duration_minutes')
                 .eq('clinic_id', clinicId as string)
                 .eq('appointment_type', 'grooming')
                 .gte('appointment_date', from)
@@ -82,6 +124,35 @@ export default function Grooming() {
     const waiting = today.filter(a => a.status === 'pending' || a.status === 'confirmed')
     const done = today.filter(a => a.status === 'completed')
 
+    const calendarEvents = useMemo<CalendarEvent[]>(() => {
+        return appts
+            .filter(a => a.status !== 'cancelled' && a.appointment_date)
+            .map(a => {
+                const start = new Date(a.appointment_date)
+                if (isNaN(start.getTime())) return null
+                const dur = a.duration_minutes || 60
+                const prof = a.professional_id ? groomers.find(g => g.member_id === a.professional_id) : null
+                return {
+                    id: a.id,
+                    title: `${a.patient_name}${a.service ? ` · ${a.service}` : ''}`,
+                    start,
+                    end: new Date(start.getTime() + dur * 60000),
+                    resource: {
+                        type: 'local',
+                        ...a,
+                        professionalColor: prof?.color || undefined,
+                        professionalName: prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() : undefined,
+                    },
+                } as CalendarEvent
+            })
+            .filter(Boolean) as CalendarEvent[]
+    }, [appts, groomers])
+
+    const openActionForEvent = (ev: CalendarEvent) => {
+        const a = appts.find(x => x.id === ev.id)
+        if (a) setActionAppt(a)
+    }
+
     const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: timezone || 'America/Santiago' })
 
     const groomerName = (id: string | null) => {
@@ -96,6 +167,16 @@ export default function Grooming() {
                     <p className="font-bold text-charcoal">{a.patient_name}</p>
                     <p className="text-xs text-charcoal/50">{a.tutor_name || 'Sin tutor'} · {fmtTime(a.appointment_date)}</p>
                     {a.service && <p className="text-xs text-charcoal/60 mt-1">{a.service}</p>}
+                    {!isDone && a.patient_id && (
+                        <div className="mt-1.5">
+                            <ConsentBadge
+                                clinicId={clinicId as string}
+                                patientId={a.patient_id}
+                                patientName={a.patient_name}
+                                tutor={a.tutor_id ? { id: a.tutor_id, name: a.tutor_name } : null}
+                            />
+                        </div>
+                    )}
                 </div>
                 {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
             </div>
@@ -139,14 +220,47 @@ export default function Grooming() {
                         <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight mt-1">Estética</h1>
                         <p className="text-primary-100 text-xs sm:text-sm mt-1">La cola del día y la agenda de peluquería.</p>
                     </div>
-                    <button onClick={() => setShowNew(true)} className="bg-white text-primary-700 font-bold text-sm px-4 py-2 rounded-xl flex items-center gap-2 shrink-0 self-start">
-                        <Plus className="w-4 h-4" /> Nueva cita de estética
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0 self-start flex-wrap">
+                        <button onClick={() => setViewMode(v => v === 'list' ? 'calendar' : 'list')}
+                            className="bg-white/15 text-white font-bold text-sm px-3 py-2 rounded-xl flex items-center gap-2 hover:bg-white/25">
+                            {viewMode === 'list' ? <><CalendarDays className="w-4 h-4" /> Calendario</> : <><LayoutList className="w-4 h-4" /> Lista</>}
+                        </button>
+                        <button onClick={() => { setNewDefaults({}); setShowNew(true) }} className="bg-white text-primary-700 font-bold text-sm px-4 py-2 rounded-xl flex items-center gap-2">
+                            <Plus className="w-4 h-4" /> Nueva cita
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {isLoading ? (
                 <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary-500" /></div>
+            ) : viewMode === 'calendar' ? (
+                <>
+                    <div className="hidden md:block card-soft p-2">
+                        <CalendarView
+                            events={calendarEvents}
+                            onSelectEvent={openActionForEvent}
+                            onEditEvent={openActionForEvent}
+                            onSelectSlot={(slot) => {
+                                setNewDefaults({
+                                    date: slot.start.toISOString().slice(0, 10),
+                                    time: slot.start.toTimeString().slice(0, 5),
+                                })
+                                setShowNew(true)
+                            }}
+                        />
+                    </div>
+                    <div className="block md:hidden">
+                        <MobileCalendarView
+                            events={calendarEvents}
+                            onSelectEvent={openActionForEvent}
+                            onSelectSlot={(date) => {
+                                setNewDefaults({ date: date.toISOString().slice(0, 10), time: '10:00' })
+                                setShowNew(true)
+                            }}
+                        />
+                    </div>
+                </>
             ) : (
                 <>
                     <section>
@@ -212,7 +326,62 @@ export default function Grooming() {
             )}
 
             {showNew && (
-                <NewGroomingAppointment clinicId={clinicId as string} groomers={groomers} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); refresh() }} />
+                <NewGroomingAppointment
+                    clinicId={clinicId as string}
+                    groomers={groomers}
+                    defaultDate={newDefaults.date}
+                    defaultTime={newDefaults.time}
+                    onClose={() => setShowNew(false)}
+                    onCreated={() => { setShowNew(false); refresh() }}
+                />
+            )}
+
+            {actionAppt && (
+                <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4" onClick={() => setActionAppt(null)}>
+                    <div className="bg-white rounded-soft w-full max-w-sm shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-silk-beige flex items-center justify-between bg-primary-50/50">
+                            <div>
+                                <p className="font-bold text-charcoal">{actionAppt.patient_name}</p>
+                                <p className="text-xs text-charcoal/50">{actionAppt.tutor_name || 'Sin tutor'} · {fmtTime(actionAppt.appointment_date)}</p>
+                            </div>
+                            <button onClick={() => setActionAppt(null)} className="p-1.5 hover:bg-silk-beige rounded-lg"><X className="w-5 h-5 text-charcoal/60" /></button>
+                        </div>
+                        <div className="p-4 space-y-2">
+                            <select
+                                value={actionAppt.professional_id || ''}
+                                onChange={e => { assignGroomer(actionAppt.id, e.target.value); setActionAppt({ ...actionAppt, professional_id: e.target.value || null }) }}
+                                className="input-soft w-full text-sm">
+                                <option value="">Sin peluquero</option>
+                                {groomers.map(g => <option key={g.member_id} value={g.member_id}>{[g.first_name, g.last_name].filter(Boolean).join(' ')}</option>)}
+                            </select>
+                            {actionAppt.status !== 'completed' && (
+                                <>
+                                    <button onClick={() => { setIntakeAppt(actionAppt); setActionAppt(null) }}
+                                        className="w-full py-2.5 rounded-xl border border-silk-beige text-sm font-bold text-charcoal/70 hover:border-primary-300 hover:text-primary-600 flex items-center justify-center gap-2">
+                                        <ClipboardCheck className="w-4 h-4" /> Ingreso
+                                    </button>
+                                    <button onClick={() => { setClosureAppt(actionAppt); setActionAppt(null) }} disabled={!actionAppt.patient_id}
+                                        className="w-full py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-700 disabled:opacity-40 flex items-center justify-center gap-2">
+                                        <Scissors className="w-4 h-4" /> Cerrar sesión
+                                    </button>
+                                </>
+                            )}
+                            {actionAppt.status === 'completed' && actionAppt.patient_id && (
+                                <button onClick={() => { setClosureAppt(actionAppt); setActionAppt(null) }}
+                                    className="w-full py-2.5 rounded-xl border border-silk-beige text-sm font-bold text-charcoal/60 hover:text-primary-600">
+                                    Editar reporte
+                                </button>
+                            )}
+                            <button onClick={async () => {
+                                if (!confirm('¿Cancelar esta cita de estética?')) return
+                                await (supabase as any).from('appointments').update({ status: 'cancelled' }).eq('id', actionAppt.id)
+                                setActionAppt(null); refresh()
+                            }} className="w-full py-2 rounded-xl text-xs font-bold text-charcoal/40 hover:text-red-500">
+                                Cancelar cita
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )
@@ -251,15 +420,15 @@ function ClosureLoader({ appt, groomers, onClose, onSaved }: {
     )
 }
 
-function NewGroomingAppointment({ clinicId, groomers, onClose, onCreated }: {
-    clinicId: string; groomers: any[]; onClose: () => void; onCreated: () => void
+function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, onClose, onCreated }: {
+    clinicId: string; groomers: any[]; defaultDate?: string; defaultTime?: string; onClose: () => void; onCreated: () => void
 }) {
     const [tutorQuery, setTutorQuery] = useState('')
     const [tutorId, setTutorId] = useState<string>('')
     const [patientId, setPatientId] = useState<string>('')
     const [serviceId, setServiceId] = useState<string>('')
-    const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-    const [time, setTime] = useState('10:00')
+    const [date, setDate] = useState(defaultDate || new Date().toISOString().slice(0, 10))
+    const [time, setTime] = useState(defaultTime || '10:00')
     const [groomerId, setGroomerId] = useState('')
     const [saving, setSaving] = useState(false)
 
@@ -360,6 +529,16 @@ function NewGroomingAppointment({ clinicId, groomers, onClose, onCreated }: {
                                 <option value="">Elige…</option>
                                 {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
+                            {patientId && (
+                                <div className="mt-1.5">
+                                    <ConsentBadge
+                                        clinicId={clinicId}
+                                        patientId={patientId}
+                                        patientName={patients.find(p => p.id === patientId)?.name || ''}
+                                        tutor={{ id: tutorId, name: tutors.find(t => t.id === tutorId)?.name }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 

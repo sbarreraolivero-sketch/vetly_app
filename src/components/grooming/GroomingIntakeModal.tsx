@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Loader2, ClipboardCheck, ShieldCheck, ShieldAlert, Check } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 import { groomingService, TEMPERAMENTS, TEMPERAMENT_LABEL } from '@/services/groomingService'
+import { consentService, type ConsentState } from '@/services/consentService'
 import { ConsentForm } from '@/components/patients/ConsentForm'
 
 interface Props {
@@ -25,7 +25,7 @@ const MATTING = [
 export function GroomingIntakeModal({ patient, tutor, appointmentId, onClose, onSaved }: Props) {
     const { profile, member } = useAuth()
     const [loading, setLoading] = useState(true)
-    const [consentOk, setConsentOk] = useState(false)
+    const [consentState, setConsentState] = useState<ConsentState>('missing')
     const [showConsent, setShowConsent] = useState(false)
     const [saving, setSaving] = useState(false)
 
@@ -37,16 +37,9 @@ export function GroomingIntakeModal({ patient, tutor, appointmentId, onClose, on
     const [medicalAlerts, setMedicalAlerts] = useState('')
 
     const checkConsent = async () => {
-        // ¿hay un consentimiento de estética firmado y no vencido para esta mascota?
-        const { data } = await (supabase as any)
-            .from('consent_records')
-            .select('id, status, signed_at, template_version_at')
-            .eq('patient_id', patient.id)
-            .eq('template_key', 'estetica')
-            .eq('status', 'signed')
-            .order('signed_at', { ascending: false })
-            .limit(1)
-        setConsentOk(!!(data && data.length > 0))
+        if (!patient.id || !patient.clinic_id) { setConsentState('missing'); return }
+        const st = await consentService.getConsentStatus(patient.clinic_id, patient.id, 'estetica')
+        setConsentState(st.state)
     }
 
     useEffect(() => {
@@ -120,14 +113,23 @@ export function GroomingIntakeModal({ patient, tutor, appointmentId, onClose, on
                 ) : (
                     <div className="p-5 overflow-y-auto flex-1 space-y-4">
                         {/* Consentimiento */}
-                        {consentOk ? (
+                        {consentState === 'valid' ? (
                             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                                <ShieldCheck className="w-4 h-4" /> Consentimiento de estética firmado.
+                                <ShieldCheck className="w-4 h-4" /> Consentimiento de estética firmado y vigente.
                             </div>
                         ) : (
                             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-                                <p className="flex items-center gap-2 font-bold"><ShieldAlert className="w-4 h-4" /> Falta el consentimiento de estética</p>
-                                <button onClick={() => setShowConsent(true)} className="mt-2 text-xs font-bold underline">Emitir y enviar consentimiento</button>
+                                <p className="flex items-center gap-2 font-bold">
+                                    <ShieldAlert className="w-4 h-4" />
+                                    {consentState === 'expired'
+                                        ? 'El consentimiento de estética venció'
+                                        : consentState === 'outdated'
+                                            ? 'La plantilla del consentimiento cambió desde la última firma'
+                                            : 'Falta el consentimiento de estética'}
+                                </p>
+                                <button onClick={() => setShowConsent(true)} className="mt-2 text-xs font-bold underline">
+                                    {consentState === 'missing' ? 'Emitir y enviar consentimiento' : 'Volver a solicitar el consentimiento'}
+                                </button>
                             </div>
                         )}
 

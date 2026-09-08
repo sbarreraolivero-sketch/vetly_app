@@ -114,6 +114,7 @@ export function GroomingClosureModal({ patient, tutor, appointmentId, existingSe
                     patientName: patient.name,
                     appointmentId: null,   // ya se marcó completed en el paso 1
                     groomerMemberId: groomerId || null,
+                    tutorId: tutor?.id || null,
                     services: lines.map(({ localId: _l, ...rest }) => rest),
                     findings: findings.trim() || null,
                     beforePhotos: before,

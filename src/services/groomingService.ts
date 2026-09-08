@@ -235,6 +235,39 @@ export const groomingService = {
                 .update({ status: 'completed' }).eq('id', params.appointmentId)
         }
 
+        // Recordatorio "toca baño" — si hay próxima visita, tutor y la clínica
+        // tiene plantilla configurada. cron-process-reminders PART 4 lo recoge.
+        // No bloquea el guardado si falla.
+        if (nextVisitDate && params.tutorId) {
+            try {
+                const { data: cs } = await (supabase as any)
+                    .from('clinic_settings')
+                    .select('grooming_reminder_template, grooming_reminder_lead_days')
+                    .eq('id', params.clinicId).maybeSingle()
+                if (cs?.grooming_reminder_template) {
+                    const lead = cs.grooming_reminder_lead_days ?? 3
+                    const nv = new Date(nextVisitDate + 'T12:00:00')
+                    nv.setDate(nv.getDate() - lead)
+                    const scheduled = nv.toISOString().slice(0, 10)
+                    // Idempotencia: una sola cita de baño pendiente por mascota.
+                    await (supabase as any).from('reminders')
+                        .delete().eq('patient_id', params.patientId).eq('type', 'grooming').eq('status', 'pending')
+                    await (supabase as any).from('reminders').insert({
+                        clinic_id: params.clinicId,
+                        patient_id: params.patientId,
+                        tutor_id: params.tutorId,
+                        title: 'Baño',
+                        scheduled_date: scheduled,
+                        type: 'grooming',
+                        whatsapp_template: cs.grooming_reminder_template,
+                        status: 'pending',
+                    })
+                }
+            } catch (e) {
+                console.error('[groomingService] no se pudo crear el recordatorio de baño', e)
+            }
+        }
+
         return sessionId as string
     },
 

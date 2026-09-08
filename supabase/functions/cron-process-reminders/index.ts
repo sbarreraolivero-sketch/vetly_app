@@ -574,7 +574,7 @@ Deno.serve(async (req) => {
         // Fetch all clinics to process their manual reminders
         const { data: allClinics, error: allClinicsError } = await supabaseClient
             .from('clinic_settings')
-            .select('id, clinic_name, timezone, ycloud_api_key, ycloud_phone_number, whatsapp_provider, meta_access_token, meta_phone_number_id, meta_waba_id, vaccine_reminder_template, deworming_reminder_template, checkup_reminder_template')
+            .select('id, clinic_name, timezone, ycloud_api_key, ycloud_phone_number, whatsapp_provider, meta_access_token, meta_phone_number_id, meta_waba_id, vaccine_reminder_template, deworming_reminder_template, checkup_reminder_template, grooming_reminder_template')
 
         // Mapa de subscripciones para el check de límite (pool compartido con citas)
         const { data: allSubs } = await supabaseClient
@@ -656,6 +656,8 @@ Deno.serve(async (req) => {
                             templateName = clinic.vaccine_reminder_template
                         } else if (rem.type === 'deworming') {
                             templateName = clinic.deworming_reminder_template
+                        } else if (rem.type === 'grooming') {
+                            templateName = clinic.grooming_reminder_template
                         } else {
                             templateName = clinic.checkup_reminder_template
                         }
@@ -691,7 +693,9 @@ Deno.serve(async (req) => {
                                 updated_at: new Date().toISOString()
                             }).eq('id', rem.id)
 
-                            const reminderText = `Hola 👋\nTe recordamos que es momento de agendar el próximo control/vacuna de *${patientName || 'tu mascota'}*.\n\n¿Deseas que coordinemos una visita?`;
+                            const reminderText = rem.type === 'grooming'
+                                ? `Hola 👋\nTe recordamos que se acerca la fecha del próximo baño de *${patientName || 'tu mascota'}* 🛁.\n\n¿Deseas que coordinemos la visita?`
+                                : `Hola 👋\nTe recordamos que es momento de agendar el próximo control/vacuna de *${patientName || 'tu mascota'}*.\n\n¿Deseas que coordinemos una visita?`;
 
                             const { error: msgErrGen } = await supabaseClient.from('messages').insert({
                                 clinic_id: clinic.id,
@@ -701,7 +705,7 @@ Deno.serve(async (req) => {
                                 ycloud_message_id: sentId,
                                 status: 'sent',
                                 ai_generated: false,
-                                payload: { type: 'system_reminder_general' }
+                                payload: { type: rem.type === 'grooming' ? 'system_reminder_grooming' : 'system_reminder_general' }
                             })
                             if (msgErrGen) console.error('[reminders][general] messages insert failed', msgErrGen)
 
