@@ -1788,7 +1788,10 @@ export default function Settings() {
                     {activeTab === 'services_pricing' && (
                         <div className="space-y-6">
                             <PriceMatrixEditor clinicId={clinicId} />
-                            <GroomingPriceEditor clinicId={clinicId} />
+                            <GroomingPriceEditor
+                                clinicId={clinicId}
+                                groomingServices={services.filter((s: any) => s.category === 'grooming').map((s: any) => ({ id: s.id, name: s.name }))}
+                            />
 
                             {/* Services */}
                             <div className="card-soft p-4 sm:p-6">
@@ -1929,7 +1932,7 @@ export default function Settings() {
                                                     </button>
                                                 </div>
                                                 {newServiceCategory === 'grooming' && (
-                                                    <p className="text-[11px] text-charcoal/50 mt-1">Aparece en el Área de Estética. Su precio puede variar por talla/pelaje/raza en "Reglas de precio de estética" (abajo).</p>
+                                                    <p className="text-[11px] text-charcoal/50 mt-1">Aparece en el Área de Estética. Al guardarlo, esta misma pestaña muestra "Reglas de precio de estética" (arriba de la lista de Servicios) para definir su precio por talla, pelaje o raza. Si no agregas reglas, se cobra el precio fijo de aquí.</p>
                                                 )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">

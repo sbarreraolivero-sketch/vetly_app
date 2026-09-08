@@ -24,29 +24,13 @@ interface Rule {
 
 const uid = () => Math.random().toString(36).slice(2)
 
-export function GroomingPriceEditor({ clinicId }: { clinicId: string | undefined }) {
-    const [services, setServices] = useState<{ id: string; name: string; price: number }[]>([])
-    const [loading, setLoading] = useState(true)
+export function GroomingPriceEditor({ clinicId, groomingServices = [] }: {
+    clinicId: string | undefined
+    groomingServices?: { id: string; name: string }[]
+}) {
     const [expandedId, setExpandedId] = useState<string | null>(null)
 
-    useEffect(() => {
-        if (!clinicId) return
-        ;(async () => {
-            setLoading(true)
-            const { data } = await (supabase as any)
-                .from('clinic_services').select('id, name, price')
-                .eq('clinic_id', clinicId).eq('category', 'grooming')
-                .order('name', { ascending: true })
-            setServices((data as any[]) || [])
-            setLoading(false)
-        })()
-    }, [clinicId])
-
     if (!clinicId) return null
-    if (loading) {
-        return <div className="card-soft p-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-primary-500" /></div>
-    }
-    if (services.length === 0) return null
 
     return (
         <div className="card-soft p-4 sm:p-6">
@@ -57,8 +41,15 @@ export function GroomingPriceEditor({ clinicId }: { clinicId: string | undefined
                 Para cada servicio de estética, define el precio según talla, tipo de pelaje, peso o raza.
                 Sin reglas, se usa el precio fijo del servicio.
             </p>
+            {groomingServices.length === 0 ? (
+                <p className="text-sm text-charcoal/40 bg-ivory/60 border border-silk-beige rounded-soft px-4 py-6 text-center">
+                    Aún no tienes servicios de estética. Crea uno más abajo con el tipo
+                    <span className="font-semibold text-charcoal/60"> «Estética» </span>
+                    y aparecerá aquí para configurar su precio por talla, pelaje o raza.
+                </p>
+            ) : (
             <div className="space-y-2">
-                {services.map(s => (
+                {groomingServices.map(s => (
                     <div key={s.id} className="border border-silk-beige rounded-soft overflow-hidden">
                         <button onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
                             className="w-full flex items-center gap-2 px-4 py-3 bg-ivory/50 text-left">
@@ -69,6 +60,7 @@ export function GroomingPriceEditor({ clinicId }: { clinicId: string | undefined
                     </div>
                 ))}
             </div>
+            )}
         </div>
     )
 }
