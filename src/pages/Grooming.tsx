@@ -425,14 +425,23 @@ function ClosureLoader({ appt, groomers, onClose, onSaved }: {
 function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, onClose, onCreated }: {
     clinicId: string; groomers: any[]; defaultDate?: string; defaultTime?: string; onClose: () => void; onCreated: () => void
 }) {
+    const [tutorMode, setTutorMode] = useState<'existing' | 'new'>('existing')
     const [tutorQuery, setTutorQuery] = useState('')
     const [tutorId, setTutorId] = useState<string>('')
+    const [newTutorName, setNewTutorName] = useState('')
+    const [newTutorPhone, setNewTutorPhone] = useState('')
+    const [petMode, setPetMode] = useState<'existing' | 'new'>('existing')
     const [patientId, setPatientId] = useState<string>('')
+    const [newPetName, setNewPetName] = useState('')
+    const [newPetSpecies, setNewPetSpecies] = useState('Canino')
     const [serviceId, setServiceId] = useState<string>('')
     const [date, setDate] = useState(defaultDate || new Date().toISOString().slice(0, 10))
     const [time, setTime] = useState(defaultTime || '10:00')
     const [groomerId, setGroomerId] = useState('')
     const [saving, setSaving] = useState(false)
+    // tutor/mascota reales tras find-or-create (para mostrar el badge de consentimiento antes de crear la cita)
+    const [resolved, setResolved] = useState<{ tutorId: string; patientId: string; petName: string; tutorName: string } | null>(null)
+    const [resolving, setResolving] = useState(false)
 
     const { data: tutors = [] } = useQuery<any[]>({
         queryKey: ['grooming-tutors', clinicId],
@@ -461,24 +470,67 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
         return tutors.filter(t => (t.name || '').toLowerCase().includes(q)).slice(0, 8)
     }, [tutors, tutorQuery])
 
+    // Resuelve (crea si hace falta) el tutor + la mascota. Se hace ANTES de crear
+    // la cita para que la ficha de estética y el consentimiento existan desde ya.
+    const resolveContacts = async (): Promise<{ tutorId: string; patientId: string; petName: string; tutorName: string } | null> => {
+        // tutor
+        let tId = tutorId
+        let tName = tutors.find(t => t.id === tutorId)?.name || ''
+        if (tutorMode === 'new') {
+            if (!newTutorName.trim() || newTutorPhone.replace(/\D/g, '').length < 7) {
+                toast.error('Escribe el nombre y el teléfono del tutor'); return null
+            }
+            tId = await groomingService.findOrCreateTutor(clinicId, newTutorName, newTutorPhone)
+            tName = newTutorName.trim()
+        } else if (!tId) {
+            toast.error('Elige un tutor'); return null
+        }
+        // mascota
+        let pId = patientId
+        let pName = patients.find(p => p.id === patientId)?.name || ''
+        if (tutorMode === 'new' || petMode === 'new') {
+            if (!newPetName.trim()) { toast.error('Escribe el nombre de la mascota'); return null }
+            pId = await groomingService.findOrCreatePatient(clinicId, tId, newPetName, newPetSpecies)
+            pName = newPetName.trim()
+        } else if (!pId) {
+            toast.error('Elige una mascota'); return null
+        }
+        return { tutorId: tId, patientId: pId, petName: pName, tutorName: tName }
+    }
+
+    // Botón "Preparar ficha / consentimiento" — crea tutor+mascota sin agendar aún.
+    const prepare = async () => {
+        setResolving(true)
+        try {
+            const r = await resolveContacts()
+            if (r) setResolved(r)
+        } catch (e: any) {
+            toast.error(e.message || 'No se pudo preparar la ficha')
+        } finally {
+            setResolving(false)
+        }
+    }
+
     const create = async () => {
-        if (!tutorId || !patientId) { toast.error('Elige tutor y mascota'); return }
         setSaving(true)
         try {
-            const tutor = tutors.find(t => t.id === tutorId)
-            const patient = patients.find(p => p.id === patientId)
+            const r = resolved || await resolveContacts()
+            if (!r) { setSaving(false); return }
             const svc = services.find(s => s.id === serviceId)
+            const phone = tutorMode === 'new'
+                ? newTutorPhone.replace(/\D/g, '')
+                : (tutors.find(t => t.id === r.tutorId)?.phone_number || '').replace(/\D/g, '')
             const { error } = await (supabase as any).from('appointments').insert({
                 clinic_id: clinicId,
                 appointment_type: 'grooming',
                 booking_source: 'manual',
                 status: 'pending',
-                patient_id: patientId,
-                pet_id: patientId,
-                patient_name: patient?.name || 'Sin nombre',
-                tutor_id: tutorId,
-                tutor_name: tutor?.name || null,
-                phone_number: (tutor?.phone_number || '').replace(/\D/g, ''),
+                patient_id: r.patientId,
+                pet_id: r.patientId,
+                patient_name: r.petName || 'Sin nombre',
+                tutor_id: r.tutorId,
+                tutor_name: r.tutorName || null,
+                phone_number: phone,
                 service: svc?.name || 'Estética',
                 appointment_date: new Date(`${date}T${time}:00`).toISOString(),
                 professional_id: groomerId || null,
@@ -503,11 +555,27 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
                 </div>
                 <div className="p-5 space-y-3 overflow-y-auto">
                     <div>
-                        <label className="text-xs font-bold text-charcoal/60">Tutor</label>
-                        {tutorId ? (
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-charcoal/60">Tutor</label>
+                            <button
+                                onClick={() => {
+                                    setTutorMode(m => m === 'existing' ? 'new' : 'existing')
+                                    setTutorId(''); setPatientId(''); setResolved(null); setPetMode('existing')
+                                }}
+                                className="text-[11px] font-bold text-primary-600 hover:text-primary-700">
+                                {tutorMode === 'existing' ? '+ Tutor nuevo' : '← Buscar existente'}
+                            </button>
+                        </div>
+
+                        {tutorMode === 'new' ? (
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                                <input value={newTutorName} onChange={e => { setNewTutorName(e.target.value); setResolved(null) }} placeholder="Nombre y apellido" className="input-soft w-full" />
+                                <input value={newTutorPhone} onChange={e => { setNewTutorPhone(e.target.value); setResolved(null) }} placeholder="Teléfono" inputMode="tel" className="input-soft w-full" />
+                            </div>
+                        ) : tutorId ? (
                             <div className="flex items-center gap-2 mt-1">
                                 <span className="input-soft flex-1 bg-ivory">{tutors.find(t => t.id === tutorId)?.name}</span>
-                                <button onClick={() => { setTutorId(''); setPatientId('') }} className="text-xs text-charcoal/50">cambiar</button>
+                                <button onClick={() => { setTutorId(''); setPatientId(''); setResolved(null) }} className="text-xs text-charcoal/50">cambiar</button>
                             </div>
                         ) : (
                             <>
@@ -515,7 +583,7 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
                                 {tutorQuery && (
                                     <div className="border border-silk-beige rounded-lg mt-1 divide-y divide-silk-beige max-h-40 overflow-y-auto">
                                         {filteredTutors.map(t => (
-                                            <button key={t.id} onClick={() => { setTutorId(t.id); setTutorQuery('') }} className="w-full text-left px-3 py-2 text-sm hover:bg-ivory">{t.name}</button>
+                                            <button key={t.id} onClick={() => { setTutorId(t.id); setTutorQuery(''); setPetMode('existing') }} className="w-full text-left px-3 py-2 text-sm hover:bg-ivory">{t.name}</button>
                                         ))}
                                         {filteredTutors.length === 0 && <p className="px-3 py-2 text-xs text-charcoal/40">Sin resultados</p>}
                                     </div>
@@ -524,20 +592,49 @@ function NewGroomingAppointment({ clinicId, groomers, defaultDate, defaultTime, 
                         )}
                     </div>
 
-                    {tutorId && (
+                    {(tutorMode === 'new' || tutorId) && (
                         <div>
-                            <label className="text-xs font-bold text-charcoal/60">Mascota</label>
-                            <select value={patientId} onChange={e => setPatientId(e.target.value)} className="input-soft w-full mt-1">
-                                <option value="">Elige…</option>
-                                {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                            {patientId && (
-                                <div className="mt-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-charcoal/60">Mascota</label>
+                                {tutorMode === 'existing' && tutorId && (
+                                    <button
+                                        onClick={() => { setPetMode(m => m === 'existing' ? 'new' : 'existing'); setPatientId(''); setResolved(null) }}
+                                        className="text-[11px] font-bold text-primary-600 hover:text-primary-700">
+                                        {petMode === 'existing' ? '+ Mascota nueva' : '← Elegir de la lista'}
+                                    </button>
+                                )}
+                            </div>
+                            {(tutorMode === 'new' || petMode === 'new') ? (
+                                <div className="grid grid-cols-2 gap-2 mt-1">
+                                    <input value={newPetName} onChange={e => { setNewPetName(e.target.value); setResolved(null) }} placeholder="Nombre de la mascota" className="input-soft w-full" />
+                                    <select value={newPetSpecies} onChange={e => { setNewPetSpecies(e.target.value); setResolved(null) }} className="input-soft w-full">
+                                        <option>Canino</option>
+                                        <option>Felino</option>
+                                        <option>Otro</option>
+                                    </select>
+                                </div>
+                            ) : (
+                                <select value={patientId} onChange={e => { setPatientId(e.target.value); setResolved(null) }} className="input-soft w-full mt-1">
+                                    <option value="">Elige…</option>
+                                    {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            )}
+
+                            {!resolved && (
+                                <button onClick={prepare} disabled={resolving}
+                                    className="mt-2 w-full text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg py-2 flex items-center justify-center gap-1.5 disabled:opacity-50">
+                                    {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardCheck className="w-3.5 h-3.5" />}
+                                    Preparar ficha y consentimiento
+                                </button>
+                            )}
+                            {resolved && (
+                                <div className="mt-2 space-y-1.5">
+                                    <p className="text-[11px] text-primary-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {resolved.petName} está en la ficha — ya puedes llenar el consentimiento</p>
                                     <ConsentBadge
                                         clinicId={clinicId}
-                                        patientId={patientId}
-                                        patientName={patients.find(p => p.id === patientId)?.name || ''}
-                                        tutor={{ id: tutorId, name: tutors.find(t => t.id === tutorId)?.name }}
+                                        patientId={resolved.patientId}
+                                        patientName={resolved.petName}
+                                        tutor={{ id: resolved.tutorId, name: resolved.tutorName }}
                                     />
                                 </div>
                             )}

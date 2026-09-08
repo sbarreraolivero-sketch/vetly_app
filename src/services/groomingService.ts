@@ -51,6 +51,46 @@ export const TEMPERAMENT_LABEL: Record<string, string> = {
 export const SIZE_LABEL: Record<string, string> = { xs: 'XS · Toy', s: 'S · Pequeño', m: 'M · Mediano', l: 'L · Grande', xl: 'XL · Gigante' }
 
 export const groomingService = {
+    // Busca un tutor por teléfono dentro de la clínica; si no existe, lo crea.
+    // Devuelve el id. El tutor queda como registro real DESDE el agendamiento,
+    // no al completar la cita — así la ficha de estética y el consentimiento se
+    // pueden llenar antes de atender a la mascota.
+    async findOrCreateTutor(clinicId: string, name: string, phone: string): Promise<string> {
+        const digits = (phone || '').replace(/\D/g, '')
+        if (digits.length < 7) throw new Error('El tutor necesita un teléfono válido')
+        const { data: existing } = await (supabase as any)
+            .from('tutors').select('id, name')
+            .eq('clinic_id', clinicId).eq('phone_number', digits).maybeSingle()
+        if (existing?.id) {
+            // completa el nombre si estaba vacío / genérico
+            if (name.trim() && (!existing.name || /^sin nombre$/i.test(existing.name))) {
+                await (supabase as any).from('tutors').update({ name: name.trim() }).eq('id', existing.id)
+            }
+            return existing.id
+        }
+        const { data, error } = await (supabase as any).from('tutors')
+            .insert({ clinic_id: clinicId, phone_number: digits, name: name.trim() || 'Sin nombre' })
+            .select('id').single()
+        if (error) throw error
+        return data.id
+    },
+
+    // Busca una mascota viva de ese tutor por nombre (case-insensitive); si no
+    // existe, la crea. Devuelve el id — necesario para la ficha de estética.
+    async findOrCreatePatient(clinicId: string, tutorId: string, name: string, species?: string | null): Promise<string> {
+        const nm = name.trim()
+        if (!nm) throw new Error('Falta el nombre de la mascota')
+        const { data: existing } = await (supabase as any)
+            .from('patients').select('id')
+            .eq('tutor_id', tutorId).eq('status', 'alive').ilike('name', nm).limit(1)
+        if (existing && existing.length > 0) return existing[0].id
+        const { data, error } = await (supabase as any).from('patients')
+            .insert({ clinic_id: clinicId, tutor_id: tutorId, name: nm, species: species || null })
+            .select('id').single()
+        if (error) throw error
+        return data.id
+    },
+
     async getProfile(patientId: string): Promise<GroomingProfile | null> {
         const { data } = await (supabase as any)
             .from('grooming_profiles').select('*').eq('patient_id', patientId).maybeSingle()
