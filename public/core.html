@@ -198,6 +198,42 @@
             .hl-mid { background-size: 100% 100%; transition: none; }
         }
 
+        /* ── ELEMENTOS FLOTANTES + PARALLAX (sección "Esto es exactamente lo que recibes") ── */
+        .pfx-layer {
+            position: absolute; inset: 0;
+            overflow: hidden; pointer-events: none;
+            z-index: -1;
+        }
+        .pfloat {
+            position: absolute; opacity: .4;
+            line-height: 1; user-select: none;
+            will-change: transform;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .pfloat { transform: none !important; }
+        }
+
+        /* ── SECCIÓN DE ESTÉTICA / PELUQUERÍA ── */
+        .groom-bg {
+            background:
+              radial-gradient(58rem 40rem at 8% -12%, rgba(244,114,182,.26), transparent 60%),
+              radial-gradient(50rem 36rem at 105% 118%, rgba(45,212,191,.18), transparent 62%),
+              linear-gradient(135deg, #fce7f3 0%, #f3e8ff 46%, #e0f7fa 100%);
+        }
+        .groom-photo {
+            aspect-ratio: 6 / 5;
+            border-radius: 1.75rem;
+            overflow: hidden;
+            box-shadow: 0 32px 64px -24px rgba(190,24,93,.30), 0 0 0 1px rgba(255,255,255,.6);
+        }
+        .groom-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+        .groom-photo .groom-fallback {
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 4.5rem; letter-spacing: .25rem;
+            background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 50%, #cffafe 100%);
+        }
+
         details > summary { list-style: none; cursor: pointer; }
         details > summary::-webkit-details-marker { display: none; }
         details[open] .faq-arrow { transform: rotate(180deg); }
@@ -332,7 +368,16 @@
 </section>
 
 <!-- ═══════════════ RECORRIDO DEL PRODUCTO ═══════════════ -->
-<section id="recorrido" class="max-w-6xl mx-auto px-6 py-20">
+<section id="recorrido" class="max-w-6xl mx-auto px-6 py-20 relative">
+    <div class="pfx-layer" aria-hidden="true">
+        <span class="pfloat text-6xl md:text-8xl" style="top:1%;left:-2%"   data-pfx="0.10">🐾</span>
+        <span class="pfloat text-5xl md:text-7xl" style="top:3%;right:-1%"  data-pfx="-0.08">📅</span>
+        <span class="pfloat text-4xl md:text-6xl" style="top:8%;left:46%"   data-pfx="0.05">🦴</span>
+        <span class="pfloat text-5xl md:text-7xl" style="top:34%;left:-1%"  data-pfx="0.12">💉</span>
+        <span class="pfloat text-6xl md:text-8xl" style="top:54%;right:-2%" data-pfx="-0.11">💊</span>
+        <span class="pfloat text-5xl md:text-7xl" style="top:74%;left:2%"   data-pfx="0.07">🩺</span>
+        <span class="pfloat text-6xl md:text-8xl" style="bottom:4%;right:3%" data-pfx="-0.12">❤️</span>
+    </div>
     <div class="text-center mb-16">
         <p class="text-brand text-sm font-semibold uppercase tracking-widest mb-3">El producto, de verdad</p>
         <h2 class="text-3xl md:text-5xl font-extrabold tracking-tighter mb-4">
@@ -345,7 +390,7 @@
 
     <!-- 1 · Agenda -->
     <div id="agenda" class="grid md:grid-cols-2 gap-12 items-center mb-24">
-        <div class="shot lift md:order-1">
+        <div class="shot lift md:order-2">
             <div class="shot-bar">
                 <span class="shot-dot" style="background:#f87171"></span>
                 <span class="shot-dot" style="background:#fbbf24"></span>
@@ -354,7 +399,7 @@
             <img src="./core-shots/core-agenda.webp" width="1600" height="1013" loading="lazy"
                  alt="Agenda de la clínica en Vetly: citas del día con tutor, paciente, servicio, dirección y estado">
         </div>
-        <div class="md:order-2">
+        <div class="md:order-1">
             <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📅 Agenda de citas</div>
             <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Toda la semana <span class="hl-mid">en una sola pantalla.</span></h3>
             <p class="text-muted leading-relaxed mb-5">
@@ -433,7 +478,7 @@
                 <span class="shot-dot" style="background:#fbbf24"></span>
                 <span class="shot-dot" style="background:#34d399"></span>
             </div>
-            <img src="./formulario-receta.png" width="1440" height="900" loading="lazy"
+            <img src="./formulario-receta.webp" width="1440" height="772" loading="lazy"
                  alt="Formulario de nueva receta médica en Vetly: tipo de documento (receta, orden médica o derivación), diagnóstico y medicamentos con dosis y frecuencia">
         </div>
         <div class="md:order-2">
@@ -569,29 +614,40 @@
         </div>
     </div>
 
-    <!-- 7 · Área de Estética / Peluquería -->
-    <div id="estetica" class="mt-24 bg-gradient-to-br from-violet-50 to-teal-50 border border-violet-100 rounded-3xl p-8 md:p-10">
-        <div class="max-w-3xl">
-            <div class="inline-flex items-center gap-2 bg-white text-violet-700 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-violet-200">✂️ Área de Estética · incluida</div>
-            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">¿También haces baño y peluquería? <span class="hl-mid">Tiene su propio flujo.</span></h3>
-            <p class="text-muted leading-relaxed mb-6">
-                Agenda de peluquería aparte de la médica, ficha de estética por mascota (pelaje, corte,
-                temperamento, alergias), ingreso, cierre de sesión con fotos antes/después y reporte al
-                tutor. Con precio y duración por talla, pelaje o raza.
-            </p>
-            <div class="grid sm:grid-cols-3 gap-4 text-sm">
-                <div class="bg-white rounded-xl p-4 border border-violet-100">
-                    <p class="font-bold mb-1">Ficha de estética</p>
-                    <p class="text-muted text-xs">Pelaje, corte preferido, temperamento y alertas médicas por mascota</p>
+</section>
+
+<!-- ═══════════════ ÁREA DE ESTÉTICA / PELUQUERÍA — sección propia ═══════════════ -->
+<section id="estetica" class="groom-bg py-20 md:py-28 border-y border-pink-100">
+    <div class="max-w-6xl mx-auto px-6">
+        <div class="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+            <div>
+                <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm text-pink-600 text-xs font-bold px-3 py-1 rounded-full mb-5 border border-pink-200">✂️ Área de Estética · incluida</div>
+                <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">¿También haces baño y peluquería?<br class="hidden md:block"> <span class="hl-mid">Tiene su propio flujo.</span></h2>
+                <p class="text-muted leading-relaxed mb-7">
+                    Agenda de peluquería aparte de la médica, ficha de estética por mascota (pelaje, corte
+                    preferido, temperamento, alergias), ingreso, cierre de sesión con fotos antes/después
+                    y reporte al tutor. Con precio y duración por talla, pelaje o raza.
+                </p>
+                <div class="grid sm:grid-cols-3 gap-3 text-sm">
+                    <div class="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-pink-100">
+                        <p class="font-bold mb-1">Ficha de estética</p>
+                        <p class="text-muted text-xs">Pelaje, corte preferido, temperamento y alertas médicas por mascota</p>
+                    </div>
+                    <div class="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-pink-100">
+                        <p class="font-bold mb-1">Fotos antes / después</p>
+                        <p class="text-muted text-xs">Reporte con las fotos que le mandas al tutor por un enlace</p>
+                    </div>
+                    <div class="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-pink-100">
+                        <p class="font-bold mb-1">Rol Peluquero/a</p>
+                        <p class="text-muted text-xs">Acceso acotado solo al área de estética, fichas y tutores</p>
+                    </div>
                 </div>
-                <div class="bg-white rounded-xl p-4 border border-violet-100">
-                    <p class="font-bold mb-1">Fotos antes / después</p>
-                    <p class="text-muted text-xs">Reporte con las fotos que le mandas al tutor por un enlace</p>
-                </div>
-                <div class="bg-white rounded-xl p-4 border border-violet-100">
-                    <p class="font-bold mb-1">Rol Peluquero/a</p>
-                    <p class="text-muted text-xs">Acceso acotado solo al área de estética, fichas y tutores</p>
-                </div>
+            </div>
+            <div class="groom-photo lift">
+                <img src="./estetica-peluqueria.webp" width="1200" height="1000" loading="lazy"
+                     alt="Peluquería canina: perro pequeño recién bañado y peinado sobre la mesa de grooming de una clínica veterinaria"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div class="groom-fallback" style="display:none">🐩✂️</div>
             </div>
         </div>
     </div>
@@ -1077,6 +1133,41 @@
         if (!b) return;
         b.addEventListener('mouseenter', function () { b.style.transform = 'scale(1.05)'; });
         b.addEventListener('mouseleave', function () { b.style.transform = 'scale(1)'; });
+    })();
+
+    /* Parallax de los elementos flotantes del recorrido del producto: cada uno se
+       desplaza en Y según su distancia del centro de la pantalla, para dar
+       profundidad al hacer scroll. */
+    (function () {
+        var els = document.querySelectorAll('.pfloat');
+        if (!els.length) return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        var items = [];
+        els.forEach(function (el) {
+            items.push({ el: el, base: el.offsetTop, speed: parseFloat(el.getAttribute('data-pfx')) || 0 });
+        });
+        var layer = els[0].parentElement;
+        var ticking = false;
+
+        function apply() {
+            var layerTop = layer.getBoundingClientRect().top;
+            var mid = window.innerHeight / 2;
+            for (var i = 0; i < items.length; i++) {
+                var it = items[i];
+                var fromCenter = (layerTop + it.base) - mid;
+                it.el.style.transform = 'translate3d(0,' + (fromCenter * it.speed).toFixed(1) + 'px,0)';
+            }
+            ticking = false;
+        }
+        window.addEventListener('scroll', function () {
+            if (!ticking) { ticking = true; requestAnimationFrame(apply); }
+        }, { passive: true });
+        window.addEventListener('resize', function () {
+            items.forEach(function (it) { it.base = it.el.offsetTop; });
+            apply();
+        });
+        apply();
     })();
 </script>
 
