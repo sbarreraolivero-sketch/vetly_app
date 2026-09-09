@@ -2011,6 +2011,15 @@ Deno.serve(async (req) => {
           const failText = errObj
             ? `[${errObj.code ?? "?"}] ${errObj.title || errObj.message || "Message undeliverable"}`
             : "Message undeliverable";
+          // El motivo real del rechazo de Meta solo quedaba en reminder_logs.error_message.
+          // messages/scheduling requests (avisos a la coordinadora) quedaban en 'failed' sin
+          // ninguna pista del porqué. Se registra siempre para poder diagnosticar.
+          await debugLog(sb, "[MSG FAILED] status update de Meta", {
+            wamid: status.id,
+            recipient: status.recipient_id ?? null,
+            error: failText,
+            errorRaw: errObj ?? null,
+          });
           await Promise.resolve(
             sb.from("messages").update({ status: "failed" }).eq("ycloud_message_id", status.id)
           ).then(() => {}, () => {/* non-critical */});
