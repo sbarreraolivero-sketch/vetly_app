@@ -7669,3 +7669,76 @@ Completa lo iniciado en `f835ebe`. Dashboard/Finance/Messages/CRM hacían `useEf
 - **Un identificador de función local (`patchFinance`, `patchConversations`) NO sirve como marcador de verificación de deploy** — la minificación lo renombra. Usar strings literales que sobrevivan: query keys (`["finance"`), textos de UI, nombres de columna SQL entre comillas.
 - **En un banner, la fila de stats necesita `flex-wrap` explícito** aunque tenga solo 3 elementos — 3 números + 2 divisores + `gap-6` desborda ~300px y, sin `overflow-x-hidden` en `<main>`, arrastra toda la página.
 - **La red estuvo intermitente para GitHub durante toda la sesión** — `git push` necesitó bucles de reintento (`for i in 1..5; do push || sleep 30; done`). El commit local siempre estuvo a salvo; solo el push falló.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 105, 2026-09-07/09)
+
+> Nota de numeración: si otra sesión paralela ya escribió "sesión 105", renumerar — patrón ya documentado en sesiones 66/87/89/91/93/95/103.
+
+Sesión larga en dos frentes: (1) **MVP completo de Consentimientos digitales + Área de Estética canina** (commits `e7381da` MVP, `887258b` fase 2, más ~10 commits de ajustes reportados por el usuario), y (2) dos optimizaciones del prompt/ruteo de la IA (`0091e56`, `7258f0a`). Todo mergeado a `main` y desplegado. Verificado en producción: `vetly.pro` sirve las rutas `/consentimiento/:token`, `/estetica/:token`, el pageKey `grooming` y el rol `groomer`.
+
+### Consentimientos digitales — feature nueva (clona el patrón de Recetas de sesión 95)
+
+**DB (migraciones `add_groomer_role`, `consents_system`, `consent_library_fn_search_path`):**
+- `consent_templates` — biblioteca editable por clínica (`template_key` estable, `category`, `body` con placeholders `{tutor}/{paciente}/{clinica}/{servicio}/{fecha}`, `signature_mode` = `one_click|typed|drawn`, `checkboxes JSONB`, `validity_days` nullable, `is_active`). Seed idempotente de **10 plantillas** (general, quirúrgico, anestésico, hospitalización, eutanasia, tratamiento, **estética**, diagnóstico, cesión de imágenes, no-show) a TODAS las clínicas existentes + `signup-handler` para las nuevas. RPC `seed_consent_templates(clinic_id)` `ON CONFLICT DO NOTHING`.
+- `consent_records` — instancia emitida, **snapshot inmutable** al emitir (`template_title/body/checkboxes` congelados, `template_version_at`, `patient_snapshot`, `tutor_name`). `public_token` hex 128-bit como DEFAULT de columna (`encode(extensions.gen_random_bytes(16),'hex')` — schema `extensions.` explícito, bug de search_path sesión 78). `status` = `pending|signed|declined`. Al firmar guarda `signer_name/relationship/ip/user_agent`, `acceptance_method`, `signature_url` (PNG en bucket `clinic-branding` si `drawn`), `checkbox_responses`.
+- RLS estándar (`is_clinic_member(clinic_id)` + `service_role`, **sin política anon**). RPC pública `get_consent_public(token)` `SECURITY DEFINER STABLE` → doc + branding de la clínica, nunca `signer_ip`/`created_by`/`declined_reason`. `REVOKE FROM PUBLIC, anon` + `GRANT TO anon, authenticated`.
+
+**Edge functions:**
+- `sign-consent` (`verify_jwt:false`) — resuelve por `public_token`, valida método vs `required_signature_mode`, valida checkboxes `required`, captura IP/UA, sube el PNG con service_role, marca `signed`. Loguea a `debug_logs` toda respuesta ≥400 (regla sesión 57).
+- `send-consent` (clon de `send-prescription`) — JWT + membresía, envía **enlace** a `/consentimiento/:token` por WhatsApp (rama Meta/YCloud por `whatsapp_provider`) o correo (Resend, `reply_to` = owner). Errores de negocio como `200 {success:false}`.
+
+**Frontend:**
+- `src/pages/PublicConsent.tsx` + ruta `/consentimiento/:token` (lazy, `publicClient` propio, `noindex`, sin guards). `?print=1` auto-imprime. Firmado → muestra fecha/firmante/firma + PDF. Pendiente → formulario según modo. **Ajuste posterior (`b4c99e7`):** el modo "dibujar firma" (`SignaturePad`) quedó disponible en CUALQUIER consentimiento vía toggle "Aceptar / Dibujar mi firma", no solo en plantillas `drawn` (dibujar es método más fuerte, `sign-consent` ya lo acepta).
+- `src/components/patients/ConsentForm.tsx` — modal de emisión desde la ficha (selector de plantilla, preview con placeholders resueltos, `clinic_id` heredado del paciente — regla sesión 52).
+- `PatientProfile.tsx` — tab **"Consentimientos"** (`useQuery(['patient-consents', id])`, `staleTime:0` + refetch-on-focus + botón "Actualizar" — la firma ocurre en otra pestaña, `ec23b8e`). Acciones por fila: Ver/Imprimir, WhatsApp, Correo, Copiar enlace, Eliminar.
+- `Settings.tsx` — pestaña **"Consentimientos"** (`ConsentTemplatesEditor.tsx`, patrón `PriceMatrixEditor`) para editar la biblioteca + "Restaurar texto recomendado".
+
+### Área de Estética canina — feature nueva (todos los planes, incluido Core)
+
+**DB (migración `grooming_system`):**
+- `clinic_services.category TEXT DEFAULT 'medical'` (`medical|grooming`) · `appointments.appointment_type TEXT DEFAULT 'medical'` (`medical|grooming`). `Appointments.tsx` filtra fuera las de estética (`.or('appointment_type.is.null,appointment_type.eq.medical')`).
+- `grooming_profiles` — ficha de estética acumulativa, **1 por mascota** (`coat_type/coat_length/size_category`, `preferred_cut` + `cut_reference_photo_url`, `products_notes/product_allergies`, `temperament`, `handling_notes`, `matting_policy_ack`, `medical_alerts`).
+- `grooming_sessions` — report card por sesión (`services JSONB`, `findings`, `before_photos/after_photos JSONB` en `patient-documents`, `products_used`, `next_visit_weeks/date`, `notes` interno, `public_token`, `income_id`).
+- `grooming_price_rules` — precio **y duración** por servicio × `size_category`/`coat_type`/rango de peso/`breed`. `duration_minutes` nullable (NULL = duración base del servicio). Resolución: `breed` exacto > size+coat > size > rango peso > fallback `clinic_services`.
+- RPCs: `get_grooming_report_public(token)` (público, sin `notes`/`income_id`/`created_by`), `grooming_rule_resolve(service,size,coat,weight,breed)` → `{price, duration_minutes}` (`SECURITY DEFINER`, check `is_clinic_member`, `REVOKE FROM PUBLIC,anon`), `replace_grooming_price_rules(service, rules jsonb)`.
+
+**RBAC — rol nuevo `groomer`** (migración `add_groomer_role` = `ALTER TYPE user_role ADD VALUE 'groomer'`, committeada antes del código que la usa):
+- `src/lib/permissions.ts` — `PageKey += 'grooming'`, `ROLE_DEFAULTS.groomer`: páginas `dashboard/grooming/patients/tutors/support` = true, resto false; acciones `patients_create/edit` + `tutors_create/edit` = true, resto false. `professional`/`receptionist` → `grooming:true`; `vet_assistant` → false.
+- `RoleGuard`, `teamService`, `Team.tsx` (label "Peluquero/a", botón de invitación, sección "Estética" en el modal de permisos), `DashboardLayout` (nav "Estética" en sección Clínica, **sin** `PAGE_MIN_PLAN` → visible en Core), `App.tsx` (ruta `/app/grooming` con `PermissionGuard pageKey="grooming"`).
+
+**Frontend:**
+- `src/pages/Grooming.tsx` (lazy) — página "Estética": toggle **Lista / Calendario** (reusa `CalendarView`/`MobileCalendarView`, `887258b`); cola del día partida en **Esperando / Hoy — en proceso / Lista** (una cita con "Ingreso" hecho pasa a "en proceso" con chip, `b4c99e7`); modal `NewGroomingAppointment` que **crea tutor + mascota nuevos al agendar** (`findOrCreateTutor`/`findOrCreatePatient` en `groomingService`, idempotentes) con botón **"Preparar ficha y consentimiento"** que crea los contactos sin agendar → la ficha/consentimiento se llenan ANTES del baño (`f36e4ee`); agenda con la **duración real de la regla** según la ficha de la mascota → el bloque del calendario queda correcto solo (`fa352f8`).
+- `GroomingProfileCard` + tab **"Estética"** en `PatientProfile` (ficha editable inline; re-lee de la DB tras guardar + estado "Guardado"/"Sin guardar" — antes no cambiaba nada visible al guardar, `ec23b8e`).
+- `GroomingIntakeModal` — ingreso (estado del pelaje/nudos/pulgas/comportamiento + chequeo de consentimiento de estética con estados `falta`/`vencido`/`desactualizado`, `887258b`). Pasa SOLO los campos que maneja al `upsertProfile` (parcial — el upsert completo borraba pelaje/talla/corte, `ec23b8e`).
+- `GroomingClosureModal` — cierre con fotos antes/después (`PhotoUpload` → `patient-documents`), hallazgos, próxima visita, y cobro vía `create_clinic_income` → **fidelización automática** (`sync_income_loyalty`, sesión 73).
+- `src/pages/PublicGroomingReport.tsx` + ruta `/estetica/:token` + `send-grooming-report`.
+- `Settings.tsx` "Servicios y Precios" — lista partida en **"Servicios Veterinarios" + "Servicios de Estética"** (misma tabla `clinic_services` filtrada por `category`, NO dos tablas físicas); `GroomingServicesSection` (antes `GroomingPriceEditor`) recibe `groomingServices` como prop desde `Settings` (aparece al instante al crear el primer servicio de estética; antes hacía su propio fetch y devolvía `null` con 0 servicios, `6848dca`); editor de reglas inline con columna **Duración (min)** (`step="5"` + `Math.round` — un decimal reventaba el cast `::integer`, `8f7f22f`).
+
+### Fase 2 estética (`887258b`, `238e67a`)
+- **Recordatorio automático "toca baño"**: `clinic_settings.grooming_reminder_template` + `grooming_reminder_lead_days`. `groomingService.saveSession` crea la fila en `reminders` (`type='grooming'`, `title='baño'`, `scheduled_date = próxima visita − lead_days`, idempotente: 1 pendiente por mascota). `cron-process-reminders` PART 4 la recoge y resuelve la plantilla. Config en Recordatorios → Médicos (4º selector + días antes). Botón de plantilla rápida "Recordatorio de Baño" en `/app/templates` (`{{1}}..{{5}}` = mascota/servicio/fecha/horario/clínica).
+- **Consentimiento vencido → re-solicitar**: `consentService.getConsentStatus` compara `validity_days` y `template_version_at` → `valid|missing|expired|outdated`.
+
+### Fixes de esta sesión (reportados con capturas por el usuario)
+| Commit | Fix |
+|---|---|
+| `8d1a318` | **Finanzas doble-submit — duplicado real en producción confirmado** (Javiera Rivera $46.000, 2 filas a 28 ms). `NewIncomeForm` + modal de gasto: estado `isSubmitting`/`savingExpense`, botón se deshabilita + "Guardando…", `handleAddIncome`/`handleUpdateIncome` re-lanzan el error para reactivar. **Fila a borrar a mano: `9853c582-0fbf-47e2-aad0-275c720f5274`.** |
+| `8f7f22f` | Revisión de seguridad: `upsertProfile` vuelve a upsert atómico (el SELECT-then-INSERT tenía carrera TOCTOU); `findOrCreatePatient` match case-insensitive en JS (no `.ilike()` — `%`/`_` como comodín enganchaba la mascota equivocada); botón "Crear" deshabilitado mientras "Preparar" está en vuelo (doble find-or-create); duración redondeada a entero. |
+| `af7f53a` | Título del banner de Estética en blanco (`index.css h1{text-charcoal}` pisaba el `text-white` heredado — mismo patrón que sesión 103). |
+
+**Groomer role verificado**: `ROLE_DEFAULTS.groomer` completamente cableado, enum `user_role` incluye `groomer`.
+
+### Optimización de prompt/ruteo IA (`0091e56`, `7258f0a`)
+- `0091e56` — ejemplos numéricos verbosos del mínimo $15.000 + piso $6.000 (desparasitación/corte de uñas) + excepción "2+ mascotas" movidos de `ai_behavior_rules` a los docs de logística en `FORCED_KB_TOPICS` (keywords uña/desparasit/mínimo/traslado). Las REGLAS quedan inline, solo los ejemplos pasan al KB forzado. `ai_behavior_rules`: Linares 43.2k→41.4k, Santiago 39.6k→37.7k. Respaldos en `prompt_backups`.
+- `7258f0a` — en el ruteo lean de Santiago (sesión 97), keywords de triaje/síntoma (cesárea, chocolate, "no come", "sangra", dolor, herida, bulto) fuerzan GPT-4o — mini es más flojo en triaje y derivaba con lenguaje ambiguo.
+
+### Limitación de verificación visual
+Playwright bloqueado por la misma limitación de entorno documentada en sesiones 103/104 (`fetchProfile` → "Auth initialization timeout" → redirect a /login, reproducido con 2 cuentas distintas; `curl` directo a la API REST es rápido). Verificación por otras vías: `tsc --noEmit` + `npm run build` limpios (working tree + worktree aislado de `origin/main`), SQL directo contra producción (BEGIN/ROLLBACK), `get_advisors(security)` → **0 ERRORES**, flujo de firma y `grooming_rule_resolve` probados end-to-end. Verificación visual final la hace el usuario en `vetly.pro`.
+
+### Reglas permanentes de esta sesión
+- **`upsertProfile` de una ficha acumulativa (grooming_profiles) debe ser un upsert PARCIAL** — escribir solo las columnas presentes en el payload. Un upsert completo desde un flujo que solo maneja 3 de 11 campos (el "Ingreso") borra el resto. PostgREST arma el `ON CONFLICT DO UPDATE SET` solo con las columnas del payload — verificado en la DB.
+- **Nunca `.ilike(col, userValue)` para un match exacto** — `%` y `_` en el valor actúan como comodín. Traer las filas candidatas y comparar case-insensitive en JS.
+- **Cualquier lista que se firme/actualice en otra pestaña necesita `staleTime: 0` + `refetchOnWindowFocus: true`** (+ botón "Actualizar" manual) — el `staleTime` global de 5 min deja la UI mintiendo hasta 5 minutos.
+- **Un `type="number"` sin `step` deja pasar decimales** que revientan un cast `::integer` en un RPC. Siempre `step` + `Math.round` en el `onChange`.
+- **Al crear un servicio "hijo" (estética) sobre una tabla compartida (`clinic_services` filtrada por `category`), el editor dependiente debe recibir la lista como prop desde el padre que ya la mantiene sincronizada** — un fetch propio en el hijo no se entera de las altas hasta recargar.
