@@ -98,6 +98,44 @@
         @keyframes slide-in { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         .animate-slide-in { animation: slide-in 0.5s ease forwards; }
 
+        /* ── RECORRIDO DEL PRODUCTO (mismo marco que /core) ── */
+        .shot {
+            border-radius: 12px;
+            border: 1px solid #e4e4e7;
+            box-shadow: 0 24px 48px -20px rgba(0,0,0,.22);
+            overflow: hidden;
+            background: #fff;
+        }
+        .shot img { display: block; width: 100%; height: auto; }
+        .shot-bar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 9px 12px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7;
+        }
+        .shot-dot { width: 9px; height: 9px; border-radius: 50%; }
+        .lift {
+            transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+            box-shadow: 0 10px 24px -16px rgba(13,148,136,.28);
+        }
+        .lift:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 22px 44px -18px rgba(13,148,136,.45);
+            border-color: rgba(13,148,136,.35);
+        }
+        /* Subrayado de marcador para títulos de sección (se rellena al entrar en pantalla) */
+        .hl-mid {
+            background-image: linear-gradient(180deg, transparent 50%, rgba(45,212,191,.45) 50%);
+            background-repeat: no-repeat;
+            background-size: 0% 100%;
+            padding: 0 .06em;
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
+            transition: background-size .75s cubic-bezier(.22,.61,.36,1);
+        }
+        .hl-mid.is-on { background-size: 100% 100%; }
+        @media (prefers-reduced-motion: reduce) {
+            .hl-mid { background-size: 100% 100%; transition: none; }
+        }
+
         /* ── HAMBURGER ── */
         #hamburger {
             display: none;
@@ -648,358 +686,192 @@
 <!-- ══════════════════════════════════════
      GESTIÓN — CARRUSEL PREMIUM
 ══════════════════════════════════════ -->
-<section id="gestion" class="py-24 overflow-hidden">
+<section id="gestion" class="py-24">
     <div class="max-w-6xl mx-auto px-6">
         <p class="text-brand text-sm font-semibold uppercase tracking-widest mb-3">Gestión completa</p>
         <h2 class="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4">Todo lo que necesitas<br>para tu <span class="gradient-text">gestión veterinaria</span><br>en un solo lugar.</h2>
         <p class="text-muted font-light text-base leading-relaxed mb-3">No es solo un chatbot. Es el sistema operativo de tu clínica.</p>
         <p class="text-sm text-muted">Todas estas funcionalidades incluidas desde el <span class="font-semibold text-neutral">Plan Core · $17.000 CLP/mes</span></p>
 
-        <!-- Carrusel horizontal — anidado en el contenedor centrado: alineación izquierda garantizada por el flujo normal. El margen negativo hace que las tarjetas sangren hacia el borde derecho del viewport. -->
-        <div class="flex gap-5 overflow-x-auto no-scrollbar snap-x pb-4 mt-10" style="margin-right: calc(-1 * (max(0px, (100vw - 72rem) / 2) + 1.5rem)); padding-right: calc(max(0px, (100vw - 72rem) / 2) + 1.5rem);">
+        <!-- ── Recorrido del producto: capturas reales, un módulo por fila ── -->
+        <div class="mt-14 space-y-20 md:space-y-24">
 
-        <!-- Card 1: Calendario -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-teal-500 to-teal-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-teal-200 mb-1">01</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">Calendario de Agenda</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">📅</div>
-                </div>
-                <p class="text-sm text-teal-100 font-light">Vista mensual, semanal y diaria. Arrastra y reorganiza citas con un click.</p>
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div class="shot lift md:order-1">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span></div>
+              <img src="./core-shots/core-agenda.webp" width="1600" height="1013" loading="lazy" alt="Agenda de la clínica en Vetly: citas del día con tutor, paciente, servicio, dirección y estado">
             </div>
-            <div class="p-5 space-y-2">
-                <div class="flex items-center gap-3 p-3 bg-teal-50 rounded-xl border border-teal-100">
-                    <div class="w-2.5 h-2.5 bg-teal-500 rounded-full shrink-0"></div>
-                    <div class="flex-1">
-                        <p class="text-xs font-bold text-neutral">10:30 · Consulta general</p>
-                        <p class="text-xs text-muted">Milo Hernández · Sector Norte</p>
-                    </div>
-                    <span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">Confirmada</span>
-                </div>
-                <div class="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                    <div class="w-2.5 h-2.5 bg-amber-400 rounded-full shrink-0"></div>
-                    <div class="flex-1">
-                        <p class="text-xs font-bold text-neutral">12:00 · Vacunación</p>
-                        <p class="text-xs text-muted">Luna Martínez · Sector Centro</p>
-                    </div>
-                    <span class="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Pendiente</span>
-                </div>
-                <div class="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                    <div class="w-2.5 h-2.5 bg-zinc-400 rounded-full shrink-0"></div>
-                    <div class="flex-1">
-                        <p class="text-xs font-bold text-neutral">15:00 · Esterilización</p>
-                        <p class="text-xs text-muted">Rocky Fuentes · Sector Sur</p>
-                    </div>
-                    <span class="text-xs font-bold text-zinc-500 bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-full">Completada</span>
-                </div>
-                <p class="text-xs text-muted text-center pt-2">Vista diaria · Jueves 23 de mayo</p>
+            <div class="md:order-2">
+              <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📅 Agenda de citas</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Toda la semana <span class="hl-mid">en una sola pantalla.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Quién viene hoy, con qué mascota, para qué y dónde. Confirmas, reagendas o cancelas desde la misma fila, con vista de lista o calendario y filtro por profesional.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Agendas independientes por profesional — cada uno ve solo lo suyo</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Dirección del paciente a mano si atiendes a domicilio</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Bloqueo de horarios para cirugías o días libres</li>
+              </ul>
             </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div class="shot lift md:order-1">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span><span class="ml-2 text-[11px] text-zinc-400">vetly.pro/reservar/tu-clinica</span></div>
+              <img src="./core-shots/core-agendamiento.webp" width="1400" height="785" loading="lazy" alt="Página pública de reservas de Vetly con logo y colores propios de la clínica, servicios y horarios disponibles">
+            </div>
+            <div class="md:order-2">
+              <div class="inline-flex items-center gap-2 bg-cyan-50 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🔗 Reservas online</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Tu propia página de reservas, <span class="hl-mid">con tu marca.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Un link propio para tu bio de Instagram o tu WhatsApp. El cliente elige servicio y horario disponible en tu agenda real, y la cita queda confirmada al instante — sin que revises nada.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Con tu logo y el color de tu marca, no el de Vetly</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Solo muestra los servicios y horarios que tú habilitaste</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> La cita entra directo a tu agenda</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div>
+              <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🐾 Fichas médicas</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Todo el historial de un paciente, <span class="hl-mid">en una pantalla.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Vacunas, desparasitaciones, consultas y cirugías con sus notas de evolución. Al abrir la ficha ves el resumen clínico completo: última atención, próxima vacuna, peso y parasitología al día.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Historial completo por paciente, buscable en segundos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Vacunas y parasitología con fecha de próxima dosis</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Importa tu base actual desde Excel en minutos, sin costo</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Carnet digital: el tutor abre el historial de su mascota desde un link</li>
+              </ul>
+            </div>
+            <div class="shot lift">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span></div>
+              <img src="./core-shots/core-ficha.webp" width="1600" height="1013" loading="lazy" alt="Ficha clínica de un paciente en Vetly con resumen clínico, atenciones y notas de evolución">
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div class="shot lift md:order-1">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span></div>
+              <img src="./formulario-receta.png" width="1440" height="900" loading="lazy" alt="Formulario de nueva receta médica en Vetly: tipo de documento, diagnóstico y medicamentos con dosis y frecuencia">
+            </div>
+            <div class="md:order-2">
+              <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📄 Recetas y consentimientos</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Emite tus documentos <span class="hl-mid">con tu marca, sin imprimir.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Recetas, órdenes médicas y derivaciones con tu nombre, tu matrícula y tu firma. Y los consentimientos —quirúrgico, anestésico, estética, cesión de imágenes— firmados a distancia por el tutor desde su celular.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Llega al tutor por WhatsApp o correo, o la imprimes en PDF</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Biblioteca de consentimientos lista para usar — la editas una vez</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> El tutor firma por enlace: un clic, su nombre o dibujando la firma</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div>
+              <div class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full mb-4">💰 Finanzas y caja</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Saber cuánto ganaste este mes, <span class="hl-mid">sin sacar la calculadora.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Ingresos, gastos y ganancia neta actualizados solos. Cierre de caja diario, comprobantes para tu cliente y exportación cuando la necesites.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Ingresos vs gastos con gráfico por período</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Caja diaria con saldo inicial, cierre e informe imprimible</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Ranking de tus servicios y productos más rentables</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Comprobante por WhatsApp al terminar la visita</li>
+              </ul>
+            </div>
+            <div class="shot lift">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span></div>
+              <img src="./core-shots/core-finanzas.webp" width="1600" height="1013" loading="lazy" alt="Módulo de finanzas de Vetly con ingresos, gastos, ganancia neta y gráfico mensual">
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div class="shot lift md:order-1">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span></div>
+              <img src="./core-shots/core-inventario.webp" width="1600" height="1013" loading="lazy" alt="Inventario de Vetly con productos, stock, alertas de bajo stock e inversión total">
+            </div>
+            <div class="md:order-2">
+              <div class="inline-flex items-center gap-2 bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📦 Inventario</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Nunca más quedarte <span class="hl-mid">sin una vacuna a mitad de ruta.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Stock de medicamentos e insumos con alertas antes de que se agoten, y descuento automático al cerrar una venta. Si atiendes a domicilio, un segundo inventario para el móvil con traspasos.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Alertas de bajo stock y vencimientos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Análisis ABC: qué productos sostienen tus ingresos</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Escanea la factura del proveedor con IA — stock al día en 3 min <span class="text-xs text-muted">(extra opcional)</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
+            <div>
+              <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-700 text-xs font-bold px-3 py-1 rounded-full mb-4">🎁 Fidelización y referidos</div>
+              <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Que tus clientes vuelvan — <span class="hl-mid">y traigan a otros.</span></h3>
+              <p class="text-muted leading-relaxed mb-5">Programa de puntos que se acumulan solos con cada visita, sistema de referidos con código propio por tutor, y un carnet digital que cada cliente abre desde su celular. Todo incluido, sin módulos extra.</p>
+              <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Saldo por cliente, canjeable en la próxima visita</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Código de referido por tutor, con premio al que recomienda</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Tú defines las recompensas: puntos, cashback o descuentos</li>
+              </ul>
+            </div>
+            <div class="shot lift">
+              <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span></div>
+              <img src="./core-shots/core-fidelizacion.webp" width="1600" height="1013" loading="lazy" alt="Módulo de fidelización y referidos de Vetly con saldo de puntos por cliente y códigos de referido">
+            </div>
+          </div>
+
         </div>
 
-        <!-- Card 2: Fichas Médicas -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-violet-500 to-violet-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-violet-200 mb-1">02</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">Fichas Médicas</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">🩺</div>
-                </div>
-                <p class="text-sm text-violet-100 font-light">Historial clínico completo de cada paciente. Vacunas, tratamientos y evolución en un solo lugar.</p>
+        <!-- Área de Estética -->
+        <div id="estetica" class="mt-20 md:mt-24 bg-gradient-to-br from-violet-50 to-teal-50 border border-violet-100 rounded-3xl p-8 md:p-10">
+          <div class="max-w-3xl">
+            <div class="inline-flex items-center gap-2 bg-white text-violet-700 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-violet-200">✂️ Área de Estética · incluida desde Core</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">¿También haces baño y peluquería? <span class="hl-mid">Tiene su propio flujo.</span></h3>
+            <p class="text-muted leading-relaxed mb-6">Agenda de peluquería aparte de la médica, ficha de estética por mascota (pelaje, corte, temperamento, alergias), ingreso, cierre con fotos antes/después y reporte al tutor. Con precio y duración por talla, pelaje o raza, y un rol Peluquero/a con acceso acotado.</p>
+            <div class="grid sm:grid-cols-3 gap-4 text-sm">
+              <div class="bg-white rounded-xl p-4 border border-violet-100"><p class="font-bold mb-1">Ficha de estética</p><p class="text-muted text-xs">Pelaje, corte, temperamento y alertas médicas por mascota</p></div>
+              <div class="bg-white rounded-xl p-4 border border-violet-100"><p class="font-bold mb-1">Fotos antes / después</p><p class="text-muted text-xs">Reporte con las fotos que le mandas al tutor por un enlace</p></div>
+              <div class="bg-white rounded-xl p-4 border border-violet-100"><p class="font-bold mb-1">Rol Peluquero/a</p><p class="text-muted text-xs">Acceso solo al área de estética, fichas y tutores</p></div>
             </div>
-            <div class="p-5">
-                <div class="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-100">
-                    <div class="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center text-lg">🐕</div>
-                    <div>
-                        <p class="font-bold text-sm text-neutral">Milo</p>
-                        <p class="text-xs text-muted">Golden Retriever · Macho · 3 años</p>
-                    </div>
-                    <span class="ml-auto text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Activo</span>
-                </div>
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-muted">Última visita</span>
-                        <span class="font-semibold">15 mayo 2025</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-muted">Próxima vacuna</span>
-                        <span class="font-semibold text-amber-600">28 junio 2025</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-muted">Esterilizado</span>
-                        <span class="font-semibold text-red-500">No</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-muted">Total atenciones</span>
-                        <span class="font-semibold">7</span>
-                    </div>
-                </div>
-                <div class="mt-4 p-3 bg-violet-50 rounded-xl border border-violet-100">
-                    <p class="text-xs font-bold text-violet-700 mb-1">Última nota clínica</p>
-                    <p class="text-xs text-muted">Revisión general sin novedades. Se recomienda vacuna rabia en próxima visita.</p>
-                </div>
-            </div>
+          </div>
         </div>
 
-        <!-- Card 3: CRM de Ventas -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-sky-500 to-sky-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-sky-200 mb-1">03</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">CRM de Prospectos</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">🎯</div>
-                </div>
-                <p class="text-sm text-sky-100 font-light">Pipeline visual para convertir interesados en clientes reales. Arrastra prospectos entre etapas.</p>
-            </div>
-            <div class="p-5">
-                <div class="grid grid-cols-3 gap-2 mb-4">
-                    <div class="text-center bg-zinc-50 rounded-lg p-2 border border-zinc-100">
-                        <p class="text-lg font-extrabold text-neutral">12</p>
-                        <p class="text-xs text-muted">Nuevos</p>
-                    </div>
-                    <div class="text-center bg-amber-50 rounded-lg p-2 border border-amber-100">
-                        <p class="text-lg font-extrabold text-amber-600">7</p>
-                        <p class="text-xs text-muted">En seguimiento</p>
-                    </div>
-                    <div class="text-center bg-emerald-50 rounded-lg p-2 border border-emerald-100">
-                        <p class="text-lg font-extrabold text-emerald-600">4</p>
-                        <p class="text-xs text-muted">Convertidos</p>
-                    </div>
-                </div>
-                <div class="space-y-2">
-                    <div class="flex items-center gap-2 p-2.5 bg-zinc-50 rounded-lg border border-zinc-100 text-xs">
-                        <div class="w-1.5 h-6 bg-sky-400 rounded-full shrink-0"></div>
-                        <div class="flex-1">
-                            <p class="font-semibold">Catalina Gómez</p>
-                            <p class="text-muted">Interesada en esterilización</p>
-                        </div>
-                        <span class="text-sky-600 font-bold text-xs">HOY</span>
-                    </div>
-                    <div class="flex items-center gap-2 p-2.5 bg-zinc-50 rounded-lg border border-zinc-100 text-xs">
-                        <div class="w-1.5 h-6 bg-amber-400 rounded-full shrink-0"></div>
-                        <div class="flex-1">
-                            <p class="font-semibold">Rodrigo Herrera</p>
-                            <p class="text-muted">Consulta precio cirugia</p>
-                        </div>
-                        <span class="text-amber-600 font-bold text-xs">3 días</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 4: Finanzas -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-emerald-200 mb-1">04</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">Módulo de Finanzas</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">💰</div>
-                </div>
-                <p class="text-sm text-emerald-100 font-light">Ticket promedio, cobrados vs. pendientes, top servicios y comprobante por WhatsApp en cada visita.</p>
-            </div>
-            <div class="p-5">
-                <!-- Ticket promedio real -->
-                <div class="flex items-baseline justify-between mb-1">
-                    <p class="text-xs text-muted font-medium">Ticket promedio · Animalgrace mayo 2026</p>
-                </div>
-                <p class="text-3xl font-extrabold tracking-tight text-neutral mb-1">$37 <span class="text-lg font-semibold text-muted">USD / visita</span></p>
-                <p class="text-xs text-emerald-600 font-bold mb-4">79 citas · $2.923 USD generados en el mes</p>
-                <!-- Estado de cobros -->
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                        <p class="text-xs text-muted mb-0.5">Cobradas</p>
-                        <p class="font-extrabold text-emerald-700">71 citas</p>
-                    </div>
-                    <div class="bg-amber-50 rounded-xl p-3 border border-amber-100">
-                        <p class="text-xs text-muted mb-0.5">Pendientes</p>
-                        <p class="font-extrabold text-amber-700">8 citas</p>
-                    </div>
-                </div>
-                <!-- Features nuevas -->
-                <div class="space-y-2">
-                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Desglose de ítems por cita (servicios + productos)</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Comprobante enviado por WhatsApp al cerrar la visita</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Top servicios y ranking de ingresos del período</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 4b: Inventario -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-amber-500 to-amber-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-amber-200 mb-1">04b</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">Inventario Inteligente</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">📦</div>
-                </div>
-                <p class="text-sm text-amber-100 font-light">ABC automático, control del van por separado y análisis de facturas con IA. Sin hoja de cálculo.</p>
-            </div>
-            <div class="p-5">
-                <!-- ABC visual -->
-                <p class="text-xs font-bold text-muted uppercase tracking-widest mb-2">Clasificación ABC automática</p>
-                <div class="space-y-1.5 mb-4">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-black text-emerald-600 w-4">A</span>
-                        <div class="flex-1 bg-zinc-100 rounded-full h-5 overflow-hidden">
-                            <div class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full flex items-center pl-2" style="width:80%">
-                                <span class="text-white text-[10px] font-bold">80% ingresos</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-black text-violet-600 w-4">B</span>
-                        <div class="flex-1 bg-zinc-100 rounded-full h-5 overflow-hidden">
-                            <div class="bg-violet-400 h-full rounded-full flex items-center pl-2" style="width:15%">
-                            </div>
-                        </div>
-                        <span class="text-[10px] text-muted">15%</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-black text-rose-500 w-4">C</span>
-                        <div class="flex-1 bg-zinc-100 rounded-full h-5 overflow-hidden">
-                            <div class="bg-rose-400 h-full rounded-full" style="width:5%"></div>
-                        </div>
-                        <span class="text-[10px] text-muted">5%</span>
-                    </div>
-                </div>
-                <!-- Features -->
-                <div class="space-y-2">
-                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Stock del <strong>van y sede por separado</strong> — para clínicas móviles</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Escanea facturas del proveedor con <strong>IA</strong> — stock actualizado en 3 min</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Alerta cuando un producto A cae bajo el mínimo</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 5: Profesionales -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-orange-500 to-orange-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-orange-200 mb-1">05</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">Gestión de Profesionales</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">👩‍⚕️</div>
-                </div>
-                <p class="text-sm text-orange-100 font-light">Agendas independientes por profesional. Cada uno ve solo sus citas y pacientes.</p>
-            </div>
-            <div class="p-5 space-y-3">
-                <div class="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                    <div class="w-9 h-9 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-sm">DM</div>
-                    <div class="flex-1">
-                        <p class="text-sm font-bold">Dra. María Fuentes</p>
-                        <p class="text-xs text-muted">Veterinaria · Linares y Talca</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm font-extrabold text-teal-600">5</p>
-                        <p class="text-xs text-muted">citas hoy</p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                    <div class="w-9 h-9 bg-sky-500 rounded-full flex items-center justify-center text-white font-bold text-sm">CP</div>
-                    <div class="flex-1">
-                        <p class="text-sm font-bold">Dr. Carlos Pérez</p>
-                        <p class="text-xs text-muted">Veterinario · Santiago Sur</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm font-extrabold text-sky-600">3</p>
-                        <p class="text-xs text-muted">citas hoy</p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                    <div class="w-9 h-9 bg-violet-500 rounded-full flex items-center justify-center text-white font-bold text-sm">RG</div>
-                    <div class="flex-1">
-                        <p class="text-sm font-bold">Recepción · Claudia</p>
-                        <p class="text-xs text-muted">Administradora · Acceso completo</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs font-bold text-violet-600 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full">Admin</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 6: Referidos -->
-        <div class="snap-start shrink-0 w-80 md:w-96 bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm card-hover">
-            <div class="bg-gradient-to-br from-brand to-teal-700 p-5 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-widest text-teal-200 mb-1">06</p>
-                        <h3 class="text-xl font-extrabold tracking-tight">Sistema de Referidos</h3>
-                    </div>
-                    <div class="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center text-xl">🎁</div>
-                </div>
-                <p class="text-sm text-teal-100 font-light">Tus clientes se convierten en embajadores. El boca a boca más fuerte que nunca.</p>
-            </div>
-            <div class="p-5">
-                <div class="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100 mb-3">
-                    <div class="w-7 h-7 bg-amber-400 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0">1</div>
-                    <div class="flex-1">
-                        <p class="font-bold text-sm">Paulina Hernández</p>
-                        <p class="text-xs text-muted font-mono text-teal-600">CÓD: 1AB225 · 8 referidos</p>
-                    </div>
-                    <span class="text-xs font-bold text-amber-600">4.000 pts</span>
-                </div>
-                <div class="space-y-2 mb-4">
-                    <div class="flex items-center gap-3 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>Código único + Magic Link por tutor</span>
-                    </div>
-                    <div class="flex items-center gap-3 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span><strong>500 pts</strong> al referidor · <strong>200 pts</strong> de bienvenida</span>
-                    </div>
-                    <div class="flex items-center gap-3 text-xs p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
-                        <span class="text-brand font-bold shrink-0">✓</span>
-                        <span>5% cashback en servicios con puntos</span>
-                    </div>
-                </div>
-                <p class="text-xs text-muted text-center">Disponible en todos los planes desde <span class="font-semibold text-neutral">$33 USD/mes</span></p>
-            </div>
-        </div>
-
-    </div>
-
-        <!-- Indicador de scroll -->
-        <div class="flex items-center justify-center gap-2 mt-8 text-xs text-muted">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            Desliza para explorar
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </div>
     </div>
 </section>
 
 <!-- ══════════════════════════════════════
      INVERSIÓN vs COSTO
 ══════════════════════════════════════ -->
+<!-- ═══ TODO CONECTADO ═══ -->
+<section class="bg-neutral text-white py-24 overflow-hidden">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-14">
+      <p class="text-teal-400 text-sm font-semibold uppercase tracking-widest mb-3">La diferencia real</p>
+      <h2 class="text-3xl md:text-5xl font-extrabold tracking-tighter mb-5">Un sistema donde<br><span class="gradient-text">todo está conectado.</span></h2>
+      <p class="text-zinc-400 max-w-2xl mx-auto leading-relaxed">En la mayoría de los programas cada módulo vive por su cuenta: registras la vacuna en la ficha, y después tienes que acordarte de descontarla del stock y anotar el cobro. <strong class="text-white">Acá pasa una sola vez.</strong></p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5 mb-12">
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+        <div class="w-9 h-9 rounded-lg bg-teal-500 text-white font-black flex items-center justify-center mb-4">1</div>
+        <p class="font-bold mb-1.5">Aplicas la vacuna</p>
+        <p class="text-sm text-zinc-400 leading-relaxed">La registras una vez en la ficha del paciente, como servicio de la visita.</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+        <div class="w-9 h-9 rounded-lg bg-teal-500 text-white font-black flex items-center justify-center mb-4">2</div>
+        <p class="font-bold mb-1.5">El stock baja solo</p>
+        <p class="text-sm text-zinc-400 leading-relaxed">La dosis se descuenta del inventario en el mismo momento, sin que hagas nada más.</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+        <div class="w-9 h-9 rounded-lg bg-teal-500 text-white font-black flex items-center justify-center mb-4">3</div>
+        <p class="font-bold mb-1.5">El cobro entra a la caja</p>
+        <p class="text-sm text-zinc-400 leading-relaxed">Queda en finanzas del día y suma puntos de fidelización al tutor.</p>
+      </div>
+    </div>
+    <div class="shot lift max-w-4xl mx-auto">
+      <div class="shot-bar"><span class="shot-dot" style="background:#f87171"></span><span class="shot-dot" style="background:#fbbf24"></span><span class="shot-dot" style="background:#34d399"></span><span class="ml-2 text-[11px] text-zinc-400">vetly.pro · Inventario → Movimientos</span></div>
+      <img src="./core-shots/core-conectado.webp" width="1600" height="800" loading="lazy" alt="Movimientos de inventario en Vetly mostrando descuentos automáticos de stock generados por la venta de un servicio">
+    </div>
+    <p class="text-center text-sm text-zinc-500 mt-5 max-w-xl mx-auto leading-relaxed">Cada línea de "descuento automático" salió de una vacuna aplicada en una visita. Nadie la escribió a mano.</p>
+  </div>
+</section>
+
 <section id="investment" class="max-w-6xl mx-auto px-6 py-24">
     <div class="text-center mb-16">
         <p class="text-brand text-sm font-semibold uppercase tracking-widest mb-3">El cálculo real</p>
@@ -1734,7 +1606,7 @@
             </div>
         </div>
         <div class="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p class="text-zinc-500 text-xs">© 2025 Vetly. Todos los derechos reservados.</p>
+            <p class="text-zinc-500 text-xs">© 2026 Vetly. Todos los derechos reservados.</p>
             <p class="text-zinc-500 text-xs">Hecho con ❤️ para veterinarios que quieren más tiempo con sus pacientes.</p>
         </div>
     </div>
@@ -1760,6 +1632,18 @@
     })();
 </script>
 
+
+<script>
+(function () {
+    var m = document.querySelectorAll('.hl-mid');
+    if (!m.length) return;
+    if (!('IntersectionObserver' in window)) { m.forEach(function (x) { x.classList.add('is-on'); }); return; }
+    var o = new IntersectionObserver(function (es) {
+        es.forEach(function (e) { e.target.classList.toggle('is-on', e.isIntersecting); });
+    }, { rootMargin: '0px 0px -18% 0px', threshold: 0.6 });
+    m.forEach(function (x) { o.observe(x); });
+})();
+</script>
 
 <script src="/lm-popup.js" defer></script>
 </body>

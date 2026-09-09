@@ -7,7 +7,7 @@
 
     <!-- SEO primario -->
     <title>Vetly Core — Gestión completa para tu clínica veterinaria desde US$17/mes</title>
-    <meta name="description" content="Citas, link de reservas online con tu marca, fichas médicas, finanzas, inventario y fidelización en un solo lugar. Sin tarjeta de crédito, 30 días de prueba. Plan de lanzamiento: US$17/mes ($17.000 CLP en Chile).">
+    <meta name="description" content="Citas, link de reservas online con tu marca, fichas médicas, recetas y consentimientos digitales, finanzas, inventario y fidelización en un solo lugar. Sin tarjeta de crédito, 30 días de prueba. Plan de lanzamiento: US$17/mes ($17.000 CLP en Chile).">
     <link rel="canonical" href="https://vetly.pro/core">
     <meta name="robots" content="index, follow">
 
@@ -425,6 +425,35 @@
         </div>
     </div>
 
+    <!-- 2.5 · Documentos clínicos: recetas, órdenes y consentimientos -->
+    <div id="documentos" class="grid md:grid-cols-2 gap-12 items-center mb-24">
+        <div class="shot lift md:order-1">
+            <div class="shot-bar">
+                <span class="shot-dot" style="background:#f87171"></span>
+                <span class="shot-dot" style="background:#fbbf24"></span>
+                <span class="shot-dot" style="background:#34d399"></span>
+            </div>
+            <img src="./formulario-receta.png" width="1440" height="900" loading="lazy"
+                 alt="Formulario de nueva receta médica en Vetly: tipo de documento (receta, orden médica o derivación), diagnóstico y medicamentos con dosis y frecuencia">
+        </div>
+        <div class="md:order-2">
+            <div class="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full mb-4">📄 Recetas y consentimientos</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">Emite tus documentos <span class="hl-mid">con tu marca, sin imprimir.</span></h3>
+            <p class="text-muted leading-relaxed mb-5">
+                Recetas, órdenes médicas y derivaciones con tu nombre, tu matrícula y tu firma.
+                Y los consentimientos —quirúrgico, anestésico, estética, cesión de imágenes—
+                firmados a distancia por el tutor desde su celular. Cero papel.
+            </p>
+            <ul class="space-y-2.5 text-sm">
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Receta lista en un minuto: llega al tutor por WhatsApp o correo, o la imprimes en PDF</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Tu firma y matrícula quedan estampadas en el documento</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Biblioteca de consentimientos lista para usar — la editas una vez</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> El tutor firma por enlace: un clic, escribiendo su nombre o dibujando la firma</li>
+                <li class="flex gap-2.5"><span class="text-brand font-bold">✓</span> Todo queda guardado en la ficha del paciente</li>
+            </ul>
+        </div>
+    </div>
+
     <!-- 3 · Finanzas -->
     <div id="finanzas" class="grid md:grid-cols-2 gap-12 items-center mb-24">
         <div class="shot lift md:order-1">
@@ -539,6 +568,33 @@
                  alt="Módulo de fidelización y referidos de Vetly con saldo de puntos por cliente y códigos de referido">
         </div>
     </div>
+
+    <!-- 7 · Área de Estética / Peluquería -->
+    <div id="estetica" class="mt-24 bg-gradient-to-br from-violet-50 to-teal-50 border border-violet-100 rounded-3xl p-8 md:p-10">
+        <div class="max-w-3xl">
+            <div class="inline-flex items-center gap-2 bg-white text-violet-700 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-violet-200">✂️ Área de Estética · incluida</div>
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight mb-4">¿También haces baño y peluquería? <span class="hl-mid">Tiene su propio flujo.</span></h3>
+            <p class="text-muted leading-relaxed mb-6">
+                Agenda de peluquería aparte de la médica, ficha de estética por mascota (pelaje, corte,
+                temperamento, alergias), ingreso, cierre de sesión con fotos antes/después y reporte al
+                tutor. Con precio y duración por talla, pelaje o raza.
+            </p>
+            <div class="grid sm:grid-cols-3 gap-4 text-sm">
+                <div class="bg-white rounded-xl p-4 border border-violet-100">
+                    <p class="font-bold mb-1">Ficha de estética</p>
+                    <p class="text-muted text-xs">Pelaje, corte preferido, temperamento y alertas médicas por mascota</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-violet-100">
+                    <p class="font-bold mb-1">Fotos antes / después</p>
+                    <p class="text-muted text-xs">Reporte con las fotos que le mandas al tutor por un enlace</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-violet-100">
+                    <p class="font-bold mb-1">Rol Peluquero/a</p>
+                    <p class="text-muted text-xs">Acceso acotado solo al área de estética, fichas y tutores</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
 <!-- ═══════════════ TODO CONECTADO ═══════════════ -->
@@ -611,10 +667,12 @@
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> 10 usuarios · 1 agenda</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Calendario de citas + link de reservas online con tu marca</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Fichas médicas e historial clínico</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Recetas, órdenes médicas y consentimientos digitales</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Importación masiva de pacientes desde Excel</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Finanzas, caja diaria y comprobantes</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Inventario con alertas y doble bodega</li>
-                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Fidelización y referidos</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Fidelización, referidos y carnet digital del tutor</li>
+                    <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Área de estética / peluquería con ficha y reporte al tutor</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Recordatorios WhatsApp manuales ilimitados</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> 25 recordatorios automáticos al mes (ampliables por pack)</li>
                     <li class="flex gap-2.5"><span class="text-brand font-bold shrink-0">✓</span> Dashboard con métricas de tu clínica</li>
@@ -896,6 +954,28 @@
             <p class="text-sm text-muted mt-3 leading-relaxed">
                 Hasta 10 usuarios, sin costo adicional por cada uno. Cada persona entra con su
                 cuenta y puedes definir qué secciones ve.
+            </p>
+        </details>
+        <details class="lift bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                ¿Puedo emitir recetas y consentimientos?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Sí, están incluidos en Core. Emites recetas, órdenes médicas y derivaciones con tu
+                firma y matrícula, y envías consentimientos que el tutor firma desde su celular por un
+                enlace. Todo queda guardado en la ficha del paciente.
+            </p>
+        </details>
+        <details class="lift bg-white border border-zinc-200 rounded-xl p-5 group">
+            <summary class="flex items-center justify-between gap-4 font-semibold">
+                Hago baño y peluquería. ¿Vetly lo cubre?
+                <span class="faq-arrow text-brand transition-transform shrink-0">▾</span>
+            </summary>
+            <p class="text-sm text-muted mt-3 leading-relaxed">
+                Sí. El Área de Estética viene incluida: tiene su propia agenda, una ficha de estética
+                por mascota, cierre de sesión con fotos antes/después y reporte al tutor. Puedes crear
+                un usuario con rol Peluquero/a que solo ve esa sección.
             </p>
         </details>
     </div>
