@@ -7767,6 +7767,8 @@ Playwright bloqueado por la misma limitación de entorno documentada en sesiones
 2. `UPDATE clinic_settings SET coordinator_alert_template = 'nueva_solicitud_agenda'` para ambas clínicas.
 3. **Verificado con un envío real** de la plantilla nueva a `+56989790949` desde el número de Linares → status `read` (con la plantilla MARKETING vieja, todos los recientes daban `131049`).
 
+**Monitoreo agregado (`cron-system-health`, commit `74cf0cb`):** el cron (cada 6h) ahora consulta la Graph API de cada WABA con `coordinator_alert_template` configurado y alerta al fundador si la plantilla no existe, no está `APPROVED`, o quedó en `MARKETING` (Meta puede recategorizar una UTILITY aprobada). Verificado end-to-end apuntando temporalmente Santiago a la plantilla vieja → generó `🔴 ... Meta recategorizó ... a MARKETING`.
+
 **Pendiente / acción manual del usuario:**
 - **11 solicitudes de agenda quedaron sin atender** (6 Linares + 5 Santiago, 3 urgentes) porque Claudia nunca recibió el aviso — están en el panel **Citas Médicas → Solicitudes de agenda**. Hay que procesarlas a mano.
 - La plantilla vieja `aviso_coordinadora_agenda` (MARKETING) queda huérfana en ambas WABAs — inofensiva, se puede eliminar.
