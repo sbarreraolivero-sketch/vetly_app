@@ -82,6 +82,64 @@ Deno.serve(async (req) => {
         alerts.push(`*${rep.clinicName}*\n${lines.join("\n")}`);
     }
 
+    // 2b. Plantillas de aviso a la coordinadora (modo coordinator_approval).
+    //     Meta eliminó allow_category_change (abr-2025): el clasificador decide la
+    //     categoría por el contenido y puede recategorizar una UTILITY ya aprobada
+    //     a MARKETING en su revisión continua. Las MARKETING quedan bajo el frequency
+    //     cap 131049 de Meta, que llega a bloquear el 100% de los avisos a un mismo
+    //     número (caso Animalgrace, sep-2026). Si eso vuelve a pasar, hoy nos
+    //     enteraríamos solo por solicitudes de agenda que Claudia no atiende.
+    try {
+        const { data: coordClinics } = await sb
+            .from("clinic_settings")
+            .select("clinic_name, coordinator_alert_template, meta_waba_id, meta_access_token")
+            .not("coordinator_alert_template", "is", null)
+            .not("meta_waba_id", "is", null)
+            .not("meta_access_token", "is", null)
+            .neq("id", HQ_ID);
+
+        for (const c of (coordClinics || []) as {
+            clinic_name: string;
+            coordinator_alert_template: string;
+            meta_waba_id: string;
+            meta_access_token: string;
+        }[]) {
+            const tpl = c.coordinator_alert_template;
+            try {
+                const res = await fetch(
+                    `https://graph.facebook.com/v21.0/${c.meta_waba_id}/message_templates` +
+                        `?name=${encodeURIComponent(tpl)}&fields=name,status,category`,
+                    { headers: { Authorization: `Bearer ${c.meta_access_token}` } },
+                );
+                const d = await res.json();
+                const t = (d.data || []).find((x: { name: string }) => x.name === tpl) as
+                    | { status: string; category: string }
+                    | undefined;
+                if (!t) {
+                    alerts.push(
+                        `⚠️ *${c.clinic_name}* — la plantilla de aviso a la coordinadora ` +
+                        `\`${tpl}\` no aparece en Meta. Los avisos de solicitud de agenda no se envían.`,
+                    );
+                } else if (t.status !== "APPROVED") {
+                    alerts.push(
+                        `⚠️ *${c.clinic_name}* — la plantilla \`${tpl}\` está en estado ${t.status} ` +
+                        `(no APPROVED). Los avisos de solicitud de agenda pueden no llegar.`,
+                    );
+                } else if (t.category === "MARKETING") {
+                    alerts.push(
+                        `🔴 *${c.clinic_name}* — Meta recategorizó \`${tpl}\` a MARKETING. ` +
+                        `Los avisos de solicitud de agenda van a fallar con 131049 (frequency cap).\n` +
+                        `   → Pedir revisión de categoría en Business Manager (hay 60 días), o recrear como UTILITY con texto más plano.`,
+                    );
+                }
+            } catch (e) {
+                console.error(`[cron-system-health] no se pudo verificar la plantilla de ${c.clinic_name}:`, e);
+            }
+        }
+    } catch (e) {
+        console.error("[cron-system-health] chequeo de plantillas de coordinadora falló:", e);
+    }
+
     // 3. Recent global code-level errors.
     const errs = await getRecentErrors(sb, 360);
     const codeErrs = errs.filter((e) => e.code === "code_error");
