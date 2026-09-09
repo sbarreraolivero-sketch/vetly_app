@@ -7742,3 +7742,38 @@ Playwright bloqueado por la misma limitación de entorno documentada en sesiones
 - **Cualquier lista que se firme/actualice en otra pestaña necesita `staleTime: 0` + `refetchOnWindowFocus: true`** (+ botón "Actualizar" manual) — el `staleTime` global de 5 min deja la UI mintiendo hasta 5 minutos.
 - **Un `type="number"` sin `step` deja pasar decimales** que revientan un cast `::integer` en un RPC. Siempre `step` + `Math.round` en el `onChange`.
 - **Al crear un servicio "hijo" (estética) sobre una tabla compartida (`clinic_services` filtrada por `category`), el editor dependiente debe recibir la lista como prop desde el padre que ya la mantiene sincronizada** — un fetch propio en el hijo no se entera de las altas hasta recargar.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 106, 2026-09-09)
+
+### Bug: los avisos de solicitud de agenda no llegaban al WhatsApp de la coordinadora (Animalgrace Linares y Santiago)
+
+**Reporte:** Claudia no recibía los avisos por WhatsApp cuando la IA generaba una solicitud de agendamiento (modo `coordinator_approval`, sesiones 85/87).
+
+**Diagnóstico con datos reales:**
+- Las `scheduling_requests` **sí se creaban** correctamente y la `notification` in-app (`type: 'scheduling_review'`) también. El fallo era solo en el envío de WhatsApp a `coordinator_phone` (`+56989790949`, el celular de Claudia).
+- En `messages`, los avisos (`content LIKE '[Aviso a coordinadora]%'`, direction outbound) tenían entrega **intermitente** en septiembre — degradándose a **0% entregados desde el 8-sep** (8 fallidos seguidos en Linares, ídem Santiago).
+- El handler de `whatsapp.message.updated` marcaba `messages.status='failed'` **sin registrar el motivo** de Meta en ningún lado (solo lo guardaba para `reminder_logs.error_message`). Hueco de observabilidad.
+- **Fix de observabilidad** (`meta-whatsapp-webhook`, commit `185fa8f`, en `main`): el bloque `isFailure` del handler de status ahora hace `debugLog(sb, "[MSG FAILED] status update de Meta", { wamid, recipient, error, errorRaw })` — el código y título del error de Meta quedan en `debug_logs`.
+- Con ese logging desplegado, un fallo real confirmó el motivo: **`131049` — "This message was not delivered to maintain healthy ecosystem engagement."**
+
+**Causa raíz:** la plantilla `aviso_coordinadora_agenda` (configurada en `clinic_settings.coordinator_alert_template` para ambas clínicas) estaba en **categoría `MARKETING`**. El error `131049` es el **frequency cap de Meta para plantillas de marketing** — Meta limita cuántos mensajes de marketing recibe una persona en una ventana rodante, **sumando todos los negocios**. Linares y Santiago mandan sus avisos al **mismo número de Claudia**, así que ambos alimentan el mismo contador y lo saturaban (~50 avisos MARKETING/semana a ese número). Las plantillas `UTILITY` **no están sujetas a este cap**.
+- Descartado como causa principal: aunque ambos números están en `health_status.can_send_message: LIMITED` (negocio "Agencia Digital - Publymed" `587379105060987` sin verificación de negocio — error 141010; y display name sin aprobar, `name_status: NON_EXISTS`), el 04-sep hubo 15/16 avisos entregados, lo que descarta un bloqueo duro por tier. El patrón "intermitente que se degrada a 0" es firma del frequency cap acumulándose.
+- La entrega de los avisos que sí llegaban **no dependía de la ventana de servicio de 24h** (el último inbound de Claudia fue el 2-sep en Linares / 6-sep en Santiago) — llegaban por ser plantilla, cuando el contador de marketing no estaba saturado.
+
+**Fix aplicado (sin deploy de código — solo Meta + DB):**
+1. Creada la plantilla **`nueva_solicitud_agenda` como `UTILITY`** (`allow_category_change: false`) en ambas WABAs (Linares `1039327445154499`, Santiago `903775156940145`), vía Graph API con el `meta_access_token` de cada clínica. Mismo body/5 params que la anterior, texto puramente operativo. Meta la aprobó como `UTILITY` en minutos.
+2. `UPDATE clinic_settings SET coordinator_alert_template = 'nueva_solicitud_agenda'` para ambas clínicas.
+3. **Verificado con un envío real** de la plantilla nueva a `+56989790949` desde el número de Linares → status `read` (con la plantilla MARKETING vieja, todos los recientes daban `131049`).
+
+**Pendiente / acción manual del usuario:**
+- **11 solicitudes de agenda quedaron sin atender** (6 Linares + 5 Santiago, 3 urgentes) porque Claudia nunca recibió el aviso — están en el panel **Citas Médicas → Solicitudes de agenda**. Hay que procesarlas a mano.
+- La plantilla vieja `aviso_coordinadora_agenda` (MARKETING) queda huérfana en ambas WABAs — inofensiva, se puede eliminar.
+- Recomendaciones de fondo (mejoran la entrega de TODOS los mensajes de esas WABAs, no bloquean el fix): que "Agencia Digital - Publymed" complete la **verificación de negocio de Meta**, y enviar a aprobación el **display name** de ambos números.
+
+**Reglas permanentes:**
+- **Toda plantilla de WhatsApp que sea una notificación operativa/transaccional (avisos internos, confirmaciones, alertas de estado) debe crearse como `UTILITY`, nunca `MARKETING`.** Las `MARKETING` están sujetas al frequency cap `131049` de Meta, que se acumula por número destinatario across-businesses y puede llegar a bloquear el 100% de los envíos a un mismo número. Al crear, usar `allow_category_change: false` para que Meta la rechace (y uno se entere) en vez de recategorizarla en silencio.
+- **`131049` = frequency cap de marketing**, no un problema de ventana de 24h ni de pago. Solo afecta plantillas `MARKETING`. El fix es recategorizar a `UTILITY`.
+- **Cuando un mensaje outbound queda en `failed` sin causa aparente**, el motivo real de Meta llega por el evento `whatsapp.message.updated` en `status.errors[0]` — si el handler no lo persiste, se pierde. Ahora queda en `debug_logs` con prefijo `[MSG FAILED]`.
+- **`clinic_settings.coordinator_alert_template`** es el nombre de la plantilla Meta que usa el aviso a la coordinadora (`requestSchedulingCoordination` → `sendMetaCoordinatorTemplate`). Si es `NULL`, cae a texto libre (solo llega dentro de ventana de 24h). Vale para ambas clínicas de Animalgrace: `nueva_solicitud_agenda`.
