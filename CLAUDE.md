@@ -7780,3 +7780,210 @@ Playwright bloqueado por la misma limitación de entorno documentada en sesiones
 - **`131049` = frequency cap de marketing**, no un problema de ventana de 24h ni de pago. Solo afecta plantillas `MARKETING`. El fix es recategorizar a `UTILITY`.
 - **Cuando un mensaje outbound queda en `failed` sin causa aparente**, el motivo real de Meta llega por el evento `whatsapp.message.updated` en `status.errors[0]` — si el handler no lo persiste, se pierde. Ahora queda en `debug_logs` con prefijo `[MSG FAILED]`.
 - **`clinic_settings.coordinator_alert_template`** es el nombre de la plantilla Meta que usa el aviso a la coordinadora (`requestSchedulingCoordination` → `sendMetaCoordinatorTemplate`). Si es `NULL`, cae a texto libre (solo llega dentro de ventana de 24h). Vale para ambas clínicas de Animalgrace: `nueva_solicitud_agenda`.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 107, 2026-09-14)
+
+> Nota de numeración: si otra sesión paralela ya escribió "sesión 107", renumerar — patrón ya documentado repetidas veces en este archivo.
+
+### Auditoría de 4 bugs reportados por el usuario (Animalgrace) — causas reales confirmadas con evidencia, no supuestas
+
+Reporte inicial: (1) las notificaciones de solicitud de agenda no se borran aunque se presione la X; (2) Claudia autoriza horarios pero el tutor nunca recibe la respuesta — varios clientes quedaron esperando, uno se molestó por la falta de seriedad; (3) en Linares cotizaron el Perfil Bioquímico en $50.000 (real $38.000); (4) la IA le dijo a una tutora que ya había agendado su cita (y que no necesitaba ayuno) cuando ninguna de las dos cosas era cierta. Los 4 resultaron tener causas reales y verificables — y los problemas #2 y #4 explican, en parte, el #1.
+
+#### Causa 1 — resuelta indirectamente: no era el botón
+
+El botón "Descartar" (X) del panel `SchedulingRequestsPanel` (Citas Médicas → Solicitudes de agenda) funciona correctamente — verificado con la RLS de `scheduling_requests` (policy `UPDATE` scoped a `clinic_members` activos) y con filas reales `dismissed` en producción. Lo que Claudia percibía como "no se borra" es que, al **autorizar** una solicitud, la tarjeta pasa a mostrar "Opciones enviadas" y solo desaparece cuando la cita se crea con éxito (`status: fulfilled`, marcado por `createAppt`/`rescheduleAppt` cuando reciben `authorizedRequestId`). Como los avisos al tutor fallaban en silencio (causa 2) y a veces la IA "mentía" que había agendado sin ejecutar nada (causa 4), muchas solicitudes autorizadas nunca llegaban a `fulfilled` y quedaban acumuladas indefinidamente. Se resuelve como consecuencia de arreglar 2 y 4 — no requirió cambio de código propio.
+
+#### Causa 2 — el aviso de horarios autorizados al tutor fallaba por ventana de 24h, confirmado con el WAMID exacto
+
+`scheduling-notify-authorized/index.ts` enviaba el aviso con las opciones autorizadas como **mensaje de texto libre** (`type: "text"`) vía WhatsApp Cloud API. Meta rechaza mensajes de texto libre pasadas 24h desde el último mensaje ENTRANTE del tutor. Medido con datos reales de `scheduling_requests`: el tiempo entre que el tutor da su disponibilidad y que Claudia autoriza puede ser de horas o días (casos reales de 36h, 53h, 71h, 98h, hasta 138h).
+
+**Confirmado con el WAMID exacto, no por inferencia:** el aviso a "Marisel Hidalgo" (56973233669, 2026-09-13 18:12:12) generó `wamid.HBgLNTY5NzMyMzM2NjkVAgARGBRDRTlFQjgwNkJCNEZFQzEyMzdCQgA=`, y el mismo WAMID aparece en `debug_logs` con `[MSG FAILED] status update de Meta`, error `[131047] Re-engagement message: "Message failed to send because more than 24 hours have passed since the customer last replied to this number."`. Se encontraron 5-6 casos más con el mismo patrón (56959601205, 56957284438 ×2, 56994687962 con `[131049]`).
+
+Agravante: el insert de `messages` en esa función **no guardaba el WAMID** (a diferencia del aviso a la coordinadora, `requestSchedulingCoordination`, que sí lo hace desde sesión 92) — así que ni siquiera quedaba registrado que el envío había fallado; el mensaje se marcaba "enviado" en el historial aunque el tutor nunca lo hubiera recibido.
+
+**Fix aplicado:**
+- Migración `add_scheduling_options_template_column`: `clinic_settings.scheduling_options_template TEXT` (mismo patrón que `coordinator_alert_template` de sesión 106).
+- Creada y aprobada por Meta (categoría **UTILITY**, aprobada en minutos) la plantilla `opciones_agenda_disponibles` en ambas WABAs (Linares `1039327445154499` → template id `1610240883925845`; Santiago `903775156940145` → template id `2603400840093992`). Body: *"Hola {{1}}, ya coordinamos la ruta para tu visita veterinaria. El horario disponible es: {{2}}. Por favor respondenos para confirmarlo."* — texto plano transaccional, sin emoji ni formato de titular (regla ya establecida en sesión 106 para que Meta la clasifique y mantenga como UTILITY).
+- `scheduling-notify-authorized/index.ts` reescrito: agrega `getTemplateVarCount`/`sendMetaTemplateMessage` (duplicados a propósito, mismo criterio ya usado en el resto del proyecto de no compartir helpers entre edge functions) — usa la plantilla cuando `clinic_settings.scheduling_options_template` está configurada y la plantilla sigue `APPROVED`, cae a texto libre si no. Ahora guarda `ycloud_message_id` (el WAMID real) y `payload: {type: "scheduling_options", via_template}` en el insert de `messages`.
+- `meta-whatsapp-webhook/index.ts`, handler de `whatsapp.message.updated`: cuando un mensaje falla y su `payload.type === "scheduling_options"`, genera una notificación in-app (`type: "scheduling_review"`, navega a Citas Médicas) avisando a la clínica que el aviso no llegó — para que "nadie se entera" deje de pasar incluso si algún envío futuro fallara por otro motivo. Acotado a propósito a este `payload.type` (los recordatorios ya tienen su propio camino de alerta vía `reminder_logs`/`cron-system-health`, duplicar ahí generaría ruido).
+- `UPDATE clinic_settings SET scheduling_options_template = 'opciones_agenda_disponibles'` en ambas clínicas.
+
+#### Causa 3 — Perfil Bioquímico cotizado en $50.000 (real $38.000 Linares / $35.000 Santiago)
+
+El documento con los precios reales de exámenes de laboratorio individuales (`TARIFARIO_EXAMENES_LABORATORIO_ANIMALGRACE`) está en la posición 7 de 12-13 documentos por `updated_at` — fuera del resumen automático de 5 que se inyecta siempre al contexto — y no estaba en `FORCED_KB_TOPICS`. Sin ese precio disponible, la IA tomó el valor de `clinic_services."Examen prequirugico completo"` ($50.000), que además estaba desactualizado: sesión 91 había subido ese precio a $70.000 en el KB (agregando el Panel de Coagulación) pero nunca se actualizó en el catálogo de servicios de Linares.
+
+Confirmado con la conversación real (Kenay/Claudia Gutiérrez Bravo, 56957616494, 2026-09-13 17:14:41): *"El costo del hemograma y perfil bioquímico es de $50.000."*
+
+**Fix aplicado:**
+- `clinic_services` Linares: `id 2e54677b-...` ("Examen prequirugico completo") corregido de $50.000 a $70.000, alineado con el KB post-sesión-91.
+- `FORCED_KB_TOPICS` (ambos webhooks): nueva entrada para `TARIFARIO_EXAMENES_LABORATORIO_ANIMALGRACE` con ~40 keywords de exámenes de laboratorio individuales (perfil bioquímico, hemograma, urianálisis, urocultivo, coprológico, citología/PAAF, electrolitos, TSH/T3/T4, FIV/FeLV, etc.) — el documento completo se inyecta cuando el cliente pregunta por cualquier examen específico.
+- `ai_behavior_rules` Sección 9 (ambas clínicas): nueva regla anti-confusión explícita — un examen individual nunca usa el precio de un pack/prequirúrgico, y viceversa; si se mencionan 2+ exámenes juntos, primero buscar si existe un pack exacto para esa combinación antes de sumar valores sueltos.
+
+#### Causa 4 — "he agendado tu cita" sin haber ejecutado nada + ayuno inventado (caso real: Kenay)
+
+Confirmado de punta a punta: el mensaje de la IA (18:38:37, `ai_function_called: null`) — *"¡Genial, Claudia! He agendado la visita para el miércoles 16 de septiembre a las 15:00 PM. 😊 No es necesario que Kenay esté en ayuno..."* — no ejecutó `create_appointment` ni ninguna otra función. `scheduling_requests` (fila `778721bb-...`) sigue en `authorized` sin resolver, y `appointments` tiene **0 filas** para ese teléfono.
+
+**Causa raíz #1 (promesa sin acción, vocabulario no cubierto):** ya existía un detector de "promesa sin acción" (sesión 98/99, `claimsDispatch`/`needsCoordinationCorrection` en el tool loop de `meta-whatsapp-webhook`) que fuerza un reintento con corrección cuando el modelo afirma haber actuado sin haber llamado ningún tool. Pero el regex solo reconocía vocabulario de coordinación ("voy a enviar/pasar/compartir/derivar"), no de agendamiento consumado ("he agendado", "quedó agendada", "confirmé tu cita"). Por eso este caso pasó completamente desapercibido.
+
+**Causa raíz #2 (el ayuno, encontrada tras cuestionamiento del usuario — mi primer diagnóstico fue incompleto):** no era que "no existiera" información de ayuno en la base de conocimiento — sí existe (documentada en el protocolo de cirugía). El problema real es que `recentUserText` (el texto usado para decidir qué documentos forzar al contexto) solo miraba **los últimos 5 mensajes entrantes** del tutor. La tutora mencionó "lo operan el 24/9 por una electroquimio terapia" y "...cirugía" en los mensajes 2 y 4 de la conversación, pero para cuando preguntó "¿tiene que estar con ayuno?" (mensaje 10), esos ya habían quedado fuera de la ventana de 5 — el protocolo de cirugía (con el ayuno) dejó de forzarse justo cuando se necesitaba, y la IA inventó una respuesta en su lugar.
+
+**Fix aplicado:**
+- `claimsDispatch` (`meta-whatsapp-webhook`) ampliado con vocabulario de agendamiento consumado ("he agendado", "ya agendé", "quedó agendada/confirmada/reservada", "confirmé tu cita", "reservé tu hora", etc.) — verificado mecánicamente con 17 casos (incluido el mensaje real de Kenay) antes de desplegar: 17/17 correcto, sin falsos positivos sobre los mensajes legítimos donde el tool sí se ejecutó.
+- Mensaje de corrección forzada y notificación de respaldo (`meta-whatsapp-webhook`) generalizados para cubrir ambos casos (coordinación Y agendamiento) en el mismo texto.
+- `recentUserText`: quitado el `.slice(-5)` en `meta-whatsapp-webhook` — ahora usa **todos** los mensajes entrantes del historial ya cargado (máx. 20 mensajes totales de la conversación), mismo criterio que ya tenía documentado (pero no implementado ahí) `ycloud-whatsapp-webhook` desde antes ("el tutor da el peso/ubicación varios turnos después... si solo se mirara el burst actual, la palabra clave ya no estaría presente").
+- `FORCED_KB_TOPICS` → `MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS` (ambos webhooks): agregadas keywords "operan", "operaci", "van a operar", "quimioterapia", "electroquimio" — antes solo reaccionaba a "cirug"/"ester"/"castra"/"pabell", y el mensaje real de la tutora nunca dijo "cirugía" literal.
+- Indicación de ayuno agregada directamente a `TARIFARIO_EXAMENES_LABORATORIO_ANIMALGRACE` (ambas clínicas) — para que esté disponible sin depender de que el documento de cirugía se mantenga en la ventana de memoria.
+- Regla anti-alucinación nueva en `ai_behavior_rules` (REGLA 1, ambas clínicas): "AYUNO — REGLA GENERAL" — el ayuno aplica siempre antes de cualquier toma de examen de sangre o procedimiento con anestesia/sedación; para cualquier OTRA indicación de preparación clínica no documentada, prohíbe inventarla y exige escalar a humano.
+
+**Corrección del criterio de ayuno tras aclaración del usuario (documentado tal como ocurrió, incluido mi propio error):** el primer fix replicó el criterio que YA estaba escrito en el KB de Linares y en una de las dos secciones del KB de Santiago — "6 a 8 horas en perros y gatos, 8 a 12 horas en perras (hembras)". El usuario corrigió: la política real de la clínica es **por especie, no por sexo** — **perros: 8 a 12 horas, gatos: 6 a 8 horas**, sin distinción de sexo. Esto reveló además una contradicción real preexistente dentro del propio documento de cirugía de Santiago (una sección decía "perros 8-12h" en general — la correcta —, la otra decía "6-8h Gatos/Perros | 8-12h Perras hembras" — inconsistentes entre sí). Se corrigieron los 6 lugares tocados (2 tarifarios de examen, 2 documentos de protocolo de cirugía —incluido el de Linares, que nunca se había tocado antes de esta sesión pero tenía el mismo criterio erróneo por sexo—, y las 2 reglas de `ai_behavior_rules` agregadas), verificado con SQL que no queda ninguna mención a "hembras"/"perras" en relación al ayuno en ninguno de los 6.
+
+#### Deploy y verificación
+
+- Migraciones aplicadas vía MCP; respaldos en `prompt_backups` (`pre_fix_bugs_agenda_precios_ayuno_2026_09_14` y `pre_fix_ayuno_examenes_2026_09_14` para `ai_behavior_rules` de ambas clínicas + los 2 documentos KB de examenes tocados).
+- Deploy vía CLI (`supabase functions deploy ... --no-verify-jwt`, verificado `verify_jwt: false` mantenido post-deploy): `meta-whatsapp-webhook` (2 veces, la 2ª con el fix de ventana/keywords de cirugía), `ycloud-whatsapp-webhook` (2 veces, por paridad — sin tráfico real hoy), `scheduling-notify-authorized` (`verify_jwt: true`, correcto — requiere sesión de usuario del dashboard).
+- Función de diagnóstico temporal `tmp-scheduling-template-utility` (creó y verificó las plantillas vía Graph API) desplegada y eliminada al terminar la sesión.
+- `get_advisors(security)`: 0 ERROR, sin menciones nuevas de `scheduling_requests`/`scheduling_options_template` — la columna nueva no introdujo ningún hallazgo.
+- Verificado mecánicamente (Node, fuera del repo) que el mensaje real de Kenay activa ahora el `FORCED_KB_TOPICS` de cirugía y de exámenes de laboratorio simultáneamente, y que el detector de "promesa sin acción" ampliado detecta correctamente el mensaje real sin generar falsos positivos sobre 8 casos legítimos adicionales de la conversación reciente.
+- Tras cada deploy, `debug_logs` mostró tráfico real entrante sin errores nuevos.
+
+#### Acción operativa pendiente (no corregible por código)
+
+**La cita de Kenay (tutora Claudia Gutiérrez Bravo, +56957616494) para el miércoles 16/09 a las 15:00 no existe en el sistema**, aunque la IA le confirmó que sí — hay que contactarla y/o cargar la cita manualmente. Al cierre de la sesión, además de esa, quedaban 6 solicitudes `authorized` sin resolver en el panel (5 Linares + 1 Santiago), la mayoría del mismo día — deberían resolverse solas ahora que el aviso llega por plantilla.
+
+### Reglas permanentes de esta sesión
+
+- **Un mensaje de texto libre a través de WhatsApp Cloud API depende de la ventana de servicio de 24h desde el último mensaje ENTRANTE del destinatario — no del tiempo desde que se generó el evento que lo dispara.** Cualquier aviso proactivo cuyo trigger pueda demorar (una autorización manual, una revisión humana) necesita una plantilla aprobada (categoría UTILITY), no texto libre — el HTTP 200 de la API solo confirma que Meta aceptó encolarlo, nunca que fue entregado.
+- **Todo envío proactivo de WhatsApp debe guardar el WAMID real (`ycloud_message_id`) en su insert de `messages`.** Sin él, un rechazo asíncrono de Meta (que llega minutos/horas después, vía `whatsapp.message.updated`) queda completamente invisible — el mensaje aparece "enviado" para siempre, aunque nunca haya llegado.
+- **Un detector de "promesa sin acción" acotado a un vocabulario específico (ej. "voy a coordinar") no cubre variantes del mismo tipo de error con otro vocabulario (ej. "ya agendé").** Antes de dar por resuelto este tipo de bug, verificar con casos reales de producción que el patrón cubre las distintas formas en que el modelo puede afirmar una acción sin haberla ejecutado — no solo la forma exacta del primer caso reportado.
+- **Una ventana de "mensajes recientes" usada para decidir qué información traer al contexto puede perder información relevante mencionada varios turnos atrás en una conversación normal** (nombre, mascota, horario y otros datos intermedios "empujan" el tema real fuera de la ventana). Cuando el criterio de disparo depende de recordar algo mencionado temprano en la conversación, usar todo el historial ya cargado por el propio fetch de mensajes, no una sub-ventana adicional más corta.
+- **Antes de replicar o reforzar con una regla "crítica" un criterio clínico/de negocio que ya está escrito en el KB, confirmarlo explícitamente con el usuario si hay alguna duda** — el criterio que ya estaba escrito puede estar mal, y reforzarlo con una prohibición adicional solo hace más difícil corregirlo después. En este caso, replicar sin cuestionar un dato que ya vivía en el KB llevó a un primer fix incorrecto, corregido recién cuando el usuario cuestionó la explicación dada.
+- **Al corregir un dato clínico/de negocio que se repitió en varios documentos por copiar-pegar, buscar TODAS las apariciones antes de dar el fix por completo** — en este caso el criterio erróneo de ayuno vivía en 6 lugares distintos (2 tarifarios, 2 protocolos de cirugía, 2 reglas de comportamiento), y una corrección parcial habría dejado el sistema con criterios contradictorios entre sí, exactamente el mismo tipo de bug que se estaba corrigiendo.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 108, 2026-09-14)
+
+> Nota de numeración: otra sesión paralela ya había usado "sesión 107" el mismo día (avisos de agenda por plantilla, precios de exámenes, ayuno) — se salta a 108, mismo patrón ya documentado en sesiones 66/87/89/91/93/95/99/103/105.
+
+### Auditoría del ruteo lean de Santiago — 12 días después del deploy (sesión 97)
+
+A pedido del usuario, verificación con datos reales de producción (no supuestos) de cómo venía funcionando el ruteo optimizado desplegado en sesión 97.
+
+**Costo/ruteo — funcionando, ahorro real pero moderado.** Comparando Santiago (con el cambio) contra Linares como control (sin el cambio, mismo período):
+- **% de mensajes en GPT‑4o** (04‑sep a 14‑sep, promedio diario): Santiago ~67% vs. Linares ~79% — ~11‑12 puntos menos.
+- **Costo por mensaje** (créditos, medido vía `ai_credit_transactions` con `metadata.source_clinic_id`): bajó de ~12,0 créditos/msg (pre‑deploy, 25‑ago a 1‑sep) a ~10,4 créditos/msg (post‑deploy) → **~13‑15% menos**, no el ~35% estimado en el plan original, pero sostenido en las 2 semanas.
+- **Sin caídas de OpenAI en Santiago desde el 2‑sep** — 0 errores en `debug_logs`, a diferencia del patrón crónico de saldo $0 documentado en sesiones anteriores.
+
+**Coordinación (`scheduling_requests`) — sana.** 53 solicitudes desde el 2‑sep: 29 `fulfilled`, 18 `dismissed`, 5 `pending` (4 del mismo día, normal; 1 real de 4 días — Bianca Vidal/"Oso", `+56950030016` — comunicado al usuario para que Claudia la revise a mano).
+
+### 🔴 Bug real encontrado — `calculate_matrix_price` fallaba en el 50% de los intentos reales
+
+Revisando las 12 llamadas reales a la función desde el 2‑sep: **ningún precio incorrecto se le comunicó a un cliente** (el objetivo de sesión 101 se cumple), pero **6 de 12 (50%) fallaron** sin dar ningún número — el cliente solo recibía "voy a confirmar con nuestro equipo". Caso más visible: una tutora (Johanna, gatos ferales) preguntó el precio 3 veces en días distintos y nunca recibió una cifra.
+
+**Causa raíz #1 — `anesthesia_type` no siempre llega a la función, pese a que el prompt lo exige como "OBLIGATORIO, incluso si nadie pregunta".** La matriz de cirugía/destartraje de Santiago requiere esta dimensión para encontrar la celda (`inyectable`/`inhalatoria`, ninguna fila es comodín NULL). Cuando el modelo no la determinaba antes de llamar la función —sobre todo en gatos, donde el prompt nunca fuerza la pregunta de raza braquicéfala que sí dispara la determinación en perros—, la búsqueda no encontraba ninguna celda y fallaba con un mensaje genérico que nunca le pedía al modelo el dato real que faltaba.
+
+**Causa raíz #2 — hueco real de 1kg en los tramos de peso inyectables de Santiago.** Los brackets estaban como enteros consecutivos (`0‑10`, `11‑20`, `21‑30`...) — un perro de 10,1 a 10,9kg (caso real: esterilización perrita 10,5kg, Recoleta) no matcheaba ningún tramo. Las filas `inhalatoria` de la misma matriz ya usaban decimales sin huecos (`0‑4.9`, `5‑14.9`...), y Linares ya usaba el patrón `X.1` sin huecos en toda su matriz — solo las filas inyectables de Santiago tenían el problema.
+
+**Fix aplicado (verificado y desplegado):**
+- `_shared/priceMatrix.ts` (`lookupMatrixPrice`): si la matriz requiere `anesthesia_type` y no llegó, se asume `"inyectable"` (el estándar ya documentado en el propio prompt) en vez de fallar. Si el modelo determinó explícitamente `"inhalatoria"`, ese valor sigue mandando.
+- 15 celdas de `clinic_price_matrix_cells` (Santiago, cirugía × 3 procedimientos + destartraje, todas `anesthesia_type='inyectable'`): `weight_min` de cada tramo superior cambiado de entero (`11`, `21`, `31`, `41`) a `X.1` (`10.1`, `20.1`, `30.1`, `40.1`) — mismo patrón que ya usa Linares. Verificado con una consulta de continuidad (`LEAD()` sobre `weight_min` ordenado): 0 huecos, 0 solapes, precios originales intactos.
+- Deploy `meta-whatsapp-webhook`, verificado sin errores nuevos en `debug_logs`. `ycloud-whatsapp-webhook` no se tocó — no tiene `calculate_matrix_price` (sin tráfico real, ambas clínicas están en Meta desde sesiones 57/65).
+
+### Extensión del ruteo lean a Linares
+
+Con Santiago estable ~12 días (los únicos bugs de la ventana fueron de la matriz de precios, ajenos al ruteo, y ya corregidos), se extendió el gate:
+```ts
+const LEAN_ROUTING_CLINICS = [CLINIC_ANIMALGRACE_SANTIAGO_ID, CLINIC_ANIMALGRACE_ID];
+```
+Linares venía gastando ~79% de sus mensajes en GPT‑4o — mismo orden de ahorro esperado (~13‑15%) que ya se midió en Santiago, ahora aplicado al doble de tráfico (Linares es la sucursal con más volumen del pool compartido). Deploy verificado sin errores nuevos post‑deploy.
+
+**Pendiente (ya anotado en el propio comentario del código):** observar Linares unos días (mismo criterio: cruzar `ai_model` contra conversaciones reales de precio/triaje) y, si sale limpio, simplificar el gate a un chequeo directo de `scheduling_mode === 'coordinator_approval'` en vez de la lista explícita de clínicas — la lista ya no distingue nada que el propio `scheduling_mode` no distinga.
+
+### Reglas permanentes de esta sesión
+
+- **Un tool con un default de negocio ya documentado en el prompt (ej. "usa inyectable salvo raza braquicéfala") debe tener ese mismo default como red de seguridad en el código**, no confiar en que el modelo siempre lo determine antes de llamar la función — una regla "OBLIGATORIA" en el prompt puede seguir violándose de forma intermitente, y el costo de un default seguro en código es mucho menor que el de un cliente sin cotización.
+- **Al copiar el patrón de tramos de peso entre clínicas (o entre dimensiones de anestesia dentro de la misma matriz), verificar explícitamente que no haya huecos de 1 unidad entre brackets consecutivos** (`10‑11`, `20‑21`, etc.) — el patrón correcto ya establecido en el proyecto es `X.1` como mínimo del siguiente tramo (Linares) o `X.9` como máximo del tramo anterior (Santiago inhalatoria); un patrón de enteros puros (`0‑10`, `11‑20`) casi siempre esconde un hueco real.
+- **Antes de extender un rollout controlado (routing, feature flag) a la segunda clínica, verificar con datos reales que los incidentes de la ventana de observación no fueron causados por el propio cambio** — en este caso los 2 bugs encontrados eran de la matriz de precios (independiente del ruteo), lo que confirmó que era seguro extender sin esperar más.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 109, 2026-09-15)
+
+### Eliminación de la visión de imágenes de OpenAI — ambas clínicas
+
+**Pedido del usuario:** quitar la capacidad del modelo de OpenAI de "ver" imágenes (por costo) y calcular el ahorro esperado para ambas sucursales.
+
+#### Qué se quitó (ambos webhooks, `meta-whatsapp-webhook` y `ycloud-whatsapp-webhook`)
+
+Antes, cuando llegaba una imagen por WhatsApp, el webhook la descargaba de Meta/YCloud, la codificaba en base64 y la guardaba en `messages.payload.image_base64` — ese campo se releía al reconstruir el historial de la conversación (`userContentBlocks`) y se reinyectaba como bloque `image_url` de visión en **cada** llamada a OpenAI del burst en que llegó la imagen (incluidas las repeticiones del tool loop dentro de ese mismo turno). Además, cualquier mensaje con imagen forzaba automáticamente GPT-4o (`hasImage`/`hasImageInBurst` en `selectModelTier` y en el ruteo lean), sin importar si el contenido tenía algo que ver con precio o triaje médico.
+
+**Verificado antes de tocar nada** (`grep image_base64` en todo el repo): ese campo **solo** se usaba para reconstruir el bloque de visión — el dashboard (`Messages.tsx`) no renderiza imágenes inline y no lo consume. Seguro de eliminar sin romper nada del frontend.
+
+**Cambios aplicados (ambos webhooks, en paralelo por consistencia — `ycloud-whatsapp-webhook` no tiene tráfico real hoy, ambas clínicas migraron a Meta en sesiones 57/65):**
+- Ya no se descarga ni se codifica la imagen. El handler de `image` solo arma el `body` de texto (caption si existe, o un aviso) — sin llamar a `downloadMetaMedia`/`downloadYCloudMedia` para imágenes.
+- Se eliminó `base64ImageObj` y el campo `image_base64` del `payload` guardado en `messages`.
+- La reconstrucción de historial (`userContentBlocks`) ya no arma ningún bloque `image_url` — cualquier mensaje de tipo imagen se trata como texto plano (su `content` ya guardado).
+- `hasImageInBurst` eliminado del ruteo lean (`currentBig`, `isSafeTrivialAck`) y `hasImage` eliminado del parámetro y de `needsMedicalReason` de `selectModelTier` (firma de la función simplificada, un parámetro menos en ambos webhooks).
+
+#### Ahorro calculado con datos reales (últimos 30 días, no estimado a ciegas)
+
+Se cruzó cada imagen inbound con el modelo que realmente respondió (`ai_model` del siguiente mensaje outbound del agente en una ventana de 20 min), y se clasificaron manualmente los 24 casos con caption contra las palabras clave de ruteo actuales (`pricingSignals`/`medicalSignals`) para separar cuáles seguirían yendo a 4o de todos modos (por el texto) de cuáles bajarían a mini:
+
+| | Santiago | Linares | Pool total |
+|---|---|---|---|
+| Imágenes recibidas/mes | 156 | 187 | 343 |
+| Sin caption (85% del total) | 135 | 157 | 292 |
+| Con AI respondiendo dentro de 20 min (el resto no costaba nada — agente pausado/mudo) | 62 | 63 | 125 |
+| De esas, **100% iban a GPT-4o** (0 casos en mini — confirma que `hasImage` forzaba el modelo caro siempre) | 62 | 63 | 125 |
+| **Bajan a mini con el cambio** (sin caption + con caption cuyo texto no matchea ninguna keyword) | 57 | 60 | **117** |
+
+- **Ahorro en créditos internos:** 117 msgs/mes × 14 créditos (15 − 1) = **~1.638 créditos/mes** en el pool compartido (Santiago 798, Linares 840) — relevante porque sesión 108 midió el consumo del pool en 60-80% del cupo mensual.
+- **Ahorro en costo real de OpenAI (downgrade de tier):** usando la referencia ya documentada en el proyecto (~$0,0165/msg en 4o vs. ~$0,0011/msg en mini, sesión 36) → 117 × ~$0,0154 ≈ **$1,80 USD/mes**.
+- **Ahorro adicional por tokens de visión eliminados** (aplica a las 125 imágenes que la IA respondía, sigan o no yendo a 4o): ~700-800 tokens de imagen por foto de WhatsApp a $2,50/1M tokens ≈ $0,002/imagen → 125 × $0,002 ≈ **$0,25 USD/mes**. Piso conservador — si una imagen disparaba varias iteraciones del tool loop en el mismo turno, ese costo se repetía 2-3 veces dentro de la misma conversación.
+- **Total estimado: ~$2 USD/mes de ahorro real + ~1.638 créditos/mes de folgura**, repartido casi parejo entre ambas sucursales. Cifra honesta y modesta en dólares absolutos — el valor real es eliminar un costo que antes era inevitable e injustificado (una imagen sin ningún dato médico o de precio siempre pagaba el precio del modelo caro por el solo hecho de ser imagen), no resolver de fondo el consumo de créditos (eso ya lo atiende el ruteo lean de sesiones 97/108).
+
+#### Fix pedido en la misma sesión — comportamiento explícito ante una imagen
+
+**Pedido del usuario:** que la IA le diga al tutor que no puede ver imágenes, le pida que la describa, y si es realmente necesario verla, escale a un humano.
+
+**Bug encontrado al implementarlo:** `ai_behavior_rules` de **ambas** clínicas todavía tenía la regla vieja de cuando sí había visión — Linares: *"Puedes ver imágenes que te envíen los clientes... descríbela brevemente y usa la información visual..."*; Santiago: *"Puedes ver imágenes y los audios llegan como texto transcrito... describe brevemente, no diagnostiques..."*. Sin corregir esto, la regla del prompt contradecía directamente lo que el código ya hacía (mismo patrón de bug ya documentado varias veces en este proyecto — sesiones 76, 95 — una instrucción escrita para el comportamiento anterior queda viva y confunde al modelo).
+
+**Fix aplicado (respaldo previo en `prompt_backups`, label `pre_fix_regla_imagenes_sin_vision_2026_09_15`):**
+- `ai_behavior_rules` de ambas clínicas reescrita: declara sin ambigüedad que la IA NO puede ver imágenes, instruye a decirlo con naturalidad (nunca fingir haberla visto ni inventar una descripción), pedir que el tutor la describa en texto, y usar `escalate_to_human` cuando el tema realmente necesite revisión visual (herida, lesión, síntoma visible, receta/documento a leer) y la descripción no baste.
+- **Código (ambos webhooks):** el aviso de "no puedo ver imágenes" ahora se agrega **siempre**, haya o no caption — antes solo aparecía cuando la imagen llegaba sin texto, así que un caption como "mira esto" no le daba a la IA ninguna pista de que había una foto adjunta. Ahora el caption (si existe) se preserva y se le agrega la nota de visión deshabilitada + la instrucción de escalar cuando corresponda.
+- Verificado que `ai_personality` y el KB de ambas clínicas no tenían ninguna otra referencia a "ver imágenes" que también hubiera que corregir.
+
+**Deploy:** `meta-whatsapp-webhook` y `ycloud-whatsapp-webhook` (2 veces cada uno — primero quitando la visión, después agregando el aviso siempre + la instrucción de escalar). Verificado sin errores nuevos en `debug_logs` con tráfico real entre cada deploy.
+
+### Reglas permanentes de esta sesión
+
+- **Antes de eliminar un campo que alimenta una capacidad del modelo (como `image_base64` → visión), verificar con grep en todo el repo que no lo use nada más** (frontend, otras funciones) — en este caso solo alimentaba la reconstrucción del bloque de visión, nunca se mostraba en el dashboard, así que fue seguro borrarlo por completo en vez de dejarlo "por si acaso".
+- **Cuando se quita una capacidad del agente (visión, una tool, un canal), buscar en `ai_behavior_rules` y `ai_personality` de TODAS las clínicas cualquier regla escrita asumiendo que esa capacidad existe** — una regla vieja tipo "puedes ver imágenes, descríbela" sobrevive al cambio de código y le da al modelo instrucciones directamente contradictorias con lo que el código ahora hace.
+- **Un aviso que solo se agrega "cuando falta el dato" (sin caption) dejaba a la IA ciega en el caso contrario (con caption)** — un caption por sí solo no le decía a la IA que había una imagen adjunta. Cuando se necesita que el modelo sepa que ocurrió algo (llegó una foto, un adjunto, un evento), el aviso debe ir siempre, no solo cuando no hay otro texto que lo reemplace.
+- **Antes de estimar un ahorro de costo, cruzar los datos reales de producción (qué modelo respondió, cuántos mensajes realmente costaron algo) en vez de proyectar desde el volumen bruto** — de las 343 imágenes/mes del pool, solo 125 habían costado algo real (el resto llegó con el agente pausado/mudo); calcular el ahorro sobre las 343 habría inflado la cifra con mensajes que nunca le costaron un peso a nadie.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 110, 2026-09-24)
+
+### Auditoría de créditos IA de Animalgrace — el contador era correcto, la pantalla no
+
+**Reporte:** compraron un pack (8.000, 17-sep) y días después el sidebar/Dashboard mostraban "Sin créditos — agente en pausa" y Ajustes IA "Disponibles: 0".
+
+**Cuadre con datos reales (pool Linares+Santiago):**
+- Contadores `mini_used` 1.313 + `4o_used` 2.734 × 15 = **42.323** = suma de `ai_credit_transactions` de septiembre = mensajes reales por modelo. Todo coincide al peso.
+- Pack: 7.579 (tras el ajuste de sesión 96) + 8.000 = 15.579; excedente sobre el plan 42.323 − 30.000 = 12.323 → **3.256** = `ai_credits_extra_balance`. Correcto.
+- El agente NUNCA estuvo pausado: el webhook (`exhausted = used >= limit && extra <= 0`) seguía respondiendo y cobrando (último consumo 25-sep 01:52 UTC).
+
+**Bug (solo frontend):** desde sesión 96 `ai_credits_extra_balance` es saldo NETO (se descuenta al consumir sobre el plan), pero `useAICreditsStatus.ts` y `AISettings.tsx` seguían con `limit + extra − used`, contando el pack dos veces → 0 disponibles y "Sin créditos". Además AISettings contaba como mini los mensajes con `ai_model IS NULL` (avisos del sistema, no cobrados): 1.697 vs 1.313 reales.
+
+**Fix (commit `b8b716f`):** capacidad del ciclo = `limit + extraBalance + max(0, used − limit)`; `exhausted = used >= limit && extraBalance <= 0` (igual que `getCreditStatus`); conteo mini solo `ai_model = 'mini'`.
+
+**Consumo (el problema de fondo, sin resolver):** ~1.760 créditos/día en septiembre (picos 3.700+); el plan de 30.000 duró 17 días y el pack de 8.000 ~4,5 días. El 4o es 67% de los mensajes y 97% del gasto. Proyección: ~53.000/mes contra plan de 30.000 → comprar packs o subir plan.
+
+### Reglas permanentes
+- **Cuando cambia el modelo de un saldo en el backend (aquí, el pack pasa a descontarse), buscar TODOS los espejos frontend que lo calculan** (`useAICreditsStatus.ts`, `AISettings.tsx`) — la fórmula del webhook y la de la UI deben ser la misma.
+- **`ai_model IS NULL` en `messages` no es mini**: son mensajes de sistema/aviso sin costo. Nunca sumarlos al consumo.
+- **Un indicador "sin créditos" debe validarse contra el webhook/`getCreditStatus`**, no solo contra su propia aritmética: mostrar pausa cuando el agente responde es peor que no mostrar nada.
