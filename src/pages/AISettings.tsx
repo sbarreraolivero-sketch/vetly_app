@@ -188,7 +188,7 @@ export default function AISettings() {
                 } catch {}
 
                 const [{ count: cMini }, { count: cStd }, { count: cPro }] = await Promise.all([
-                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).or('ai_model.eq.mini,ai_model.is.null').gte('created_at', startOfMonthStr),
+                    (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).eq('ai_model', 'mini').gte('created_at', startOfMonthStr),
                     (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).or('ai_model.eq.4o_standard,ai_model.eq.4o').gte('created_at', startOfMonthStr),
                     (supabase as any).from('messages').select('*', { count: 'exact', head: true }).in('clinic_id', poolIds).eq('ai_generated', true).eq('ai_model', '4o_pro').gte('created_at', startOfMonthStr),
                 ])
@@ -299,7 +299,10 @@ export default function AISettings() {
     const totalUsed = (miniMessages * 1) + (standardMessages * 15) + (proMessages * 15)
     const extraExpired = aiCreditsExtraExpiresAt ? new Date(aiCreditsExtraExpiresAt) < new Date() : false
     const extraAvailable = extraExpired ? 0 : (aiCreditsExtraBalance + aiCreditsExtra4o)
-    const totalAvailable = aiCreditsMonthlyLimit + extraAvailable
+    // El pack ya viene descontado del consumo sobre el plan (sesión 96): capacidad
+    // del ciclo = plan + pack restante + parte del pack ya consumida (used - limit).
+    const overage = Math.max(0, totalUsed - aiCreditsMonthlyLimit)
+    const totalAvailable = aiCreditsMonthlyLimit + extraAvailable + overage
     const usagePct = Math.min(100, (totalUsed / (totalAvailable || 1)) * 100)
 
     const currentPacks = paymentRegion === 'international' ? PADDLE_CREDIT_PACKS : CREDIT_PACKS

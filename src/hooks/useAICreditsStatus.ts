@@ -73,8 +73,13 @@ export function useAICreditsStatus(clinicId: string | null | undefined): AICredi
                 const limit = pool.ai_credits_monthly_limit ?? DEFAULT_MONTHLY_LIMIT
                 const extrasExpired = pool.ai_credits_extra_expires_at ? new Date(pool.ai_credits_extra_expires_at) < new Date() : false
                 const extraBalance = extrasExpired ? 0 : (pool.ai_credits_extra_balance || 0) + (pool.ai_credits_extra_4o || 0)
-                const totalAvailable = limit + extraBalance
-                const exhausted = totalUsed >= totalAvailable
+                // El pack se descuenta a medida que el consumo supera el plan (sesión 96):
+                // `extraBalance` ya es el saldo NETO. Mismo criterio que `getCreditStatus`
+                // en el webhook: agotado = plan consumido Y pack en 0. Capacidad del ciclo
+                // = plan + pack restante + lo ya consumido del pack (used - limit).
+                const overage = Math.max(0, totalUsed - limit)
+                const totalAvailable = limit + extraBalance + overage
+                const exhausted = totalUsed >= limit && extraBalance <= 0
 
                 setStatus({
                     loading: false,
