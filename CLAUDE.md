@@ -7987,3 +7987,36 @@ Se cruzó cada imagen inbound con el modelo que realmente respondió (`ai_model`
 - **Cuando cambia el modelo de un saldo en el backend (aquí, el pack pasa a descontarse), buscar TODOS los espejos frontend que lo calculan** (`useAICreditsStatus.ts`, `AISettings.tsx`) — la fórmula del webhook y la de la UI deben ser la misma.
 - **`ai_model IS NULL` en `messages` no es mini**: son mensajes de sistema/aviso sin costo. Nunca sumarlos al consumo.
 - **Un indicador "sin créditos" debe validarse contra el webhook/`getCreditStatus`**, no solo contra su propia aritmética: mostrar pausa cuando el agente responde es peor que no mostrar nada.
+
+---
+
+## Cambios realizados — septiembre 2026 (sesión 111, 2026-09-26)
+
+### Auditoría del ruteo lean y del consumo de créditos (Animalgrace)
+
+- **Ruteo lean (Linares desde 14-sep, Santiago desde sesión 97):** GPT-4o pasó de ~70-87% a ~65-70% de los mensajes en ambas sucursales. Funciona, pero recorta poco: casi toda conversación toca precio, temas médicos o una hora concreta, y GPT-4o sigue siendo ~97% del gasto.
+- **Consumo:** ~1.800 créditos/día promedio (pico 4.034 el 21-sep). Ciclo en 45.560 usados sobre un plan de 30.000. El pack de 8.000 (17-sep) se agotó en ~9 días; quedaron **19 créditos extra** (el agente queda mudo al agotarse). Proyección ~50.000/mes contra 30.000 del plan. Decisión pendiente del usuario: pack nuevo o `ai_credits_unlimited`.
+
+### Bug: la IA no daba precio de cirugía / se quedaba muda (Santiago, reportado por Claudia)
+
+**Causa 1 — `calculate_matrix_price` fallaba en ~50% de las llamadas.** El esquema del tool solo exige `matrix_key` + `species`; el modelo omitía `sex` o `procedure_type`, la búsqueda no encontraba celda y devolvía "escala a un humano" → la IA respondía "no tengo el precio exacto". Los datos de la matriz estaban correctos (perra 10,6 kg inyectable = $115.000).
+- `_shared/priceMatrix.ts`: si falta `procedure_type` o `sex` se infieren (hembra→esterilizacion, macho→castracion y viceversa; criptorquídeo no se infiere). Si 0 celdas y falta una dimensión, devuelve `missing_fields` con instrucción de pedir/reintentar (no escalar). Cada fallo se registra en `debug_logs` (`[priceMatrix] Sin celda coincidente`) con los argumentos.
+- `meta-whatsapp-webhook`: nuevo `needsPriceCorrection()` en el tool loop — si la respuesta dice "no tengo el precio / voy a consultar el valor" en una clínica con matrices y no hubo un `calculate_*_price` exitoso, fuerza UN reintento con corrección (log `[PRICE GAP]`).
+
+**Causa 2 — IA muda (+56 9 7655 2550).** La respuesta "voy a derivar tu consulta" activó el detector de promesa sin acción (`claimsDispatch`); el reintento forzado terminó en `escalate_to_human`, que pausó al tutor y suprimió la respuesta. El fix de la causa 1 lo previene porque el reintento de precio va antes en el loop.
+
+### Bug: solicitudes de agenda que no salían del panel
+
+Las autorizadas solo pasaban a `fulfilled` si la IA creaba la cita; las cargadas a mano por Claudia quedaban abiertas para siempre.
+- Migración `20260926150000_scheduling_requests_autoclose.sql`: trigger `tr_fulfill_scheduling_requests` (AFTER INSERT en `appointments`) marca `fulfilled` las solicitudes abiertas del mismo teléfono/clínica. Limpieza única: con cita posterior → `fulfilled`; autorizadas >5 días sin cita → `dismissed` (authorized 14→8; las 14 pending son reales).
+
+**Deploy:** `meta-whatsapp-webhook` y `ycloud-whatsapp-webhook` (`--no-verify-jwt`), migración aplicada vía `supabase db query --linked`. El cambio de código quedó sin commitear en git al momento de escribir esto.
+
+### Pendiente
+- Cliente +56976552550 (castración perrito, La Cisterna) sigue pausado (`requires_human`) y sin respuesta; también +56992312585 (Puente Alto) sin precio. Atender a mano.
+- Caso del pug con precio mal dado no se encontró en los datos; pedir teléfono a Claudia.
+- Verificar con tráfico real que aparezcan `[PRICE GAP]` / `[priceMatrix] Sin celda coincidente` y que la tasa de éxito de `calculate_matrix_price` suba.
+
+### Reglas permanentes
+- **Un tool cuyo esquema exige menos campos que los que necesita la búsqueda debe inferir o pedir los que faltan**, y su mensaje de fallo debe decir qué dato falta, no "escala a un humano" — el modelo traduce ese mensaje a "no tengo el precio".
+- **Un cierre de estado que depende solo de una acción de la IA deja registros abiertos** cuando un humano hace la acción a mano; engancharlo al hecho real (la cita existe) con un trigger.
