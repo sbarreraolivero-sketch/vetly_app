@@ -43,10 +43,15 @@ const CLINIC_ANIMALGRACE_SANTIAGO_ID = "13472ea4-4da6-461c-9a80-a5c970d9ec73";
 
 // Ruteo optimizado (sesión 95): en modo coordinadora la IA solo llena datos y llama
 // request_scheduling_coordination — el "agendamiento" ya no necesita GPT-4o. Solo PRECIO,
-// triaje médico, imágenes y la vuelta del pin (donde se arma recargo + servicio + mínimo
-// $15.000 + excepciones) van al modelo caro. Rollout controlado: Santiago primero, después
-// se agrega Linares y finalmente se simplifica a un chequeo de scheduling_mode.
-const LEAN_ROUTING_CLINICS = [CLINIC_ANIMALGRACE_SANTIAGO_ID];
+// triaje médico y la vuelta del pin (donde se arma recargo + servicio + mínimo $15.000 +
+// excepciones) van al modelo caro. Rollout controlado: Santiago primero (sesión 97, ~12 días
+// sin incidentes atribuibles al ruteo — los únicos bugs encontrados en esa ventana fueron de
+// la matriz de precios, ya corregidos), Linares extendido en sesión de verificación 2026-09-14.
+// Pendiente: simplificar a un chequeo directo de scheduling_mode.
+// Nota: las imágenes dejaron de forzar 4o desde que se eliminó la visión de OpenAI (ver
+// sección "Eliminación de vision de imágenes" del historial) — una imagen se rutea igual que
+// cualquier otro texto/caption, no hay categoría especial para ella.
+const LEAN_ROUTING_CLINICS = [CLINIC_ANIMALGRACE_SANTIAGO_ID, CLINIC_ANIMALGRACE_ID];
 
 // Matriz de precios de esterilización/castración de Linares — refleja EXACTO
 // el documento KB #MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS. Vive en código (no
@@ -540,7 +545,7 @@ const getAuthorizedRequest = async (
 
 // ── ¿La conversación está pausada (tomada por un humano)? ──
 // Debe re-consultarse en CADA punto de control, no una sola vez al recibir el mensaje:
-// entre que llega el mensaje y se envía la respuesta pasan ~25-70s (debounce de 20s +
+// entre que llega el mensaje y se envía la respuesta pasan ~65-110s (debounce de 60s +
 // tool loop de OpenAI). Si sólo se chequea al inicio, un clic en "Silenciar IA" hecho
 // dentro de esa ventana se ignora y la IA responde igual — el bug de "no se pausa a la primera".
 // Falla ABIERTO a propósito: si la query falla no bloqueamos al agente, sólo dejamos rastro.
@@ -1359,7 +1364,7 @@ const confirmAppt = async (sb: ReturnType<typeof createClient>, clinicId: string
         .eq("clinic_id", clinicId).or(phoneVariants).eq("status", "confirmed")
         .gte("appointment_date", new Date().toISOString())
         .order("appointment_date", { ascending: true }).limit(1).maybeSingle();
-      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible entre 1 y 2 horas antes y 1 a 2 horas después de la hora asignada." };
+      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada." };
     }
     return { message: "No hay citas pendientes." };
   }
@@ -1367,7 +1372,7 @@ const confirmAppt = async (sb: ReturnType<typeof createClient>, clinicId: string
   const status = response === "yes" ? "confirmed" : "cancelled";
   await sb.from("appointments").update({ status, confirmation_received: true, confirmation_response: response }).eq("id", appt.id);
   return status === "confirmed"
-    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible entre 1 y 2 horas antes y 1 a 2 horas después de la hora asignada, por si el móvil se adelanta o hay algún retraso en la ruta." }
+    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada, por si surge algún imprevisto en la ruta." }
     : { message: "Cita cancelada. ¿Reagendar?" };
 };
 
@@ -1428,7 +1433,11 @@ const getKnowledgeSummary = async (sb: ReturnType<typeof createClient>, clinicId
 // (cirugía, sedación) quedan fuera de ese top 5, y la tool get_knowledge casi nunca se
 // llama en la práctica. Estos 3 se fuerzan completos cuando el mensaje toca el tema.
 const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
-  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell"] },
+  // "operan"/"electroquimio" agregados 2026-09-14: caso real (Kenay) donde el
+  // tutor dijo "lo operan el 24/9 por una electroquimio terapia" — sin la palabra
+  // "cirugía" literal, esas keywords nunca hacían match y el protocolo (con el
+  // ayuno documentado) nunca se forzaba al contexto.
+  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell", "operan", "operaci", "van a operar", "lo van a operar", "quimioterapia", "electroquimio"] },
   { title: "Protocolo_de_Destartraje", keywords: ["destartraje", "limpieza dental", "sarro", "placa dental"] },
   { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
@@ -1493,6 +1502,26 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
     "el bosque", "san miguel", "la reina", "la florida", "macul", "la pintana",
     "pedro aguirre cerda", "la cisterna", "las condes", "vitacura", "ciudad satelite",
     "ciudad satélite", "ciudad de los valles", "pirque", "buin", "padre hurtado", "valle grande",
+  ] },
+  // Sesión 2026-09-14: la IA cotizó "Hemograma y Perfil Bioquímico" en $50.000 (el
+  // precio real del Perfil Bioquímico solo es $38.000 en Linares / $35.000 en Santiago)
+  // — tomó el valor del "Examen prequirúrgico completo" de la Lista Oficial de
+  // Servicios (siempre presente en el prompt) porque el tarifario real de exámenes
+  // de laboratorio individuales está en rank 7 del resumen, fuera del top-5, y
+  // get_knowledge casi nunca se llama. Se fuerza completo cuando el mensaje menciona
+  // cualquier examen de laboratorio específico, para que el precio real (suelto o en
+  // pack) siempre esté disponible sin depender de que el modelo decida consultarlo.
+  { title: "TARIFARIO_EXAMENES_LABORATORIO_ANIMALGRACE", keywords: [
+    "perfil bioquimico", "perfil bioquímico", "perfil renal", "perfil hepatico", "perfil hepático",
+    "perfil lipidico", "perfil lipídico", "perfil tiroideo",
+    "hemograma", "examen de sangre", "examenes de sangre", "exámenes de sangre",
+    "examen de laboratorio", "examenes de laboratorio", "exámenes de laboratorio",
+    "examen prequirurgico", "examen prequirúrgico", "examenes prequirurgicos", "exámenes prequirúrgicos",
+    "urianalisis", "urianálisis", "examen de orina", "orina completa", "orina funcional",
+    "urocultivo", "coprologico", "coprológico", "coproparasitario", "parasitologico", "parasitologico deposiciones",
+    "parasitológico", "citologia", "citología", "paaf", "punción con aguja fina", "puncion con aguja fina",
+    "electrolitos", "fructosamina", "amilasa", "lipasa", "cortisol", "progesterona", "estrogeno", "estrógeno",
+    "tsh", "t3", "t4", "leucemia felina", "inmunodeficiencia felina", "fiv", "felv",
   ] },
 ];
 
@@ -1844,7 +1873,7 @@ const processFunc = async (
 };
 
 // ── Model Routing ─────────────────────────────────────────────────────────────
-const selectModelTier = (content: string, hasImage = false, activeSchedulingFlow = false) => {
+const selectModelTier = (content: string, activeSchedulingFlow = false) => {
   const text = content.toLowerCase();
   const needsSchedulingReason =
     text.includes("disponib") || text.includes("agend") || text.includes("cita") ||
@@ -1855,7 +1884,7 @@ const selectModelTier = (content: string, hasImage = false, activeSchedulingFlow
     text.includes("costo") || text.includes("recargo") || text.includes("tarifa") ||
     text.includes("cotiz") || text.includes("comuna") || text.includes("cobertura");
   const needsMedicalReason =
-    hasImage || text.includes("cirug") || text.includes("esterili") || text.includes("castra") ||
+    text.includes("cirug") || text.includes("esterili") || text.includes("castra") ||
     text.includes("vacun") || text.includes("antirrabi") || text.includes("octuple") ||
     text.includes("sextuple") || text.includes("triple felina") || text.includes("puppy") ||
     text.includes("kcnasal") || text.includes("leucemia felina");
@@ -2020,9 +2049,36 @@ Deno.serve(async (req) => {
             error: failText,
             errorRaw: errObj ?? null,
           });
-          await Promise.resolve(
+          // Se pide de vuelta la fila afectada (clinic_id/phone/payload) en el mismo
+          // UPDATE para poder avisar a la clínica cuando el mensaje fallido es un
+          // aviso de opciones de agenda al tutor — antes este fallo quedaba SOLO en
+          // debug_logs, invisible para cualquiera en la clínica (confirmado real:
+          // varios avisos de "opciones autorizadas" fallaron por ventana de 24h
+          // vencida sin que nadie se enterara hasta que el tutor se quejó). Acotado
+          // a payload.type='scheduling_options' a propósito — los recordatorios ya
+          // tienen su propio camino de alerta (badge de estado + cron-system-health
+          // sobre reminder_logs), duplicar ahí generaría ruido.
+          const { data: failedMsgRows } = await Promise.resolve(
             sb.from("messages").update({ status: "failed" }).eq("ycloud_message_id", status.id)
-          ).then(() => {}, () => {/* non-critical */});
+              .select("clinic_id, phone_number, payload")
+          ).then((r: any) => r, () => ({ data: null }));
+          const failedMsg = Array.isArray(failedMsgRows) ? failedMsgRows[0] : null;
+          if (failedMsg?.clinic_id && (failedMsg.payload as any)?.type === "scheduling_options") {
+            try {
+              await sb.from("notifications").insert({
+                clinic_id: failedMsg.clinic_id,
+                // "scheduling_review" (no "human_handoff") a propósito: DashboardLayout.tsx
+                // navega según notification.type con un switch fijo — este tipo lleva a
+                // Citas Médicas, donde vive el panel de Solicitudes de Agenda relacionado
+                // con este tutor. notification.link no lo usa el frontend actual.
+                type: "scheduling_review",
+                title: "⚠️ El aviso de horarios no le llegó al tutor",
+                message: `No se pudo entregar el aviso de opciones de agenda a +${failedMsg.phone_number}: ${failText}. Contáctalo directamente para confirmar el horario.`,
+                link: "/app/appointments",
+                is_read: false,
+              });
+            } catch { /* non-critical */ }
+          }
           // Fallo terminal: sobrescribe cualquier estado previo.
           await Promise.resolve(
             sb.from("reminder_logs").update({ status: "failed", error_message: failText }).eq("ycloud_message_id", status.id)
@@ -2085,7 +2141,6 @@ Deno.serve(async (req) => {
       }
 
       let isImage = false;
-      let base64ImageObj: any = null;
       let payloadExtra: any = {};
       let immediateContext: any = null;
 
@@ -2101,21 +2156,20 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Handle image
+      // Handle image — visión de OpenAI deshabilitada por costo (créditos IA):
+      // ya no se descarga ni se envía la imagen al modelo. El aviso se agrega
+      // SIEMPRE (haya o no caption) para que la IA sepa que llegó una imagen
+      // — sin este aviso, un caption como "mira esto" no le daría ninguna
+      // pista de que había una foto adjunta. Reforzado también en
+      // ai_behavior_rules (regla "IMÁGENES Y AUDIOS"), que agrega la
+      // instrucción de escalar a un humano cuando la descripción en texto no
+      // sea suficiente para un caso que de verdad necesita revisión visual.
       if (msgType === "image" && message.image) {
-        try {
-          const blob = await downloadMetaMedia(message.image.id, clinic.meta_access_token);
-          const arrayBuffer = await blob.arrayBuffer();
-          const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""));
-          base64ImageObj = { type: "image_url", image_url: { url: `data:${blob.type || "image/jpeg"};base64,${base64}` } };
-          payloadExtra = { image_base64: `data:${blob.type || "image/jpeg"};base64,${base64}` };
-          body = message.image?.caption || "[La persona te acaba de enviar una imagen]";
-          isImage = true;
-          await debugLog(sb, "Meta image received", { from, type: blob.type });
-        } catch (e) {
-          console.error("Meta image error:", e);
-          body = "[La persona envió una imagen pero no pude verla. Pídele que te describa lo que envió.]";
-        }
+        const caption = message.image?.caption?.trim();
+        const visionNote = "[La persona adjuntó una imagen a este mensaje. No puedes verla — dile con naturalidad que no puedes verla, pídele que te la describa en texto, y si el tema realmente necesita revisión visual (herida, lesión, síntoma, documento a leer) y la descripción no basta, usa escalate_to_human.]";
+        body = caption ? `${caption}\n${visionNote}` : visionNote;
+        isImage = true;
+        await debugLog(sb, "Meta image received (vision disabled)", { from });
       }
 
       // Handle location
@@ -2195,7 +2249,6 @@ Deno.serve(async (req) => {
           ycloud_message_id: msgId,
           message_type: msgType,
           ai_generated: false,
-          ...(base64ImageObj ? { image_base64: base64ImageObj.image_url?.url } : {}),
           ...payloadExtra,
         });
       } catch (e: any) {
@@ -2204,6 +2257,14 @@ Deno.serve(async (req) => {
           continue;
         }
         console.error("[Meta] saveMsg error:", e.message);
+      }
+
+      // Mensajes sin contenido textual (sticker, reacción, mensaje borrado...): se guardan
+      // arriba para el historial pero NO se responden. Sin esto el modelo recibía un
+      // mensaje vacío, devolvía content vacío y el cliente recibía "Lo siento, tuve un
+      // problema técnico" justo después de confirmar su cita (caso real 2026-10-01).
+      if (!body.trim() && !isImage && ["sticker", "reaction", "revoke", "unsupported", "system", "ephemeral"].includes(msgType)) {
+        continue;
       }
 
       // Tutor context
@@ -2377,8 +2438,11 @@ Deno.serve(async (req) => {
             return;
           }
 
-          // Debounce 20 seconds
-          await new Promise(r => setTimeout(r, 20000));
+          // Debounce 60 seconds — subido de 20s (sesión 2026-09-28, vía 45s): agrupa más
+          // mensajes seguidos del mismo tutor en una sola llamada a la IA. Medido contra
+          // tráfico real de Santiago: a 60s el número de "clusters" de mensajes (≈
+          // llamadas a la IA) baja ~25% respecto a 20s.
+          await new Promise(r => setTimeout(r, 60000));
 
           // Dedup: abort if a newer message arrived
           const { data: latestMsg } = await sb.from("messages").select("id")
@@ -2390,7 +2454,7 @@ Deno.serve(async (req) => {
           }
 
           // requires_human — punto de control 2 de 3: capta el clic en "Silenciar IA"
-          // ocurrido durante los 20s de debounce.
+          // ocurrido durante los 60s de debounce.
           if (await isPausedForHuman(sb, clinic.id, from)) {
             console.log(`[Meta] requires_human=true for ${from}, skipping AI (post-debounce)`);
             return;
@@ -2554,11 +2618,22 @@ Deno.serve(async (req) => {
             .order("responded_at", { ascending: false }).limit(1).maybeSingle();
 
           // Texto de mensajes entrantes recientes, para detectar si corresponde forzar
-          // alguno de los 3 documentos KB de riesgo (cirugía/sedación/visita fallida).
+          // alguno de los documentos KB de riesgo (cirugía/sedación/visita fallida/etc).
           // No se usa burstInbound (se define más abajo, después de necesitarlo aquí).
+          //
+          // Sin .slice(-5) a propósito (bug real, caso Kenay/Claudia Gutiérrez Bravo,
+          // 2026-09-13): el tutor mencionó "lo operan" y "cirugía" al pedir un examen
+          // prequirúrgico, pero 6 mensajes después (nombre, mascota, horario, "¿ayuno?")
+          // esas palabras ya habían quedado fuera de la ventana de 5 — el protocolo de
+          // cirugía (que trae la indicación de ayuno) dejó de forzarse justo cuando la
+          // pregunta llegó, y la IA inventó una respuesta. `history` ya viene acotado a
+          // los últimos 20 mensajes de la conversación (ver fetch más arriba), así que
+          // tomar TODOS los inbound de ese rango es seguro — mismo criterio que ya usa
+          // ycloud-whatsapp-webhook (ver su comentario: "el tutor da el peso/ubicación
+          // varios turnos después... si solo se mirara el burst actual, la palabra clave
+          // ya no estaría presente").
           const recentUserText = history
             .filter((m: any) => m.direction === "inbound")
-            .slice(-5)
             .map((m: any) => m.content || "")
             .join(" ");
           const forcedKnowledgeBlock = await getForcedKnowledgeBlock(sb, clinic.id, recentUserText);
@@ -2719,16 +2794,17 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
             }),
           ];
 
+          // Visión de OpenAI deshabilitada: nunca se reconstruye un bloque
+          // image_url, aunque el mensaje guardado sea de tipo "image" (ni
+          // los nuevos, que ya no guardan image_base64, ni los históricos
+          // previos al deploy de este cambio, si por algún motivo aún lo
+          // tuvieran). El texto (caption o el aviso de "no puedo verla") ya
+          // quedó en msg.content al guardar el mensaje.
           const userContentBlocks: any[] = [];
           for (const msg of burstInbound) {
             let text = msg.content || "";
             if ((msg.payload as any)?.ai_context) text = `${text}\n${(msg.payload as any).ai_context}`;
-            if (msg.message_type === "image" && (msg.payload as any)?.image_base64) {
-              userContentBlocks.push({ type: "text", text: text || "[Imagen]" });
-              userContentBlocks.push({ type: "image_url", image_url: { url: (msg.payload as any).image_base64 } });
-            } else {
-              userContentBlocks.push({ type: "text", text: text || "" });
-            }
+            userContentBlocks.push({ type: "text", text: text || "" });
           }
           if (userContentBlocks.length > 0) msgs.push({ role: "user", content: userContentBlocks });
 
@@ -2737,7 +2813,6 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           let tierUsed = 1;
           if (clinic.ai_active_model === "hybrid") {
             const lastUserText = userContentBlocks.map((b: any) => b.text || "").join(" ");
-            const hasImageInBurst = userContentBlocks.some((b: any) => b.type === "image_url");
 
             const leanRouting = LEAN_ROUTING_CLINICS.includes(clinic.id)
               && clinic.scheduling_mode === "coordinator_approval";
@@ -2745,11 +2820,13 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
             let route: { model: string; tier: number };
             if (leanRouting) {
               // Ruteo optimizado para modo coordinadora (sesión 95). Van a GPT-4o SOLO:
-              // imagen · vuelta del pin (contexto de logística) · precio/servicio con
-              // costo variable · matices médicos · seguimiento a un mensaje de la IA que
+              // vuelta del pin (contexto de logística) · precio/servicio con costo
+              // variable · matices médicos · seguimiento a un mensaje de la IA que
               // tocó precio/médico o que ofreció una hora concreta. Todo lo demás (nombre,
               // dirección escrita, "sí", especie, edad, "¿qué días?") va a mini: en modo
               // coordinadora la IA solo llena datos y llama request_scheduling_coordination.
+              // (La visión de imágenes se eliminó por costo — una imagen ya no fuerza 4o
+              // por sí sola, se rutea igual que cualquier texto/caption.)
               const t = lastUserText.toLowerCase();
               const lastOut = history.filter(m => m.direction === "outbound").slice(-1).map(m => (m.content || "").toLowerCase())[0] || "";
               const pinContext = t.includes("[logística") || t.includes("[logistica")
@@ -2770,7 +2847,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
                 "dolor", "le duele", "se queja", "no respira", "cuesta respirar", "ahog", "asfixia", "jadea",
                 "herida", "atropell", "accidente", "mordi", "hincha", "inflam",
                 "bulto", "masa", "nódulo", "nodulo", "tumor", "quiste"];
-              const currentBig = hasImageInBurst || pinContext
+              const currentBig = pinContext
                 || pricingSignals.some(s => t.includes(s))
                 || medicalSignals.some(s => t.includes(s));
               const lastOutOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOut);
@@ -2788,11 +2865,11 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
               const lastOutboundText = recentOutbound[recentOutbound.length - 1] || "";
               const lastOutboundOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOutboundText);
               const trimmedUserText = lastUserText.trim();
-              const isSafeTrivialAck = !hasImageInBurst && trimmedUserText.length > 0 && trimmedUserText.length <= 20
+              const isSafeTrivialAck = trimmedUserText.length > 0 && trimmedUserText.length <= 20
                 && trivialAckPattern.test(trimmedUserText) && !lastOutboundOfferedTime;
               route = isSafeTrivialAck
                 ? { model: "gpt-4o-mini", tier: 1 }
-                : selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
+                : selectModelTier(lastUserText, activeSchedulingFlow);
             }
             targetModel = route.model;
             tierUsed = route.tier;
@@ -2834,8 +2911,18 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // "ya le pasé") NUNCA hacía match con \b al final — verificado con un test
           // mecánico antes de desplegar. Los \b de apertura sí se conservan (todas
           // las frases empiezan con letra ASCII).
+          //
+          // Ampliado 2026-09-14 (caso real: Claudia Gutiérrez Bravo/Kenay, Linares):
+          // el detector original solo cubría vocabulario de COORDINACIÓN ("voy a
+          // enviar/pasar/compartir/derivar"). El modelo también afirma agendamientos
+          // consumados ("He agendado la visita para el miércoles...") sin haber
+          // llamado nunca a create_appointment/reschedule_appointment — confirmado
+          // con ai_function_called=null en el mensaje real y cero filas en
+          // `appointments` para ese tutor. Ese vocabulario ("he agendado", "quedó
+          // agendada", "confirmé tu cita") no matcheaba el patrón viejo, así que el
+          // bug pasaba completamente desapercibido por este mismo mecanismo.
           const claimsDispatch = (t: string) =>
-            /\b(he enviado|ya envi[éeó]|envi[éeó]|voy a enviar|enviar[ée]|estoy enviando|he pasado|ya (le )?pas[ée]|he compartido|voy a compartir|he derivado|voy a derivar)/i.test(t);
+            /\b(he enviado|ya envi[éeó]|envi[éeó]|voy a enviar|enviar[ée]|estoy enviando|he pasado|ya (le )?pas[ée]|he compartido|voy a compartir|he derivado|voy a derivar|he agendado|ya agend[éeó]|agend[éeó] (tu|la|esta) (cita|visita|hora)|(tu|la) (cita|visita|hora) (ya )?(qued[óo]|est[áa]) (agendada|confirmada|reservada|lista)|confirm[ée] (tu|la) (cita|visita|hora)|reserv[ée] (tu|la) (cita|hora|visita)|dej[ée] agendad[ao]|agend[ée] la visita)/i.test(t);
           // Acotado a peticiones de dato explícitas — a propósito NO incluye un "¿"
           // genérico: una pregunta de cortesía ("¿necesitas algo más?") no debe
           // silenciar la detección de una promesa realmente rota.
@@ -2850,6 +2937,20 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // modelo la violó igual, así que reforzarlo solo en el prompt no bastaba
           // — esto FUERZA en código un reintento con corrección antes de aceptar
           // esa respuesta como final, en vez de solo detectarlo después de enviarla.
+          // Segunda promesa rota: "no tengo el precio / voy a consultar el valor"
+          // en una clínica con matrices de precio, sin haber obtenido un
+          // price_total. El precio SIEMPRE se calcula con calculate_matrix_price;
+          // decir que no se tiene es una falla, no una respuesta válida.
+          let priceCorrections = 0;
+          const noPriceClaim = (t: string) =>
+            /(no tengo|no cuento con)[^.\n]{0,40}(precio|valor|costo)|voy a (consultar|confirmar)[^.\n]{0,60}(precio|valor|costo)/i.test(t);
+          const needsPriceCorrection = () =>
+            clinicMatrices.length > 0 && !!assistant?.content
+            && !(assistant.tool_calls?.length > 0) && !assistant.function_call
+            && noPriceClaim(assistant.content)
+            && !allFuncResults.some(r => (r.name === "calculate_matrix_price" || r.name === "calculate_surgery_price") && r.result?.success)
+            && priceCorrections < 1;
+
           const needsCoordinationCorrection = () =>
             isCoordinatorClinic && !!assistant?.content
             && !(assistant.tool_calls?.length > 0) && !assistant.function_call
@@ -2859,7 +2960,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
 
           while (
             assistant && maxCalls > 0 &&
-            (assistant.function_call || (assistant.tool_calls && assistant.tool_calls.length > 0) || needsCoordinationCorrection())
+            (assistant.function_call || (assistant.tool_calls && assistant.tool_calls.length > 0) || needsCoordinationCorrection() || needsPriceCorrection())
           ) {
             if (assistant.tool_calls?.length > 0 || assistant.function_call) {
               msgs.push({ ...assistant, role: "assistant" });
@@ -2878,6 +2979,14 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
                 allFuncResults.push({ name: fnName, result });
                 msgs.push({ role: "function", name: fnName, content: JSON.stringify(result) });
               }
+            } else if (needsPriceCorrection()) {
+              priceCorrections++;
+              msgs.push({ role: "assistant", content: assistant.content });
+              msgs.push({
+                role: "system",
+                content: "Tu respuesta anterior dijo que no tienes el precio o que lo vas a consultar. Eso es incorrecto: el precio de cirugías y destartraje SIEMPRE se obtiene llamando a calculate_matrix_price. Llámala AHORA con los datos de la conversación: especie; sex (esterilización de hembra/cachorra/perra/gata = hembra, castración de macho/perrito/gato = macho); procedure_type (esterilizacion/castracion); weight_kg si es perro; anesthesia_type = inyectable salvo raza braquicéfala. Si de verdad falta un dato que el tutor no dio (por ejemplo el peso de un perro), pídeselo directamente. NO digas que vas a consultar con el equipo ni que no tienes el precio.",
+              });
+              await debugLog(sb, "[PRICE GAP] Forzando reintento con calculate_matrix_price", { phone: from, clinicId: clinic.id, originalReply: assistant.content });
             } else {
               // needsCoordinationCorrection() fue lo que nos trajo aquí: el
               // modelo respondió solo texto con la promesa rota. Se empuja su
@@ -2889,7 +2998,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
               msgs.push({ role: "assistant", content: assistant.content });
               msgs.push({
                 role: "system",
-                content: "Tu respuesta anterior dijo que ibas a enviar la información a la coordinadora o a coordinar la visita, pero no ejecutaste ninguna función — el tutor se habría quedado sin ninguna solicitud real. Si tienes TODOS los datos requeridos (nombre del tutor, mascota, especie/sexo, dirección, motivo, urgencia y disponibilidad amplia), llama AHORA MISMO a request_scheduling_coordination con esos datos exactos. Si te falta alguno, NO repitas esa frase: pregúntaselo directamente al tutor en tu respuesta.",
+                content: "Tu respuesta anterior afirmó algo que NO ejecutaste realmente: o bien que ya enviaste la información a la coordinadora / que ya coordinaste la visita, o bien que la cita/visita ya quedó agendada, confirmada o reservada — pero no llamaste a ninguna función real (request_scheduling_coordination, create_appointment ni reschedule_appointment). El tutor se habría quedado creyendo que existe una solicitud o una cita real que nunca se registró. Revisa cuál es tu caso: (1) si el tutor ya te dio TODOS los datos para coordinar (nombre, mascota, especie/sexo, dirección, motivo, urgencia y disponibilidad amplia) y aún no se coordinó, llama AHORA MISMO a request_scheduling_coordination con esos datos exactos; (2) si el tutor ya aceptó una fecha y hora concretas (de las opciones que la coordinadora autorizó, o de lo que él mismo indicó en la conversación), llama AHORA MISMO a create_appointment o reschedule_appointment con esa fecha y hora exactas. Si te falta algún dato o no tienes claro qué aceptó el tutor, NO repitas esa frase: pregúntaselo directamente en tu respuesta.",
               });
               await debugLog(sb, "[COORDINATION PROMISE GAP] Forzando reintento con corrección", {
                 phone: from, clinicId: clinic.id, originalReply: assistant.content,
@@ -2969,8 +3078,8 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
               await sb.from("notifications").insert({
                 clinic_id: clinic.id,
                 type: "human_handoff",
-                title: "⚠️ Revisar: posible solicitud de agenda no enviada",
-                message: `La IA le dijo a +${from} que enviaría sus datos a la coordinadora, pero no se registró ninguna solicitud real. Revisa la conversación en Mensajes y coordina manualmente si corresponde.`,
+                title: "⚠️ Revisar: posible cita o solicitud no registrada",
+                message: `La IA le dijo a +${from} que ya envió sus datos a la coordinadora, que la visita quedó coordinada, o que su cita ya está agendada/confirmada — pero no se ejecutó ninguna solicitud ni cita real. Revisa la conversación en Mensajes y confirma manualmente con el cliente si corresponde.`,
                 link: "/app/messages",
                 is_read: false,
               });
