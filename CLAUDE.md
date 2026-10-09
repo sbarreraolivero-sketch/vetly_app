@@ -8020,3 +8020,29 @@ Las autorizadas solo pasaban a `fulfilled` si la IA creaba la cita; las cargadas
 ### Reglas permanentes
 - **Un tool cuyo esquema exige menos campos que los que necesita la búsqueda debe inferir o pedir los que faltan**, y su mensaje de fallo debe decir qué dato falta, no "escala a un humano" — el modelo traduce ese mensaje a "no tengo el precio".
 - **Un cierre de estado que depende solo de una acción de la IA deja registros abiertos** cuando un humano hace la acción a mano; engancharlo al hecho real (la cita existe) con un trigger.
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 112, 2026-10-08)
+
+### Invitaciones de equipo rotas — dos bugs independientes (commit `f4dfbdd`)
+
+Una clínica no podía invitar miembros ni aceptar la invitación. Eran dos fallos distintos.
+
+**Bug 1 — `AbortError: Lock broken by another request with the 'steal' option` al enviar la invitación.** Conflicto del candado de sesión del navegador (`navigator.locks`) en supabase-js cuando hay varias pestañas de Vetly abiertas. Falla antes de llegar al servidor, así que no crea invitaciones duplicadas.
+- `@supabase/supabase-js` 2.99.1 → 2.117.3 (esa versión ya no usa `navigator.locks` por defecto).
+- `src/lib/supabase.ts`: nuevas `isAuthLockError` y `withAuthLockRetry` (hasta 2 reintentos con espera). Reintenta tanto si lanza como si devuelve `{ error }` de candado.
+- `teamService.inviteMember` envuelve `invite_member_v2` con `withAuthLockRetry<any>`.
+- No se pudo reproducir el AbortError con una sola pestaña; solo se verificó que el flujo normal no falla.
+
+**Bug 2 — "Ocurrió un error al verificar tu invitación" al abrir el enlace del correo (afectaba a TODOS los invitados).** `Register.tsx` llama sin sesión a `check_pending_invite_details(text, uuid)`, pero la limpieza de seguridad de la sesión 77 le había quitado `EXECUTE` a `anon`.
+- Migración `20260908000000_grant_anon_check_pending_invite_details.sql`: `REVOKE ALL ... FROM PUBLIC` + `GRANT EXECUTE ... TO anon, authenticated, service_role`. Aplicada en producción (`has_function_privilege('anon', ...)` = true).
+- La función se agregó a las excepciones del revoke-loop de `20260817170215` (junto a `get_pet_owner_portal`, `get_referral_link_data`, `mark_diagnostic_wa_clicked`) para que no se vuelva a revocar.
+
+**Verificación end-to-end en producción** (clínica de prueba, sesión de admin vía magic-link + Playwright con el Chrome del sistema): invitar → 200; abrir el enlace sin sesión → `check_pending_invite_details` 200 con `valid:true`; completar → `join-handler`, login y `clinic_members` 200, entra al dashboard con el rol correcto. Usuario de prueba, perfil y membresía eliminados después.
+
+### Reglas permanentes
+- **Toda RPC que una página pública llame sin sesión debe estar en la lista de excepciones del revoke-loop de la sesión 77** y tener `GRANT EXECUTE ... TO anon`. Hoy son 4: `get_pet_owner_portal`, `get_referral_link_data`, `mark_diagnostic_wa_clicked`, `check_pending_invite_details` (más `get_prescription_public`, `get_consent_public`, `get_grooming_report_public` y las `get_public_booking_*`, que ya tienen su propio GRANT). Si una página pública muestra un error genérico tras una limpieza de seguridad, revisar primero `has_function_privilege('anon', ...)`.
+- **`Register.tsx` en modo `join` usa un `confirm()` nativo antes de crear la cuenta.** Al probar con Playwright hay que registrar `page.on('dialog', d => d.accept())`; si no, el diálogo se descarta, no se llama a `join-handler` y parece que el formulario "no hace nada".
+- **El nombre completo en modo `join` viene prellenado y bloqueado (`readonly`)** desde la invitación; no se puede `fill()`.
+- **Antes de dar por rota una verificación visual, buscar el diálogo nativo o campo readonly que la bloquea**, no asumir un fallo de la app.
