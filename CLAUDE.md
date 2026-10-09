@@ -8046,3 +8046,55 @@ Una clínica no podía invitar miembros ni aceptar la invitación. Eran dos fall
 - **`Register.tsx` en modo `join` usa un `confirm()` nativo antes de crear la cuenta.** Al probar con Playwright hay que registrar `page.on('dialog', d => d.accept())`; si no, el diálogo se descarta, no se llama a `join-handler` y parece que el formulario "no hace nada".
 - **El nombre completo en modo `join` viene prellenado y bloqueado (`readonly`)** desde la invitación; no se puede `fill()`.
 - **Antes de dar por rota una verificación visual, buscar el diálogo nativo o campo readonly que la bloquea**, no asumir un fallo de la app.
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 113, 2026-10-08/09)
+
+### Auditoría profunda de seguridad, rendimiento, guardado y retrocesos (commit `b252731`)
+
+Todo confirmado explotándolo o midiéndolo en producción antes de corregir.
+
+#### Seguridad — 4 críticos (todos verificados con una cuenta ajena real)
+- **`debug_inspect_clinic(p_id)`** (función de depuración olvidada, `SECURITY DEFINER`, ejecutable por cualquier usuario logueado) devolvía la fila completa de `clinic_settings` de CUALQUIER clínica → `meta_access_token`, `meta_capi_token`, prompts. **Eliminada** junto con `audit_availability`. ⚠️ Rotar los tokens de Meta de ambas sucursales (estuvieron expuestos a cualquier cuenta, incluida una Core gratis).
+- **7 RPCs sin check de membresía**: `get_finance_item_metrics` (perdió el check en la reescritura de sesión 69), `get_clinic_services_secure`, `get_tag_counts`, `get_estimated_audience`, `get_clinic_professionals` (emails del equipo), `get_available_slots`, `check_availability`. `get_credit_history_summary` ahora filtra a las clínicas del usuario. `update_caja_opening_balance` validaba el `p_user_id` que manda el cliente (falsificable) → ahora `auth.uid()`.
+- **Crons ejecutables por cualquier logueado**: `reset_monthly_ai_usage` (créditos gratis para todos), `process_monthly_recharge`, `auto_open_daily_cajas`, `auto_close_crm_prospects` → `REVOKE ... FROM PUBLIC, anon, authenticated`.
+- **Edge functions disparables sin auth**: `cron-lifecycle-emails` y `cron-hq-prospecting-campaign` (`verify_jwt=false`) aceptaban requests anónimos — `?blast=…&force=1` reenviaba correos a toda la cohorte Core. `send-welcome-email` (`verify_jwt=true`) aceptaba la **anon key** (es un JWT válido) → enviar correos desde `hola@vetly.pro` a cualquiera. Nuevo `_shared/serviceRoleGuard.ts` en los 7 crons + `send-welcome-email`. `send-whatsapp-reminder/survey` y `mercadopago-create-credits-preference` ganaron check de `clinic_members`.
+- `find_tutor_by_phone_public` (anon) ahora solo responde para clínicas con reservas online activas.
+- RLS de tablas: barrido completo anon + usuario ajeno → **sin fugas** (solo `plan_limits`, público por diseño).
+- Protección contra contraseñas filtradas (HIBP): **requiere plan Pro de Supabase**, no se pudo activar.
+
+#### Rendimiento
+- **`pg_timezone_names` cuesta ~900 ms por consulta.** `clinic_local_date` (usada 2× por cada RPC de Finanzas: stats, ingresos, gastos) y `auto_open_daily_cajas` (3,4 s cada hora, la mayor carga de la DB) lo usaban. Nuevo helper `safe_timezone(text)` (`now() AT TIME ZONE` en bloque EXCEPTION). `clinic_local_date`: **935 ms → 2,3 ms**.
+- **Mensajes**: 238 MB de `payload.image_base64` (imágenes previas a sesión 109, sin uso) se descargaban con `select('*')` al abrir cada conversación → columnas explícitas. Además cargaba los **100 mensajes más ANTIGUOS** (`ascending + limit`) → ahora los 100 más recientes. Realtime recargaba la lista de 3.000 mensajes por cada mensaje entrante → agrupado (1,2 s). Lookup de nombres por `.in()` con cientos de teléfonos en la URL → en lotes de 150.
+- RLS de `messages` reescrita con `(SELECT auth.uid())` (initplan) + `status='active'`.
+- Imágenes base64: **420 de 1.185** quitadas de `messages.payload` (ver incidente abajo). Respaldo verificado (md5 420/420) en `~/Documents/vetly-backups/messages_image_backup_20261009.jsonl` (Mac del usuario, 100,9 MB; una fila JSON por mensaje: `message_id, clinic_id, image_base64`). Las otras 765 siguen en la DB — no molestan, la app ya no las descarga.
+
+#### Guardado
+`supabase-js` NO lanza en errores → los `try/catch` alrededor de `await supabase.from(...).delete()` nunca capturaban nada y la UI mostraba éxito. Nuevo `assertOk()` en `src/lib/supabase.ts`. Aplicado en: borrar vacuna/desparasitación/recordatorio, crear/editar/mover/borrar prospecto CRM, reordenar etapas, asignar/cancelar cita de estética, completar sesión de estética. **Recordatorio de vacuna/desparasitación**: si fallaba el insert, la dosis se guardaba y el recordatorio se perdía sin aviso → ahora alerta.
+
+#### Retrocesos
+Tutores y Mensajes guardaban la ficha/conversación abierta solo en estado local → en celular "atrás" salía de la sección. Ahora en la URL (`/app/tutors?t=<id>`, `/app/messages?c=<tel>`, con `state.fromList` para decidir `navigate(-1)` vs replace). PatientProfile → "Volver" hacía push a tutores (bucle tutor↔paciente) → ahora `navigate(-1)`. Dashboard enlaza a la conversación exacta. Verificado con Playwright móvil: paciente → Volver → tutor → atrás → listado → atrás → dashboard.
+
+#### 🔴 Incidente: caída de la base ~03:13–03:44 UTC (2026-10-09) — causada por esta sesión
+- **Causa:** limpiar las imágenes base64 escribiendo una tabla de respaldo DENTRO de la base. El primer intento (238 MB en una transacción) se cortó por timeout del gateway (524) y se revirtió; los lotes de 60 completaron 7 y la base dejó de aceptar conexiones (`UNHEALTHY` en db/rest/auth). El proyecto está en **plan FREE (tope 500 MB)** y la base llegó a **552 MB** (estaba ~450 MB, ya cerca del límite).
+- **Recuperación:** `POST /v1/projects/{ref}/restart` (Management API) → sano en ~5 min. Respaldo exportado a archivo local y verificado, tabla dropeada (552→452 MB). `debug_logs` anteriores a 2026-09-09 borrados en lotes de 10k (132.660 filas) + `VACUUM FULL public.debug_logs` (110 MB→4 MB). **Base final: 346 MB.**
+- Sin pérdida de datos. 0 mensajes entre 03:13 y 03:44 UTC (Meta reintenta webhooks). Tras el reinicio el agente procesó mensajes sin errores.
+
+#### Hallazgos preexistentes NO corregidos
+- `cron-retention-compute` **no está desplegado**: el cron 14 recibe 404 todos los días.
+- `cron-process-surveys` devuelve **500** en cada ejecución (ya pasaba antes).
+- `cron-hq-appointment-reminders` (job 19) se llama **sin cabecera Authorization** → 401 cada hora.
+- 44 funciones con `search_path` mutable (WARN histórico).
+
+### Reglas permanentes
+- **El proyecto está en plan FREE de Supabase: tope de 500 MB de base de datos.** Revisar `pg_database_size` antes de cualquier operación que agregue datos en volumen (respaldos, copias, backfills). Los respaldos grandes van FUERA de la base (archivo local o Storage), nunca a una tabla nueva.
+- **Nunca reescribir cientos de MB en producción desde un loop.** Lotes chicos + chequeo de salud (`GET /v1/projects/{ref}/health`) antes de cada lote + pausa, y detener al primer error. Un timeout del cliente (524) NO cancela la consulta en el servidor: verificar con `pg_stat_activity` antes de reintentar.
+- **`debug_logs` crece ~1 MB/día**: purgar periódicamente lo de más de 30 días (`DELETE` por lotes + `VACUUM FULL`; con pocas filas vivas es una operación de segundos).
+- **La key de servicio que usan los jobs de pg_cron NO es igual byte a byte a `SUPABASE_SERVICE_ROLE_KEY` del entorno de edge functions** (formatos distintos). Un guard por comparación exacta bloqueó los crons al primer deploy; `serviceRoleGuard` valida contra `/auth/v1/admin/users`. Probar SIEMPRE el camino del cron (con `?dryRun=1`) tras desplegar un guard.
+- **`verify_jwt = true` no protege nada que deba ser solo del sistema**: la anon key es un JWT válido.
+- **Un detector de "tiene check" por regex sobre `pg_get_functiondef` da falsos positivos** si el cuerpo menciona `clinic_members` sin usarlo como guard (pasó con `debug_inspect_clinic`). Verificar explotando con una sesión ajena real.
+- **Nunca `pg_timezone_names` en una función caliente.** Usar `public.safe_timezone()`.
+- **Antes de desplegar edge functions desde el working tree, `supabase functions download` + diff contra git** para no pisar código desplegado que nunca se commiteó.
+- **Escrituras de Supabase en el frontend: `assertOk(await ...)` o destructurar `{ error }`.** Nunca confiar en `try/catch` solo.
+- **Estado de "detalle abierto" en páginas de listado → en la URL**, no en `useState`, o el botón atrás del celular rompe la navegación.
