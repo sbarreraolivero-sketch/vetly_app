@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CalendarClock, Loader2, AlertTriangle, Check, MapPin, PawPrint, Stethoscope, X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, formatPhoneNumber } from '@/lib/utils'
@@ -42,6 +43,7 @@ interface SchedulingRequestsPanelProps {
 
 export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelProps) {
     const { user } = useAuth()
+    const queryClient = useQueryClient()
     const [requests, setRequests] = useState<SchedulingRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -70,7 +72,8 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
             setError(null)
         }
         setLoading(false)
-    }, [clinicId])
+        queryClient.invalidateQueries({ queryKey: ['scheduling-requests-count', clinicId] })
+    }, [clinicId, queryClient])
 
     useEffect(() => {
         if (!clinicId) return

@@ -289,6 +289,30 @@ export default function Appointments() {
     const clinicId = member?.clinic_id || profile?.clinic_id
     const [routeSectors, setRouteSectors] = useState<string[] | null>(null)
     const [coordinatorApproval, setCoordinatorApproval] = useState(false)
+    const [section, setSection] = useState<'appointments' | 'requests'>(() => {
+        try { return sessionStorage.getItem('appointments_section') === 'requests' ? 'requests' : 'appointments' } catch { return 'appointments' }
+    })
+    const changeSection = (s: 'appointments' | 'requests') => {
+        setSection(s)
+        try { sessionStorage.setItem('appointments_section', s) } catch { /* sin storage */ }
+    }
+    const showSectionTabs = !isProfessional && coordinatorApproval && !!clinicId
+    const showAgenda = !showSectionTabs || section === 'appointments'
+    const { data: pendingRequestsCount = 0 } = useQuery<number>({
+        queryKey: ['scheduling-requests-count', clinicId],
+        enabled: showSectionTabs,
+        refetchInterval: 60_000,
+        refetchOnWindowFocus: true,
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { count } = await (supabase as any)
+                .from('scheduling_requests')
+                .select('id', { count: 'exact', head: true })
+                .eq('clinic_id', clinicId)
+                .eq('status', 'pending')
+            return count ?? 0
+        },
+    })
     // "Hoy" en la zona de la clínica — nunca derivar de toISOString() (bug UTC recurrente).
     const todayLocalStr = new Date().toLocaleDateString('sv-SE', { timeZone: timezone || 'America/Santiago' })
 
@@ -1157,15 +1181,43 @@ export default function Appointments() {
                 </div>
             </GuideBox>
 
+            {/* Selector de sección — solo con modo coordinadora */}
+            {showSectionTabs && (
+                <div className="flex gap-2">
+                    {([
+                        { id: 'appointments', label: 'Citas' },
+                        { id: 'requests', label: 'Solicitudes de agenda' },
+                    ] as const).map(s => (
+                        <button
+                            key={s.id}
+                            onClick={() => changeSection(s.id)}
+                            className={cn(
+                                'flex items-center gap-2 px-4 py-2.5 rounded-soft text-sm font-bold transition-colors border',
+                                section === s.id
+                                    ? 'bg-primary-500 text-white border-primary-500'
+                                    : 'bg-white text-charcoal/60 border-silk-beige hover:text-charcoal'
+                            )}
+                        >
+                            {s.label}
+                            {s.id === 'requests' && pendingRequestsCount > 0 && (
+                                <span className={cn(
+                                    'min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center text-xs font-black',
+                                    section === 'requests' ? 'bg-white/25 text-white' : 'bg-amber-500 text-white'
+                                )}>
+                                    {pendingRequestsCount}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Solicitudes esperando que la coordinadora defina horarios */}
-            {!isProfessional && coordinatorApproval && clinicId && (
+            {showSectionTabs && section === 'requests' && clinicId && (
                 <SchedulingRequestsPanel clinicId={clinicId} />
             )}
 
-            {/* Plan de ruta — solo clínicas móviles con sectorización configurada.
-                Se oculta en modo coordinadora: ese panel decide la ruta día a día,
-                y dejar ambos mecanismos activos a la vez puede contradecirse entre
-                sí (causa confirmada de un bloqueo real el 2026-08-26). */}
+            {/* Plan de ruta — solo sin modo coordinadora (ambos mecanismos a la vez pueden contradecirse) */}
             {!isProfessional && !coordinatorApproval && routeSectors && routeSectors.length > 0 && clinicId && (
                 <RoutePlanPanel
                     clinicId={clinicId}
@@ -1174,6 +1226,7 @@ export default function Appointments() {
                 />
             )}
 
+            {showAgenda && (<>
             {/* Filters */}
             <div className="card-soft p-4">
                 <div className="flex flex-wrap items-center gap-4">
@@ -1906,6 +1959,7 @@ export default function Appointments() {
                 </>
             )
             }
+            </>)}
 
             {/* New Appointment Modal */}
             {
