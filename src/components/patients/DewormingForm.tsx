@@ -129,7 +129,8 @@ export function DewormingForm({ patient, event, onClose, onSave }: DewormingForm
                      status: 'pending',
                      whatsapp_template: formData.whatsapp_template || null
                 }
-                await (supabase as any).from('reminders').insert([reminderData])
+                const { error: reminderError } = await (supabase as any).from('reminders').insert([reminderData])
+                if (reminderError) alert(`La desparasitación se guardó, pero NO se pudo programar el recordatorio: ${reminderError.message}`)
             }
 
             onSave()

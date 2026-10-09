@@ -952,7 +952,7 @@ export default function Dashboard() {
                             <p className="text-charcoal/40 text-center py-8 text-sm">No hay mensajes recientes.</p>
                         ) : (
                             recentMessages.map((message) => (
-                                <div key={message.id} className="p-3 rounded-xl hover:bg-ivory transition-colors cursor-pointer" onClick={() => navigate('/app/messages')}>
+                                <div key={message.id} className="p-3 rounded-xl hover:bg-ivory transition-colors cursor-pointer" onClick={() => navigate(message.phone_number ? `/app/messages?c=${encodeURIComponent(message.phone_number)}` : '/app/messages')}>
                                     <div className="flex items-start gap-3">
                                         <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center shrink-0">
                                             <MessageSquare className="w-3.5 h-3.5 text-sky-600" />

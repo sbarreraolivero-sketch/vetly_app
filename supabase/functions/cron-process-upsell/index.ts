@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { isServiceRoleRequest, forbiddenResponse } from "../_shared/serviceRoleGuard.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -8,6 +9,8 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+    // Solo invocable por el sistema (pg_cron / otras funciones con service role).
+    if (req.method !== 'OPTIONS' && !(await isServiceRoleRequest(req))) return forbiddenResponse()
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }

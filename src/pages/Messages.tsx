@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Phone, Send, Sparkles, MoreVertical, MessageSquare, RefreshCw, Bot, User, BellOff, ArrowLeft } from 'lucide-react'
 import { cn, formatPhoneNumber, getInitials } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -30,7 +31,22 @@ export default function Messages() {
     const { profile } = useAuth()
     const queryClient = useQueryClient()
     const convKey = ['conversations', profile?.clinic_id] as const
-    const [selectedPhone, setSelectedPhone] = useState<string | null>(null)
+    // La conversación abierta vive en la URL (?c=<teléfono>): en el celular el
+    // botón "atrás" vuelve a la lista en vez de salir de Mensajes.
+    const location = useLocation()
+    const navigate = useNavigate()
+    const selectedPhone = new URLSearchParams(location.search).get('c')
+    const openConversation = (phone: string) => {
+        if (phone === selectedPhone) return
+        // En desktop la lista y el chat se ven juntos: reemplazar, no apilar historial.
+        const isMobile = window.innerWidth < 768
+        navigate(`/app/messages?c=${encodeURIComponent(phone)}`,
+            isMobile ? { state: { fromList: true } } : { replace: true })
+    }
+    const closeConversation = () => {
+        if ((location.state as { fromList?: boolean } | null)?.fromList) navigate(-1)
+        else navigate('/app/messages', { replace: true })
+    }
     const [sidebarPhone, setSidebarPhone] = useState<string | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -50,6 +66,8 @@ export default function Messages() {
 
     // Stable refs to avoid recreating Realtime subscription when callbacks change
     const fetchConversationsRef = useRef<() => void>(() => {})
+    const convRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    useEffect(() => () => { if (convRefreshTimerRef.current) clearTimeout(convRefreshTimerRef.current) }, [])
     const scrollToBottomRef = useRef<() => void>(() => {})
 
     // Scroll to bottom of messages
@@ -118,11 +136,19 @@ export default function Messages() {
 
             // Fetch tutors for names and requires_human flag
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: tutors } = await (supabase as any)
-                .from('tutors')
-                .select('phone_number, name, requires_human')
-                .eq('clinic_id', cid)
-                .in('phone_number', queryPhones)
+            // En lotes: con cientos de teléfonos la URL del .in() se acerca al límite
+            // del gateway y, si falla, nombres y "IA pausada" desaparecen en silencio.
+            const fetchInChunks = async (table: string, cols: string, col: string, values: string[]) => {
+                const out: any[] = []
+                for (let i = 0; i < values.length; i += 150) {
+                    const { data, error } = await (supabase as any)
+                        .from(table).select(cols).eq('clinic_id', cid).in(col, values.slice(i, i + 150))
+                    if (error) throw error
+                    if (data) out.push(...data)
+                }
+                return out
+            }
+            const tutors = await fetchInChunks('tutors', 'phone_number, name, requires_human', 'phone_number', queryPhones)
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             tutors?.forEach((t: any) => {
@@ -135,11 +161,7 @@ export default function Messages() {
             const unnamedPhones = phones.filter(p => !nameMap.has(normalize(p)))
             if (unnamedPhones.length > 0) {
                 const queryUnnamed = [...unnamedPhones, ...unnamedPhones.map(p => p.startsWith('+') ? p.substring(1) : `+${p}`)]
-                const { data: prospects } = await (supabase as any)
-                    .from('crm_prospects')
-                    .select('phone, name, requires_human')
-                    .eq('clinic_id', cid)
-                    .in('phone', queryUnnamed)
+                const prospects = await fetchInChunks('crm_prospects', 'phone, name, requires_human', 'phone', queryUnnamed)
 
                 prospects?.forEach((p: any) => {
                     const norm = normalize(p.phone)
@@ -205,7 +227,7 @@ export default function Messages() {
     useEffect(() => {
         const convs = convQuery.data
         if (convs && convs.length > 0 && !selectedPhoneRef.current && window.innerWidth >= 768) {
-            setSelectedPhone(convs[0].phone_number)
+            navigate(`/app/messages?c=${encodeURIComponent(convs[0].phone_number)}`, { replace: true })
         }
     }, [convQuery.data])
 
@@ -236,14 +258,18 @@ export default function Messages() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase as any)
                 .from('messages')
-                .select('*')
+                // Columnas explícitas: `payload` puede traer imágenes en base64 antiguas
+                // (cientos de KB por mensaje) que esta vista no usa.
+                .select('id, phone_number, direction, content, ai_generated, ai_function_called, created_at')
                 .eq('clinic_id', profile.clinic_id)
                 .eq('phone_number', selectedPhone)
-                .order('created_at', { ascending: true })
+                // Los 100 MÁS RECIENTES (antes ascending + limit traía los 100 más antiguos
+                // y en conversaciones largas nunca se veían los últimos mensajes).
+                .order('created_at', { ascending: false })
                 .limit(100)
 
             if (error) { console.error('Error fetching messages:', error); return }
-            setMessages(data || [])
+            setMessages(((data || []) as Message[]).slice().reverse())
             scrollToBottom()
         } catch (e) {
             console.error('Error:', e)
@@ -282,8 +308,10 @@ export default function Messages() {
                     newMsg.is_read = true
                 }
 
-                // Update conversations list (to refresh unread counts and last message)
-                fetchConversationsRef.current()
+                // Update conversations list (to refresh unread counts and last message).
+                // Agrupado: una ráfaga de mensajes dispara UNA recarga, no una por mensaje.
+                if (convRefreshTimerRef.current) clearTimeout(convRefreshTimerRef.current)
+                convRefreshTimerRef.current = setTimeout(() => fetchConversationsRef.current(), 1200)
 
                 // If the message belongs to the selected conversation, add it to the UI
                 if (newMsg.phone_number === selectedPhoneRef.current) {
@@ -559,7 +587,7 @@ export default function Messages() {
                         filteredConversations.map((conversation) => (
                             <button
                                 key={conversation.phone_number}
-                                onClick={() => setSelectedPhone(conversation.phone_number)}
+                                onClick={() => openConversation(conversation.phone_number)}
                                 className={cn(
                                     'w-full p-4 flex items-start gap-3 text-left transition-colors border-b border-silk-beige/50',
                                     selectedPhone === conversation.phone_number
@@ -626,7 +654,7 @@ export default function Messages() {
                         <div className="p-4 border-b border-silk-beige flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-3">
                                 <button
-                                    onClick={() => setSelectedPhone(null)}
+                                    onClick={closeConversation}
                                     className="p-1.5 -ml-1 text-charcoal/60 hover:text-charcoal md:hidden"
                                 >
                                     <ArrowLeft className="w-6 h-6" />

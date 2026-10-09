@@ -25,6 +25,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendEmail } from "../_shared/email.ts";
+import { isServiceRoleRequest, forbiddenResponse } from "../_shared/serviceRoleGuard.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -141,6 +142,8 @@ ${trackingPixel}
 }
 
 Deno.serve(async (req: Request) => {
+    // Solo invocable por el sistema (pg_cron / otras funciones con service role).
+    if (req.method !== 'OPTIONS' && !(await isServiceRoleRequest(req))) return forbiddenResponse()
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   const url = new URL(req.url);

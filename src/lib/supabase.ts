@@ -116,3 +116,15 @@ export async function getConversations() {
 
     return Array.from(conversations.values())
 }
+
+/**
+ * supabase-js NO lanza cuando una escritura falla: devuelve `{ error }`.
+ * Un `try { await supabase.from(...).delete() } catch {}` nunca captura nada
+ * y la UI muestra el cambio como guardado aunque no lo esté. Envolver las
+ * escrituras con `assertOk(await ...)` para que el error llegue al catch.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function assertOk<T extends { error: any }>(res: T): T {
+    if (res.error) throw res.error
+    return res
+}

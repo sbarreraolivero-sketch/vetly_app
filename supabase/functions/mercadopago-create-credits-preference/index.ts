@@ -102,6 +102,21 @@ Deno.serve(async (req: Request) => {
 
         const supabase = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
 
+        // Auditoría 2026-10-08: el usuario debe ser miembro activo de clinic_id
+        // (mismo patrón que mercadopago-create-subscription y paddle-create-transaction).
+        const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+        const { data: { user } } = await supabase.auth.getUser(jwt);
+        if (!user) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }),
+                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const { data: membership } = await supabase.from("clinic_members").select("id")
+            .eq("user_id", user.id).eq("clinic_id", clinic_id).eq("status", "active").maybeSingle();
+        if (!membership) {
+            return new Response(JSON.stringify({ error: "Forbidden" }),
+                { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
         // Determine currency (request -> database -> default CLP)
         let currency = reqCurrency;
         if (!currency) {

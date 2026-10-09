@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { limitsForPlan } from "../_shared/planLimits.ts"
+import { isServiceRoleRequest, forbiddenResponse } from "../_shared/serviceRoleGuard.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -8,6 +9,8 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
+    // Solo invocable por el sistema (pg_cron / otras funciones con service role).
+    if (req.method !== 'OPTIONS' && !(await isServiceRoleRequest(req))) return forbiddenResponse()
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }

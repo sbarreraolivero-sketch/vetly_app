@@ -10,7 +10,7 @@ import {
     FileSignature, Link2, CheckCircle2, Scissors, RefreshCw
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { supabase } from '@/lib/supabase'
+import { supabase, assertOk } from '@/lib/supabase'
 import { Patient, Tutor, ClinicalRecord } from '@/types/database'
 import { cn } from '@/lib/utils'
 
@@ -59,12 +59,13 @@ export default function PatientProfile() {
      *  3. Link directo / recarga → cae al listado del tutor. */
     const goBack = () => {
         const fromTutorId = (location.state as { fromTutorId?: string } | null)?.fromTutorId
-        if (fromTutorId) {
-            navigate('/app/tutors', { state: { tutorId: fromTutorId } })
-        } else if (location.key !== 'default' && window.history.length > 1) {
+        // Se llegó desde la ficha del tutor (/app/tutors?t=<id>): retroceder en el
+        // historial. Empujar una entrada nueva dejaba el botón "atrás" en bucle
+        // (tutor → paciente → tutor → paciente…).
+        if (fromTutorId || (location.key !== 'default' && window.history.length > 1)) {
             navigate(-1)
         } else if (tutor?.id) {
-            navigate('/app/tutors', { state: { tutorId: tutor.id } })
+            navigate(`/app/tutors?t=${tutor.id}`, { replace: true })
         } else {
             navigate('/app/tutors')
         }
@@ -286,17 +287,17 @@ export default function PatientProfile() {
     const handleDeleteVaccine = async (vid: string) => {
         if (!confirm('¿Eliminar registro de vacuna?')) return
         try {
-            await supabase.from('vaccines').delete().eq('id', vid)
+            assertOk(await supabase.from('vaccines').delete().eq('id', vid))
             fetchVaccines()
-        } catch (error) { console.error(error) }
+        } catch (error) { console.error(error); alert('No se pudo eliminar la vacuna. Intenta de nuevo.') }
     }
 
     const handleDeleteDeworming = async (did: string) => {
         if (!confirm('¿Eliminar registro de desparasitación?')) return
         try {
-            await supabase.from('deworming').delete().eq('id', did)
+            assertOk(await supabase.from('deworming').delete().eq('id', did))
             fetchDewormings()
-        } catch (error) { console.error(error) }
+        } catch (error) { console.error(error); alert('No se pudo eliminar la desparasitación. Intenta de nuevo.') }
     }
 
     const handleSaveClinicalInfo = async () => {
@@ -394,7 +395,7 @@ export default function PatientProfile() {
                     <button onClick={() => navigate('/app/tutors')} className="hover:text-primary-600 transition-colors">Tutores</button>
                     <span>/</span>
                     <button
-                        onClick={() => navigate('/app/tutors', { state: { tutorId: tutor?.id } })}
+                        onClick={() => navigate(tutor?.id ? `/app/tutors?t=${tutor.id}` : '/app/tutors')}
                         className="text-charcoal/60 hover:text-primary-600 transition-colors"
                     >
                         {tutor?.name}

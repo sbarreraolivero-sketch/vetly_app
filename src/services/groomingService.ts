@@ -292,8 +292,9 @@ export const groomingService = {
 
         // Marca la cita como completada.
         if (params.appointmentId) {
-            await (supabase as any).from('appointments')
+            const { error: apptErr } = await (supabase as any).from('appointments')
                 .update({ status: 'completed' }).eq('id', params.appointmentId)
+            if (apptErr) throw apptErr
         }
 
         // Recordatorio "toca baño" — si hay próxima visita, tutor y la clínica

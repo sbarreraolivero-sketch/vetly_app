@@ -124,7 +124,8 @@ export default function Grooming() {
     }
 
     const assignGroomer = async (apptId: string, memberId: string) => {
-        await (supabase as any).from('appointments').update({ professional_id: memberId || null }).eq('id', apptId)
+        const { error } = await (supabase as any).from('appointments').update({ professional_id: memberId || null }).eq('id', apptId)
+        if (error) alert('No se pudo asignar el peluquero: ' + error.message)
         refresh()
     }
 
@@ -411,7 +412,8 @@ export default function Grooming() {
                             )}
                             <button onClick={async () => {
                                 if (!confirm('¿Cancelar esta cita de estética?')) return
-                                await (supabase as any).from('appointments').update({ status: 'cancelled' }).eq('id', actionAppt.id)
+                                const { error } = await (supabase as any).from('appointments').update({ status: 'cancelled' }).eq('id', actionAppt.id)
+                                if (error) { alert('No se pudo cancelar la cita: ' + error.message); return }
                                 setActionAppt(null); refresh()
                             }} className="w-full py-2 rounded-xl text-xs font-bold text-charcoal/40 hover:text-red-500">
                                 Cancelar cita

@@ -19,7 +19,7 @@ import {
     ChevronUp
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
+import { supabase, assertOk } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { GuideBox } from '@/components/ui/GuideBox'
 
@@ -245,10 +245,10 @@ export default function CRM() {
 
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase as any)
+            assertOk(await (supabase as any)
                 .from('crm_prospects')
                 .update({ stage_id: stageId, updated_at: new Date().toISOString() })
-                .eq('id', prospectId)
+                .eq('id', prospectId))
         } catch (err) {
             console.error('Error moving prospect:', err)
             fetchAll()
@@ -304,27 +304,27 @@ export default function CRM() {
             let prospectId = editingProspect?.id
             if (prospectId) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase as any).from('crm_prospects')
+                assertOk(await (supabase as any).from('crm_prospects')
                     .update({ ...data, updated_at: new Date().toISOString() })
-                    .eq('id', prospectId)
+                    .eq('id', prospectId))
             } else {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: newP } = await (supabase as any)
+                const { data: newP } = assertOk(await (supabase as any)
                     .from('crm_prospects')
                     .insert(data)
                     .select()
-                    .single()
+                    .single())
                 prospectId = newP?.id
             }
 
             // Update tags
             if (prospectId) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase as any).from('crm_prospect_tags').delete().eq('prospect_id', prospectId)
+                assertOk(await (supabase as any).from('crm_prospect_tags').delete().eq('prospect_id', prospectId))
                 if (selectedFormTags.length > 0) {
                     const tagInserts = selectedFormTags.map(tagId => ({ prospect_id: prospectId, tag_id: tagId }))
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    await (supabase as any).from('crm_prospect_tags').insert(tagInserts)
+                    assertOk(await (supabase as any).from('crm_prospect_tags').insert(tagInserts))
                 }
             }
 
@@ -332,6 +332,7 @@ export default function CRM() {
             fetchAll()
         } catch (err) {
             console.error('Error saving prospect:', err)
+            alert('No se pudo guardar el prospecto. Revisa los datos e intenta de nuevo.')
         } finally {
             setSaving(false)
         }
@@ -340,11 +341,12 @@ export default function CRM() {
     const handleDeleteProspect = async (id: string) => {
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase as any).from('crm_prospects').delete().eq('id', id)
+            assertOk(await (supabase as any).from('crm_prospects').delete().eq('id', id))
             patchCrm(d => ({ ...d, prospects: d.prospects.filter(p => p.id !== id) }))
             setShowDeleteConfirm(null)
         } catch (err) {
             console.error('Error deleting prospect:', err)
+            alert('No se pudo eliminar el prospecto.')
         }
     }
 
@@ -418,7 +420,7 @@ export default function CRM() {
             }))
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase as any).from('crm_pipeline_stages').upsert(updates)
+            assertOk(await (supabase as any).from('crm_pipeline_stages').upsert(updates))
         } catch (err) {
             console.error('Error reordering stages:', err)
             fetchAll() // Revert on error

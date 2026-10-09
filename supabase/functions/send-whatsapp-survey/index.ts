@@ -36,6 +36,20 @@ serve(async (req) => {
             throw new Error('Appointment not found')
         }
 
+        // Auditoría 2026-10-08: el que llama debe ser miembro activo de la clínica de
+        // la cita. Antes, con el UUID de una cita ajena se podían enviar WhatsApps
+        // desde el número de otra clínica.
+        const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
+        const { data: { user } } = await supabaseClient.auth.getUser(jwt)
+        if (!user) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+        const { data: membership } = await supabaseClient.from('clinic_members').select('id')
+            .eq('user_id', user.id).eq('clinic_id', appointment.clinic_id).eq('status', 'active').maybeSingle()
+        if (!membership) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+
         const { clinic_settings } = appointment
         const ycloudKey = clinic_settings?.ycloud_api_key
 

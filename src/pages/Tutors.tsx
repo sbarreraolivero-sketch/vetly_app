@@ -94,17 +94,31 @@ export default function Tutors() {
         queryClient.invalidateQueries({ queryKey: ['tag-counts', clinicId] })
     }
 
-    // Auto-open tutor when navigating from PatientProfile breadcrumb
+    // La ficha abierta vive en la URL (?t=<id>): así el botón "atrás" del
+    // navegador/celular vuelve al listado en vez de salir de Tutores.
+    const openContact = (contact: Contact) => {
+        setSelectedContact(contact)
+        navigate(`/app/tutors?t=${contact.id}`, { state: { fromList: true } })
+    }
+    const closeContact = () => {
+        if ((location.state as any)?.fromList) navigate(-1)
+        else navigate('/app/tutors', { replace: true })
+    }
+
+    // Sincroniza la ficha con la URL (atrás/adelante, enlace directo, breadcrumb).
     useEffect(() => {
-        const tutorId = (location.state as any)?.tutorId
-        if (tutorId && contacts.length > 0) {
-            const contact = contacts.find(c => c.id === tutorId)
-            if (contact) {
-                setSelectedContact(contact)
-                navigate('/app/tutors', { replace: true, state: {} })
-            }
+        // Breadcrumb desde PatientProfile: llega con state.tutorId
+        const stateTutorId = (location.state as any)?.tutorId
+        if (stateTutorId) {
+            navigate(`/app/tutors?t=${stateTutorId}`, { replace: true })
+            return
         }
-    }, [contacts, location.state])
+        const tutorId = new URLSearchParams(location.search).get('t')
+        if (!tutorId) { setSelectedContact(null); return }
+        if (selectedContact?.id === tutorId) return
+        const contact = contacts.find(c => c.id === tutorId)
+        if (contact) setSelectedContact(contact)
+    }, [contacts, location.search, location.state])
 
     const handleDelete = async (contact: Contact) => {
         if (!profile?.clinic_id) return
@@ -142,7 +156,7 @@ export default function Tutors() {
             {selectedContact ? (
                 <TutorDetails
                     tutor={selectedContact as any}
-                    onBack={() => setSelectedContact(null)}
+                    onBack={closeContact}
                     onUpdate={fetchContacts}
                 />
             ) : (
@@ -275,7 +289,7 @@ export default function Tutors() {
                                                             "transition-colors group hover:bg-silk-beige/30 cursor-pointer",
                                                             contact.type === 'prospect' && "opacity-90"
                                                         )}
-                                                        onClick={() => setSelectedContact(contact)}
+                                                        onClick={() => openContact(contact)}
                                                     >
                                                         <td className="py-4 px-6">
                                                             <div className="flex items-center gap-3">
@@ -380,7 +394,7 @@ export default function Tutors() {
                                         <div
                                             key={`mob-${contact.id}`}
                                             className="bg-white rounded-2xl p-4 shadow-sm border border-silk-beige flex flex-col gap-3 active:scale-[0.98] transition-all"
-                                            onClick={() => setSelectedContact(contact)}
+                                            onClick={() => openContact(contact)}
                                         >
                                             <div className="flex items-center justify-between gap-3">
                                                 <div className="flex items-center gap-3 min-w-0">

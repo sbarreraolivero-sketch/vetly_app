@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, assertOk } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Loader2, Trash2, CalendarClock, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -57,10 +57,11 @@ export function PatientReminders({ patientId }: PatientRemindersProps) {
     const handleDeleteReminder = async (id: string) => {
         if (!confirm('¿Seguro que deseas eliminar este recordatorio programado?')) return
         try {
-            await (supabase as any).from('reminders').delete().eq('id', id)
+            assertOk(await (supabase as any).from('reminders').delete().eq('id', id))
             setReminders(reminders.filter(r => r.id !== id))
         } catch (error) {
             console.error('Error deleting reminder:', error)
+            alert('No se pudo eliminar el recordatorio. Intenta de nuevo.')
         }
     }
 
