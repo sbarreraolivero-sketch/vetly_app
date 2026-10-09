@@ -1,5 +1,5 @@
 
-import { supabase } from '@/lib/supabase'
+import { supabase, withAuthLockRetry } from '@/lib/supabase'
 import type { MemberPermissions } from '@/lib/permissions'
 
 export type UserRole = 'owner' | 'admin' | 'professional' | 'receptionist' | 'vet_assistant' | 'groomer'
@@ -43,12 +43,12 @@ export const teamService = {
 
     async inviteMember(clinicId: string, email: string, role: UserRole, firstName?: string) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase as any).rpc('invite_member_v2', {
+        const { data, error } = await withAuthLockRetry<any>(() => (supabase as any).rpc('invite_member_v2', {
             p_clinic_id: clinicId,
             p_email: email,
             p_role: role,
             p_first_name: firstName
-        })
+        }))
 
         if (error) throw error
 

@@ -15,7 +15,7 @@ BEGIN
     SELECT p.oid::regprocedure AS sig
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.prosecdef
-      AND p.proname NOT IN ('get_pet_owner_portal','get_referral_link_data','mark_diagnostic_wa_clicked')
+      AND p.proname NOT IN ('get_pet_owner_portal','get_referral_link_data','mark_diagnostic_wa_clicked','check_pending_invite_details')
   LOOP
     EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon', r.sig);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated, service_role', r.sig);

@@ -17,6 +17,30 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     },
 })
 
+// El candado de sesión (navigator.locks) puede ser "robado" por otra pestaña y lanzar
+// AbortError antes de llegar al servidor, por lo que reintentar es seguro.
+export function isAuthLockError(err: unknown): boolean {
+    const e = err as { name?: string; message?: string } | null
+    const msg = `${e?.name ?? ''} ${e?.message ?? ''}`
+    return /lock broken|steal|not released within/i.test(msg)
+}
+
+export async function withAuthLockRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const result = await fn() as T & { error?: unknown }
+            if (result && result.error && isAuthLockError(result.error) && attempt < retries) {
+                await new Promise(r => setTimeout(r, 300 * (attempt + 1)))
+                continue
+            }
+            return result
+        } catch (err) {
+            if (!isAuthLockError(err) || attempt >= retries) throw err
+            await new Promise(r => setTimeout(r, 300 * (attempt + 1)))
+        }
+    }
+}
+
 // Helper functions for common queries
 export async function getClinicSettings() {
     const { data, error } = await supabase
