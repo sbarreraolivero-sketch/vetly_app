@@ -1350,6 +1350,11 @@ const getServices = async (sb: ReturnType<typeof createClient>, clinicId: string
 };
 
 // ── Confirm Appointment ───────────────────────────────────────────────────────
+// Textos de confirmación de cita. Compartidos entre confirmAppt (vía IA) y la
+// confirmación directa del botón "Sí, Confirmo" (tryHandleReminderConfirmation).
+const MSG_APPT_CONFIRMED = "¡Cita confirmada! 😊 Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada, por si surge algún imprevisto en la ruta.";
+const MSG_APPT_ALREADY_CONFIRMED = "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada.";
+
 const confirmAppt = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, response: string) => {
   const normalizedPhone = normalizePhone(phone);
   const phoneVariants = `phone_number.eq.${normalizedPhone},phone_number.eq.+${normalizedPhone}`;
@@ -1364,16 +1369,123 @@ const confirmAppt = async (sb: ReturnType<typeof createClient>, clinicId: string
         .eq("clinic_id", clinicId).or(phoneVariants).eq("status", "confirmed")
         .gte("appointment_date", new Date().toISOString())
         .order("appointment_date", { ascending: true }).limit(1).maybeSingle();
-      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada." };
+      if (confirmedAppt) return { message: MSG_APPT_ALREADY_CONFIRMED };
     }
     return { message: "No hay citas pendientes." };
   }
 
   const status = response === "yes" ? "confirmed" : "cancelled";
-  await sb.from("appointments").update({ status, confirmation_received: true, confirmation_response: response }).eq("id", appt.id);
+  // `appointments` NO tiene columna confirmation_response (sí confirmation_received).
+  // Hasta 2026-10-09 este UPDATE la incluía, fallaba en silencio (el error no se
+  // revisaba) y la IA decía "¡Cita confirmada!" con la cita todavía pendiente en la
+  // base: 0 citas con confirmation_received=true en 60 días pese a >130 confirmaciones.
+  const { error: updErr } = await sb.from("appointments").update({ status, confirmation_received: true }).eq("id", appt.id);
+  if (updErr) {
+    await debugLog(sb, "[confirmAppt] No se pudo actualizar la cita", { error: updErr.message, appt: appt.id, status });
+    return { message: "No pude registrar tu respuesta en el sistema en este momento. Ya avisé al equipo para que la registre a mano." };
+  }
   return status === "confirmed"
-    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada, por si surge algún imprevisto en la ruta." }
+    ? { message: MSG_APPT_CONFIRMED }
     : { message: "Cita cancelada. ¿Reagendar?" };
+};
+
+// ── Respuesta a un recordatorio de cita (sesión 114) ──────────────────────────
+// Antes, el botón "Sí, Confirmo" del recordatorio pasaba por la IA: si el tutor
+// estaba pausado, no había créditos o la IA estaba apagada, la confirmación se
+// perdía en silencio (45 de 140 sin respuesta y 25 citas sin confirmar en 14 días)
+// y desde la clínica parecía que el recordatorio "no había llegado".
+//
+// Ahora la confirmación pura se resuelve sin IA. Solo se aplica cuando:
+//  - el mensaje es EXACTAMENTE una confirmación (botón o texto como "sí confirmo");
+//    "confirmo pero solo para Sabri" u otros textos siguen yendo a la IA, y
+//  - se le envió un recordatorio en las últimas 48 h, y
+//  - hay UNA sola cita futura abierta asociada a esos recordatorios (si hay
+//    más de una, es ambiguo → la IA decide).
+const normalizeReplyText = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+const CONFIRM_REPLY_RE = /^(ok |oki |listo |hola |buenas |buenos dias |buen dia )*(si )?(confirmo|confirmado|confirmada)( gracias| muchas gracias)?$/;
+
+const tryHandleReminderConfirmation = async (
+  sb: ReturnType<typeof createClient>, clinic: any, from: string, msgType: string, body: string,
+): Promise<boolean> => {
+  try {
+    if (!["text", "button", "interactive"].includes(msgType)) return false;
+    if (!CONFIRM_REPLY_RE.test(normalizeReplyText(body))) return false;
+
+    const phone = normalizePhone(from);
+    const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const { data: logs } = await sb.from("reminder_logs").select("appointment_id")
+      .eq("clinic_id", clinic.id).or(`phone_number.eq.${phone},phone_number.eq.+${phone}`)
+      .in("status", ["sent", "delivered", "read"]).gte("created_at", since)
+      .order("created_at", { ascending: false }).limit(10);
+    const apptIds = [...new Set((logs || []).map((l: any) => l.appointment_id).filter(Boolean))];
+    if (apptIds.length === 0) return false;
+
+    const { data: appts } = await sb.from("appointments").select("id, status")
+      .in("id", apptIds).gte("appointment_date", new Date().toISOString());
+    const open = (appts || []).filter((a: any) => a.status === "pending" || a.status === "confirmed");
+    if (open.length !== 1) return false;
+
+    const appt = open[0];
+    let text = MSG_APPT_ALREADY_CONFIRMED;
+    if (appt.status === "pending") {
+      const { error } = await sb.from("appointments")
+        .update({ status: "confirmed", confirmation_received: true })
+        .eq("id", appt.id).eq("status", "pending");
+      if (error) {
+        await debugLog(sb, "[REMINDER CONFIRM] No se pudo confirmar la cita", { error: error.message, appt: appt.id });
+        return false;
+      }
+      text = MSG_APPT_CONFIRMED;
+    }
+
+    const res = await sendMetaMessage(clinic.meta_phone_number_id, clinic.meta_access_token, from, text);
+    const wamid = res?.messages?.[0]?.id ?? null;
+    if (!wamid) await debugLog(sb, "[REMINDER CONFIRM] Cita confirmada pero el envío a Meta falló", { to: from, res });
+
+    // Insert directo y NO saveMsg: no es una respuesta de OpenAI, no debe cobrar
+    // créditos. ai_generated=true evita que handle_manual_message_pause pause al
+    // tutor creyendo que es un mensaje escrito a mano.
+    await sb.from("messages").insert({
+      clinic_id: clinic.id, phone_number: from, content: text, direction: "outbound",
+      ai_generated: true, message_type: "text", ycloud_message_id: wamid,
+      payload: { type: "reminder_confirmation_auto", appointment_id: appt.id },
+    });
+    await debugLog(sb, "[REMINDER CONFIRM] Confirmación directa sin IA", { from, appt: appt.id, was: appt.status });
+    return true;
+  } catch (e) {
+    console.error("[REMINDER CONFIRM] error:", e);
+    return false;
+  }
+};
+
+// Respuesta a un recordatorio que la IA NO va a atender (apagada, pausada o sin
+// créditos): aviso en la campanita para que la clínica la responda a mano, en vez
+// de quedar en silencio. Una por teléfono cada 12 h.
+const notifyUnattendedReminderReply = async (
+  sb: ReturnType<typeof createClient>, clinicId: string, from: string, body: string, reason: string,
+) => {
+  try {
+    const phone = normalizePhone(from);
+    const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data: logs } = await sb.from("reminder_logs").select("id")
+      .eq("clinic_id", clinicId).or(`phone_number.eq.${phone},phone_number.eq.+${phone}`)
+      .in("status", ["sent", "delivered", "read"]).gte("created_at", since24).limit(1);
+    if (!logs || logs.length === 0) return;
+
+    const title = "Respondieron a un recordatorio y la IA no pudo atender";
+    const since12 = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
+    const { data: prev } = await sb.from("notifications").select("id")
+      .eq("clinic_id", clinicId).eq("title", title).eq("phone_number", phone).gte("created_at", since12).limit(1);
+    if (prev && prev.length > 0) return;
+
+    await sb.from("notifications").insert({
+      clinic_id: clinicId, type: "new_message", title, phone_number: phone,
+      message: `+${phone} respondió "${body.substring(0, 80)}" (${reason}). Respóndele desde Mensajes.`,
+      link: "/app/messages", is_read: false,
+    });
+  } catch (e) { console.error("[notifyUnattendedReminderReply] error:", e); }
 };
 
 // ── Knowledge Base Cache ──────────────────────────────────────────────────────
@@ -2267,6 +2379,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Confirmación pura de un recordatorio (botón "Sí, Confirmo" o "sí confirmo"):
+      // se resuelve sin IA, así funciona aunque el tutor esté pausado o no haya créditos.
+      if (await tryHandleReminderConfirmation(sb, clinic, from, msgType, body)) continue;
+
       // Tutor context
       const { data: tutor } = await sb.from("tutors")
         .select("id, name, referred_by, referral_code, portal_token, loyalty_points, patients(id, name, species)")
@@ -2389,6 +2505,7 @@ Deno.serve(async (req) => {
           // Check ai_auto_respond
           if (!clinic.ai_auto_respond) {
             console.log(`[Meta] AI agent disabled for clinic ${clinic.id}`);
+            await notifyUnattendedReminderReply(sb, clinic.id, from, body, "IA apagada");
             return;
           }
 
@@ -2409,6 +2526,7 @@ Deno.serve(async (req) => {
             console.warn(
               `[Meta] Créditos agotados (pool ${credits.poolId}: ${credits.totalUsed}/${credits.limit + credits.extraBalance}) — no se responde a ${from}`,
             );
+            await notifyUnattendedReminderReply(sb, clinic.id, from, body, "sin créditos de IA");
             return;
           }
 
@@ -2435,6 +2553,7 @@ Deno.serve(async (req) => {
           // Este ahorra el debounce cuando la conversación ya venía pausada.
           if (await isPausedForHuman(sb, clinic.id, from)) {
             console.log(`[Meta] requires_human=true for ${from}, skipping AI (pre-debounce)`);
+            await notifyUnattendedReminderReply(sb, clinic.id, from, body, "conversación pausada");
             return;
           }
 

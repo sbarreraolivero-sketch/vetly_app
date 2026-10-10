@@ -2110,19 +2110,20 @@ const confirmAppt = async (
         .gte("appointment_date", new Date().toISOString())
         .order("appointment_date", { ascending: true })
         .limit(1).maybeSingle();
-      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible entre 1 y 2 horas antes y 1 a 2 horas después de la hora asignada." };
+      if (confirmedAppt) return { message: "Tu cita ya está confirmada 😊 ¡Te esperamos! Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada." };
     }
     return { message: "No hay citas pendientes." };
   }
 
   const status = response === "yes" ? "confirmed" : "cancelled";
-  await sb.from("appointments").update({
+  // `appointments` no tiene columna confirmation_response: el UPDATE fallaba en silencio.
+  const { error: updErr } = await sb.from("appointments").update({
     status,
     confirmation_received: true,
-    confirmation_response: response,
   }).eq("id", appt.id);
+  if (updErr) return { message: "No pude registrar tu respuesta en el sistema en este momento. Ya avisé al equipo para que la registre a mano." };
   return status === "confirmed"
-    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil trabaja por rangos horarios, por lo que te pedimos estar disponible entre 1 y 2 horas antes y 1 a 2 horas después de la hora asignada, por si el móvil se adelanta o hay algún retraso en la ruta." }
+    ? { message: "¡Cita confirmada! 😊 Recuerda que el móvil puede presentar una variación de hasta 2 horas posteriores a la hora asignada, por si surge algún imprevisto en la ruta." }
     : { message: "Cita cancelada. ¿Reagendar?" };
 };
 
@@ -2513,9 +2514,7 @@ const rescheduleAppt = async (
       reminder_sent: false, // Reset reminder flags
       reminder_sent_at: null,
       confirmation_received: false,
-      confirmation_response: null,
-      updated_at: new Date().toISOString(),
-    }).eq("id", appt.id);
+    }).eq("id", appt.id); // sin confirmation_response/updated_at: no existen en appointments
 
     if (updateError) {
       console.error("[rescheduleAppt] Error:", updateError);
@@ -2574,7 +2573,11 @@ const getKnowledgeSummary = async (
 // completos en el prompt cuando el mensaje del cliente toca el tema — no dependen de
 // que la IA decida buscarlos.
 const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
-  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell"] },
+  // "operan"/"electroquimio" agregados 2026-09-14: caso real (Kenay) donde el
+  // tutor dijo "lo operan el 24/9 por una electroquimio terapia" — sin la palabra
+  // "cirugía" literal, esas keywords nunca hacían match y el protocolo (con el
+  // ayuno documentado) nunca se forzaba al contexto.
+  { title: "MATRIZ_PRECIOS_Y_PROTOCOLO_CIRUGIAS", keywords: ["cirug", "ester", "castra", "pabell", "operan", "operaci", "van a operar", "lo van a operar", "quimioterapia", "electroquimio"] },
   { title: "Protocolo_de_Sedación_a_Domicilio", keywords: ["sedaci", "agresiv", "anestesi", "inquiet", "dificil de manejar", "difícil de manejar", "no se deja"] },
   { title: "POLITICAS_GENERALES_Y_CONDICIONES_SERVICIO", keywords: ["reembols", "devuelv", "cancela", "no habra nadie", "no habrá nadie", "si no estoy", "si nadie atiende", "visita fallida", "no asisti", "no asistí"] },
   { title: "PROTOCOLO_SERVICIOS_Y_VACUNACION_ANIMALGRACE", keywords: ["eutan", "sacrific", "dormir a mi", "dormirlo", "dormirla", "dormir al", "dormir a la", "que no sufra", "no siga sufriendo", "no sufra mas", "no sufra más", "descanse en paz", "quitarle el sufrimiento", "dejarla ir", "dejarlo ir", "ponerle fin"] },
@@ -2635,6 +2638,26 @@ const FORCED_KB_TOPICS: { title: string; keywords: string[] }[] = [
     "el bosque", "san miguel", "la reina", "la florida", "macul", "la pintana",
     "pedro aguirre cerda", "la cisterna", "las condes", "vitacura", "ciudad satelite",
     "ciudad satélite", "ciudad de los valles", "pirque", "buin", "padre hurtado", "valle grande",
+  ] },
+  // Sesión 2026-09-14: la IA cotizó "Hemograma y Perfil Bioquímico" en $50.000 (el
+  // precio real del Perfil Bioquímico solo es $38.000 en Linares / $35.000 en Santiago)
+  // — tomó el valor del "Examen prequirúrgico completo" de la Lista Oficial de
+  // Servicios (siempre presente en el prompt) porque el tarifario real de exámenes
+  // de laboratorio individuales está en rank 7 del resumen, fuera del top-5, y
+  // get_knowledge casi nunca se llama. Se fuerza completo cuando el mensaje menciona
+  // cualquier examen de laboratorio específico, para que el precio real (suelto o en
+  // pack) siempre esté disponible sin depender de que el modelo decida consultarlo.
+  { title: "TARIFARIO_EXAMENES_LABORATORIO_ANIMALGRACE", keywords: [
+    "perfil bioquimico", "perfil bioquímico", "perfil renal", "perfil hepatico", "perfil hepático",
+    "perfil lipidico", "perfil lipídico", "perfil tiroideo",
+    "hemograma", "examen de sangre", "examenes de sangre", "exámenes de sangre",
+    "examen de laboratorio", "examenes de laboratorio", "exámenes de laboratorio",
+    "examen prequirurgico", "examen prequirúrgico", "examenes prequirurgicos", "exámenes prequirúrgicos",
+    "urianalisis", "urianálisis", "examen de orina", "orina completa", "orina funcional",
+    "urocultivo", "coprologico", "coprológico", "coproparasitario", "parasitologico", "parasitologico deposiciones",
+    "parasitológico", "citologia", "citología", "paaf", "punción con aguja fina", "puncion con aguja fina",
+    "electrolitos", "fructosamina", "amilasa", "lipasa", "cortisol", "progesterona", "estrogeno", "estrógeno",
+    "tsh", "t3", "t4", "leucemia felina", "inmunodeficiencia felina", "fiv", "felv",
   ] },
 ];
 
@@ -2820,7 +2843,6 @@ const processFunc = async (
 // shows an ongoing booking conversation, keeping the full flow on 4o for coherence.
 const selectModelTier = (
   content: string,
-  hasImage: boolean = false,
   activeSchedulingFlow: boolean = false,
 ): { model: string; tier: number } => {
   const text = content.toLowerCase();
@@ -2864,7 +2886,6 @@ const selectModelTier = (
 
   // --- 4o required: surgery / urgent medical / vaccination protocols ---
   const needsMedicalReason =
-    hasImage ||
     text.includes("cirug") ||
     text.includes("esterili") ||
     text.includes("castra") ||
@@ -3339,7 +3360,6 @@ Deno.serve(async (req) => {
 
     let body = text;
     let isImage = false;
-    let base64ImageObj: any = null;
     let payloadExtra: any = {};
 
     const msgObj = p.whatsappInboundMessage;
@@ -3363,41 +3383,19 @@ Deno.serve(async (req) => {
           "[Mensaje de audio que no pude procesar. Pide amablemente que te escriban.]";
       }
     } else if (msgObj?.type === "image" && msgObj.image) {
-      try {
-        let downloadUrl = msgObj.image.link;
-        if (!downloadUrl) {
-          downloadUrl =
-            `https://api.ycloud.com/v2/whatsapp/media/${msgObj.image.id}`;
-        }
-        const blob = await downloadYCloudMedia(
-          downloadUrl,
-          clinic.ycloud_api_key,
-        );
-        const arrayBuffer = await blob.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte),
-            "",
-          ),
-        );
-        base64ImageObj = {
-          type: "image_url",
-          image_url: {
-            url: `data:${blob.type || "image/jpeg"};base64,${base64}`,
-          },
-        };
-        payloadExtra = {
-          image_base64: `data:${blob.type || "image/jpeg"};base64,${base64}`,
-        };
-        body = msgObj.image?.caption ||
-          "[La persona te acaba de enviar una imagen]";
-        isImage = true;
-        await debugLog(sb, `Image received`, { type: blob.type });
-      } catch (e) {
-        console.error("Image error", e);
-        body =
-          "[La persona envió una imagen pero no pude verla. Pídele que te describa lo que envió.]";
-      }
+      // Visión de OpenAI deshabilitada por costo (créditos IA): ya no se
+      // descarga ni se envía la imagen al modelo. El aviso se agrega SIEMPRE
+      // (haya o no caption) para que la IA sepa que llegó una imagen — sin
+      // esto, un caption como "mira esto" no daría ninguna pista de que
+      // había una foto adjunta. Mismo criterio que meta-whatsapp-webhook
+      // (canal activo de ambas clínicas) y reforzado en ai_behavior_rules
+      // con la instrucción de escalar a un humano cuando la descripción en
+      // texto no baste para un caso que de verdad necesita revisión visual.
+      const imgCaption = msgObj.image?.caption?.trim();
+      const visionNote = "[La persona adjuntó una imagen a este mensaje. No puedes verla — dile con naturalidad que no puedes verla, pídele que te la describa en texto, y si el tema realmente necesita revisión visual (herida, lesión, síntoma, documento a leer) y la descripción no basta, usa escalate_to_human.]";
+      body = imgCaption ? `${imgCaption}\n${visionNote}` : visionNote;
+      isImage = true;
+      await debugLog(sb, `Image received (vision disabled)`, {});
     } else if (msgObj?.type === "button" && msgObj.button) {
       body = msgObj.button.text || msgObj.button.payload || "";
     } else if (msgObj?.type === "interactive" && msgObj.interactive) {
@@ -3894,8 +3892,9 @@ Deno.serve(async (req) => {
       try {
         const realClinicId = clinic.ref_id || clinic.id;
         const googleMapsApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
-        // DEBOUNCE / HUMANIZE - WAIT FOR 20 SECONDS
-        await new Promise((r) => setTimeout(r, 20000));
+        // DEBOUNCE / HUMANIZE - WAIT FOR 60 SECONDS (subido de 20s, sesión 2026-09-28 —
+        // agrupa más mensajes seguidos en una sola llamada a la IA, ver meta-whatsapp-webhook)
+        await new Promise((r) => setTimeout(r, 60000));
 
         // CHECK IF A NEWER USER MESSAGE ARRIVED WHILE WE WAITED
         const { data: latestMsg } = await sb.from("messages")
@@ -3915,7 +3914,7 @@ Deno.serve(async (req) => {
         }
 
         // requires_human — re-chequeo post-debounce: capta el clic en "Silenciar IA"
-        // ocurrido durante los 20s de espera.
+        // ocurrido durante los 60s de espera.
         if (await isPausedForHuman(sb, clinic.id, from)) {
           console.log(`[asyncProcess] requires_human=true for ${from}, skipping AI (post-debounce)`);
           return;
@@ -4411,23 +4410,17 @@ ${surveyFeedbackContextBlock}`;
           }),
         ];
 
-        // Combine the current inbound burst into a single user message
+        // Combine the current inbound burst into a single user message.
+        // Visión de OpenAI deshabilitada: nunca se reconstruye un bloque
+        // image_url — el texto (caption o el aviso de "no puedo verla") ya
+        // quedó en msg.content al guardar el mensaje.
         let userContentBlocks: any[] = [];
         for (const msg of burstInbound) {
           let text = msg.content || "";
           if (msg.payload?.ai_context) {
             text = `${text}\n${msg.payload.ai_context}`;
           }
-
-          if (msg.message_type === "image" && msg.payload?.image_base64) {
-            userContentBlocks.push({ type: "text", text: text || "[Imagen]" });
-            userContentBlocks.push({
-              type: "image_url",
-              image_url: { url: msg.payload.image_base64 },
-            });
-          } else {
-            userContentBlocks.push({ type: "text", text: text || "" });
-          }
+          userContentBlocks.push({ type: "text", text: text || "" });
         }
 
         if (userContentBlocks.length > 0) {
@@ -4440,7 +4433,6 @@ ${surveyFeedbackContextBlock}`;
 
         if (clinic.ai_active_model === "hybrid") {
           const lastUserText = userContentBlocks.map(b => b.text || "").join(" ");
-          const hasImageInBurst = userContentBlocks.some(b => b.type === "image_url");
 
           // Detect if we're mid-booking: if any of the last 6 messages (outbound)
           // contain scheduling signals, keep the whole flow on 4o for coherence.
@@ -4472,12 +4464,12 @@ ${surveyFeedbackContextBlock}`;
           const lastOutboundText = recentOutbound[recentOutbound.length - 1] || "";
           const lastOutboundOfferedTime = /\d{1,2}:\d{2}|a las \d{1,2}|lunes|martes|mi[eé]rcoles|jueves|viernes/.test(lastOutboundText);
           const trimmedUserText = lastUserText.trim();
-          const isSafeTrivialAck = !hasImageInBurst && trimmedUserText.length > 0 && trimmedUserText.length <= 20
+          const isSafeTrivialAck = trimmedUserText.length > 0 && trimmedUserText.length <= 20
             && trivialAckPattern.test(trimmedUserText) && !lastOutboundOfferedTime;
 
           const route = isSafeTrivialAck
             ? { model: "gpt-4o-mini", tier: 1 }
-            : selectModelTier(lastUserText, hasImageInBurst, activeSchedulingFlow);
+            : selectModelTier(lastUserText, activeSchedulingFlow);
           targetModel = route.model;
           tierUsed = route.tier;
 

@@ -8098,3 +8098,33 @@ Tutores y Mensajes guardaban la ficha/conversación abierta solo en estado local
 - **Antes de desplegar edge functions desde el working tree, `supabase functions download` + diff contra git** para no pisar código desplegado que nunca se commiteó.
 - **Escrituras de Supabase en el frontend: `assertOk(await ...)` o destructurar `{ error }`.** Nunca confiar en `try/catch` solo.
 - **Estado de "detalle abierto" en páginas de listado → en la URL**, no en `useState`, o el botón atrás del celular rompe la navegación.
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 114, 2026-10-09)
+
+### Recordatorios "enviados/vistos" que parecían no llegar — causa raíz: las confirmaciones nunca se guardaban
+
+**Reporte:** Claudia veía recordatorios marcados como enviados/leídos pero "no les llega a las personas".
+
+**Diagnóstico con datos:** sí llegan. De 65 recordatorios "leídos" en 7 días, 62 tuvieron respuesta del tutor dentro de 24 h (131 de ~160 respuestas fueron el botón "Sí, Confirmo"), y todos salieron al teléfono correcto. Lo que fallaba era lo que pasaba DESPUÉS de que el tutor respondía:
+
+1. **`confirmAppt` escribía una columna inexistente.** `UPDATE appointments SET status, confirmation_received, confirmation_response` — `appointments` NO tiene `confirmation_response` (sí `confirmation_received`). El error no se revisaba: la IA respondía "¡Cita confirmada!" pero la cita seguía `pending`. **0 citas con `confirmation_received = true` en 60 días** pese a >130 confirmaciones. Lo mismo con las cancelaciones por botón. El tipo en `src/types/database.ts` declara la columna aunque la DB no la tiene (drift). También en `ycloud-whatsapp-webhook` (confirmAppt y rescheduleAppt, que además escribía `updated_at`, inexistente en `appointments`).
+2. **Tutor pausado / sin créditos / IA apagada → silencio total.** Las confirmaciones pasaban por la IA. Si el tutor estaba `requires_human` (se pausa al enviar una solicitud a la coordinadora y nada lo reactiva), o el pool de créditos estaba agotado (26–30 sep), la respuesta se perdía. En 14 días: 45 de 140 confirmaciones sin respuesta.
+
+### Fix (`meta-whatsapp-webhook` v89, `ycloud-whatsapp-webhook` v297)
+- **Confirmación sin IA** (`tryHandleReminderConfirmation`, corre antes de la IA): si el mensaje es EXACTAMENTE una confirmación (botón "Sí, Confirmo" o texto como "sí confirmo", "confirmado", "ok confirmo gracias") y hay un recordatorio entregado en las últimas 48 h con UNA sola cita futura abierta, marca la cita `confirmed` y responde con el texto fijo (`MSG_APPT_CONFIRMED`). Funciona aunque el tutor esté pausado o no haya créditos, y no gasta créditos (insert directo con `ai_generated=true`, NO `saveMsg`). Cualquier otro caso va a la IA: texto ambiguo ("confirmo pero solo para Sabri"), audio, 0 o 2+ citas abiertas, cita pasada/cancelada, recordatorio fallido.
+- **Aviso en la campanita** (`notifyUnattendedReminderReply`) cuando una respuesta a un recordatorio (≤24 h) cae en un silencio de la IA: IA apagada, sin créditos o conversación pausada. Una por teléfono cada 12 h, tipo `new_message` (navega a Mensajes).
+- **`confirmAppt` ya no miente:** quita `confirmation_response`, revisa el error y, si falla, responde que avisó al equipo en vez de "¡Cita confirmada!".
+- Probado con 13 casos contra la DB real en la clínica de prueba (más `confirmAppt` yes/no), con el envío a Meta simulado. Sin restos.
+- **No se hizo backfill** de citas pasadas. La única cita futura con confirmación previa (Nina, 14/10, +56957663950) es ambigua (el teléfono tiene varias citas): la revisa Claudia.
+
+### Pendiente
+- **Créditos de IA:** 18.065 de 30.000 usados en 9 días (octubre) → se agotan hacia el 15 de oct. Comprar pack o subir de plan. Con este fix las confirmaciones por botón ya no dependen de ellos.
+- **Tutores pausados con citas próximas** (3 hoy): la pausa por solicitud de coordinación no se levanta sola cuando Claudia carga la cita a mano. Decisión de negocio, no se automatizó.
+- Verificar en la próxima tanda de recordatorios (12:00 UTC) que aparezcan `[REMINDER CONFIRM] Confirmación directa sin IA` en `debug_logs` y que las citas pasen a `confirmed`.
+
+### Reglas permanentes
+- **Un `UPDATE` de supabase-js a una columna inexistente falla en silencio** (devuelve `{error}`, no lanza). Antes de escribir una columna, verificarla en `information_schema.columns` — `src/types/database.ts` NO es fuente de verdad (declara `confirmation_response`, que no existe). Y siempre destructurar `{ error }`.
+- **Para saber si algo "no llega", mirar qué respondió el tutor**, no solo el estado `read` del recordatorio: la respuesta del cliente es la prueba de que el mensaje llegó.
+- **Una confirmación de cita no debe depender de la IA** (créditos, pausa, apagado). Las acciones deterministas (botón de plantilla) se resuelven en código.
