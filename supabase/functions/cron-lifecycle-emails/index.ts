@@ -4,7 +4,7 @@
  * ════════════════════════════════════════════════════════════════════════════
  *
  * Corre 1 vez al día (pg_cron, ver migración schedule_lifecycle_emails_cron).
- * Por cada clínica Core activa dentro de la ventana de 35 días desde el alta,
+ * Por cada clínica Core activa dentro de la ventana de 35 días desde el alta (y con prueba de 14 días),
  * manda como máximo UN correo por corrida: el primer paso de la lista que ya
  * cumplió su "día mínimo" y no se envió antes.
  *
@@ -148,8 +148,8 @@ const RULES: EmailRule[] = [
     },
     {
         key: "paso2_equipo",
-        minDay: 3,
-        condition: (s) => s.ageDays >= 3,
+        minDay: 2,
+        condition: (s) => s.ageDays >= 2,
         build: (clinic, firstName) => ({
             subject: `${firstName}, tu plan incluye 10 usuarios — así se suman`,
             html: renderEmailLayout({
@@ -172,58 +172,34 @@ const RULES: EmailRule[] = [
         }),
     },
     {
-        key: "paso3_servicios",
-        minDay: 5,
-        condition: (s) => s.ageDays >= 5,
+        key: "paso3_servicios_inventario",
+        minDay: 3,
+        condition: (s) => s.ageDays >= 3,
         build: (clinic, firstName) => ({
-            subject: `${firstName}, carga tus servicios (sin esto no puedes cobrar ni agendar)`,
+            subject: `${firstName}, carga tus servicios y tu inventario (así se descuenta el stock solo)`,
             html: renderEmailLayout({
-                headerTitle: "Carga tu catálogo de servicios",
-                headerSubtitle: "Cada servicio con su precio y su duración real",
+                headerTitle: "Servicios e inventario, conectados",
+                headerSubtitle: "Precio, duración y stock en un solo paso",
                 bodyHtml:
-                    p(`Hola ${firstName}, el catálogo de servicios es la pieza que conecta casi todo: sin él no puedes agendar una cita con un servicio asignado, cerrar una visita ni registrar lo que cobraste.`) +
-                    p(`<strong>Qué cargar</strong> — <em>Configuración → Clínica → sección Servicios</em><br>Cada servicio con <strong>precio</strong> (el que cobras hoy) y <strong>duración real</strong> (cuánto te toma; esto define los bloques de tu agenda — si pones 15 min a algo de 40, tu día se llena de citas encimadas).`) +
+                    p(`Hola ${firstName}, hoy toca dejar listas dos piezas que van de la mano: tu catálogo de servicios (sin él no puedes agendar con un servicio asignado, cerrar una visita ni registrar lo que cobraste) y tu inventario (para saber qué tienes y que Vetly te avise antes de quedarte sin algo).`) +
+                    p(`<strong>1. Servicios</strong> — <em>Configuración → Clínica → sección Servicios</em><br>Cada servicio con <strong>precio</strong> (el que cobras hoy) y <strong>duración real</strong> (esto define los bloques de tu agenda — si pones 15 min a algo de 40, tu día se llena de citas encimadas). Usa nombres claros y cortos ("Consulta general"); si un servicio cambia de precio por peso, créalo varias veces ("Vacuna óctuple — perro chico / mediano / grande").`) +
                     screenshot(SHOTS.paso3_servicio, "Modal de nuevo servicio") +
-                    p(`<strong>Dos opciones al crear o editar un servicio:</strong>`) +
-                    bullets([
-                        `<strong>Enlazar con un producto del inventario.</strong> Eliges el producto que consume ese servicio (ej. "Vacuna óctuple" → la vacuna del inventario) y la cantidad. Cada vez que vendas el servicio, esa cantidad se descuenta del stock sola. Necesitas tener el producto en el inventario primero — eso lo vemos en el próximo correo, después vuelves a completar el enlace.`,
-                        `<strong>"Reservable en tu página online".</strong> Marca esta casilla en los servicios que quieres que tus clientes puedan agendar solos desde tu link de reservas. Los que no marques, no aparecen ahí.`,
-                    ]) +
-                    p(`<strong>Para que quede bien:</strong> nombres claros y cortos ("Consulta general", no "CONSULTA MEDICA DE PRIMERA VEZ"). Si un servicio cambia de precio por peso o tamaño, créalo varias veces ("Vacuna óctuple — perro chico / mediano / grande").`) +
-                    ctaBox("Carga tus servicios", "Precio, duración y las dos casillas.", "Ir a Servicios", `${APP_URL}/app/settings?tab=clinic`) +
-                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para cargar mis servicios en Vetly.`),
-            }),
-        }),
-    },
-    {
-        key: "paso4_inventario",
-        minDay: 7,
-        condition: (s) => s.ageDays >= 7,
-        build: (clinic, firstName) => ({
-            subject: `${firstName}, sube tus productos para no quedarte sin stock a mitad de semana`,
-            html: renderEmailLayout({
-                headerTitle: "Sube tus productos al inventario",
-                headerSubtitle: "Vetly te avisa antes de que se acabe algo",
-                bodyHtml:
-                    p(`Hola ${firstName}, el inventario te sirve para dos cosas: saber qué tienes sin ir a contarlo, y que Vetly te avise <strong>antes</strong> de quedarte sin una vacuna o un medicamento.`) +
-                    p(`<strong>Qué cargar por producto</strong> — <em>Inventario → Catálogo</em>`) +
-                    bullets([
-                        `Nombre y categoría (medicamento, vacuna, insumo, alimento…).`,
-                        `<strong>Precio de compra</strong> (lo que te cuesta) y <strong>precio de venta</strong> (lo que cobras). Con los dos, Vetly te muestra tu margen real.`,
-                        `<strong>Stock actual</strong>: cuántas unidades tienes hoy.`,
-                        `<strong>Alerta de mínimo</strong>: cuando el stock baje de ese número, te avisa en el panel.`,
-                    ]) +
+                    p(`<strong>2. Inventario</strong> — <em>Inventario → Catálogo</em><br>Por producto: nombre y categoría, <strong>precio de compra</strong> y <strong>precio de venta</strong> (con ambos Vetly te muestra tu margen real), <strong>stock actual</strong> y <strong>alerta de mínimo</strong> (cuando baje de ese número, te avisa en el panel).`) +
                     screenshot(SHOTS.paso4_inventario, "Catálogo de inventario con alerta de stock") +
-                    p(`Cuando tengas el catálogo cargado, vuelve a tus servicios (correo anterior) y enlaza cada uno con su producto — así el stock se descuenta solo con cada venta.`) +
-                    ctaBox("Carga tu inventario", "Productos, precios y alertas de mínimo.", "Ir a Inventario", `${APP_URL}/app/inventory`) +
-                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para cargar mi inventario en Vetly.`),
+                    p(`<strong>3. Conéctalos.</strong> Con el producto cargado, vuelve al servicio y:`) +
+                    bullets([
+                        `<strong>Enlázalo con su producto.</strong> Eliges el producto que consume el servicio (ej. "Vacuna óctuple" → la vacuna del inventario) y la cantidad. Cada vez que vendas el servicio, esa cantidad se descuenta del stock sola.`,
+                        `<strong>"Reservable en tu página online".</strong> Marca esta casilla en los servicios que quieres que tus clientes agenden solos desde tu link de reservas. Los que no marques, no aparecen ahí.`,
+                    ]) +
+                    ctaBox("Carga tus servicios", "Precio, duración y stock conectados.", "Ir a Servicios", `${APP_URL}/app/settings?tab=clinic`) +
+                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para cargar mis servicios y mi inventario en Vetly.`),
             }),
         }),
     },
     {
         key: "paso5_pacientes",
-        minDay: 9,
-        condition: (s) => s.ageDays >= 9,
+        minDay: 4,
+        condition: (s) => s.ageDays >= 4,
         build: (clinic, firstName) => ({
             subject: `${firstName}, trae tus pacientes (¿tienes tu Excel? mejor)`,
             html: renderEmailLayout({
@@ -243,8 +219,8 @@ const RULES: EmailRule[] = [
     },
     {
         key: "paso6_finanzas",
-        minDay: 12,
-        condition: (s) => s.ageDays >= 12,
+        minDay: 5,
+        condition: (s) => s.ageDays >= 5,
         build: (clinic, firstName) => ({
             subject: `${firstName}, así queda tu caja del día sin sumar boletas a mano`,
             html: renderEmailLayout({
@@ -266,8 +242,8 @@ const RULES: EmailRule[] = [
     },
     {
         key: "paso7_fidelizacion",
-        minDay: 15,
-        condition: (s) => s.ageDays >= 15,
+        minDay: 6,
+        condition: (s) => s.ageDays >= 6,
         build: (clinic, firstName) => ({
             subject: `${firstName}, haz que tus clientes vuelvan (y traigan a otros)`,
             html: renderEmailLayout({
@@ -295,8 +271,8 @@ const RULES: EmailRule[] = [
     },
     {
         key: "paso8_recordatorios",
-        minDay: 18,
-        condition: (s) => s.ageDays >= 18,
+        minDay: 7,
+        condition: (s) => s.ageDays >= 7,
         build: (clinic, firstName) => ({
             subject: `${firstName}, tus recordatorios ya funcionan — y esto es lo que viene`,
             html: renderEmailLayout({
@@ -319,56 +295,38 @@ const RULES: EmailRule[] = [
         }),
     },
     {
-        key: "paso9_firma",
-        minDay: 21,
-        condition: (s) => s.ageDays >= 21,
+        key: "paso9_recetas",
+        minDay: 8,
+        condition: (s) => s.ageDays >= 8,
         build: (clinic, firstName) => ({
-            subject: `${firstName}, deja lista tu firma antes de emitir tu primera receta`,
+            subject: `${firstName}, deja lista tu firma y emite tu primera receta con tu marca`,
             html: renderEmailLayout({
-                headerTitle: "Tu firma y tus datos profesionales",
-                headerSubtitle: "Se configuran una sola vez y quedan para siempre",
-                bodyHtml:
-                    p(`Hola ${firstName}, Vetly emite <strong>recetas, órdenes médicas y derivaciones</strong> desde la ficha del paciente — descargables en PDF y enviables al tutor por WhatsApp o correo. Antes de la primera, hay dos cosas que dejar listas en tu perfil.`) +
-                    p(`<strong>1. Tu firma</strong> — <em>Configuración → Mi Perfil → Firma para documentos</em><br>La dibujas ahí mismo con el mouse o el dedo, o subes una foto de tu firma en papel. Se estampa sobre la línea de firma de cada documento que emitas. Cada profesional del equipo configura la suya.`) +
-                    screenshot(SHOTS.paso9_firma, "Sección Firma para documentos en Mi Perfil") +
-                    p(`<strong>2. Tus datos profesionales</strong> — <em>misma pantalla</em><br>Tu <strong>título</strong> (ej. Médico Veterinario) y tu <strong>número de colegiatura / matrícula / cédula profesional</strong>. Aparecen bajo tu nombre en el documento — en varios países son obligatorios para que la receta tenga validez. Son opcionales: si los dejas en blanco, no se imprimen.`) +
-                    p(`<strong>Cómo se usan estos datos:</strong> solo se muestran en los documentos que tú emites. Se guardan <em>congelados</em> en cada receta al momento de crearla — si más adelante cambias tu matrícula o tu firma, las recetas antiguas conservan lo que tenían, no se reescriben. No se comparten con nadie ni se usan para otra cosa.`) +
-                    ctaBox("Configura tu firma", "Firma + título + matrícula, en la misma pantalla.", "Ir a Mi Perfil", `${APP_URL}/app/settings?tab=profile`) +
-                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda para configurar mi firma y mis datos profesionales en Vetly.`),
-            }),
-        }),
-    },
-    {
-        key: "paso10_recetas_marca",
-        minDay: 24,
-        condition: (s) => s.ageDays >= 24,
-        build: (clinic, firstName) => ({
-            subject: `${firstName}, así se ven tus recetas y órdenes médicas en Vetly`,
-            html: renderEmailLayout({
-                headerTitle: "Recetas, órdenes y derivaciones",
+                headerTitle: "Firma, recetas y órdenes médicas",
                 headerSubtitle: "Con tu marca, en PDF, y enviables al tutor",
                 bodyHtml:
-                    p(`Hola ${firstName}, ya con tu firma lista, esto es lo que Vetly hace con cada documento que emites desde la ficha del paciente. Empieza así — <em>ficha del paciente → pestaña Recetas → Nueva Receta</em>:`) +
-                    screenshot(SHOTS.paso10_formulario, "Modal de nueva receta con el selector de tipo de documento") +
-                    p(`<strong>No todo lleva medicamentos.</strong> Arriba eliges el tipo de documento:`) +
-                    bullets([
-                        `<strong>Receta médica</strong> — con la lista de medicamentos (dosis, vía, frecuencia, duración).`,
-                        `<strong>Orden médica</strong> — para pedir una radiografía, ecografía o exámenes de laboratorio. Sin medicamentos: escribes la indicación.`,
-                        `<strong>Derivación / interconsulta</strong> — para derivar a otro profesional, con el motivo y los antecedentes.`,
-                    ]) +
-                    p(`<strong>El documento sale con tu marca.</strong> El <strong>logo</strong> y los <strong>dos colores</strong> que configuras en <em>Configuración → Diseño de marca</em> arman el encabezado — logo, nombre y dirección de tu clínica sobre un degradado con tus colores. Se configura una vez y sirve también para tu página de reservas online.`) +
+                    p(`Hola ${firstName}, Vetly emite <strong>recetas, órdenes médicas y derivaciones</strong> desde la ficha del paciente — descargables en PDF y enviables al tutor por WhatsApp o correo. Dos cosas por dejar listas, y después lo emites en un clic.`) +
+                    p(`<strong>1. Tu firma y tus datos profesionales</strong> — <em>Configuración → Mi Perfil → Firma para documentos</em><br>La dibujas con el mouse o el dedo, o subes una foto de tu firma. Agrega tu <strong>título</strong> (ej. Médico Veterinario) y tu <strong>matrícula / colegiatura / cédula</strong>: aparecen bajo tu nombre en el documento (opcionales; en varios países son obligatorios para que la receta valga). Se guardan <em>congelados</em> en cada receta: si cambias tu firma después, las antiguas no se reescriben. Cada profesional configura la suya.`) +
+                    screenshot(SHOTS.paso9_firma, "Sección Firma para documentos en Mi Perfil") +
+                    p(`<strong>2. Tu marca</strong> — <em>Configuración → Diseño de marca</em><br>El <strong>logo</strong> y los <strong>dos colores</strong> arman el encabezado del documento. Se configura una vez y sirve también para tu página de reservas online.`) +
                     screenshot(SHOTS.paso10_documento, "Receta médica en PDF con el encabezado de marca y la firma") +
-                    p(`<strong>Cada documento se puede</strong> descargar en PDF, imprimir, o enviar al tutor por <strong>WhatsApp</strong> (desde el número de tu clínica) o por <strong>correo</strong> — le llega un enlace a la receta con tu marca, que él mismo guarda en PDF.`) +
+                    p(`<strong>3. Emítelo</strong> — <em>ficha del paciente → pestaña Recetas → Nueva Receta</em>. No todo lleva medicamentos, arriba eliges el tipo:`) +
+                    screenshot(SHOTS.paso10_formulario, "Modal de nueva receta con el selector de tipo de documento") +
+                    bullets([
+                        `<strong>Receta médica</strong> — con medicamentos (dosis, vía, frecuencia, duración).`,
+                        `<strong>Orden médica</strong> — para radiografía, ecografía o exámenes. Sin medicamentos: escribes la indicación.`,
+                        `<strong>Derivación / interconsulta</strong> — con el motivo y los antecedentes.`,
+                    ]) +
+                    p(`Cada documento se puede descargar en PDF, imprimir, o enviar al tutor por <strong>WhatsApp</strong> o por <strong>correo</strong> — le llega un enlace con tu marca, que él mismo guarda en PDF.`) +
                     screenshot(SHOTS.paso10_lista, "Lista de recetas del paciente con los botones Ver, WhatsApp y Correo") +
-                    ctaBox("Configura tu marca", "Logo y dos colores para todos tus documentos.", "Ir a Diseño de marca", `${APP_URL}/app/settings?tab=branding`) +
-                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda con las recetas y el diseño de marca en Vetly.`),
+                    ctaBox("Configura tu firma", "Firma, matrícula y marca para todos tus documentos.", "Ir a Mi Perfil", `${APP_URL}/app/settings?tab=profile`) +
+                    supportButton(`Hola! Soy de ${clinic.clinic_name}, necesito ayuda con mi firma y las recetas en Vetly.`),
             }),
         }),
     },
     {
         key: "trial_por_terminar",
         minDay: null,
-        condition: (s) => s.trialDaysLeft !== null && s.trialDaysLeft <= 5 && s.trialDaysLeft > 1,
+        condition: (s) => s.trialDaysLeft !== null && s.trialDaysLeft <= 3 && s.trialDaysLeft > 1,
         build: (clinic, firstName) => ({
             subject: `${firstName}, tu prueba de Vetly termina en pocos días`,
             html: renderEmailLayout({
@@ -458,7 +416,12 @@ Deno.serve(async (req: Request) => {
             ? await supabase.from("subscriptions").select("clinic_id").in("clinic_id", clinicIds).eq("manually_active", true)
             : { data: [] as any[] };
         const manuallyActiveIds = new Set((manualSubs ?? []).map((s: any) => s.clinic_id));
-        const eligibleClinics = (clinics ?? []).filter((c: any) => !manuallyActiveIds.has(c.id));
+        // Esta secuencia está pensada para la prueba de 14 días. Las clínicas que
+        // se registraron con la prueba antigua de 30 días quedan fuera.
+        const isLongTrial = (c: any) =>
+            !!c.trial_end_date &&
+            new Date(c.trial_end_date).getTime() - new Date(c.created_at).getTime() > 16 * 86_400_000;
+        const eligibleClinics = (clinics ?? []).filter((c: any) => !manuallyActiveIds.has(c.id) && !isLongTrial(c));
 
         log.push(`Clínicas Core candidatas: ${eligibleClinics.length}`);
 
