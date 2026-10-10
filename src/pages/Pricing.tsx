@@ -301,7 +301,7 @@ export default function Pricing() {
                                     </div>
                                     {'launchPrice' in plan && plan.launchPrice && (
                                         <p className="text-xs text-primary-600 font-semibold mt-1">
-                                            Precio de lanzamiento · 30 días gratis
+                                            Precio de lanzamiento · 14 días gratis
                                         </p>
                                     )}
                                     {billingPeriod === 'annual' && plan.annualTotal && (

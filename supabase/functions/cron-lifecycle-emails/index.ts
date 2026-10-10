@@ -375,7 +375,7 @@ const RULES: EmailRule[] = [
                 headerTitle: "Tu prueba está por terminar",
                 headerSubtitle: `A ${clinic.clinic_name} le quedan pocos días de prueba gratuita`,
                 bodyHtml:
-                    p(`Hola ${firstName}, tu período de prueba de 30 días está por terminar. Para que ${clinic.clinic_name} no pierda el acceso a sus pacientes, recordatorios y reservas, puedes activar tu plan cuando quieras desde Configuración.`) +
+                    p(`Hola ${firstName}, tu período de prueba de 14 días está por terminar. Para que ${clinic.clinic_name} no pierda el acceso a sus pacientes, recordatorios y reservas, puedes activar tu plan cuando quieras desde Configuración.`) +
                     ctaBox("Revisar mi plan", "Ver los detalles y activar tu suscripción.", "Ir a mi plan", `${APP_URL}/app/settings?tab=subscription`) +
                     supportButton(`Hola! Soy de ${clinic.clinic_name}, tengo dudas sobre activar mi plan en Vetly.`),
             }),

@@ -145,7 +145,7 @@ export default function Register() {
     const navigate = useNavigate()
 
     const isCoreSelected = selectedPlan === 'core'
-    const trialDays = isCoreSelected ? 30 : 7
+    const trialDays = isCoreSelected ? 14 : 7
 
     // Core es autoservicio: quien llega desde /core ya eligió plan y precio, así
     // que pasarlo por 3 pantallas sólo agrega puntos donde abandonar. Se colapsa
@@ -505,7 +505,7 @@ export default function Register() {
                         )}
                     </p>
 
-                    {/* Los 30 días son la única ventaja que ningún competidor
+                    {/* Los 14 días son la única ventaja que ningún competidor
                         iguala rápido (Veti 15, Sami 14, Wirevet 7, VetLink 0).
                         Antes vivían en gris de 12px dentro de un recuadro
                         secundario; acá son el segundo elemento más grande. */}
@@ -552,7 +552,7 @@ export default function Register() {
                     )}
 
                     {/* Value Prop Banner — en el flujo único lo reemplaza el
-                        bloque grande de 30 días de arriba; mostrar ambos repite
+                        bloque grande de 14 días de arriba; mostrar ambos repite
                         el mismo mensaje dos veces seguidas. */}
                     {!isJoinMode && step === 1 && !singleStep && (
                         <div className="bg-primary-50 border border-primary-100 rounded-soft p-4 mb-6">
@@ -566,7 +566,7 @@ export default function Register() {
                                     </p>
                                     <p className="text-xs text-charcoal/65 mt-1 leading-relaxed">
                                         {isCoreSelected
-                                            ? 'Sin tarjeta de crédito. 30 días para probar todo el sistema: citas, fichas, finanzas, inventario y fidelización.'
+                                            ? 'Sin tarjeta de crédito. 14 días para probar todo el sistema: citas, fichas, finanzas, inventario y fidelización.'
                                             : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
                                     </p>
                                 </div>
@@ -913,7 +913,7 @@ export default function Register() {
                                     <div className="flex items-center justify-between gap-4">
                                         <div>
                                             <p className="text-xs font-bold uppercase tracking-widest text-primary-600">Plan Core</p>
-                                            <p className="text-sm text-charcoal/60 mt-0.5">Después de los 30 días. Cancela cuando quieras.</p>
+                                            <p className="text-sm text-charcoal/60 mt-0.5">Después de los 14 días. Cancela cuando quieras.</p>
                                         </div>
                                         <div className="text-right shrink-0">
                                             {corePlan?.discountedPrice != null ? (
@@ -1003,7 +1003,7 @@ export default function Register() {
                                         </>
                                     ) : singleStep ? (
                                         <>
-                                            Empezar mis 30 días gratis
+                                            Empezar mis 14 días gratis
                                             <ArrowRight className="w-5 h-5" />
                                         </>
                                     ) : step < 3 || (isJoinMode && step < 1) ? (
@@ -1079,7 +1079,7 @@ export default function Register() {
                                         {isPilot
                                             ? 'No se pide tarjeta en este paso. El equipo de Vetly te contacta para configurar tu agente y habilitar el pago del piloto.'
                                             : isCoreSelected
-                                                ? '30 días para probar el sistema completo. Si no es para ti, cancelas en un clic desde Configuración.'
+                                                ? '14 días para probar el sistema completo. Si no es para ti, cancelas en un clic desde Configuración.'
                                                 : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
                                     </p>
                                 </div>

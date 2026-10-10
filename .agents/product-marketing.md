@@ -409,7 +409,7 @@ US$17 vive hoy como el descuento `LANZAMIENTO17` en Paddle (US$22 off, recurrent
 | 2 | Recordatorios manuales `wa.me` — valor desde el día 1 sin conectar WhatsApp | ✅ **Hecho** (2026-08-16) |
 | 3 | Gating visible por plan (Mensajes, Ajustes IA, CRM y tarjetas del Dashboard) | ✅ **Hecho** (2026-08-16) |
 | 4 | Anual de Core US$170 — Paddle **sandbox** | ✅ Hecho · falta replicar en producción (KYB) |
-| 5 | Core autoservicio end-to-end + prueba 30 días sin tarjeta | 🔴 Bloqueante (spec sesión 66, sin implementar) |
+| 5 | Core autoservicio end-to-end + prueba 14 días sin tarjeta | 🔴 Bloqueante (spec sesión 66, sin implementar) |
 | 6 | Publicar el **primer** módulo de formación | 🔴 Bloqueante |
 | 7 | Crear peldaño US$39 con IA inicial en Paddle | Antes de ads |
 | 8 | Instrumentar tasa de upgrade (%, días, qué hicieron antes) | Desde el cliente #1 |

@@ -197,7 +197,7 @@ export default function DashboardLayout() {
                     const trialEnd = data?.trial_end_date ? new Date(data.trial_end_date) : null
                     // El acceso corre hasta lo que venza más tarde entre el período
                     // pagado real (para que cancelar conserve acceso hasta el fin
-                    // del ciclo ya pagado) y el trial gratuito prometido (30 días
+                    // del ciclo ya pagado) y el trial gratuito prometido (14 días
                     // para Core) -- `current_period_end` por sí solo tiene un
                     // default de 14 días sin relación con esa promesa real, que
                     // vive en `clinic_settings.trial_end_date`.

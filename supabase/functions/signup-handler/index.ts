@@ -285,11 +285,11 @@ Deno.serve(async (req: Request) => {
         const planLimits = await limitsForPlan(supabaseAdmin, selected_plan);
 
         // Core es la puerta de entrada sin agente IA — entra directo al dashboard
-        // (sin la pantalla de "agenda tu activación") y tiene 30 días de prueba
+        // (sin la pantalla de "agenda tu activación") y tiene 14 días de prueba
         // en vez de los 7 estándar, para dar tiempo real a evaluar el resto del
         // sistema (finanzas, inventario, fidelización) sin la ayuda del agente.
         const isCorePlan = selected_plan === "core";
-        const trialDays = isCorePlan ? 30 : 7;
+        const trialDays = isCorePlan ? 14 : 7;
         const now = new Date();
         const trialEndDate = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
 
