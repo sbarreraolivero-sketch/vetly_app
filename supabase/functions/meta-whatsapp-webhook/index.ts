@@ -3041,7 +3041,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // agendada", "confirmé tu cita") no matcheaba el patrón viejo, así que el
           // bug pasaba completamente desapercibido por este mismo mecanismo.
           const claimsDispatch = (t: string) =>
-            /\b(he enviado|ya envi[éeó]|envi[éeó]|voy a enviar|enviar[ée]|estoy enviando|he pasado|ya (le )?pas[ée]|he compartido|voy a compartir|he derivado|voy a derivar|he agendado|ya agend[éeó]|agend[éeó] (tu|la|esta) (cita|visita|hora)|(tu|la) (cita|visita|hora) (ya )?(qued[óo]|est[áa]) (agendada|confirmada|reservada|lista)|confirm[ée] (tu|la) (cita|visita|hora)|reserv[ée] (tu|la) (cita|hora|visita)|dej[ée] agendad[ao]|agend[ée] la visita)/i.test(t);
+            /\b(he enviado|ya envi[éeó]|envi[éeó]|voy a enviar|enviar[ée]|estoy enviando|he pasado|ya (le )?pas[ée]|he compartido|voy a compartir|he derivado|voy a derivar|he agendado|ya agend[éeó]|agend[éeó] (tu|la|esta) (cita|visita|hora)|(tu|la) (cita|visita|hora) (ya )?(qued[óo]|est[áa]) (agendada|confirmada|reservada|lista)|confirm[ée] (tu|la) (cita|visita|hora)|reserv[ée] (tu|la) (cita|hora|visita)|dej[ée] agendad[ao]|agend[ée] la visita|voy a coordinar|coordinar[ée] con|coordinaremos|(te|le) (responder[ée]|responderemos|avisar[ée]|avisaremos|contactar[ée]|contactaremos|escribir[ée]|escribiremos)[^.\n]{0,60}(alternativa|opci[óo]n|opciones|horario)|ofrecerte las (mejores )?opciones)/i.test(t);
           // Acotado a peticiones de dato explícitas — a propósito NO incluye un "¿"
           // genérico: una pregunta de cortesía ("¿necesitas algo más?") no debe
           // silenciar la detección de una promesa realmente rota.
