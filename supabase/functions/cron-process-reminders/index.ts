@@ -242,7 +242,6 @@ Deno.serve(async (req) => {
                 .select('*')
                 .eq('clinic_id', clinic.id)
                 .in('status', ['pending', 'confirmed'])
-                .eq('reminder_sent', false)
                 .not('patient_name', 'ilike', '%bloqueo%')
                 .not('phone_number', 'eq', '000000000')
                 .gte('appointment_date', nowUTC.toISOString())
@@ -254,6 +253,13 @@ Deno.serve(async (req) => {
             }
 
             let sentCount = 0
+
+            // Fecha de HOY en la zona de la clínica: un recordatorio de 24h válido para una cita de
+            // "mañana" siempre se envía HOY. Un log (o flag) de otro día corresponde a una fecha anterior
+            // de la cita (cita movida) y NO debe bloquear el envío para la fecha nueva.
+            const todayLocalStr = nowUTC.toLocaleDateString('en-CA', { timeZone })
+            const isTodayLocal = (iso: string | null | undefined) =>
+                !!iso && new Date(iso).toLocaleDateString('en-CA', { timeZone }) === todayLocalStr
 
             for (const appt of (appointments || [])) {
                 // 5.1 Skip "Bloqueo de Agenda" or invalid numbers
@@ -274,10 +280,15 @@ Deno.serve(async (req) => {
                     continue
                 }
 
-                const { data: existingLog24h } = await supabaseClient
-                    .from('reminder_logs').select('id')
-                    .eq('appointment_id', appt.id).eq('type', '24h').limit(1)
-                if (existingLog24h && existingLog24h.length > 0) continue
+                // Envío manual desde el dashboard (send-whatsapp-reminder): marca reminder_sent/_at sin log.
+                if (appt.reminder_sent && isTodayLocal(appt.reminder_sent_at)) continue
+
+                // Idempotencia: solo cuenta un log de 24h creado HOY (cualquier estado, para no reintentar
+                // en loop un fallo). Logs de días anteriores = fecha vieja de la cita → se vuelve a enviar.
+                const { data: existingLogs24h } = await supabaseClient
+                    .from('reminder_logs').select('created_at')
+                    .eq('appointment_id', appt.id).eq('type', '24h')
+                if ((existingLogs24h || []).some((l: any) => isTodayLocal(l.created_at))) continue
 
                 // Corte por límite a mitad del loop
                 if (effLimit !== null && poolUsed >= effLimit) break
@@ -443,19 +454,14 @@ Deno.serve(async (req) => {
                 // Workaround: Use the ISO string of the appointment and check its hour in the clinic timezone.
 
                 const nowUTC = new Date()
-                const startSearch = new Date(nowUTC.getTime() + 90 * 60 * 1000) // +1.5h
-                const endSearch = new Date(nowUTC.getTime() + 150 * 60 * 1000)   // +2.5h (Allowing some buffer)
+                // Ventana +1h30 .. +2h45: con el cron cada hora, toda cita (cualquier minuto :00-:59) cae en
+                // al menos una corrida. El solape entre corridas es inofensivo: lo frena el log de abajo.
+                const startSearch = new Date(nowUTC.getTime() + 90 * 60 * 1000)  // +1.5h
+                const endSearch = new Date(nowUTC.getTime() + 165 * 60 * 1000)   // +2.75h
 
                 // Actually, best semantic match: "2 hours before".
                 // If appt is at 14:00, send at 12:00.
                 // So at 12:00 cron run, we look for appts at 14:00.
-
-                // Current clinic time
-                const clinicDate = new Date(new Date().toLocaleString('en-US', { timeZone }))
-                clinicDate.setHours(clinicDate.getHours() + 2) // Target Hour
-
-                const targetHour = clinicDate.getHours()
-                const targetDateStr = clinicDate.toLocaleDateString('en-CA') // YYYY-MM-DD
 
                 // Fetch appointments for that day, then filter by hour
                 // Fetch window: Now + 1h to Now + 3h to be safe
@@ -484,16 +490,16 @@ Deno.serve(async (req) => {
                         continue;
                     }
 
+                    // Idempotencia por fecha: solo cuenta un log de 2h creado en las 4h previas a la cita
+                    // (cualquier estado). Un log más antiguo pertenece a una fecha anterior de la cita
+                    // (movida) y no debe bloquear el recordatorio de la fecha nueva.
+                    const apptDate = new Date(appt.appointment_date)
+                    const cutoff2h = new Date(apptDate.getTime() - 4 * 60 * 60 * 1000).toISOString()
                     const { data: existingLog2h } = await supabaseClient
                         .from('reminder_logs').select('id')
-                        .eq('appointment_id', appt.id).eq('type', '2h').limit(1)
+                        .eq('appointment_id', appt.id).eq('type', '2h')
+                        .gte('created_at', cutoff2h).limit(1)
                     if (existingLog2h && existingLog2h.length > 0) continue
-
-                    // Strict Hour Check in Clinic Timezone
-                    const apptDate = new Date(appt.appointment_date)
-                    const apptHour = parseInt(apptDate.toLocaleTimeString('en-US', { hour: 'numeric', hour12: false, timeZone }))
-
-                    if (apptHour !== targetHour) continue
 
                     // Corte por límite a mitad del loop
                     if (effLimit !== null && poolUsed >= effLimit) break
