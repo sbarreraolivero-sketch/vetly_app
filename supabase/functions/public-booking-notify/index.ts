@@ -25,6 +25,9 @@ const logIssue = async (sb: ReturnType<typeof createClient>, message: string, pa
     }
 };
 
+// Los datos vienen de un formulario público: escapar antes de meterlos al HTML.
+const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
 const sendEmail = async (sb: ReturnType<typeof createClient>, tag: string, to: string, subject: string, html: string) => {
     if (!RESEND_API_KEY || !to) return;
     try {
@@ -94,16 +97,20 @@ Deno.serve(async (req) => {
             hour: "2-digit", minute: "2-digit", hour12: false,
         }).format(scheduled);
 
-        const clinicName = clinic?.clinic_name || "la clínica";
-        const firstName = String(appt.tutor_name || "").split(" ")[0] || appt.tutor_name;
+        const clinicName = esc(clinic?.clinic_name || "la clínica");
+        const firstName = esc(String(appt.tutor_name || "").split(" ")[0] || appt.tutor_name);
+        const tutorName = esc(appt.tutor_name);
+        const petName = esc(appt.patient_name);
+        const serviceName = esc(appt.service);
+        const phoneStr = esc(appt.phone_number);
 
         // --- Confirmación al cliente ---
-        await sendEmail(sb, "client", appt.email as string, `Cita confirmada en ${clinicName}`, `
+        await sendEmail(sb, "client", appt.email as string, `Cita confirmada en ${String(clinic?.clinic_name || "la clínica")}`, `
             <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2E2E2E;">
                 <h2 style="color: #0d9488;">¡Listo, ${firstName}! Tu cita quedó confirmada</h2>
-                <p>Reservaste en <strong>${clinicName}</strong> para <strong>${appt.patient_name}</strong>.</p>
+                <p>Reservaste en <strong>${clinicName}</strong> para <strong>${petName}</strong>.</p>
                 <div style="background:#F0FDFA; border:1px solid #99F6E4; border-radius:12px; padding:20px; margin:24px 0;">
-                    <p style="margin:0; font-size:15px;"><strong>🩺 Servicio:</strong> ${appt.service}</p>
+                    <p style="margin:0; font-size:15px;"><strong>🩺 Servicio:</strong> ${serviceName}</p>
                     <p style="margin:8px 0 0; font-size:15px;"><strong>📅 Cuándo:</strong> ${dateTimeStr} hrs</p>
                 </div>
                 <p>Si necesitas cambiar el horario, contacta directamente a la clínica.</p>
@@ -112,14 +119,14 @@ Deno.serve(async (req) => {
         `);
 
         // --- Aviso al dueño de la clínica ---
-        await sendEmail(sb, "owner", owner?.email as string, `Nueva reserva online: ${appt.tutor_name}`, `
+        await sendEmail(sb, "owner", owner?.email as string, `Nueva reserva online: ${String(appt.tutor_name).replace(/[\r\n]/g, " ")}`, `
             <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2E2E2E;">
                 <h2 style="color: #0d9488;">Nueva reserva desde tu página online</h2>
                 <div style="background:#F0FDFA; border:1px solid #99F6E4; border-radius:12px; padding:20px; margin:24px 0;">
-                    <p style="margin:0; font-size:15px;"><strong>👤 Tutor:</strong> ${appt.tutor_name}</p>
-                    <p style="margin:8px 0 0; font-size:15px;"><strong>🐾 Mascota:</strong> ${appt.patient_name}</p>
-                    <p style="margin:8px 0 0; font-size:15px;"><strong>📱 WhatsApp:</strong> ${appt.phone_number}</p>
-                    <p style="margin:8px 0 0; font-size:15px;"><strong>🩺 Servicio:</strong> ${appt.service}</p>
+                    <p style="margin:0; font-size:15px;"><strong>👤 Tutor:</strong> ${tutorName}</p>
+                    <p style="margin:8px 0 0; font-size:15px;"><strong>🐾 Mascota:</strong> ${petName}</p>
+                    <p style="margin:8px 0 0; font-size:15px;"><strong>📱 WhatsApp:</strong> ${phoneStr}</p>
+                    <p style="margin:8px 0 0; font-size:15px;"><strong>🩺 Servicio:</strong> ${serviceName}</p>
                     <p style="margin:8px 0 0; font-size:15px;"><strong>📅 Cuándo:</strong> ${dateTimeStr} hrs</p>
                 </div>
                 <p>Ya quedó agendada automáticamente en tu Vetly -- revísala en Citas Médicas.</p>

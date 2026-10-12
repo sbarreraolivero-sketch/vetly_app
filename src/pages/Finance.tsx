@@ -99,12 +99,14 @@ const ITEM_TYPE_LABELS: Record<string, string> = {
     service: 'Servicios',
     product: 'Productos',
     custom:  'Ítems libres',
+    sin_detalle: 'Sin detalle de ítems',
 }
 
 const ITEM_TYPE_STYLES: Record<string, string> = {
     service: 'bg-primary-100 text-primary-600',
     product: 'bg-violet-100 text-violet-600',
     custom:  'bg-amber-100 text-amber-700',
+    sin_detalle: 'bg-gray-100 text-charcoal/60',
 }
 
 // parseLocalDate now comes from useClinicTimezone hook
