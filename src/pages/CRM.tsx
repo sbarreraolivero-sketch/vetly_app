@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import {
@@ -72,9 +72,23 @@ interface CrmData {
     prospects: Prospect[]
     tags: CrmTag[]
     prospectTags: Record<string, string[]>
+    counts: Record<string, number>
     services: { id: string; name: string }[]
 }
-const CRM_EMPTY: CrmData = { stages: [], prospects: [], tags: [], prospectTags: {}, services: [] }
+const CRM_EMPTY: CrmData = { stages: [], prospects: [], tags: [], prospectTags: {}, counts: {}, services: [] }
+const PAGE_SIZE = 30
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const loadProspectTags = async (ids: string[]): Promise<Record<string, string[]>> => {
+    const map: Record<string, string[]> = {}
+    const chunks: string[][] = []
+    for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
+    const results = await Promise.all(chunks.map(c =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).from('crm_prospect_tags').select('prospect_id, tag_id').in('prospect_id', c)))
+    for (const r of results) for (const pt of (r.data || [])) (map[pt.prospect_id] ||= []).push(pt.tag_id)
+    return map
+}
 
 export default function CRM() {
     const { profile } = useAuth()
@@ -138,13 +152,21 @@ export default function CRM() {
                 stagesData = newStages || []
             }
 
-            // Prospects
+            // Conteos por etapa (1 consulta) + primera página de cada etapa (en paralelo).
+            // El tablero ya no descarga todos los prospectos (tope silencioso de 1.000 filas).
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: prospectsData } = await (supabase as any)
-                .from('crm_prospects')
-                .select('*')
-                .eq('clinic_id', cid)
-                .order('created_at', { ascending: false })
+            const [{ data: countRows }, ...pages] = await Promise.all([
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (supabase as any).rpc('get_crm_stage_counts', { p_clinic_id: cid }),
+                ...(stagesData as PipelineStage[]).map(st =>
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (supabase as any).from('crm_prospects').select('*')
+                        .eq('clinic_id', cid).eq('stage_id', st.id)
+                        .order('updated_at', { ascending: false }).range(0, PAGE_SIZE - 1)),
+            ])
+            const counts: Record<string, number> = {}
+            for (const r of (countRows || [])) counts[r.stage_id] = Number(r.n)
+            const prospectsData: Prospect[] = pages.flatMap((r: { data: Prospect[] | null }) => r.data || [])
 
             // Tags
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,22 +176,8 @@ export default function CRM() {
                 .eq('clinic_id', cid)
                 .order('name', { ascending: true })
 
-            // Prospect-Tag relations
-            const ptMap: Record<string, string[]> = {}
-            if (prospectsData && prospectsData.length > 0) {
-                const prospectIds = prospectsData.map((p: Prospect) => p.id)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: ptData } = await (supabase as any)
-                    .from('crm_prospect_tags')
-                    .select('prospect_id, tag_id')
-                    .in('prospect_id', prospectIds)
-                if (ptData) {
-                    for (const pt of ptData) {
-                        if (!ptMap[pt.prospect_id]) ptMap[pt.prospect_id] = []
-                        ptMap[pt.prospect_id].push(pt.tag_id)
-                    }
-                }
-            }
+            // Relaciones prospecto-etiqueta solo de los prospectos cargados
+            const ptMap = await loadProspectTags(prospectsData.map(p => p.id))
 
             // Services
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,46 +192,88 @@ export default function CRM() {
                 prospects: prospectsData || [],
                 tags: tagsData || [],
                 prospectTags: ptMap,
+                counts,
                 services: svcData || [],
             }
         },
     })
 
-    const { stages, prospects, tags, prospectTags, services } = crmQuery.data ?? CRM_EMPTY
+    const { stages, prospects: boardProspects, tags, prospectTags: boardTags, counts, services } = crmQuery.data ?? CRM_EMPTY
     const loading = crmQuery.isLoading
 
     /** Refresca todo el tablero tras una mutación. */
-    const fetchAll = () => { queryClient.invalidateQueries({ queryKey: crmKey }) }
+    const fetchAll = () => { queryClient.invalidateQueries({ queryKey: crmKey }); queryClient.invalidateQueries({ queryKey: ['crm-search', profile?.clinic_id] }) }
 
     /** Parche optimista sobre el caché del CRM (drag&drop, borrado, reorden). */
     const patchCrm = (fn: (d: CrmData) => CrmData) => {
         queryClient.setQueryData<CrmData>(crmKey, (old) => (old ? fn(old) : old))
     }
 
-    // Stats
-    const totalConversations = prospects.length
-    const qualifiedLeads = prospects.filter(p => {
-        const stage = stages.find(s => s.id === p.stage_id)
-        return stage && stage.name.toLowerCase() === 'calificado'
-    }).length
-    const scheduledAppointments = prospects.filter(p => {
-        const stage = stages.find(s => s.id === p.stage_id)
-        return stage && stage.name.toLowerCase().includes('cita')
-    }).length
-    const closedLeads = prospects.filter(p => {
-        const stage = stages.find(s => s.id === p.stage_id)
-        return stage && stage.position === stages.length - 1
-    }).length
-
-    // Filter prospects
-    const filteredProspects = prospects.filter(p => {
-        const matchesSearch = !searchQuery ||
-            p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.phone?.includes(searchQuery) ||
-            p.email?.toLowerCase().includes(searchQuery.toLowerCase())
-        const matchesTag = !filterTag || (prospectTags[p.id] || []).includes(filterTag)
-        return matchesSearch && matchesTag
+    // Búsqueda / filtro por etiqueta: en el servidor (el tablero solo tiene la primera página de cada etapa)
+    const [debouncedSearch, setDebouncedSearch] = useState('')
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350)
+        return () => clearTimeout(t)
+    }, [searchQuery])
+    const filterActive = !!debouncedSearch || !!filterTag
+    const searchResult = useQuery<{ prospects: Prospect[]; prospectTags: Record<string, string[]> }>({
+        queryKey: ['crm-search', profile?.clinic_id, debouncedSearch, filterTag],
+        enabled: !!profile?.clinic_id && filterActive,
+        staleTime: 30_000,
+        queryFn: async () => {
+            const cid = profile!.clinic_id
+            let ids: string[] | null = null
+            if (filterTag) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data } = await (supabase as any).from('crm_prospect_tags').select('prospect_id').eq('tag_id', filterTag).limit(500)
+                ids = (data || []).map((r: { prospect_id: string }) => r.prospect_id)
+                if (ids!.length === 0) return { prospects: [], prospectTags: {} }
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let q = (supabase as any).from('crm_prospects').select('*').eq('clinic_id', cid)
+            if (ids) q = q.in('id', ids)
+            if (debouncedSearch) {
+                const term = debouncedSearch.replace(/[,()%*]/g, ' ').trim()
+                const digits = term.replace(/\D/g, '')
+                q = q.or([`name.ilike.%${term}%`, `email.ilike.%${term}%`, digits.length >= 4 ? `phone.ilike.%${digits}%` : `phone.ilike.%${term}%`].join(','))
+            }
+            const { data } = await q.order('updated_at', { ascending: false }).limit(200)
+            const list: Prospect[] = data || []
+            return { prospects: list, prospectTags: await loadProspectTags(list.map(p => p.id)) }
+        },
     })
+    const prospects = filterActive ? (searchResult.data?.prospects ?? []) : boardProspects
+    const prospectTags = filterActive ? { ...boardTags, ...(searchResult.data?.prospectTags ?? {}) } : boardTags
+
+    // Stats (desde los conteos del servidor, no de lo cargado)
+    const stageCount = (pred: (s: PipelineStage) => boolean) =>
+        stages.filter(pred).reduce((acc, s) => acc + (counts[s.id] || 0), 0)
+    const totalConversations = stageCount(() => true)
+    const qualifiedLeads = stageCount(s => s.name.toLowerCase() === 'calificado')
+    const scheduledAppointments = stageCount(s => s.name.toLowerCase().includes('cita'))
+    const closedLeads = stageCount(s => s.position === stages.length - 1)
+
+    const filteredProspects = prospects
+
+    // "Ver más" por etapa: pide la siguiente página y la agrega al caché
+    const [loadingMore, setLoadingMore] = useState<string | null>(null)
+    const loadMore = async (stageId: string) => {
+        const have = boardProspects.filter(p => p.stage_id === stageId).length
+        setLoadingMore(stageId)
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data } = await (supabase as any).from('crm_prospects').select('*')
+                .eq('clinic_id', profile!.clinic_id).eq('stage_id', stageId)
+                .order('updated_at', { ascending: false }).range(have, have + PAGE_SIZE - 1)
+            const list: Prospect[] = data || []
+            const tagMap = await loadProspectTags(list.map(p => p.id))
+            patchCrm(d => ({
+                ...d,
+                prospects: [...d.prospects, ...list.filter(n => !d.prospects.some(o => o.id === n.id))],
+                prospectTags: { ...d.prospectTags, ...tagMap },
+            }))
+        } finally { setLoadingMore(null) }
+    }
 
     // Drag handlers
     const onDragStart = (prospectId: string) => {
@@ -241,7 +291,16 @@ export default function CRM() {
         draggedProspect.current = null
 
         // Optimistic update
-        patchCrm(d => ({ ...d, prospects: d.prospects.map(p => p.id === prospectId ? { ...p, stage_id: stageId } : p) }))
+        patchCrm(d => {
+            const moved = d.prospects.find(p => p.id === prospectId)
+            const counts = { ...d.counts }
+            if (moved && moved.stage_id !== stageId) {
+                if (moved.stage_id) counts[moved.stage_id] = Math.max(0, (counts[moved.stage_id] || 0) - 1)
+                counts[stageId] = (counts[stageId] || 0) + 1
+            }
+            return { ...d, counts, prospects: d.prospects.map(p => p.id === prospectId ? { ...p, stage_id: stageId } : p) }
+        })
+        queryClient.invalidateQueries({ queryKey: ['crm-search', profile?.clinic_id] })
 
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -342,7 +401,13 @@ export default function CRM() {
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             assertOk(await (supabase as any).from('crm_prospects').delete().eq('id', id))
-            patchCrm(d => ({ ...d, prospects: d.prospects.filter(p => p.id !== id) }))
+            patchCrm(d => {
+                const gone = d.prospects.find(p => p.id === id)
+                const counts = { ...d.counts }
+                if (gone?.stage_id) counts[gone.stage_id] = Math.max(0, (counts[gone.stage_id] || 0) - 1)
+                return { ...d, counts, prospects: d.prospects.filter(p => p.id !== id) }
+            })
+            queryClient.invalidateQueries({ queryKey: ['crm-search', profile?.clinic_id] })
             setShowDeleteConfirm(null)
         } catch (err) {
             console.error('Error deleting prospect:', err)
@@ -561,7 +626,7 @@ export default function CRM() {
                         Cerrados
                         {(() => {
                             const closedStage = stages.find(s => s.name.toLowerCase().includes('cerrado'))
-                            const count = closedStage ? prospects.filter(p => p.stage_id === closedStage.id).length : 0
+                            const count = closedStage ? (counts[closedStage.id] || 0) : 0
                             return count > 0 ? <span className="bg-charcoal/15 text-charcoal px-1.5 py-0.5 rounded-full text-xs">{count}</span> : null
                         })()}
                     </button>
@@ -598,7 +663,7 @@ export default function CRM() {
                                         />
                                         <span className="font-semibold text-sm text-charcoal">{stage.name}</span>
                                         <span className="text-xs text-charcoal/40 bg-white px-2 py-0.5 rounded-full border border-silk-beige">
-                                            {stageProspects.length}
+                                            {filterActive ? stageProspects.length : (counts[stage.id] ?? stageProspects.length)}
                                         </span>
                                     </div>
                                     <button
@@ -701,6 +766,16 @@ export default function CRM() {
                                             </div>
                                         </div>
                                     ))}
+
+                                    {!filterActive && stageProspects.length < (counts[stage.id] || 0) && (
+                                        <button
+                                            onClick={() => loadMore(stage.id)}
+                                            disabled={loadingMore === stage.id}
+                                            className="w-full py-2 text-xs font-semibold text-primary-700 bg-white border border-silk-beige rounded-soft hover:bg-primary-50 disabled:opacity-50"
+                                        >
+                                            {loadingMore === stage.id ? 'Cargando…' : `Ver más (${(counts[stage.id] || 0) - stageProspects.length})`}
+                                        </button>
+                                    )}
 
                                     {stageProspects.length === 0 && (
                                         <div className="text-center py-6 text-sm font-medium text-charcoal/60">

@@ -481,7 +481,7 @@ const functions = [
   },
   {
     name: "tag_patient",
-    description: "Asigna una etiqueta al tutor/cliente para segmentación futura.",
+    description: "Asigna una etiqueta al cliente/prospecto para segmentación (ej: 'Agresivo', 'Cliente frecuente', 'Urgencia'). Úsala proactivamente cuando el cliente revele algo relevante: temperamento, urgencia, nº de mascotas, interés específico. Los intereses por servicio (cirugía, vacunas, desparasitación) ya se etiquetan solos.",
     parameters: {
       type: "object",
       properties: {
@@ -1876,32 +1876,29 @@ const requestSchedulingCoordination = async (
 
 // ── Tag Patient ───────────────────────────────────────────────────────────────
 const tagPatient = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string, args: { tag_name: string; tag_color?: string }) => {
-  const normalizedPhone = normalizePhone(phone);
   const tagName = (args.tag_name || "").trim();
   if (!tagName) return { success: false, message: "Nombre de etiqueta vacío." };
-
-  // Find or create tag
-  // Columnas reales de "tags": id, name, color (no tag_id/tag_name/tag_color) — el select+insert
-  // originales fallaban siempre contra columnas inexistentes. Ver ycloud-whatsapp-webhook.
-  let tagId: string;
-  const { data: existingTag } = await sb.from("tags").select("id").eq("clinic_id", clinicId)
-    .ilike("name", tagName).limit(1).maybeSingle();
-  if (existingTag) {
-    tagId = existingTag.id;
-  } else {
-    const { data: newTag } = await sb.from("tags").insert({ clinic_id: clinicId, name: tagName, color: args.tag_color || "#6b7280" }).select("id").single();
-    if (!newTag) return { success: false, message: "Error creando etiqueta." };
-    tagId = newTag.id;
-  }
-
-  // Find tutor
-  const { data: tutor } = await sb.from("tutors").select("id").eq("clinic_id", clinicId).eq("phone_number", normalizedPhone).limit(1).maybeSingle();
-  if (!tutor) return { success: false, message: "Tutor no encontrado." };
-
-  // Insert in tutor_tags (source of truth for frontend)
-  const { error } = await sb.from("tutor_tags").insert({ tutor_id: tutor.id, tag_id: tagId });
-  if (error && error.code !== "23505") return { success: false, message: "Error asignando etiqueta." };
+  // Un solo RPC: crea la etiqueta si falta y la asigna al tutor (tutor_tags) y al prospecto del CRM.
+  const { data, error } = await sb.rpc("crm_apply_tags", {
+    p_clinic_id: clinicId, p_phone: normalizePhone(phone), p_tags: [tagName], p_service_interest: null,
+  });
+  if (error) return { success: false, message: "Error asignando etiqueta." };
+  if (!(data as any)?.tutor && !(data as any)?.prospect) return { success: false, message: "Contacto no encontrado." };
   return { success: true, message: `Etiqueta "${tagName}" asignada.` };
+};
+
+// Etiquetas de interés detectadas de forma determinista en el mensaje entrante (sin gastar IA).
+const detectInterestTags = (text: string): string[] => {
+  const t = (text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (t.length < 4) return [];
+  const rules: Array<[string, RegExp]> = [
+    ["Interés Cirugía", /cirug|esteril|castra|operar|operacion|pabellon/],
+    ["Interés Vacunación", /vacun|antirrab|octuple|sextuple|triple felina|puppy|leucemia felina/],
+    ["Interés Desparasitación", /despar|pipeta|antiparasit|garrapata|pulga/],
+    ["Interés Examen Preoperatorio", /prequir|preoperat|pre quirurg|perfil bioquimic|hemograma/],
+    ["Interés Consulta Médica", /consulta medica|consulta veterinaria|chequeo|enferm|vomit|diarrea|decaid|no come|cojea|herida|dolor|sangr|tose |estornud/],
+  ];
+  return rules.filter(([, re]) => re.test(t)).map(([n]) => n);
 };
 
 // ── Reschedule Appointment ────────────────────────────────────────────────────
@@ -2484,14 +2481,27 @@ Deno.serve(async (req) => {
       // insert de referencia (clinic_id, phone, name, source, stage_id, requires_human).
       try {
         const normalizedFrom = normalizePhone(from);
-        const { data: existingProspect } = await sb.from("crm_prospects").select("id")
-          .eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom}`).limit(1).maybeSingle();
+        const profileName = ((value as any)?.contacts?.[0]?.profile?.name || "").toString().trim().slice(0, 80) || null;
+        const { data: existingProspect } = await sb.from("crm_prospects").select("id, name")
+          .eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom},phone.eq.${normalizedFrom}`).limit(1).maybeSingle();
         if (!existingProspect && !tutor) {
+          // La etapa inicial la asigna el trigger tr_crm_prospect_default_stage.
           const { error: crmInsertError } = await sb.from("crm_prospects")
-            .insert({ clinic_id: clinic.id, phone: normalizedFrom, source: "whatsapp_inbound" });
+            .insert({ clinic_id: clinic.id, phone: normalizedFrom, name: profileName, source: "whatsapp_inbound" });
           if (crmInsertError) {
             await debugLog(sb, "CRM auto-sync insert error", { error: crmInsertError.message, phone: normalizedFrom });
           }
+        } else if (existingProspect && !existingProspect.name && profileName) {
+          await sb.from("crm_prospects").update({ name: profileName }).eq("id", existingProspect.id);
+        }
+        // Etiquetas de interés (una sola llamada, solo si hubo coincidencias)
+        const interestTags = detectInterestTags(body);
+        if (interestTags.length > 0) {
+          const { error: tagErr } = await sb.rpc("crm_apply_tags", {
+            p_clinic_id: clinic.id, p_phone: normalizedFrom, p_tags: interestTags,
+            p_service_interest: interestTags[0].replace("Interés ", ""),
+          });
+          if (tagErr) await debugLog(sb, "CRM interest tag error", { error: tagErr.message, phone: normalizedFrom });
         }
       } catch (crmErr) {
         await debugLog(sb, "CRM auto-sync error", { error: (crmErr as Error).message });
