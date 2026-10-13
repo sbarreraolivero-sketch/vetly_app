@@ -8128,3 +8128,32 @@ Tutores y Mensajes guardaban la ficha/conversación abierta solo en estado local
 - **Un `UPDATE` de supabase-js a una columna inexistente falla en silencio** (devuelve `{error}`, no lanza). Antes de escribir una columna, verificarla en `information_schema.columns` — `src/types/database.ts` NO es fuente de verdad (declara `confirmation_response`, que no existe). Y siempre destructurar `{ error }`.
 - **Para saber si algo "no llega", mirar qué respondió el tutor**, no solo el estado `read` del recordatorio: la respuesta del cliente es la prueba de que el mensaje llegó.
 - **Una confirmación de cita no debe depender de la IA** (créditos, pausa, apagado). Las acciones deterministas (botón de plantilla) se resuelven en código.
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 115, 2026-10-12)
+
+> Nota de numeración: si otra sesión paralela ya escribió "sesión 115", renumerar.
+
+Auditoría de dos secciones (reservas online `/reservar/:slug` y análisis de Finanzas). Commits `25fe59b` y `26c6d76`.
+
+### Reservas online rotas para todos los visitantes desde el 8‑oct
+La auditoría de seguridad del 8‑oct agregó `is_clinic_member()` a `get_available_slots` y `check_availability`. `get_public_booking_slots` las llama como **anónimo** → `Acceso denegado` → la página no mostraba ningún horario (5 clínicas con reservas activas afectadas).
+- **Fix** (`20261012000000`): `get_public_booking_slots` (que ya valida `public_booking_enabled`) hace `set_config('vetly.public_booking', clinic_id, true)` (GUC local a la transacción) y los dos guards lo aceptan SOLO para esa clínica. No se puede fijar desde PostgREST, así que no abre acceso entre clínicas. Verificado: `get_available_slots` directo con la anon key sigue dando `permission denied`.
+- **Doble reserva:** las reservas online se insertan con `professional_id NULL` y `get_professional_available_slots` solo bloquea citas con `professional_id = X`, así que un horario reservado seguía libre. La RPC pública ahora excluye solapes con citas sin profesional.
+- **Días mostrados** (`20261012020000`): la página filtraba `isWeekend` (nunca ofrecía sábado/domingo aunque la clínica los abriera, y ofrecía días cerrados). Nueva RPC `get_public_booking_open_days(clinic, from, days)` (anon‑ejecutable, usa `working_hours` + `clinic_blocked_dates`); `PublicBooking.tsx` muestra los próximos 10 días abiertos.
+- `public-booking-notify`: escapa HTML (`esc()`) en los correos (nombre/mascota/servicio venían de un formulario público).
+- **Prueba E2E** en Los Robles (reserva anónima real → tutor + cita → horario desaparece → notificación in‑app → notify OK sin errores en `debug_logs`); datos de prueba borrados.
+- **Pendiente/limitaciones:** las reservas online NO se sincronizan con Google Calendar (esa sync solo existe desde el dashboard, necesita sesión de usuario); sigue posible un cruce si dos personas reservan el mismo horario en el mismo segundo (no hay validación al insertar).
+
+### Finanzas: el tab Análisis incluía un día de más
+`get_finance_item_metrics` y `get_finance_discount_metrics` usaban `p_end::date` (fecha UTC). El navegador envía el fin de día local (30‑sep 23:59 ‑03:00 = 1‑oct 02:59Z), así que incluían el día siguiente y no cuadraban con las tarjetas (`get_finance_stats` usa `clinic_local_date`). Septiembre Linares: tarjetas $5.709.700 (109 ventas) vs análisis $5.973.700 (111).
+- **Fix** (`20261012010000`): ambas usan `clinic_local_date(p_clinic_id, …)`. `by_type` suma un renglón `sin_detalle` (ingresos sin ítems; 24 en 90 días = $928.572) y `Finance.tsx` tiene su etiqueta.
+- Verificado al peso contra SQL independiente (ingresos, ticket, % con productos, descuentos, top servicios) en Linares y Santiago.
+- **Pendiente menor:** el comparativo de descuento del "período anterior" usa igual cantidad de días, no el mes calendario anterior; el canje de fidelización (`loyalty_redeemed`) no entra en el prorrateo por ítem (hoy 0 canjes, programa pausado).
+
+### Reglas permanentes
+- **Una RPC pública (anon) que llama a funciones con guard de membresía necesita un puente explícito** (GUC transaccional ligado al `clinic_id`); revocar o endurecer funciones internas sin probar el camino anónimo rompe las páginas públicas en silencio. Tras cualquier cambio de seguridad en RPCs, probar `/reservar/:slug` con la anon key.
+- **Nunca castear `timestamptz::date` en una RPC de reportes**: usa la zona de la sesión (UTC). Usar siempre `clinic_local_date(clinic_id, ts)` para que todos los reportes de Finanzas corten el período igual.
+- **Filtrar fines de semana en el frontend es una suposición de negocio**: los días abiertos salen del `working_hours` de la clínica, nunca de `isWeekend`.
+- **CLI `supabase db query --linked` está roto en esta máquina** (error de parseo JSON de bun). Alternativas: Supabase MCP (`execute_sql`/`apply_migration`) o la Management API con el token del Keychain (`security find-generic-password -s "Supabase CLI" -w`, decodificar `go-keyring-base64:`).
