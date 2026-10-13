@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
-import { format, addDays, isSameDay, startOfToday, setHours, setMinutes, isWeekend } from 'date-fns'
+import { format, addDays, isSameDay, startOfToday, setHours, setMinutes } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 import { es } from 'date-fns/locale'
 import { Loader2, Calendar as CalendarIcon, Clock, CheckCircle2, ChevronLeft, Stethoscope } from 'lucide-react'
@@ -76,9 +76,18 @@ export default function PublicBooking() {
         })()
     }, [slug])
 
+    // Días en que la clínica realmente atiende (horario por día + días bloqueados),
+    // incluidos sábados/domingos si los tiene abiertos. Próximos 10 días abiertos.
+    const [openDays, setOpenDays] = useState<string[]>([])
+    useEffect(() => {
+        if (!clinic) return
+        const from = format(addDays(startOfToday(), 1), 'yyyy-MM-dd')
+        ;(publicClient as any).rpc('get_public_booking_open_days', { p_clinic_id: clinic.clinic_id, p_from: from, p_days: 30 })
+            .then(({ data }: any) => setOpenDays((data || []).map((r: any) => r.open_date)))
+    }, [clinic])
     const availableDates = useMemo(
-        () => Array.from({ length: 21 }).map((_, i) => addDays(startOfToday(), i + 1)).filter(d => !isWeekend(d)).slice(0, 10),
-        []
+        () => openDays.slice(0, 10).map(d => new Date(`${d}T12:00:00`)),
+        [openDays]
     )
 
     // Los horarios ofrecidos son siempre en la zona horaria REAL de la
