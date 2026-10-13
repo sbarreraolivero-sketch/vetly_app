@@ -8188,3 +8188,34 @@ Pedido del usuario: los contactos pausados (`requires_human = true`) vuelven sol
 ### Reglas permanentes
 - **Una excepción al chequeo de pausa previa al envío debe cubrir TODA herramienta que pausa al tutor en el mismo turno** (`request_scheduling_coordination` y `escalate_to_human`); si no, la propia acción que pausa silencia su respuesta.
 - **Un detector de promesas rotas debe medirse contra mensajes reales de producción en ambos sentidos** (promesas no detectadas y respuestas legítimas marcadas), no solo contra el primer caso reportado.
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 115, 2026-10-12)
+
+### Recordatorios de citas — 2 causas de "no llegó" corregidas (`cron-process-reminders`, commit `efc979f`)
+- **Citas movidas:** el 24h filtraba `reminder_sent = false` y la idempotencia miraba cualquier log previo de esa cita; una cita reagendada nunca recibía recordatorio nuevo. Ahora solo se omite si ya hubo envío **creado hoy** (zona de la clínica).
+- **Citas :31–:59:** el 2h exigía coincidir con la hora exacta; ahora usa ventana `now+90min … now+165min`. Log de idempotencia con `created_at >= cita − 4h`.
+- Caso Luciana (+56943910550): el número devuelve 131026 (no entregable); confirmar con el tutor.
+
+### CRM — automatización de etapas, etiquetas y tablero eficiente (commits `5c0d8c6`, `a46f887`)
+**Causas del "todos quedan en Nuevo Prospecto":** el webhook de Meta creaba prospectos sin etapa ni nombre; `handle_appointment_crm_sync` buscaba por `tutor_id` (NULL en citas de la IA); el etiquetado por interés solo existía en `ycloud-whatsapp-webhook`; `CRM.tsx` traía todos los prospectos (tope de 1.000 filas).
+
+**DB (migraciones `20261012180000` y `20261012200000`):**
+- `phone_digits(text)` IMMUTABLE + índices funcionales por teléfono (crm_prospects, appointments, tutors, scheduling_requests abiertas) y `(clinic_id, stage_id, updated_at DESC)`.
+- Trigger `tr_crm_prospect_default_stage`: todo prospecto nuevo nace en la primera etapa.
+- `handle_appointment_crm_sync`: cita pending/confirmed → "Cita agendada" **por teléfono**.
+- `tr_crm_sync_on_scheduling_request`: solicitud abierta → "Consulta disponibilidad" (no retrocede de cita/calificado).
+- `auto_close_crm_prospects()` (cron 06:00 UTC): (a) cliente atendido sin cita futura/solicitud abierta/mensaje en 3 días; (b) "Cita agendada" con cita pasada; (c) **60 días sin mensajes entrantes** → "Cerrado".
+- RPC `get_crm_stage_counts(clinic)` (miembro de la clínica) y `crm_apply_tags(clinic, phone, tags[], service_interest)` (**solo service_role**): crea la etiqueta si falta y la asigna a `tutor_tags` y `crm_prospect_tags`.
+- `get_unified_contacts(p_clinic_id, p_include_prospects DEFAULT false)`: ya no manda prospectos (Tutores/Citas/Estética los descartaban).
+- Backfill con respaldo en `crm_prospects_stage_backup_20261012`: 2.471 a Cerrado (los que no escribieron en 7 días); 285 activos quedaron en Nuevo Prospecto.
+
+**Webhook Meta:** captura `contacts[0].profile.name`; detecta interés por palabras clave (Cirugía, Vacunación, Desparasitación, Examen Preoperatorio, Consulta Médica) y llama `crm_apply_tags` una vez; `tagPatient` usa esa RPC; si un prospecto en "Cerrado" vuelve a escribir, se reabre en la primera etapa. El webhook de YCloud no se tocó (sin tráfico).
+
+**Frontend `CRM.tsx`:** primera página de 30 por etapa + conteos reales, "Ver más" por columna, búsqueda y filtro por etiqueta en servidor (debounce 350 ms, tope 200). La columna "Cerrado" se oculta por defecto (botón "Cerrados" con contador).
+
+### Reglas permanentes
+- La lógica de etapas del CRM vive en **triggers de DB**, no en los webhooks: cualquier camino que cree citas/solicitudes la hereda.
+- Todo lo que cruce citas/mensajes con prospectos debe comparar con `phone_digits()` (los formatos de teléfono varían) y usar `phone_number IN (digits, '+'||digits)` en `messages` para aprovechar el índice.
+- Un recordatorio de cita se considera enviado solo si hay log **creado hoy**; una cita movida debe poder recibir uno nuevo.
