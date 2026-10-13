@@ -2482,7 +2482,7 @@ Deno.serve(async (req) => {
       try {
         const normalizedFrom = normalizePhone(from);
         const profileName = ((value as any)?.contacts?.[0]?.profile?.name || "").toString().trim().slice(0, 80) || null;
-        const { data: existingProspect } = await sb.from("crm_prospects").select("id, name")
+        const { data: existingProspect } = await sb.from("crm_prospects").select("id, name, stage_id")
           .eq("clinic_id", clinic.id).or(`phone.eq.${from},phone.eq.+${normalizedFrom},phone.eq.${normalizedFrom}`).limit(1).maybeSingle();
         if (!existingProspect && !tutor) {
           // La etapa inicial la asigna el trigger tr_crm_prospect_default_stage.
@@ -2491,8 +2491,19 @@ Deno.serve(async (req) => {
           if (crmInsertError) {
             await debugLog(sb, "CRM auto-sync insert error", { error: crmInsertError.message, phone: normalizedFrom });
           }
-        } else if (existingProspect && !existingProspect.name && profileName) {
-          await sb.from("crm_prospects").update({ name: profileName }).eq("id", existingProspect.id);
+        } else if (existingProspect) {
+          if (!existingProspect.name && profileName) {
+            await sb.from("crm_prospects").update({ name: profileName }).eq("id", existingProspect.id);
+          }
+          // Volvió a escribir: si estaba en "Cerrado" reabre en la primera etapa del embudo.
+          if (existingProspect.stage_id) {
+            const { data: stages } = await sb.from("crm_pipeline_stages").select("id, name, position")
+              .eq("clinic_id", clinic.id).order("position", { ascending: true });
+            const cur = (stages || []).find((s: any) => s.id === existingProspect.stage_id);
+            if (cur && /cerrado/i.test(cur.name) && stages && stages[0] && stages[0].id !== cur.id) {
+              await sb.from("crm_prospects").update({ stage_id: stages[0].id, updated_at: new Date().toISOString() }).eq("id", existingProspect.id);
+            }
+          }
         }
         // Etiquetas de interés (una sola llamada, solo si hubo coincidencias)
         const interestTags = detectInterestTags(body);
@@ -3171,7 +3182,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           // coordinadora, el aviso de "la coordinadora revisará la ruta" sí debe salir —
           // si no, el cliente entrega todos sus datos y queda en silencio absoluto.
           const pausedByThisTurn = allFuncResults.some(
-            r => r.name === "request_scheduling_coordination" && r.result?.success === true,
+            r => (r.name === "request_scheduling_coordination" || r.name === "escalate_to_human") && r.result?.success === true,
           );
           if (!pausedByThisTurn && await isPausedForHuman(sb, clinic.id, from)) {
             console.log(`[Meta] requires_human=true for ${from}, discarding reply (pre-send)`);
