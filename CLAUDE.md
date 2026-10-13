@@ -8157,3 +8157,34 @@ La auditoría de seguridad del 8‑oct agregó `is_clinic_member()` a `get_avail
 - **Nunca castear `timestamptz::date` en una RPC de reportes**: usa la zona de la sesión (UTC). Usar siempre `clinic_local_date(clinic_id, ts)` para que todos los reportes de Finanzas corten el período igual.
 - **Filtrar fines de semana en el frontend es una suposición de negocio**: los días abiertos salen del `working_hours` de la clínica, nunca de `isWeekend`.
 - **CLI `supabase db query --linked` está roto en esta máquina** (error de parseo JSON de bun). Alternativas: Supabase MCP (`execute_sql`/`apply_migration`) o la Management API con el token del Keychain (`security find-generic-password -s "Supabase CLI" -w`, decodificar `go-keyring-base64:`).
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 115, 2026-10-12)
+
+### IA muda con prospectos de Santiago — 3 causas, 2 corregidas en código
+
+**Reporte (capturas reales de Claudia):** la IA decía "voy a coordinar con nuestra logística… te responderemos con las alternativas" sin crear la solicitud en el panel, y un prospecto con una urgencia (gatito con dificultad respiratoria, +56923979258) nunca recibió respuesta.
+
+**Causa 1 — detector de "promesa sin acción" con vocabulario incompleto.** `claimsDispatch` (tool loop de `meta-whatsapp-webhook`) solo cubría "enviar/derivar/agendé". Frases como "voy a coordinar con nuestra logística" o "te responderemos con las alternativas" pasaban sin forzar el reintento: `ai_function_called = null` y cero filas en `scheduling_requests`. Ampliado con "voy a coordinar", "coordinar[é] con", "coordinaremos", "(te|le) responder[é]/avisar[é]/contactar[é]… alternativa/opción/horario" y "ofrecerte las mejores opciones". Probado con 2 mensajes reales (detectados) y 3 legítimos (sin falso positivo).
+
+**Causa 2 — la derivación a humano callaba al cliente.** El reintento forzado terminaba en `escalate_to_human`, que pausa al tutor (`requires_human = true`); el chequeo previo al envío (punto de control 3 de `isPausedForHuman`) veía esa pausa recién creada y descartaba la respuesta. La excepción `pausedByThisTurn` solo cubría `request_scheduling_coordination`; ahora cubre también `escalate_to_human`. Afectaba a 6 de 25 reintentos forzados en 4 días.
+
+**Causa 3 (operativa, no código) — corte de saldo de OpenAI.** 13 errores `insufficient_quota` el 12-oct entre 13:43 y 13:57 (Chile). Pendiente: activar recarga automática en platform.openai.com.
+
+### Reactivación automática de contactos pausados (a las 24 h)
+
+Pedido del usuario: los contactos pausados (`requires_human = true`) vuelven solos a la IA al día siguiente.
+- Migración `20261012230000_auto_reactivate_paused_contacts.sql`: columna `requires_human_since` en `crm_prospects` y `tutors`, trigger `tr_requires_human_since` (la fija al pasar a `true`, la limpia al pasar a `false`) y función `auto_reactivate_paused_contacts()`.
+- pg_cron `auto-reactivate-paused-contacts` cada 30 min: pone `requires_human = false` si `requires_human_since < now() - 24 h`. Backfill de los ya pausados usando su `updated_at` (367 pausados al momento, 16 vencidos de inmediato).
+- **Efecto colateral aceptado:** también reactiva a quienes Claudia silenció a mano con "Silenciar IA"; hoy no se distingue pausa manual de automática.
+- Reactivar no envía ningún mensaje; la IA solo responde al próximo mensaje entrante del tutor.
+
+### Pendiente
+- Sin verificar con tráfico real: que aparezca `[COORDINATION PROMISE GAP]` seguido de una solicitud creada, que la respuesta de derivación llegue al cliente, y que el cron de reactivación funcione.
+- Propuesta no decidida: mensaje fijo único al tutor pausado que vuelve a escribir ("tu consulta ya está con el equipo") + nueva alerta a Claudia.
+- Contactos que quedaron sin respuesta y requieren atención manual: +56923979258 (urgencia), +56975425672 (pidió hablar con una persona), +56950791903, +56974029150, +56988923146, +56962920248, +56982633747, +56975327198.
+
+### Reglas permanentes
+- **Una excepción al chequeo de pausa previa al envío debe cubrir TODA herramienta que pausa al tutor en el mismo turno** (`request_scheduling_coordination` y `escalate_to_human`); si no, la propia acción que pausa silencia su respuesta.
+- **Un detector de promesas rotas debe medirse contra mensajes reales de producción en ambos sentidos** (promesas no detectadas y respuestas legítimas marcadas), no solo contra el primer caso reportado.
