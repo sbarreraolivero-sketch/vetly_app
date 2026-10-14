@@ -2,14 +2,28 @@
  * cron-hq-prospecting-campaign — cola de envío con rampa de la campaña de
  * prospección de clínicas veterinarias. Corre 1 vez al día vía pg_cron.
  *
+ * Secuencia de 3 pasos por lead (A/B/C, ver hq-generate-prospect-email):
+ *   A: catálogo con emojis — se manda apenas está `listo_para_enviar`.
+ *   B: personal/cálido — se manda cuando está `listo_para_enviar_b` Y ya
+ *      pasaron >= 2 días desde que se mandó A (`email_sent_at`).
+ *   C: Meta Ads / Animalgrace — se manda cuando está `listo_para_enviar_c` Y
+ *      ya pasaron >= 2 días desde que se mandó B (`email_b_sent_at`).
+ * Cada paso solo se genera/aprueba si el anterior ya salió de verdad — la
+ * precondición vive en hq-generate-prospect-email, no acá.
+ *
  * Rampa: dailyCap = min(5 * 2^semanasDesdeInicio, max_daily_cap) — 5/día
  * semana 1, 10/día semana 2, 20/día semana 3... con techo configurable
- * (prospecting_campaign_config.max_daily_cap, default 50).
+ * (prospecting_campaign_config.max_daily_cap, default 50). La cuota es
+ * COMPARTIDA entre los 3 pasos (A+B+C cuentan igual contra el mismo tope
+ * diario) — sigue siendo volumen real saliendo del mismo dominio.
+ * Prioridad dentro del cupo del día: C > B > A — terminar una secuencia ya
+ * empezada pesa más que arrancar un contacto nuevo, porque B y C además
+ * tienen una ventana de tiempo real que ya empezó a correr.
  *
  * Cobertura por ciudad ("agotar antes de avanzar", pedido explícito del
  * usuario): NO hace falta una tabla de cola aparte — por cada país se manda
- * siempre el lead `listo_para_enviar` MÁS ANTIGUO (ORDER BY created_at ASC).
- * Como una ciudad nueva de un país solo entra a la tabla cuando se corre
+ * siempre el lead MÁS ANTIGUO de cada paso (ORDER BY created_at ASC). Como
+ * una ciudad nueva de un país solo entra a la tabla cuando se corre
  * hq-discover-prospects para ella, y eso es una acción manual/deliberada,
  * el "más antiguo primero" ya garantiza terminar la ciudad en curso antes
  * de tocar cualquier ciudad agregada después.
@@ -18,7 +32,7 @@
  * día — con 5 países activos y cuota 5, sale 1 correo por país; con cuota
  * 10, salen 2 por país, siempre drenando primero los leads más viejos.
  *
- * Solo entran a la cola los leads en `listo_para_enviar` — un correo
+ * Solo entran a la cola los leads en `listo_para_enviar*` — un correo
  * generado por IA nunca se manda sin que un humano lo haya revisado y
  * aprobado desde el panel primero.
  */
@@ -120,7 +134,7 @@ const SIGNATURE_HTML = `
   </tr>
 </table>`;
 
-function renderProspectingHtml(bodyHtml: string, leadId: string): string {
+function renderProspectingHtml(bodyHtml: string, leadId: string, variant: "a" | "b" | "c"): string {
   // Plantilla deliberadamente distinta de renderEmailLayout (esa tiene
   // gradiente morado y card de marca, apropiada para lifecycle — acá el
   // pedido explícito es que se vea como un correo personal, no una campaña
@@ -130,8 +144,9 @@ function renderProspectingHtml(bodyHtml: string, leadId: string): string {
   // Píxel de tracking PROPIO al final (track-prospect-open) — el
   // open_tracking nativo de Resend no aplica para mail.vetly.pro (ver
   // comentario en ese edge function). Es la única forma real de que
-  // "Abiertos" en el panel de prospección refleje algo cierto.
-  const trackingPixel = `<img src="${SUPABASE_URL}/functions/v1/track-prospect-open?id=${leadId}" width="1" height="1" style="display:none;border:0;" alt="" />`;
+  // "Abiertos" en el panel de prospección refleje algo cierto. El parámetro
+  // `v` deja registrar la apertura en la columna correcta (A/B/C).
+  const trackingPixel = `<img src="${SUPABASE_URL}/functions/v1/track-prospect-open?id=${leadId}&v=${variant}" width="1" height="1" style="display:none;border:0;" alt="" />`;
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;">
 <div style="max-width:560px;margin:0 auto;padding:32px 20px;font-family:Arial,sans-serif;">
 ${bodyHtml}
@@ -139,6 +154,67 @@ ${SIGNATURE_HTML}
 </div>
 ${trackingPixel}
 </body></html>`;
+}
+
+interface VariantCfg {
+  readyStatus: string;
+  sentStatus: string;
+  subjectCol: string;
+  bodyCol: string;
+  sentAtCol: string;
+  resendIdCol: string;
+  /** Columna que debe tener >= 2 días de antigüedad para poder mandar este
+   * paso (null para A, que no tiene gate de tiempo, solo de aprobación). */
+  gateCol: string | null;
+}
+
+const VARIANTS: Record<"a" | "b" | "c", VariantCfg> = {
+  a: { readyStatus: "listo_para_enviar", sentStatus: "email_enviado", subjectCol: "email_subject", bodyCol: "email_body", sentAtCol: "email_sent_at", resendIdCol: "resend_id", gateCol: null },
+  b: { readyStatus: "listo_para_enviar_b", sentStatus: "email_b_enviado", subjectCol: "email_b_subject", bodyCol: "email_b_body", sentAtCol: "email_b_sent_at", resendIdCol: "resend_id_b", gateCol: "email_sent_at" },
+  c: { readyStatus: "listo_para_enviar_c", sentStatus: "secuencia_completa", subjectCol: "email_c_subject", bodyCol: "email_c_body", sentAtCol: "email_c_sent_at", resendIdCol: "resend_id_c", gateCol: "email_b_sent_at" },
+};
+
+type Candidate = { id: string; country: string; email: string | null } & Record<string, unknown>;
+
+async function fetchReady(
+  supabase: ReturnType<typeof createClient>,
+  cfg: VariantCfg,
+  gateIso: string | null,
+): Promise<Candidate[]> {
+  let q = supabase
+    .from("prospecting_leads")
+    .select(`id, country, email, ${cfg.subjectCol}, ${cfg.bodyCol}`)
+    .eq("contact_status", cfg.readyStatus)
+    .order("created_at", { ascending: true });
+  if (cfg.gateCol && gateIso) q = q.lte(cfg.gateCol, gateIso);
+  const { data } = await q;
+  return (data || []) as Candidate[];
+}
+
+/** Reparte por país en round-robin hasta llenar `remaining` o agotar todos
+ * los países — el mismo mecanismo de siempre, generalizado para los 3 pasos. */
+function roundRobinByCountry(leads: Candidate[], remaining: number): { toSend: Candidate[]; remainingAfter: number } {
+  const byCountry = new Map<string, Candidate[]>();
+  for (const lead of leads) {
+    if (!byCountry.has(lead.country)) byCountry.set(lead.country, []);
+    byCountry.get(lead.country)!.push(lead);
+  }
+  const countries = Array.from(byCountry.keys()).sort();
+  const toSend: Candidate[] = [];
+  let anyLeftLastPass = true;
+  while (remaining > 0 && anyLeftLastPass) {
+    anyLeftLastPass = false;
+    for (const country of countries) {
+      if (remaining <= 0) break;
+      const queue = byCountry.get(country)!;
+      const next = queue.shift();
+      if (!next) continue;
+      anyLeftLastPass = true;
+      toSend.push(next);
+      remaining--;
+    }
+  }
+  return { toSend, remainingAfter: remaining };
 }
 
 Deno.serve(async (req: Request) => {
@@ -162,75 +238,70 @@ Deno.serve(async (req: Request) => {
     const now = new Date();
     const weeksElapsed = Math.floor((now.getTime() - startedAt.getTime()) / (7 * 24 * 60 * 60 * 1000));
     const dailyCap = Math.min(5 * Math.pow(2, Math.max(0, weeksElapsed)), config.max_daily_cap);
+    const twoDaysAgoIso = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Cuota compartida entre A/B/C — cuenta cualquier envío real de hoy,
+    // sin importar en qué paso de la secuencia esté cada lead.
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const { count: sentToday } = await supabase
-      .from("prospecting_leads")
-      .select("id", { count: "exact", head: true })
-      .eq("contact_status", "email_enviado")
-      .gte("email_sent_at", todayStart);
+    const [sentA, sentB, sentC] = await Promise.all([
+      supabase.from("prospecting_leads").select("id", { count: "exact", head: true }).gte("email_sent_at", todayStart),
+      supabase.from("prospecting_leads").select("id", { count: "exact", head: true }).gte("email_b_sent_at", todayStart),
+      supabase.from("prospecting_leads").select("id", { count: "exact", head: true }).gte("email_c_sent_at", todayStart),
+    ]);
+    const sentToday = (sentA.count || 0) + (sentB.count || 0) + (sentC.count || 0);
 
-    let remaining = dailyCap - (sentToday || 0);
+    let remaining = dailyCap - sentToday;
     if (remaining <= 0) {
-      return json({ ok: true, dailyCap, sentToday: sentToday || 0, skipped: "cuota del día ya cubierta" });
+      return json({ ok: true, dailyCap, sentToday, skipped: "cuota del día ya cubierta" });
     }
 
-    const { data: pending } = await supabase
-      .from("prospecting_leads")
-      .select("id, country, email, email_subject, email_body")
-      .eq("contact_status", "listo_para_enviar")
-      .order("created_at", { ascending: true });
+    // Prioridad C > B > A: terminar una secuencia ya empezada (con una
+    // ventana de tiempo real corriendo) pesa más que arrancar un lead nuevo.
+    const candidatesC = await fetchReady(supabase, VARIANTS.c, twoDaysAgoIso);
+    const rrC = roundRobinByCountry(candidatesC, remaining);
+    remaining = rrC.remainingAfter;
 
-    if (!pending || pending.length === 0) {
-      return json({ ok: true, dailyCap, remaining, sent: 0, note: "sin leads listo_para_enviar" });
-    }
+    const candidatesB = await fetchReady(supabase, VARIANTS.b, twoDaysAgoIso);
+    const rrB = roundRobinByCountry(candidatesB, remaining);
+    remaining = rrB.remainingAfter;
 
-    // Agrupa por país, ya ordenado por antigüedad dentro de cada grupo
-    // (viene de la query ORDER BY created_at ASC).
-    const byCountry = new Map<string, typeof pending>();
-    for (const lead of pending) {
-      if (!byCountry.has(lead.country)) byCountry.set(lead.country, []);
-      byCountry.get(lead.country)!.push(lead);
-    }
-    const countries = Array.from(byCountry.keys()).sort(); // orden estable
+    const candidatesA = await fetchReady(supabase, VARIANTS.a, null);
+    const rrA = roundRobinByCountry(candidatesA, remaining);
+    remaining = rrA.remainingAfter;
 
-    let sent = 0;
-    const errors: string[] = [];
-    const toSend: typeof pending = [];
+    const toSend: Array<Candidate & { _variant: "a" | "b" | "c" }> = [
+      ...rrC.toSend.map(l => ({ ...l, _variant: "c" as const })),
+      ...rrB.toSend.map(l => ({ ...l, _variant: "b" as const })),
+      ...rrA.toSend.map(l => ({ ...l, _variant: "a" as const })),
+    ];
 
-    // Round-robin: una pasada por país, repetir hasta llenar `remaining` o
-    // agotar todos los países.
-    let anyLeftLastPass = true;
-    while (remaining > 0 && anyLeftLastPass) {
-      anyLeftLastPass = false;
-      for (const country of countries) {
-        if (remaining <= 0) break;
-        const queue = byCountry.get(country)!;
-        const next = queue.shift();
-        if (!next) continue;
-        anyLeftLastPass = true;
-        toSend.push(next);
-        remaining--;
-      }
+    if (toSend.length === 0) {
+      return json({ ok: true, dailyCap, sentToday, sent: 0, note: "sin leads listos para ningún paso (A/B/C)" });
     }
 
     if (dryRun) {
       return json({
-        ok: true, dryRun: true, dailyCap, sentToday: sentToday || 0,
-        wouldSend: toSend.map(l => ({ id: l.id, country: l.country, email: l.email })),
+        ok: true, dryRun: true, dailyCap, sentToday,
+        wouldSend: toSend.map(l => ({ id: l.id, country: l.country, email: l.email, variant: l._variant })),
       });
     }
 
+    let sent = 0;
+    const errors: string[] = [];
+
     for (const lead of toSend) {
+      const cfg = VARIANTS[lead._variant];
       try {
-        if (!lead.email || !lead.email_subject || !lead.email_body) {
-          errors.push(`${lead.id}: faltan campos (email/subject/body)`);
+        const subject = lead[cfg.subjectCol] as string | null;
+        const bodyHtml = lead[cfg.bodyCol] as string | null;
+        if (!lead.email || !subject || !bodyHtml) {
+          errors.push(`${lead.id} (${lead._variant}): faltan campos (email/subject/body)`);
           continue;
         }
         const result = await sendEmail({
           to: lead.email,
-          subject: lead.email_subject,
-          html: renderProspectingHtml(lead.email_body, lead.id),
+          subject,
+          html: renderProspectingHtml(bodyHtml, lead.id, lead._variant),
           // Subdominio dedicado (mail.vetly.pro, verificado en Resend
           // 2026-08-31 — SPF+DKIM propios vía Cloudflare Domain Connect)
           // para aislar la reputación del correo en frío del transaccional
@@ -238,23 +309,22 @@ Deno.serve(async (req: Request) => {
           from: "Sebastián · Vetly <sebastian@mail.vetly.pro>",
         });
         if (!result.ok) {
-          errors.push(`${lead.id}: ${result.error}`);
+          errors.push(`${lead.id} (${lead._variant}): ${result.error}`);
           continue;
         }
-        await supabase.from("prospecting_leads").update({
-          contact_status: "email_enviado",
-          email_sent_at: new Date().toISOString(),
-          resend_id: result.id || null,
-        }).eq("id", lead.id);
+        const updatePayload: Record<string, unknown> = { contact_status: cfg.sentStatus };
+        updatePayload[cfg.sentAtCol] = new Date().toISOString();
+        updatePayload[cfg.resendIdCol] = result.id || null;
+        await supabase.from("prospecting_leads").update(updatePayload).eq("id", lead.id);
         sent++;
       } catch (e) {
-        errors.push(`${lead.id}: ${e instanceof Error ? e.message : String(e)}`);
+        errors.push(`${lead.id} (${lead._variant}): ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
     if (errors.length) console.error("[cron-hq-prospecting-campaign] errores:", errors);
 
-    return json({ ok: true, dailyCap, sentToday: (sentToday || 0) + sent, sent, errors });
+    return json({ ok: true, dailyCap, sentToday: sentToday + sent, sent, errors });
   } catch (e) {
     console.error("[cron-hq-prospecting-campaign] error:", e);
     return json({ error: "Internal server error" }, 500);

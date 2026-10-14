@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+type ProspectingVariant = 'a' | 'b' | 'c'
+
 interface ProspectingLead {
     id: string
     created_at: string
@@ -20,11 +22,23 @@ interface ProspectingLead {
     score: number
     problems: string[] | null
     has_https: boolean | null
-    contact_status: 'sin_contactar' | 'en_revision' | 'listo_para_enviar' | 'email_enviado' | 'respondio' | 'descartado' | 'en_pipeline'
+    contact_status:
+        | 'sin_contactar' | 'en_revision' | 'listo_para_enviar' | 'email_enviado'
+        | 'en_revision_b' | 'listo_para_enviar_b' | 'email_b_enviado'
+        | 'en_revision_c' | 'listo_para_enviar_c' | 'secuencia_completa'
+        | 'respondio' | 'descartado' | 'en_pipeline'
     email_subject: string | null
     email_body: string | null
     email_sent_at: string | null
     email_opened_at: string | null
+    email_b_subject: string | null
+    email_b_body: string | null
+    email_b_sent_at: string | null
+    email_b_opened_at: string | null
+    email_c_subject: string | null
+    email_c_body: string | null
+    email_c_sent_at: string | null
+    email_c_opened_at: string | null
     crm_prospect_id: string | null
     notes: string | null
 }
@@ -35,10 +49,41 @@ interface ProspectingStats {
     en_revision: number
     listo_para_enviar: number
     email_enviado: number
+    en_revision_b: number
+    listo_para_enviar_b: number
+    email_b_enviado: number
+    en_revision_c: number
+    listo_para_enviar_c: number
+    secuencia_completa: number
     respondio: number
     en_pipeline: number
     descartado: number
     con_apertura: number
+}
+
+// Mismo lead ya contactado al menos una vez (A ya salió) — "Promover a CRM"
+// se habilita en cualquiera de estos estados, no solo justo después de A.
+const CONTACTED_STATUSES = new Set<ProspectingLead['contact_status']>([
+    'email_enviado', 'en_revision_b', 'listo_para_enviar_b', 'email_b_enviado',
+    'en_revision_c', 'listo_para_enviar_c', 'secuencia_completa', 'respondio',
+])
+
+const APPROVED_STATUS: Record<ProspectingVariant, ProspectingLead['contact_status']> = {
+    a: 'listo_para_enviar', b: 'listo_para_enviar_b', c: 'listo_para_enviar_c',
+}
+
+function fieldsFor(lead: ProspectingLead, variant: ProspectingVariant) {
+    if (variant === 'a') return { subject: lead.email_subject, body: lead.email_body }
+    if (variant === 'b') return { subject: lead.email_b_subject, body: lead.email_b_body }
+    return { subject: lead.email_c_subject, body: lead.email_c_body }
+}
+
+/** Fecha desde la que el cron puede mandar el paso B/C (gate de 2 días desde
+ * que salió el paso anterior) — solo informativo, el cron hace el cálculo real. */
+function gateDateFor(lead: ProspectingLead, variant: 'b' | 'c'): Date | null {
+    const base = variant === 'b' ? lead.email_sent_at : lead.email_b_sent_at
+    if (!base) return null
+    return new Date(new Date(base).getTime() + 2 * 24 * 60 * 60 * 1000)
 }
 
 interface CampaignConfig {
@@ -117,9 +162,15 @@ const SIGNATURE_PREVIEW_HTML = `
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
     sin_contactar: { label: 'Sin contactar', className: 'bg-gray-100 text-gray-600 border-gray-200' },
-    en_revision: { label: 'En revisión', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-    listo_para_enviar: { label: 'Listo para enviar', className: 'bg-sky-50 text-sky-700 border-sky-200' },
-    email_enviado: { label: 'Enviado', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    en_revision: { label: 'A: en revisión', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+    listo_para_enviar: { label: 'A: listo para enviar', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+    email_enviado: { label: 'A: enviado', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    en_revision_b: { label: 'B: en revisión', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+    listo_para_enviar_b: { label: 'B: listo para enviar', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+    email_b_enviado: { label: 'B: enviado', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    en_revision_c: { label: 'C: en revisión', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+    listo_para_enviar_c: { label: 'C: listo para enviar', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+    secuencia_completa: { label: 'Secuencia completa', className: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
     respondio: { label: 'Respondió', className: 'bg-violet-50 text-violet-700 border-violet-200' },
     en_pipeline: { label: 'En CRM', className: 'bg-primary-50 text-primary-700 border-primary-200' },
     descartado: { label: 'Descartado', className: 'bg-red-50 text-red-600 border-red-200' },
@@ -154,6 +205,7 @@ export default function AdminProspecting() {
 
     const [generatingId, setGeneratingId] = useState<string | null>(null)
     const [savingId, setSavingId] = useState<string | null>(null)
+    const [editingVariant, setEditingVariant] = useState<ProspectingVariant>('a')
     const [editSubject, setEditSubject] = useState('')
     const [editBody, setEditBody] = useState('')
     const [togglingPause, setTogglingPause] = useState(false)
@@ -210,10 +262,10 @@ export default function AdminProspecting() {
         }
     }
 
-    async function handleGenerateEmail(id: string) {
+    async function handleGenerateEmail(id: string, variant: ProspectingVariant) {
         setGeneratingId(id)
         try {
-            const { error } = await supabase.functions.invoke('hq-generate-prospect-email', { body: { prospect_id: id } })
+            const { error } = await supabase.functions.invoke('hq-generate-prospect-email', { body: { prospect_id: id, variant } })
             if (error) throw error
             load()
         } catch (err: any) {
@@ -223,21 +275,25 @@ export default function AdminProspecting() {
         }
     }
 
-    function startEditing(lead: ProspectingLead) {
+    function startEditing(lead: ProspectingLead, variant: ProspectingVariant) {
         setExpandedId(lead.id)
-        setEditSubject(lead.email_subject || '')
-        setEditBody(lead.email_body || '')
+        setEditingVariant(variant)
+        const { subject, body } = fieldsFor(lead, variant)
+        setEditSubject(subject || '')
+        setEditBody(body || '')
     }
 
     async function handleSaveAndApprove(id: string, approve: boolean) {
         setSavingId(id)
         try {
-            const { error } = await (supabase as any).rpc('update_prospecting_lead', {
+            const params: Record<string, unknown> = {
                 p_id: id,
-                p_contact_status: approve ? 'listo_para_enviar' : null,
-                p_email_subject: editSubject,
-                p_email_body: editBody,
-            })
+                p_contact_status: approve ? APPROVED_STATUS[editingVariant] : null,
+            }
+            if (editingVariant === 'a') { params.p_email_subject = editSubject; params.p_email_body = editBody }
+            else if (editingVariant === 'b') { params.p_email_subject_b = editSubject; params.p_email_body_b = editBody }
+            else { params.p_email_subject_c = editSubject; params.p_email_body_c = editBody }
+            const { error } = await (supabase as any).rpc('update_prospecting_lead', params)
             if (error) throw error
             setExpandedId(null)
             load()
@@ -351,13 +407,16 @@ export default function AdminProspecting() {
 
             {/* KPIs */}
             {stats && (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {[
                         { label: 'Total', value: stats.total },
                         { label: 'Sin contactar', value: stats.sin_contactar },
-                        { label: 'En revisión', value: stats.en_revision },
-                        { label: 'Listos', value: stats.listo_para_enviar },
-                        { label: 'Enviados', value: stats.email_enviado },
+                        { label: 'A: pendiente', value: stats.en_revision + stats.listo_para_enviar },
+                        { label: 'A: enviado', value: stats.email_enviado },
+                        { label: 'B: pendiente', value: stats.en_revision_b + stats.listo_para_enviar_b },
+                        { label: 'B: enviado', value: stats.email_b_enviado },
+                        { label: 'C: pendiente', value: stats.en_revision_c + stats.listo_para_enviar_c },
+                        { label: 'Secuencia completa', value: stats.secuencia_completa },
                         { label: 'Abiertos', value: stats.con_apertura },
                         { label: 'En CRM', value: stats.en_pipeline },
                     ].map(kpi => (
@@ -429,7 +488,7 @@ export default function AdminProspecting() {
                                             "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide",
                                             lead.score >= 70 ? "bg-emerald-50 text-emerald-700" : lead.score >= 40 ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
                                         )}>Score {lead.score}</span>
-                                        {lead.email_opened_at && <span className="flex items-center gap-1 text-[9px] font-black text-violet-600"><MailOpen className="w-3 h-3" /> Abierto</span>}
+                                        {(lead.email_opened_at || lead.email_b_opened_at || lead.email_c_opened_at) && <span className="flex items-center gap-1 text-[9px] font-black text-violet-600"><MailOpen className="w-3 h-3" /> Abierto</span>}
                                     </div>
                                     <div className="flex items-center gap-3 text-[11px] text-gray-500 font-medium flex-wrap">
                                         <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {lead.city}, {lead.country}</span>
@@ -446,23 +505,63 @@ export default function AdminProspecting() {
                                             ))}
                                         </ul>
                                     )}
+                                    {(lead.contact_status === 'listo_para_enviar_b' || lead.contact_status === 'listo_para_enviar_c') && (() => {
+                                        const gate = gateDateFor(lead, lead.contact_status === 'listo_para_enviar_b' ? 'b' : 'c')
+                                        if (!gate) return null
+                                        const ready = gate.getTime() <= Date.now()
+                                        return (
+                                            <p className="mt-1.5 text-[10px] font-bold text-gray-400">
+                                                {ready
+                                                    ? 'Ya cumplió el plazo de 2 días — el cron lo manda en la próxima corrida.'
+                                                    : `Se habilita para envío automático el ${gate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}.`}
+                                            </p>
+                                        )
+                                    })()}
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                                     {lead.contact_status === 'sin_contactar' && (
-                                        <button onClick={() => handleGenerateEmail(lead.id)} disabled={generatingId === lead.id}
+                                        <button onClick={() => handleGenerateEmail(lead.id, 'a')} disabled={generatingId === lead.id}
                                             className="flex items-center gap-1.5 bg-gray-900 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-primary-600 disabled:bg-gray-300">
                                             {generatingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                                            Generar correo
+                                            Generar correo A
                                         </button>
                                     )}
                                     {(lead.contact_status === 'en_revision' || lead.contact_status === 'listo_para_enviar') && (
-                                        <button onClick={() => isExpanded ? setExpandedId(null) : startEditing(lead)}
+                                        <button onClick={() => isExpanded ? setExpandedId(null) : startEditing(lead, 'a')}
                                             className="flex items-center gap-1.5 bg-sky-50 text-sky-700 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-sky-100">
-                                            <Mail className="w-3.5 h-3.5" /> Revisar
-                                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                            <Mail className="w-3.5 h-3.5" /> Revisar A
+                                            {isExpanded && editingVariant === 'a' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                         </button>
                                     )}
                                     {lead.contact_status === 'email_enviado' && (
+                                        <button onClick={() => handleGenerateEmail(lead.id, 'b')} disabled={generatingId === lead.id}
+                                            className="flex items-center gap-1.5 bg-gray-900 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-primary-600 disabled:bg-gray-300">
+                                            {generatingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                            Generar correo B
+                                        </button>
+                                    )}
+                                    {(lead.contact_status === 'en_revision_b' || lead.contact_status === 'listo_para_enviar_b') && (
+                                        <button onClick={() => isExpanded ? setExpandedId(null) : startEditing(lead, 'b')}
+                                            className="flex items-center gap-1.5 bg-sky-50 text-sky-700 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-sky-100">
+                                            <Mail className="w-3.5 h-3.5" /> Revisar B
+                                            {isExpanded && editingVariant === 'b' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                        </button>
+                                    )}
+                                    {lead.contact_status === 'email_b_enviado' && (
+                                        <button onClick={() => handleGenerateEmail(lead.id, 'c')} disabled={generatingId === lead.id}
+                                            className="flex items-center gap-1.5 bg-gray-900 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-primary-600 disabled:bg-gray-300">
+                                            {generatingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                            Generar correo C
+                                        </button>
+                                    )}
+                                    {(lead.contact_status === 'en_revision_c' || lead.contact_status === 'listo_para_enviar_c') && (
+                                        <button onClick={() => isExpanded ? setExpandedId(null) : startEditing(lead, 'c')}
+                                            className="flex items-center gap-1.5 bg-sky-50 text-sky-700 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-sky-100">
+                                            <Mail className="w-3.5 h-3.5" /> Revisar C
+                                            {isExpanded && editingVariant === 'c' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                        </button>
+                                    )}
+                                    {CONTACTED_STATUSES.has(lead.contact_status) && !lead.crm_prospect_id && (
                                         <button onClick={() => handlePromote(lead.id)}
                                             className="flex items-center gap-1.5 bg-primary-50 text-primary-700 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide hover:bg-primary-100">
                                             <ArrowUpRight className="w-3.5 h-3.5" /> Promover a CRM
@@ -478,6 +577,7 @@ export default function AdminProspecting() {
 
                             {isExpanded && (
                                 <div className="border-t border-gray-100 p-5 bg-gray-50 space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Editando correo {editingVariant.toUpperCase()}</p>
                                     <input value={editSubject} onChange={e => setEditSubject(e.target.value)} placeholder="Asunto"
                                         className="w-full bg-white rounded-xl px-4 py-3 text-sm font-bold outline-none border border-gray-200 focus:ring-2 focus:ring-primary-500/20" />
                                     <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={10} placeholder="Cuerpo (HTML)"

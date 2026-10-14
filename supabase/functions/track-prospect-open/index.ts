@@ -16,7 +16,10 @@
  * `verify_jwt: false` obligatorio — lo pide el cliente de correo del
  * destinatario, sin ningún JWT.
  *
- * GET /track-prospect-open?id=<prospecting_leads.id>
+ * GET /track-prospect-open?id=<prospecting_leads.id>&v=a|b|c
+ * `v` identifica cuál de los 3 correos de la secuencia se abrió (default
+ * "a" si no viene, por compatibilidad con pixeles ya enviados antes de la
+ * secuencia A/B/C) — cada uno marca su propia columna `email*_opened_at`.
  * Siempre responde con un GIF transparente 1x1, pase lo que pase (aunque el
  * id no exista o la actualización falle) — nunca debe romper la vista del
  * correo en el cliente de mail del destinatario.
@@ -37,18 +40,21 @@ const PIXEL_HEADERS = {
 
 Deno.serve(async (req: Request) => {
     try {
-        const id = new URL(req.url).searchParams.get("id");
+        const url = new URL(req.url);
+        const id = url.searchParams.get("id");
+        const v = url.searchParams.get("v");
+        const openedAtCol = v === "b" ? "email_b_opened_at" : v === "c" ? "email_c_opened_at" : "email_opened_at";
         if (id) {
             const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
                 auth: { autoRefreshToken: false, persistSession: false },
             });
-            // Solo la primera apertura — no pisa un email_opened_at ya registrado
-            // (un cliente de correo puede re-pedir la imagen varias veces).
+            // Solo la primera apertura de ESE correo — no pisa un *_opened_at ya
+            // registrado (un cliente de correo puede re-pedir la imagen varias veces).
             await supabase
                 .from("prospecting_leads")
-                .update({ email_opened_at: new Date().toISOString() })
+                .update({ [openedAtCol]: new Date().toISOString() })
                 .eq("id", id)
-                .is("email_opened_at", null);
+                .is(openedAtCol, null);
         }
     } catch {
         // Nunca debe fallar la respuesta al destinatario por un error interno.
