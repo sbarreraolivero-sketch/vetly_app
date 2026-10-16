@@ -252,7 +252,7 @@ export default function AdminClinics() {
 
             if (error) throw error
 
-            await (supabase as any).from('ai_credit_transactions').insert({
+            const { error: txError } = await (supabase as any).from('ai_credit_transactions').insert({
                 clinic_id: clinicId,
                 type: 'purchase',
                 amount,
@@ -260,6 +260,7 @@ export default function AdminClinics() {
                 description: 'Carga manual de créditos IA (HQ)',
                 metadata: { expires_at: null, source: 'hq_manual' }
             })
+            if (txError) throw new Error('Saldo cargado, pero no se registró en el historial: ' + txError.message)
 
             alert(`✅ ${amount} créditos cargados. No vencen — se arrastran mes a mes.`)
             fetchClinics()
