@@ -489,6 +489,11 @@ export default function AdminProspecting() {
                                             lead.score >= 70 ? "bg-emerald-50 text-emerald-700" : lead.score >= 40 ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
                                         )}>Score {lead.score}</span>
                                         {(lead.email_opened_at || lead.email_b_opened_at || lead.email_c_opened_at) && <span className="flex items-center gap-1 text-[9px] font-black text-violet-600"><MailOpen className="w-3 h-3" /> Abierto</span>}
+                                        {lead.notes?.includes('Posible hospital') && (
+                                            <span className="flex items-center gap-1 text-[9px] font-black text-red-600" title={lead.notes}>
+                                                <AlertCircle className="w-3 h-3" /> Posible hospital — revisar
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-3 text-[11px] text-gray-500 font-medium flex-wrap">
                                         <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {lead.city}, {lead.country}</span>

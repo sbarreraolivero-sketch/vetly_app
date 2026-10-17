@@ -35,7 +35,33 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const HOSPITAL_NAME_PATTERN = /hospital\s*vet/i;
+// Ampliado de /hospital\s*vet/i a /hospital/i — un hospital veterinario casi
+// siempre dice "hospital" en su nombre comercial, pero no siempre junto a
+// "vet" (ej. "Hospital Animal del Sur"). Sigue siendo insuficiente por sí
+// solo: "Clínica Veterinaria El Maule" es hospital real sin decirlo en el
+// nombre — ver detectHospitalSignals() más abajo, que mira el contenido del
+// sitio en vez del nombre.
+const HOSPITAL_NAME_PATTERN = /hospital/i;
+
+// Términos que un hospital veterinario real (internación, cirugía mayor,
+// UCI) menciona en su propio sitio, aunque su nombre comercial diga
+// "clínica" — el caso real que motivó esto (sesión del 2026-10-17, Clínica
+// Veterinaria El Maule, Linares). NUNCA auto-descarta: 2+ señales distintas
+// solo dejan una nota interna visible en el panel para que la revisión
+// humana decida — un falso positivo acá costaría perder una clínica real
+// que solo mencione "urgencias" una vez.
+const HOSPITAL_CONTENT_SIGNALS = [
+  "hospitalización", "hospitalizacion", "unidad de cuidados intensivos", "uci",
+  "quirófano", "quirofano", "urgencias las 24", "urgencias 24 horas", "urgencia 24/7",
+  "centro de referencia", "centro de especialidades", "internación", "internacion",
+];
+
+function detectHospitalSignals(plainText: string): string | null {
+  const lower = plainText.toLowerCase();
+  const hits = HOSPITAL_CONTENT_SIGNALS.filter(w => lower.includes(w));
+  if (hits.length < 2) return null;
+  return `⚠️ Posible hospital — el sitio menciona: ${hits.slice(0, 4).join(", ")}. Revisar antes de contactar.`;
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -200,6 +226,7 @@ Deno.serve(async (req: Request) => {
         let email: string | null = null;
         let hasHttps = false;
         let problems: string[] = [];
+        let hospitalNote: string | null = null;
         const generic = ["info@", "contacto@", "admin@", "support@", "noreply@", "hola@", "ventas@"];
         const candidatePages = [website, ...["contacto", "contacto/", "contact", "contactenos", "nosotros"].map(p => new URL(p, website).toString())];
 
@@ -211,6 +238,7 @@ Deno.serve(async (req: Request) => {
               hasHttps = website.startsWith("https://");
               const plainText = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
               problems = analyzeWebsiteContent(html, plainText);
+              hospitalNote = detectHospitalSignals(plainText);
             }
             const emailMatch = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
             const found = (emailMatch || []).find(e => !generic.some(g => e.toLowerCase().startsWith(g))) || emailMatch?.[0] || null;
@@ -244,6 +272,7 @@ Deno.serve(async (req: Request) => {
           score,
           has_https: hasHttps,
           problems: problems.length > 0 ? problems : null,
+          notes: hospitalNote,
           google_place_id: place.place_id,
           contact_status: "sin_contactar",
         });
