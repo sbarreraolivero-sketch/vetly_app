@@ -195,6 +195,10 @@ export default function AdminProspecting() {
 
     const [countryFilter, setCountryFilter] = useState('todos')
     const [statusFilter, setStatusFilter] = useState('todos')
+    // Los descartados quedan ocultos por defecto (hospitales, duplicados,
+    // datos de prueba QA) — mismo patrón que la columna "Cerrado" del CRM.
+    // No se borran de la base, solo salen de la vista normal del panel.
+    const [showDescartados, setShowDescartados] = useState(false)
     const [expandedId, setExpandedId] = useState<string | null>(null)
 
     const [discoverCountry, setDiscoverCountry] = useState('Chile')
@@ -336,7 +340,9 @@ export default function AdminProspecting() {
     }
 
     const countries = ['todos', ...Array.from(new Set(leads.map(l => l.country)))]
+    const descartadosCount = leads.filter(l => l.contact_status === 'descartado').length
     const visible = leads.filter(l => {
+        if (l.contact_status === 'descartado' && !showDescartados && statusFilter !== 'descartado') return false
         if (countryFilter !== 'todos' && l.country !== countryFilter) return false
         if (statusFilter !== 'todos' && l.contact_status !== statusFilter) return false
         return true
@@ -463,6 +469,18 @@ export default function AdminProspecting() {
                     <option value="todos">Todos los estados</option>
                     {Object.entries(STATUS_LABEL).map(([key, v]) => <option key={key} value={key}>{v.label}</option>)}
                 </select>
+                {descartadosCount > 0 && (
+                    <button
+                        onClick={() => setShowDescartados(v => !v)}
+                        title="No se borran de la base — solo se ocultan de la vista normal del panel"
+                        className={cn(
+                            "px-4 py-2.5 border rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors",
+                            showDescartados ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-400 border-gray-200 hover:text-gray-600"
+                        )}
+                    >
+                        Descartados ({descartadosCount})
+                    </button>
+                )}
             </div>
 
             {/* Lista de leads */}
@@ -471,7 +489,9 @@ export default function AdminProspecting() {
                     <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400 font-bold text-sm">
                         {loadError
                             ? 'No se pudo confirmar si hay prospectos — la carga falló, recarga antes de asumir que la lista está vacía.'
-                            : `Sin prospectos ${statusFilter !== 'todos' || countryFilter !== 'todos' ? 'con estos filtros' : 'todavía — busca la primera ciudad arriba'}`}
+                            : statusFilter === 'todos' && countryFilter === 'todos' && !showDescartados && descartadosCount > 0
+                                ? `Los ${descartadosCount} prospectos que hay están descartados — toca "Descartados (${descartadosCount})" arriba para verlos`
+                                : `Sin prospectos ${statusFilter !== 'todos' || countryFilter !== 'todos' ? 'con estos filtros' : 'todavía — busca la primera ciudad arriba'}`}
                     </div>
                 )}
                 {visible.map(lead => {
