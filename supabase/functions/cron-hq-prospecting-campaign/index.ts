@@ -3,13 +3,18 @@
  * prospección de clínicas veterinarias. Corre 1 vez al día vía pg_cron.
  *
  * Secuencia de 3 pasos por lead (A/B/C, ver hq-generate-prospect-email):
- *   A: catálogo con emojis — se manda apenas está `listo_para_enviar`.
- *   B: personal/cálido — se manda cuando está `listo_para_enviar_b` Y ya
- *      pasaron >= 2 días desde que se mandó A (`email_sent_at`).
- *   C: Meta Ads / Animalgrace — se manda cuando está `listo_para_enviar_c` Y
- *      ya pasaron >= 2 días desde que se mandó B (`email_b_sent_at`).
- * Cada paso solo se genera/aprueba si el anterior ya salió de verdad — la
- * precondición vive en hq-generate-prospect-email, no acá.
+ *   A: catálogo con emojis — SIEMPRE requiere aprobación humana desde el
+ *      panel (/hq/prospecting). Se manda apenas está `listo_para_enviar`.
+ *   B: personal/cálido — pasados >= 2 días desde que se mandó A
+ *      (`email_sent_at`), esta misma función lo genera con IA Y lo aprueba
+ *      sola (ver autoGenerateStep más abajo — decisión explícita del
+ *      usuario 2026-10-17, sin revisión humana) y lo manda en la misma
+ *      corrida.
+ *   C: Meta Ads / Animalgrace — mismo trato automático que B, pasados >= 2
+ *      días desde que se mandó B (`email_b_sent_at`).
+ * A nunca se auto-genera/aprueba — solo B y C, y solo vía este cron (el
+ * panel sigue pudiendo generar/editar cualquier paso a mano en cualquier
+ * momento, sin que eso bloquee la automatización).
  *
  * Rampa: dailyCap = min(5 * 2^semanasDesdeInicio, max_daily_cap) — 5/día
  * semana 1, 10/día semana 2, 20/día semana 3... con techo configurable
@@ -32,9 +37,11 @@
  * día — con 5 países activos y cuota 5, sale 1 correo por país; con cuota
  * 10, salen 2 por país, siempre drenando primero los leads más viejos.
  *
- * Solo entran a la cola los leads en `listo_para_enviar*` — un correo
- * generado por IA nunca se manda sin que un humano lo haya revisado y
- * aprobado desde el panel primero.
+ * Solo entran a la cola los leads en `listo_para_enviar*`. Para A eso
+ * siempre pasó por revisión humana en el panel. Para B y C puede llegar ahí
+ * por dos caminos: aprobación manual en el panel, o la auto-generación de
+ * esta misma función (autoGenerateStep) — ambos caminos terminan en el
+ * mismo estado y se envían igual.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -239,6 +246,39 @@ Deno.serve(async (req: Request) => {
     const weeksElapsed = Math.floor((now.getTime() - startedAt.getTime()) / (7 * 24 * 60 * 60 * 1000));
     const dailyCap = Math.min(5 * Math.pow(2, Math.max(0, weeksElapsed)), config.max_daily_cap);
     const twoDaysAgoIso = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Auto-generación de B/C — decisión explícita del usuario (2026-10-17):
+    // pasados 2 días desde que salió el paso anterior, se genera con IA, se
+    // aprueba y queda listo para enviarse en ESTA MISMA corrida — sin
+    // revisión humana. Riesgo conocido y aceptado (ver nota en
+    // hq-generate-prospect-email: caso real "Posta Veterinaria" sin
+    // catálogo). Nunca corre en dryRun — gastaría OpenAI real y escribiría
+    // en la DB. B depende de A (email_enviado), C depende de B
+    // (email_b_enviado) — mismas columnas que fetchReady() usa más abajo
+    // para decidir qué ENVIAR.
+    async function autoGenerateStep(variant: "b" | "c", sourceStatus: string, sourceSentAtCol: string) {
+      const { data: candidates } = await supabase
+        .from("prospecting_leads")
+        .select("id")
+        .eq("contact_status", sourceStatus)
+        .lte(sourceSentAtCol, twoDaysAgoIso);
+      for (const c of candidates || []) {
+        try {
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/hq-generate-prospect-email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+            body: JSON.stringify({ prospect_id: c.id, variant, auto_approve: true }),
+          });
+          if (!res.ok) console.error(`[auto-generate ${variant}] ${c.id}:`, await res.text());
+        } catch (e) {
+          console.error(`[auto-generate ${variant}] ${c.id}:`, e);
+        }
+      }
+    }
+    if (!dryRun) {
+      await autoGenerateStep("b", "email_enviado", "email_sent_at");
+      await autoGenerateStep("c", "email_b_enviado", "email_b_sent_at");
+    }
 
     // Cuota compartida entre A/B/C — cuenta cualquier envío real de hoy,
     // sin importar en qué paso de la secuencia esté cada lead.

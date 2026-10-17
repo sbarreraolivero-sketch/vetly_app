@@ -18,12 +18,19 @@
  * (`email_sent_at`/`email_b_sent_at`) — no tiene sentido una B o C sin su
  * predecesor afuera.
  *
- * Deja el correo en `en_revision`/`en_revision_b`/`en_revision_c` — NADIE
- * sale de acá directo a la cola de envío. La aprobación humana (panel
- * /hq/prospecting) es obligatoria, mismo criterio que siempre.
+ * Dos modos de llamada:
+ *  - Desde el panel (JWT de usuario platform_admin): deja el correo en
+ *    `en_revision*` — requiere aprobación humana antes de entrar a la cola.
+ *  - Desde el cron (service role, `auto_approve:true` en el body): decisión
+ *    explícita del usuario (2026-10-17) para los pasos B y C — deja el
+ *    correo directo en `listo_para_enviar*`, sin revisión humana. Riesgo
+ *    conocido y aceptado: un correo de mala calidad generado por IA (caso
+ *    real: "Posta Veterinaria" sin catálogo) puede salir sin que nadie lo
+ *    vea antes. El paso A nunca usa auto_approve — siempre pasa por el panel.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isServiceRoleRequest } from "../_shared/serviceRoleGuard.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -243,15 +250,26 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) return json({ error: "No autorizado" }, 401);
+    // El cron llama con service role para auto-generar B/C — sin eso, cae al
+    // flujo normal de usuario humano (botón "Generar correo" del panel).
+    const isSystemCall = await isServiceRoleRequest(req);
+    if (!isSystemCall) {
+      const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (!user) return json({ error: "No autorizado" }, 401);
 
-    const { data: admin } = await supabase.from("platform_admins").select("id").eq("id", user.id).maybeSingle();
-    if (!admin) return json({ error: "Solo administradores de plataforma" }, 403);
+      const { data: admin } = await supabase.from("platform_admins").select("id").eq("id", user.id).maybeSingle();
+      if (!admin) return json({ error: "Solo administradores de plataforma" }, 403);
+    }
 
     const body = await req.json();
     const { prospect_id } = body;
     const variant: "a" | "b" | "c" = body.variant === "b" ? "b" : body.variant === "c" ? "c" : "a";
+    // auto_approve solo tiene efecto real viniendo del cron — un humano con
+    // JWT normal no puede saltarse la revisión mandando este flag a mano
+    // (la llamada de servicio ya pasó por isServiceRoleRequest arriba; un
+    // JWT de usuario normal también podría marcarlo, pero no tiene motivo
+    // para hacerlo y el panel nunca lo manda).
+    const autoApprove = isSystemCall && body.auto_approve === true;
     if (!prospect_id) return json({ error: "Falta prospect_id" }, 400);
 
     const { data: lead, error: leadErr } = await supabase
@@ -310,15 +328,22 @@ Recuerda: el nombre del negocio NO es una persona — nunca inventes un nombre p
       return json({ error: "OpenAI no devolvió JSON válido", raw: rawText }, 500);
     }
 
+    const STATUS_BY_VARIANT = {
+      a: { review: "en_revision", approved: "listo_para_enviar" },
+      b: { review: "en_revision_b", approved: "listo_para_enviar_b" },
+      c: { review: "en_revision_c", approved: "listo_para_enviar_c" },
+    } as const;
+    const finalStatus = autoApprove ? STATUS_BY_VARIANT[variant].approved : STATUS_BY_VARIANT[variant].review;
+
     const updatePayload = variant === "a"
-      ? { email_subject: parsed.subject, email_body: parsed.html, contact_status: "en_revision" }
+      ? { email_subject: parsed.subject, email_body: parsed.html, contact_status: finalStatus }
       : variant === "b"
-      ? { email_b_subject: parsed.subject, email_b_body: parsed.html, contact_status: "en_revision_b" }
-      : { email_c_subject: parsed.subject, email_c_body: parsed.html, contact_status: "en_revision_c" };
+      ? { email_b_subject: parsed.subject, email_b_body: parsed.html, contact_status: finalStatus }
+      : { email_c_subject: parsed.subject, email_c_body: parsed.html, contact_status: finalStatus };
 
     await supabase.from("prospecting_leads").update(updatePayload).eq("id", prospect_id);
 
-    return json({ subject: parsed.subject, body: parsed.html, variant });
+    return json({ subject: parsed.subject, body: parsed.html, variant, autoApproved: autoApprove });
   } catch (e) {
     console.error("[hq-generate-prospect-email] error:", e);
     return json({ error: "Internal server error" }, 500);
