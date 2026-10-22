@@ -8219,3 +8219,21 @@ Pedido del usuario: los contactos pausados (`requires_human = true`) vuelven sol
 - La lógica de etapas del CRM vive en **triggers de DB**, no en los webhooks: cualquier camino que cree citas/solicitudes la hereda.
 - Todo lo que cruce citas/mensajes con prospectos debe comparar con `phone_digits()` (los formatos de teléfono varían) y usar `phone_number IN (digits, '+'||digits)` en `messages` para aprovechar el índice.
 - Un recordatorio de cita se considera enviado solo si hay log **creado hoy**; una cita movida debe poder recibir uno nuevo.
+
+---
+
+## Cambios realizados — octubre 2026 (sesión 116, 2026-10-21) — commit `5cd71a8`
+
+### IA cotizó una cirugía de espolón en $115.000 (Santiago, +56993006011)
+La IA respondió bien primero ("voy a confirmar el valor con el equipo"), pero el corrector `[PRICE GAP]` (sesión 111) la obligó a llamar `calculate_matrix_price`; sin `procedure_type`, `priceMatrix.ts` infería macho→castración y devolvió la castración de un perro de 19 kg.
+- `priceMatrix.ts`: eliminada la inferencia sexo→procedimiento (se mantiene procedimiento→sexo). Toda matriz `cirugia*` exige `procedure_type` válido (Linares no tiene esa dimensión y quedaba igual de expuesta); otro procedimiento → "usa escalate_to_human".
+- `meta-whatsapp-webhook`: `[PRICE GAP]` solo actúa si la conversación menciona esterilización/castración/criptorquídeo/destartraje y no otra cirugía; la descripción del tool se acota a esos procedimientos.
+
+### Recordatorios mal redactados ("a las Tomás aproximadamente para Consulta Médica")
+`cron-process-reminders` llenaba `{{n}}` en orden fijo (mascota, servicio, fecha, hora, clínica), pero cada plantilla usa otro orden: 24h/2h = (hora, servicio); vacunas = (mascota, fecha, vacuna); seguimiento = (clínica, servicio, mascota, fecha, hora). Solo `confirmacion_visita` coincidía. Ahora `buildParams` lee el texto real de la plantilla (Graph/YCloud, cacheado) y asigna el rol de cada `{{n}}` por las palabras que lo preceden ("a las" → hora, "refuerzo de" → servicio, etc.); sin texto, cae al orden antiguo. Probado contra las 6 plantillas reales. En los últimos 30 días salieron ~370 recordatorios de cita y ~110 médicos con el formato afectado.
+
+### Reglas permanentes
+- **Nunca inferir el procedimiento a partir del sexo** en un cálculo de precio: un macho puede pedir cualquier cirugía.
+- **Un corrector que fuerza un tool debe comprobar que el tool aplica** al tema de la conversación; si no, convierte una respuesta correcta ("voy a consultar") en un precio inventado.
+- **Los parámetros de plantilla se asignan por significado, no por posición**: cada clínica redacta sus plantillas con otro orden de variables.
+- `send-whatsapp-reminder` (botón manual, solo YCloud) tiene el mismo orden fijo; no se tocó porque las clínicas en Meta usan `wa.me`.
