@@ -463,14 +463,14 @@ const functions = [
   },
   {
     name: "calculate_matrix_price",
-    description: "Calcula el precio EXACTO de un servicio cuyo precio depende de variables (especie, sexo, peso, anestesia, tramo de traslado) — úsala SIEMPRE en vez de leer una tabla tú mismo, ni siquiera para un cálculo mental rápido. Usa exactamente uno de los matrix_key listados en el bloque MATRICES DE PRECIO de tu contexto para ESTA clínica; no inventes uno ni la uses si la clínica no tiene esa matriz configurada. Usa EXCLUSIVAMENTE el price_total que te devuelva.",
+    description: "Calcula el precio EXACTO de los procedimientos que tienen matriz: SOLO esterilización, castración, criptorquídeo y destartraje (limpieza dental). NUNCA la uses para otra cirugía o procedimiento (espolón, tumores, extracciones, suturas, amputaciones, etc.): esos NO tienen precio en la matriz — no inventes ni adaptes un valor, usa escalate_to_human. Para los procedimientos con matriz úsala SIEMPRE en vez de leer una tabla tú mismo, ni siquiera para un cálculo mental rápido. Usa exactamente uno de los matrix_key listados en el bloque MATRICES DE PRECIO de tu contexto para ESTA clínica; no inventes uno ni la uses si la clínica no tiene esa matriz configurada. Usa EXCLUSIVAMENTE el price_total que te devuelva.",
     parameters: {
       type: "object",
       properties: {
         matrix_key: { type: "string", description: "Clave exacta tomada del bloque MATRICES DE PRECIO de tu contexto." },
         species: { type: "string", enum: ["perro", "gato"], description: "Especie de la mascota" },
         sex: { type: "string", enum: ["hembra", "macho"], description: "Requerido solo si la matriz lo pide." },
-        procedure_type: { type: "string", enum: ["esterilizacion", "castracion", "criptorquideo"], description: "Requerido solo si la matriz lo pide." },
+        procedure_type: { type: "string", enum: ["esterilizacion", "castracion", "criptorquideo"], description: "Obligatorio en matrices de cirugía: el procedimiento EXACTO que pidió el tutor. Si pidió otra cirugía, NO llames esta función." },
         weight_kg: { type: "number", description: "Peso en kilos. Requerido solo si la matriz lo pide para esta especie." },
         anesthesia_type: { type: "string", enum: ["inyectable", "inhalatoria"], description: "Requerido solo si la matriz lo pide." },
         travel_minutes: { type: "number", description: "Minutos al centro/pabellón más cercano, tomados literalmente del bloque [LOGÍSTICA] de tu contexto. Requerido solo si la matriz usa tramo." },
@@ -3088,6 +3088,11 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
             clinicMatrices.length > 0 && !!assistant?.content
             && !(assistant.tool_calls?.length > 0) && !assistant.function_call
             && noPriceClaim(assistant.content)
+            // Solo forzar si lo que se cotiza SÍ está en una matriz. Sin esto, una
+            // cirugía fuera de matriz (espolón, Santiago 2026-10-20) fue forzada a
+            // calculate_matrix_price y salió cotizada con el precio de castración.
+            && /ester|castra|criptorq|destartraj|limpieza dental|sarro/i.test(recentUserText)
+            && !/espol|tumor|bulto|masa|extirp|amput|sutur|extracci|hernia|ces[áa]rea|piometra|fractur|ojo|oreja|o[íi]do|cola|u[ñn]a/i.test(recentUserText)
             && !allFuncResults.some(r => (r.name === "calculate_matrix_price" || r.name === "calculate_surgery_price") && r.result?.success)
             && priceCorrections < 1;
 
@@ -3124,7 +3129,7 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
               msgs.push({ role: "assistant", content: assistant.content });
               msgs.push({
                 role: "system",
-                content: "Tu respuesta anterior dijo que no tienes el precio o que lo vas a consultar. Eso es incorrecto: el precio de cirugías y destartraje SIEMPRE se obtiene llamando a calculate_matrix_price. Llámala AHORA con los datos de la conversación: especie; sex (esterilización de hembra/cachorra/perra/gata = hembra, castración de macho/perrito/gato = macho); procedure_type (esterilizacion/castracion); weight_kg si es perro; anesthesia_type = inyectable salvo raza braquicéfala. Si de verdad falta un dato que el tutor no dio (por ejemplo el peso de un perro), pídeselo directamente. NO digas que vas a consultar con el equipo ni que no tienes el precio.",
+                content: "Tu respuesta anterior dijo que no tienes el precio o que lo vas a consultar. Eso es incorrecto: el precio de esterilización, castración, criptorquídeo y destartraje SIEMPRE se obtiene llamando a calculate_matrix_price (para CUALQUIER otra cirugía no existe precio: no llames la función, usa escalate_to_human). Llámala AHORA con los datos de la conversación: especie; sex (esterilización de hembra/cachorra/perra/gata = hembra, castración de macho/perrito/gato = macho); procedure_type (esterilizacion/castracion); weight_kg si es perro; anesthesia_type = inyectable salvo raza braquicéfala. Si de verdad falta un dato que el tutor no dio (por ejemplo el peso de un perro), pídeselo directamente. NO digas que vas a consultar con el equipo ni que no tienes el precio.",
               });
               await debugLog(sb, "[PRICE GAP] Forzando reintento con calculate_matrix_price", { phone: from, clinicId: clinic.id, originalReply: assistant.content });
             } else {

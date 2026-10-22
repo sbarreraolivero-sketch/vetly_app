@@ -52,15 +52,54 @@ Deno.serve(async (req) => {
                         items = d.items || []
                     }
                     const m: Record<string, number> = {}
+                    const b: Record<string, string> = {}
                     for (const t of items) {
                         const body = t.components?.find((c: any) => c.type === 'BODY')
                         const matches = body?.text?.match(/\{\{\d+\}\}/g)
                         m[t.name] = matches ? matches.length : 0
+                        if (body?.text) b[t.name] = body.text
                     }
                     tplVarCache[cId] = m
-                } catch { tplVarCache[cId] = {} }
+                    tplBodyCache[cId] = b
+                } catch { tplVarCache[cId] = {}; tplBodyCache[cId] = {} }
             }
             return tplVarCache[cId][tplName] ?? 5
+        }
+        const tplBodyCache: Record<string, Record<string, string>> = {}
+
+        // Rol de cada {{n}} según el texto que lo precede en la plantilla real.
+        // Las plantillas de cada clínica NO comparten orden: "a las {{1}} para {{2}}"
+        // (hora, servicio) vs "visita de {{1}} para {{2}} el día {{3}} en {{4}}".
+        // Rellenarlas en orden fijo (mascota, servicio, fecha, hora, clínica) produjo
+        // "a las Tomás aproximadamente para Consulta Médica" (Santiago, 2026-10-21).
+        type Role = 'patient' | 'service' | 'date' | 'time' | 'clinic'
+        const POSITIONAL: Role[] = ['patient', 'service', 'date', 'time', 'clinic']
+        const inferRoles = (body: string, n: number): Role[] => {
+            const roles: Role[] = []
+            for (let i = 1; i <= n; i++) {
+                const idx = body.indexOf(`{{${i}}}`)
+                const before = idx >= 0
+                    ? body.slice(Math.max(0, idx - 30), idx).replace(/\{\{\d+\}\}/g, 'X').toLowerCase().replace(/\s+/g, ' ').trimEnd()
+                    : ''
+                let role: Role | null = null
+                if (/(a las|hora|horario| en|\()$/.test(before)) role = 'time'
+                else if (/(el d[ií]a|mañana|es el|fecha|para el)$/.test(before)) role = 'date'
+                else if (/(refuerzo de|momento del|vacuna de|para|servicio|motivo|tratamiento)$/.test(before)) role = 'service'
+                else if (/(escribimos de|desde|cl[ií]nica|equipo de)$/.test(before)) role = 'clinic'
+                else if (/( de| a|mascota|paciente)$/.test(before)) role = 'patient'
+                roles.push(role ?? POSITIONAL[i - 1] ?? 'patient')
+            }
+            return roles
+        }
+        const buildParams = async (clinic: any, tplName: string, v: Record<Role, string>, fallbackN?: number) => {
+            const n = await getVarCount(clinic, tplName)
+            const body = tplBodyCache[clinic.id]?.[tplName]
+            const fallbacks: Record<Role, string> = {
+                patient: 'tu mascota', service: 'tu visita', date: 'la fecha agendada', time: 'la hora agendada', clinic: 'la clínica',
+            }
+            const count = body ? n : (fallbackN ?? n)
+            const roles = body ? inferRoles(body, count) : POSITIONAL.slice(0, count)
+            return roles.map((r) => safeParam(v[r], fallbacks[r]))
         }
 
         // Helper: envía un mensaje de plantilla por el canal correcto (YCloud o Meta Cloud API).
@@ -114,16 +153,6 @@ Deno.serve(async (req) => {
         const safeParam = (val: string | null | undefined, fallback: string): { type: 'text'; text: string } => {
             const clean = (val ?? '').toString().trim()
             return { type: 'text', text: clean !== '' ? clean : fallback }
-        }
-        const mkParams = (n: number, pName: string, svc: string, dt: string, tm: string, cName: string) => {
-            const all = [
-                safeParam(pName, 'tu mascota'),
-                safeParam(svc, 'tu visita'),
-                safeParam(dt, 'la fecha agendada'),
-                safeParam(tm, 'la hora agendada'),
-                safeParam(cName, 'la clínica'),
-            ]
-            return n > 0 ? all.slice(0, n) : all
         }
 
         // Límite efectivo del pool de recordatorios (citas + médicos comparten el mismo pool).
@@ -302,8 +331,7 @@ Deno.serve(async (req) => {
                         tplName = settings.template_confirmation
                     }
 
-                    const vc24 = await getVarCount(clinic, tplName)
-                    const params24 = mkParams(vc24, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
+                    const params24 = await buildParams(clinic, tplName, { patient: appt.patient_name, service: appt.service || 'consulta', date: formattedDate, time: formattedTime, clinic: clinic.clinic_name })
 
                     const { ok, id: sentId, raw: responseData } = await sendReminderTemplate(clinic, appt.phone_number, tplName, params24)
 
@@ -514,8 +542,7 @@ Deno.serve(async (req) => {
                             tplName2h = settings.template_confirmation
                         }
 
-                        const vc2h = await getVarCount(clinic, tplName2h)
-                        const params2h = mkParams(vc2h, appt.patient_name, appt.service || 'consulta', formattedDate, formattedTime, clinic.clinic_name)
+                        const params2h = await buildParams(clinic, tplName2h, { patient: appt.patient_name, service: appt.service || 'consulta', date: formattedDate, time: formattedTime, clinic: clinic.clinic_name })
 
                         const { ok, id: sentId, raw: responseData } = await sendReminderTemplate(clinic, appt.phone_number, tplName2h, params2h)
 
@@ -688,8 +715,7 @@ Deno.serve(async (req) => {
                             weekday: 'long', day: 'numeric', month: 'long'
                         })
 
-                        const vcGen = await getVarCount(clinic, templateName)
-                        const paramsGen = mkParams(vcGen, patientName || 'Paciente', rem.title || 'servicio', formattedDate, 'Durante el día', clinic.clinic_name)
+                        const paramsGen = await buildParams(clinic, templateName, { patient: patientName || 'Paciente', service: rem.title || 'servicio', date: formattedDate, time: 'durante el día', clinic: clinic.clinic_name })
 
                         const { ok, id: sentId, raw: responseData } = await sendReminderTemplate(clinic, phoneNumber, templateName, paramsGen)
 

@@ -86,6 +86,45 @@ export async function lookupMatrixPrice(
     const species = (args.species || "").toLowerCase();
     if (dims.species && !species) missing.push("species");
 
+    // anesthesia_type SÍ tiene un default seguro (a diferencia de sex/procedure_type,
+    // que no lo tienen): el propio prompt le exige a la IA determinarlo como
+    // "inyectable" salvo raza braquicéfala, pero en la práctica el modelo no
+    // siempre lo pasa a la función pese a la regla ABSOLUTA. Como ninguna celda
+    // real usa NULL en esta columna (nunca es comodín), faltar este dato hacía
+    // que la búsqueda de abajo no encontrara ninguna celda y fallara con un
+    // mensaje genérico que nunca le pedía a la IA el dato real que faltaba —
+    // confirmado con casos reales en producción (sesión de verificación
+    // 2026-09-14). Si el modelo determinó explícitamente "inhalatoria", ese
+    // valor prevalece; el default solo aplica cuando no pasó nada.
+    if (dims.anesthesia_type && !args.anesthesia_type) {
+        args.anesthesia_type = "inyectable";
+    }
+
+    // Procedimiento → sexo sí se infiere (esterilización = hembra, castración =
+    // macho; sin ambigüedad). Sexo → procedimiento NO: un macho puede pedir
+    // cualquier otra cirugía. Esa inferencia cotizó una extirpación de espolón
+    // con el precio de castración (Santiago, 2026-10-20). Sin procedure_type la
+    // función se niega y devuelve el motivo.
+    const proc = (args.procedure_type || "").toLowerCase();
+    const sexArg = (args.sex || "").toLowerCase();
+    // Matrices de cirugía SIN dimensión de procedimiento (Linares): igual se
+    // exige que el procedimiento sea uno que la matriz cubre, o cualquier
+    // cirugía de un macho/hembra saldría con precio de castración/esterilización.
+    const isSurgeryMatrix = matrixKey.startsWith("cirugia");
+    const allowedProcs = dims.procedure_type ? ["esterilizacion", "castracion", "criptorquideo"] : ["esterilizacion", "castracion"];
+    if (isSurgeryMatrix && proc && !allowedProcs.includes(proc)) {
+        return { success: false, message: `Esta matriz no cubre "${proc}". No hay precio automático: usa escalate_to_human, no inventes un valor.` };
+    }
+    if ((dims.procedure_type || isSurgeryMatrix) && !proc) {
+        return {
+            success: false,
+            missing_fields: ["procedure_type"],
+            message: `Falta procedure_type. Esta matriz SOLO cubre ${allowedProcs.join(", ")}. Si el tutor pidió uno de esos, reintenta con el valor exacto. Si pidió cualquier otra cirugía o procedimiento, NO existe precio: no inventes ni uses estos valores, usa escalate_to_human.`,
+        };
+    }
+    if (dims.sex && !sexArg && proc === "esterilizacion") args.sex = "hembra";
+    if (dims.sex && !sexArg && proc === "castracion") args.sex = "macho";
+
     const weightBySpecies: string[] = dims.weight_by_species || [];
     const needsWeight = weightBySpecies.includes(species);
     if (needsWeight && (args.weight_kg === undefined || args.weight_kg === null)) {
@@ -139,6 +178,24 @@ export async function lookupMatrixPrice(
     }
 
     if (!cells || cells.length === 0) {
+        // Si faltó alguna dimensión, es un dato que el modelo debe completar o
+        // preguntar — NO un caso para escalar. Antes este mensaje mandaba a
+        // "escalar a un humano" y el modelo respondía "no tengo el precio".
+        const absent: string[] = [];
+        if (dims.sex && !args.sex) absent.push("sex");
+        try {
+            await sb.from("debug_logs").insert({
+                message: "[priceMatrix] Sin celda coincidente",
+                payload: { clinicId, matrixKey, args, tramo, absent },
+            });
+        } catch { /* no crítico */ }
+        if (absent.length > 0) {
+            return {
+                success: false,
+                missing_fields: absent,
+                message: `Faltan datos para calcular el precio: ${absent.join(", ")}. Si el tutor ya los dio o se infieren de la conversación (esterilizacion→hembra, castracion→macho), reintenta ahora con esos valores; si no, pregúntaselos. NO digas que no tienes el precio.`,
+            };
+        }
         return { success: false, message: "No hay una celda de precio para esta combinación exacta — escala a un humano, no inventes un valor." };
     }
     if (cells.length > 1) {
