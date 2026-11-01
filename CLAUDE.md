@@ -8237,3 +8237,27 @@ La IA respondió bien primero ("voy a confirmar el valor con el equipo"), pero e
 - **Un corrector que fuerza un tool debe comprobar que el tool aplica** al tema de la conversación; si no, convierte una respuesta correcta ("voy a consultar") en un precio inventado.
 - **Los parámetros de plantilla se asignan por significado, no por posición**: cada clínica redacta sus plantillas con otro orden de variables.
 - `send-whatsapp-reminder` (botón manual, solo YCloud) tiene el mismo orden fijo; no se tocó porque las clínicas en Meta usan `wa.me`.
+
+---
+
+## Cambios realizados — noviembre 2026 (sesión 117, 2026-11-01)
+
+### Pausas de IA: manuales permanentes, automáticas 48 h
+
+El cron de la sesión 115 reactivaba a las 24 h todo contacto pausado, incluidas las pausas manuales de Claudia. `requires_human` no guardaba quién pausó.
+
+- Migración `20261101191133`: `requires_human_source` (`manual`|`auto`) en `crm_prospects` y `tutors`. El trigger `track_requires_human_since` asume `manual` si nadie indica origen, una pausa manual nunca se degrada a `auto`, y reactivar limpia el origen. `auto_reactivate_paused_contacts()` solo actúa sobre `auto` con más de 48 h.
+- Solo marcan `auto`: `escalateToHuman` y `requestSchedulingCoordination` (meta), escalación de ycloud y `vetly-hq-agent`. El botón "Silenciar IA" no se tocó: cae en `manual` por defecto.
+- Reactivación manual de una pausa `manual`: botón en Mensajes, `/reset ia`, o autorizar una solicitud de agenda (`SchedulingRequestsPanel` + `scheduling-notify-authorized`).
+- Re-pausados 36 teléfonos (23 Santiago, 13 Linares) que el cron había soltado desde el 15-oct, respaldo en `requires_human_repause_20261101`. Método: `updated_at` en un tick del cron sin herramienta de la IA, solicitud ni notificación de derivación unas 24 h antes. Es una inferencia: el botón no dejaba registro. Si el contacto se actualizó después del tick, no aparece.
+- No tocados: ~450 filas soltadas el 13 y 14-oct (limpieza inicial del cron, pausas antiguas sin origen distinguible).
+- `ycloud-whatsapp-webhook` conserva una auto-reactivación por saludo, sin tráfico real hoy; revisarla si una clínica vuelve a YCloud.
+
+### Reglas permanentes
+- **Todo código nuevo que pause a un contacto automáticamente debe enviar `requires_human_source: "auto"`.** Si no, queda pausado para siempre.
+- **`supabase functions download` sobrescribe el código local.** Usar `--workdir <scratchpad>` para comparar.
+
+### Pendiente
+- Claudia debe revisar los 9 contactos re-pausados que venían conversando con la IA (Olga, Álvaro Gomez, Camila Andrea, Putine, Iners, Anita, Verónica Gajardo, Refugio Animal, +56984727781) y su propio número en Santiago (+56989790949).
+- Decidir si se re-pausan las ~450 filas del 13 y 14-oct (recomendación: no).
+- El código de esta sesión está desplegado, pero la migración y los 3 `index.ts` siguen sin commitear.
