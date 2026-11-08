@@ -8261,3 +8261,24 @@ El cron de la sesión 115 reactivaba a las 24 h todo contacto pausado, incluidas
 - Claudia debe revisar los 9 contactos re-pausados que venían conversando con la IA (Olga, Álvaro Gomez, Camila Andrea, Putine, Iners, Anita, Verónica Gajardo, Refugio Animal, +56984727781) y su propio número en Santiago (+56989790949).
 - Decidir si se re-pausan las ~450 filas del 13 y 14-oct (recomendación: no).
 - El código de esta sesión está desplegado, pero la migración y los 3 `index.ts` siguen sin commitear.
+
+---
+
+## Cambios realizados — noviembre 2026 (sesión 118, 2026-11-08)
+
+### Registro Core: 14 días + registro oculto para socios (commit `6ab1d7f`)
+- `vetly.pro/register?plan=core` mostraba "30 días" en el recuadro grande; la prueba real (`signup-handler`, `trialDays = 14`) ya era de 14. Corregido a 14.
+- **`/core/registro-socios`** (link oculto, no enlazado desde ninguna landing): mismo `Register.tsx` con `isPartner` (detecta el pathname). Copy de "socios de crecimiento", sin precio ni selector de pasarela, plan Core por debajo (14 días de prueba al registrarse). Ruta en `App.tsx` + `vercel.json` (`/core/registro-socios` → `/index.html`, ANTES de `/core`; el catch-all excluye todo lo que empieza con `core`).
+
+### Socios de crecimiento — acceso Core gratis (proceso manual)
+Clínicas que trabajan con Vetly como socios en publicidad reciben Core sin costo. Al registrarse en `/core/registro-socios`, el usuario pasa el correo y se aplica a mano (SQL como service role; el guard de columnas de facturación solo bloquea JWT de usuario):
+```sql
+UPDATE subscriptions SET plan='core', plan_id='core', status='active', current_period_end='2099-12-31 23:59:59+00' WHERE clinic_id='<id>';
+UPDATE clinic_settings SET trial_end_date='2099-12-31 23:59:59+00', trial_status='running' WHERE id='<id>';
+```
+**No usar `manually_active`**: abre todos los planes (agente IA incluido), no solo Core.
+
+Socios activos:
+| Correo | Clínica | clinic_id | Desde |
+|---|---|---|---|
+| consultavetfriend@gmail.com | Fiorela Pablo Figueroa | `08c38712-1d33-4f2f-b8eb-2a2b8131919d` | 2026-11-08 |
