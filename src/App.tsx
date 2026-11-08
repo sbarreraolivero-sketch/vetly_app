@@ -175,6 +175,16 @@ function MainRoutes() {
                         }
                     />
 
+                    {/* Registro oculto de socios de crecimiento (Core sin costo). */}
+                    <Route
+                        path="/core/registro-socios"
+                        element={
+                            <ProtectedRoute requireAuth={false}>
+                                <Register />
+                            </ProtectedRoute>
+                        }
+                    />
+
                     {/* Pending Activation Route */}
                     <Route
                         path="/pending-activation"

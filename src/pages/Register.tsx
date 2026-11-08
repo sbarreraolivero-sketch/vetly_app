@@ -111,7 +111,11 @@ export default function Register() {
     // directo a la app). El acceso Pro por 45 días + el pago de US$47 los
     // habilita HQ después con el flag pilot_eligible (ver CLAUDE.md sesión 102).
     const isPilot = location.pathname === '/registro-piloto' || searchParams.get('pilot') === '1'
-    const initialPlan = isPilot
+    // Socios de crecimiento (publicidad): link oculto, no enlazado desde ninguna
+    // landing. Se registran como Core normal; HQ les deja el acceso sin costo
+    // a mano después (ver CLAUDE.md sesión 118).
+    const isPartner = location.pathname === '/core/registro-socios'
+    const initialPlan = (isPilot || isPartner)
         ? 'core'
         : (planParam && (PLAN_ORDER as readonly string[]).includes(planParam) ? planParam : 'pro')
 
@@ -484,7 +488,7 @@ export default function Register() {
                         autoservicio. Se vuelve plan-aware. */}
                     <h1 className="text-h2 text-charcoal mb-2">
                         {isJoinMode ? 'Únete a tu equipo' : (
-                            isPilot ? 'Programa piloto Vetly' : (
+                            isPilot ? 'Programa piloto Vetly' : isPartner ? 'Registro de socios Vetly' : (
                                 singleStep ? 'Crea tu cuenta gratis' : (
                                     step === 1 ? 'Reserva tu Implementación Estratégica' :
                                         step === 2 ? 'Sobre tu clínica' :
@@ -495,7 +499,7 @@ export default function Register() {
                     </h1>
                     <p className="text-charcoal/60 mb-6">
                         {isJoinMode ? 'Ingresa tus datos para aceptar la invitación' : (
-                            isPilot ? 'Crea la cuenta de tu clínica. Después coordinamos contigo la activación del piloto.' : (
+                            isPilot ? 'Crea la cuenta de tu clínica. Después coordinamos contigo la activación del piloto.' : isPartner ? 'Crea la cuenta de tu clínica para activar tu acceso como socio de crecimiento.' : (
                                 singleStep ? 'Sin tarjeta de crédito. Empiezas a usar Vetly en 2 minutos.' : (
                                     step === 1 ? 'Crea tu cuenta para agendar tu sesión de implementación estratégica gratuita.' :
                                         step === 2 ? 'Configura los datos básicos de tu negocio' :
@@ -530,11 +534,22 @@ export default function Register() {
                                 </div>
                             </div>
                         </div>
+                    ) : isPartner ? (
+                        <div className="rounded-soft border-2 border-primary-500 bg-primary-50 p-5 mb-6">
+                            <p className="font-bold text-charcoal leading-snug">
+                                Acceso a Vetly Core sin costo para socios
+                            </p>
+                            <p className="text-sm text-charcoal/70 mt-1 leading-relaxed">
+                                Citas, fichas médicas, finanzas, inventario y fidelización.
+                                Sin tarjeta de crédito. Al crear tu cuenta, el equipo de Vetly
+                                deja tu acceso activo sin costo como parte de nuestra alianza.
+                            </p>
+                        </div>
                     ) : singleStep && (
                         <div className="rounded-soft border-2 border-primary-500 bg-primary-50 p-5 mb-6">
                             <div className="flex items-center gap-4">
                                 <div className="text-center leading-none shrink-0">
-                                    <div className="text-5xl font-black text-primary-600 tracking-tight">30</div>
+                                    <div className="text-5xl font-black text-primary-600 tracking-tight">14</div>
                                     <div className="text-[11px] font-bold uppercase tracking-widest text-primary-700 mt-1">días</div>
                                 </div>
                                 <div className="w-px self-stretch bg-primary-200" />
@@ -899,7 +914,7 @@ export default function Register() {
                         {/* Piloto: sin confirmación de plan ni toggle de pasarela —
                             no hay cobro mensual, el pago de US$47 lo habilita HQ
                             después. Solo el captcha para el submit. */}
-                        {isPilot && TURNSTILE_SITE_KEY && (
+                        {(isPilot || isPartner) && TURNSTILE_SITE_KEY && (
                             <div ref={turnstileRef} className="flex justify-center" />
                         )}
 
@@ -907,7 +922,7 @@ export default function Register() {
                             No es un selector: quien llega desde /core ya eligió.
                             El toggle de región se mantiene porque define la
                             pasarela (MercadoPago vs Paddle) que recibe signUp. */}
-                        {singleStep && !isPilot && (
+                        {singleStep && !isPilot && !isPartner && (
                             <div className="space-y-4">
                                 <div className="rounded-soft border border-silk-beige bg-white p-4">
                                     <div className="flex items-center justify-between gap-4">
@@ -996,7 +1011,7 @@ export default function Register() {
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                             Cargando...
                                         </>
-                                    ) : isPilot ? (
+                                    ) : (isPilot || isPartner) ? (
                                         <>
                                             Crear la cuenta de mi clínica
                                             <ArrowRight className="w-5 h-5" />
@@ -1047,7 +1062,7 @@ export default function Register() {
                         <div className="mb-10">
                             <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium text-white/90 mb-6">
                                 <Star className="w-3.5 h-3.5 text-yellow-300" />
-                                {isPilot ? 'Programa piloto — 45 días' : isCoreSelected ? 'Gestión completa para tu clínica' : 'Tu clínica con Infraestructura Operativa de Éxito'}
+                                {isPilot ? 'Programa piloto — 45 días' : isPartner ? 'Socios de crecimiento' : isCoreSelected ? 'Gestión completa para tu clínica' : 'Tu clínica con Infraestructura Operativa de Éxito'}
                             </div>
                             <h2 className="text-4xl font-bold mb-5 leading-tight" style={{ background: 'linear-gradient(135deg, #FFD700, #F5C842, #E8B830, #FFE066)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                                 {isPilot
@@ -1073,12 +1088,14 @@ export default function Register() {
                                 </div>
                                 <div>
                                     <p className="font-bold text-white text-base mb-1">
-                                        {isPilot ? 'Ahora solo creas la cuenta' : isCoreSelected ? 'Sin tarjeta, sin compromiso' : 'La Regla de Éxito Vetly'}
+                                        {isPilot ? 'Ahora solo creas la cuenta' : isPartner ? 'Sin tarjeta, sin cobro' : isCoreSelected ? 'Sin tarjeta, sin compromiso' : 'La Regla de Éxito Vetly'}
                                     </p>
                                     <p className="text-white/80 text-sm leading-relaxed">
                                         {isPilot
                                             ? 'No se pide tarjeta en este paso. El equipo de Vetly te contacta para configurar tu agente y habilitar el pago del piloto.'
-                                            : isCoreSelected
+                                            : isPartner
+                                                ? 'Tu acceso a Vetly Core queda activo sin costo mientras dure nuestra alianza de crecimiento.'
+                                                : isCoreSelected
                                                 ? '14 días para probar el sistema completo. Si no es para ti, cancelas en un clic desde Configuración.'
                                                 : 'Tus 7 días de prueba solo comienzan cuando el asistente ya entiende y atiende perfectamente a tu clínica.'}
                                     </p>

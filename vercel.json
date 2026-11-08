@@ -3,6 +3,7 @@
     { "src": "/", "dest": "/landing.html" },
     { "src": "/landing", "dest": "/landing.html" },
     { "src": "/demo", "dest": "/demo.html" },
+    { "src": "/core/registro-socios", "dest": "/index.html" },
     { "src": "/core", "dest": "/core.html" },
     { "src": "/core-a-ciegas", "dest": "/core-a-ciegas.html" },
     { "src": "/blog", "dest": "/blog/index.html" },
