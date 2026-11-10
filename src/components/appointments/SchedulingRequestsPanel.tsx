@@ -9,7 +9,7 @@
  * Al autorizar se reactiva la IA para ese tutor: ella ofrece SOLO esas opciones y
  * agenda la que el cliente elija. El bloqueo real vive en el webhook.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CalendarClock, Loader2, AlertTriangle, Check, MapPin, PawPrint, Stethoscope, X } from 'lucide-react'
@@ -50,6 +50,8 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
     const [editing, setEditing] = useState<Record<string, boolean>>({})
     const [savingId, setSavingId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    // Descartadas en esta sesión: evita que un refetch en vuelo las vuelva a pintar.
+    const dismissedRef = useRef<Set<string>>(new Set())
 
     const fetchRequests = useCallback(async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,7 +66,7 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
             setError('No se pudieron cargar las solicitudes de agenda.')
         } else {
             // Las pendientes primero: son las que bloquean a un cliente esperando respuesta.
-            const rows = (data || []) as SchedulingRequest[]
+            const rows = ((data || []) as SchedulingRequest[]).filter(r => !dismissedRef.current.has(r.id))
             setRequests([
                 ...rows.filter(r => r.status === 'pending'),
                 ...rows.filter(r => r.status !== 'pending'),
@@ -155,7 +157,10 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
     const dismiss = async (req: SchedulingRequest) => {
         if (!confirm(`¿Descartar la solicitud de ${req.tutor_name}? La IA volverá a atender la conversación con normalidad.`)) return
 
-        setSavingId(req.id)
+        // Instantáneo: sale de la lista al presionar; si el guardado falla, vuelve.
+        const snapshot = requests
+        dismissedRef.current.add(req.id)
+        setRequests(curr => curr.filter(r => r.id !== req.id))
         setError(null)
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,14 +174,15 @@ export function SchedulingRequestsPanel({ clinicId }: SchedulingRequestsPanelPro
             .eq('id', req.id)
 
         if (err) {
+            dismissedRef.current.delete(req.id)
+            setRequests(snapshot)
             setError('No se pudo descartar la solicitud.')
-            setSavingId(null)
             return
         }
 
-        await resumeAI(req.tutor_phone)
-        setRequests(curr => curr.filter(r => r.id !== req.id))
-        setSavingId(null)
+        // No bloquea la pantalla.
+        void resumeAI(req.tutor_phone)
+        queryClient.invalidateQueries({ queryKey: ['scheduling-requests-count', clinicId] })
     }
 
     const pendingCount = requests.filter(r => r.status === 'pending').length
