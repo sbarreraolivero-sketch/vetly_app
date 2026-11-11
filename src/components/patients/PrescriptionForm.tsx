@@ -68,6 +68,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
     const prescriberTitle: string = memberAny?.professional_title || ''
     const prescriberLicense: string = memberAny?.professional_license || ''
     const prescriberSignatureUrl: string = memberAny?.signature_url || ''
+    const prescriberStampUrl: string = memberAny?.stamp_url || ''
 
     const updateItem = (idx: number, field: keyof PrescriptionItem, value: string) => {
         setItems(prev => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)))
@@ -103,6 +104,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                 prescriber_license: prescriberLicense || null,
                 prescriber_title: prescriberTitle || null,
                 prescriber_signature_url: prescriberSignatureUrl || null,
+                prescriber_stamp_url: prescriberStampUrl || null,
                 document_type: documentType,
                 issued_date: issuedDate,
                 patient_snapshot: {

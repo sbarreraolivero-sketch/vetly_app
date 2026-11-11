@@ -20,6 +20,7 @@ export interface ClinicMember {
     professional_license?: string
     professional_title?: string
     signature_url?: string
+    stamp_url?: string
     working_hours?: Record<string, { enabled: boolean; start: string; end: string }>
     permissions?: MemberPermissions | null
     created_at: string
@@ -180,6 +181,7 @@ export const teamService = {
         professional_license?: string
         professional_title?: string
         signature_url?: string
+        stamp_url?: string
         working_hours?: Record<string, { enabled: boolean; start: string; end: string }>
     }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

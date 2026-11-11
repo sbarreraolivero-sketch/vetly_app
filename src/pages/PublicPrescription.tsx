@@ -31,6 +31,7 @@ interface PrescriptionData {
         prescriber_license: string | null
         prescriber_title: string | null
         prescriber_signature_url: string | null
+        prescriber_stamp_url: string | null
         folio: string | null
         short_id: string
     }
@@ -298,12 +299,23 @@ export default function PublicPrescription() {
                         {/* Firma del prescriptor */}
                         <div className="pt-10 mt-4 border-t border-silk-beige flex flex-col items-end">
                             <div className="w-56 text-center">
-                                {p.prescriber_signature_url && (
-                                    <img
-                                        src={p.prescriber_signature_url}
-                                        alt="Firma"
-                                        className="h-16 max-w-full object-contain mx-auto mb-1"
-                                    />
+                                {(p.prescriber_signature_url || p.prescriber_stamp_url) && (
+                                    <div className="relative h-20 mb-1 flex items-center justify-center">
+                                        {p.prescriber_stamp_url && (
+                                            <img
+                                                src={p.prescriber_stamp_url}
+                                                alt="Timbre"
+                                                className="absolute h-20 max-w-full object-contain opacity-90"
+                                            />
+                                        )}
+                                        {p.prescriber_signature_url && (
+                                            <img
+                                                src={p.prescriber_signature_url}
+                                                alt="Firma"
+                                                className="relative h-16 max-w-full object-contain"
+                                            />
+                                        )}
+                                    </div>
                                 )}
                                 <div className="border-t border-charcoal/40 pt-2">
                                     <p className="text-sm font-bold text-charcoal">{p.prescriber_name || '—'}</p>

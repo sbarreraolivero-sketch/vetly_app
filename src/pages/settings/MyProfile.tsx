@@ -45,6 +45,8 @@ export default function MyProfile() {
     const [professionalTitle, setProfessionalTitle] = useState('')
     const [signatureUrl, setSignatureUrl] = useState('')
     const [uploadingSignature, setUploadingSignature] = useState(false)
+    const [stampUrl, setStampUrl] = useState('')
+    const [uploadingStamp, setUploadingStamp] = useState(false)
     const [color, setColor] = useState('#8B5CF6')
     const [workingHours, setWorkingHours] = useState<Record<string, { enabled: boolean; start: string; end: string; lunch_break?: { enabled: boolean; start: string; end: string } }>>(DEFAULT_HOURS)
 
@@ -67,6 +69,7 @@ export default function MyProfile() {
             setProfessionalLicense((member as any).professional_license || '')
             setProfessionalTitle((member as any).professional_title || '')
             setSignatureUrl((member as any).signature_url || '')
+            setStampUrl((member as any).stamp_url || '')
             setColor(member.color || '#8B5CF6')
             setWorkingHours((member as any).working_hours || DEFAULT_HOURS)
         } else if (profile) {
@@ -153,6 +156,7 @@ export default function MyProfile() {
                 professional_license: professionalLicense,
                 professional_title: professionalTitle,
                 signature_url: signatureUrl,
+                stamp_url: stampUrl,
                 color,
                 working_hours: workingHours,
             })
@@ -172,6 +176,7 @@ export default function MyProfile() {
                         professional_license: professionalLicense,
                         professional_title: professionalTitle,
                         signature_url: signatureUrl,
+                        stamp_url: stampUrl,
                     })
                     toast.success('Perfil guardado (sin horarios ni color)')
                     toast('Dato: Tu base de datos necesita una actualización de esquema.', { icon: '⚠️' })
@@ -221,6 +226,42 @@ export default function MyProfile() {
             toast.error('Error al subir la firma: ' + (err?.message || 'Error desconocido'))
         } finally {
             setUploadingSignature(false)
+        }
+    }
+
+    // Timbre / sello médico: misma lógica que la firma, otro nombre de archivo.
+    const handleStampFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        e.target.value = ''
+        if (!file) return
+        if (!EXT_BY_TYPE[file.type]) {
+            toast.error('Sube una imagen PNG, JPG o WEBP.')
+            return
+        }
+        const clinicId = profile?.clinic_id
+        const memberId = member?.id
+        if (!clinicId || !memberId) {
+            toast.error('No se pudo identificar tu perfil. Recarga la página.')
+            return
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('El timbre debe pesar menos de 2 MB.')
+            return
+        }
+        setUploadingStamp(true)
+        try {
+            const path = `${clinicId}/stamps/${memberId}.${EXT_BY_TYPE[file.type]}`
+            const { error } = await supabase.storage
+                .from('clinic-branding')
+                .upload(path, file, { upsert: true, contentType: file.type })
+            if (error) throw error
+            const { data: { publicUrl } } = supabase.storage.from('clinic-branding').getPublicUrl(path)
+            setStampUrl(`${publicUrl}?t=${Date.now()}`)
+            toast.success('Timbre listo. No olvides guardar los cambios.')
+        } catch (err: any) {
+            toast.error('Error al subir el timbre: ' + (err?.message || 'Error desconocido'))
+        } finally {
+            setUploadingStamp(false)
         }
     }
 
@@ -434,6 +475,36 @@ export default function MyProfile() {
                         </label>
                     </div>
                 </div>
+            </div>
+
+            {/* Timbre / sello médico */}
+            <div className="card-soft p-6">
+                <h2 className="text-base font-semibold text-charcoal mb-1 flex items-center gap-2">
+                    <PenTool className="w-4 h-4 text-primary-500" />
+                    Timbre / sello médico
+                </h2>
+                <p className="text-sm text-charcoal/50 mb-4">
+                    Imagen de tu timbre profesional. Se estampa junto a la firma en las recetas y en otros documentos (por ejemplo, certificados de salud). Sube una foto o escaneo con fondo blanco o transparente.
+                </p>
+                {stampUrl && (
+                    <div className="mb-4 flex items-center gap-4">
+                        <div className="bg-white border border-silk-beige rounded-xl p-2">
+                            <img src={stampUrl} alt="Timbre" className="h-20 max-w-[240px] object-contain" />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setStampUrl('')}
+                            className="text-xs font-bold uppercase tracking-widest text-charcoal/40 hover:text-red-500 flex items-center gap-1.5"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" /> Quitar
+                        </button>
+                    </div>
+                )}
+                <label className="btn-ghost cursor-pointer inline-flex items-center gap-2 text-sm">
+                    {uploadingStamp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    Subir imagen del timbre
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleStampFile} disabled={uploadingStamp} className="hidden" />
+                </label>
             </div>
 
             {/* Color del Calendario */}
