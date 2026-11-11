@@ -1659,9 +1659,9 @@ const getForcedKnowledgeBlock = async (
 // ── Escalate to Human ─────────────────────────────────────────────────────────
 const escalateToHuman = async (sb: ReturnType<typeof createClient>, clinicId: string, phone: string) => {
   const normalizedPhone = normalizePhone(phone);
-  await sb.from("tutors").update({ requires_human: true })
+  await sb.from("tutors").update({ requires_human: true, requires_human_source: "auto" })
     .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
-  await sb.from("crm_prospects").update({ requires_human: true })
+  await sb.from("crm_prospects").update({ requires_human: true, requires_human_source: "auto" })
     .eq("clinic_id", clinicId).or(`phone.eq.${phone},phone.eq.+${normalizedPhone}`);
   try {
     await sb.from("notifications").insert({
@@ -1783,9 +1783,9 @@ const requestSchedulingCoordination = async (
   }
 
   // Pausa la IA hasta que la coordinadora autorice horarios.
-  await sb.from("tutors").update({ requires_human: true })
+  await sb.from("tutors").update({ requires_human: true, requires_human_source: "auto" })
     .eq("clinic_id", clinicId).eq("phone_number", normalizedPhone);
-  await sb.from("crm_prospects").update({ requires_human: true })
+  await sb.from("crm_prospects").update({ requires_human: true, requires_human_source: "auto" })
     .eq("clinic_id", clinicId).or(`phone.eq.${phone},phone.eq.+${normalizedPhone}`);
 
   const resumen = [
@@ -2382,7 +2382,7 @@ Deno.serve(async (req) => {
 
       // Tutor context
       const { data: tutor } = await sb.from("tutors")
-        .select("id, name, referred_by, referral_code, portal_token, loyalty_points, patients(id, name, species)")
+        .select("id, name, referred_by, referral_code, portal_token, loyalty_points, ctwa_clid, capi_lead_sent_at, capi_purchase_sent_at, patients(id, name, species)")
         .eq("clinic_id", clinic.id).eq("phone_number", from).limit(1).maybeSingle();
 
       const { data: recentAppts } = await sb.from("appointments")
@@ -2469,10 +2469,38 @@ Deno.serve(async (req) => {
         } catch (e) { console.error("[Meta] schedulingContext lookup failed:", e); }
       }
 
-      // CAPI: LeadSubmitted (before ai_auto_respond check — fires even when AI is off)
-      if (!tutor && ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
-        const capiResult = await sendMetaCAPIEvent(clinic.meta_pixel_id, clinic.meta_capi_token, "LeadSubmitted", from, ctwaClid, undefined, clinic.meta_test_event_code || undefined, clinic.meta_page_id || undefined);
-        await debugLog(sb, `[META CAPI] LeadSubmitted for ${from}`, capiResult);
+      // ===== META CAPI (antes del chequeo de ai_auto_respond: funciona con la IA apagada) =====
+      // 1) Persistir ctwa_clid. Meta solo lo adjunta en el mensaje que resulta de tocar el
+      //    anuncio; la cita se crea varios mensajes (y varias invocaciones) después, así que
+      //    sin guardarlo aquí el evento Purchase nunca puede enviarse. Este paso faltaba en el
+      //    webhook de Meta desde la migración de agosto (solo existía en el de YCloud).
+      if (ctwaClid && !(tutor as any)?.ctwa_clid) {
+        try {
+          if (tutor) {
+            await sb.from("tutors").update({ ctwa_clid: ctwaClid }).eq("id", (tutor as any).id).is("ctwa_clid", null);
+          } else {
+            await sb.from("tutors").upsert({
+              clinic_id: clinic.id, phone_number: normalizePhone(from), name: "Sin nombre", ctwa_clid: ctwaClid,
+            }, { onConflict: "clinic_id,phone_number", ignoreDuplicates: false });
+          }
+        } catch (e) { await debugLog(sb, "[META CAPI] No se pudo guardar ctwa_clid", { from, error: String(e) }); }
+      }
+
+      // 2) LeadSubmitted solo cuando el contacto sostiene la conversación (3 mensajes suyos).
+      //    Con el primer mensaje, "cliente potencial" = "conversación iniciada" y Meta
+      //    optimiza hacia gente que solo saluda. El inbound actual ya se guardó arriba.
+      const leadCtwaClid = (tutor as any)?.ctwa_clid || ctwaClid;
+      if (leadCtwaClid && !(tutor as any)?.capi_lead_sent_at && clinic.meta_pixel_id && clinic.meta_capi_token) {
+        const LEAD_MIN_INBOUND = 3;
+        const { count: inboundCount } = await sb.from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinic.id).eq("phone_number", from).eq("direction", "inbound");
+        if ((inboundCount ?? 0) >= LEAD_MIN_INBOUND) {
+          const capiResult = await sendMetaCAPIEvent(clinic.meta_pixel_id, clinic.meta_capi_token, "LeadSubmitted", from, leadCtwaClid, undefined, clinic.meta_test_event_code || undefined, clinic.meta_page_id || undefined);
+          await sb.from("tutors").update({ capi_lead_sent_at: new Date().toISOString() })
+            .eq("clinic_id", clinic.id).eq("phone_number", normalizePhone(from)).is("capi_lead_sent_at", null);
+          await debugLog(sb, `[META CAPI] LeadSubmitted(qualified, ${inboundCount} msgs) for ${from}`, capiResult);
+        }
       }
 
       // CRM auto-sync
@@ -3155,10 +3183,15 @@ ${pendingFeedbackSurvey ? `\n⚠️ CONTEXTO ESPECIAL — ENCUESTA DE SATISFACCI
           }
 
           // CAPI Purchase event
-          if (ctwaClid && clinic.meta_pixel_id && clinic.meta_capi_token) {
+          // Usa el ctwa_clid persistido en el primer contacto (el mensaje que agenda casi
+          // nunca lo trae). capi_purchase_sent_at evita duplicar con meta-capi-purchase.
+          const purchaseCtwaClid = (tutor as any)?.ctwa_clid || ctwaClid;
+          if (purchaseCtwaClid && !(tutor as any)?.capi_purchase_sent_at && clinic.meta_pixel_id && clinic.meta_capi_token) {
             const apptResult = allFuncResults.find(r => r.name === "create_appointment" && r.result?.success === true);
             if (apptResult) {
-              const capiResult = await sendMetaCAPIEvent(clinic.meta_pixel_id, clinic.meta_capi_token, "Purchase", from, ctwaClid, undefined, clinic.meta_test_event_code || undefined, clinic.meta_page_id || undefined);
+              const capiResult = await sendMetaCAPIEvent(clinic.meta_pixel_id, clinic.meta_capi_token, "Purchase", from, purchaseCtwaClid, undefined, clinic.meta_test_event_code || undefined, clinic.meta_page_id || undefined);
+              await sb.from("tutors").update({ capi_purchase_sent_at: new Date().toISOString() })
+                .eq("clinic_id", clinic.id).eq("phone_number", normalizePhone(from)).is("capi_purchase_sent_at", null);
               await debugLog(sb, `[META CAPI] Purchase(appointment) for ${from}`, capiResult);
             }
           }
