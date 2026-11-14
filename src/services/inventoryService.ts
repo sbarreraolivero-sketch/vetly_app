@@ -83,12 +83,14 @@ export const inventoryService = {
         if (error) throw error
     },
 
-    // Solo una ubicación puede ser activa para ventas a la vez
-    async setActiveForSales(locationId: string, clinicId: string): Promise<void> {
+    // Solo una ubicación puede ser activa para ventas a la vez. Se hace en UNA
+    // sentencia en la base (RPC): antes eran dos updates sueltos y, si fallaba el
+    // segundo, la clínica quedaba sin ubicación activa y las ventas descontaban
+    // stock sin ubicación.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async setActiveForSales(locationId: string, _clinicId?: string): Promise<void> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sb = supabase as any
-        await sb.from('inventory_locations').update({ is_active_for_sales: false }).eq('clinic_id', clinicId)
-        const { error } = await sb.from('inventory_locations').update({ is_active_for_sales: true }).eq('id', locationId)
+        const { error } = await (supabase as any).rpc('set_active_sales_location', { p_location_id: locationId })
         if (error) throw error
     },
 
@@ -173,10 +175,16 @@ export const inventoryService = {
     },
 
     async updateProduct(id: string, updates: Partial<InventoryProduct>): Promise<InventoryProduct> {
+        // `stock_quantity` NUNCA se escribe directo: solo lo mueve el trigger de
+        // inventory_movements. Si viajara aquí, el formulario de edición (abierto
+        // antes de una venta) pisaría el stock con un valor viejo y además
+        // descuadraría el stock por ubicación (inventory_stock).
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { stock_quantity, id: _id, clinic_id, created_at, updated_at, ...safe } = updates as any
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
             .from('inventory_products')
-            .update(updates)
+            .update(safe)
             .eq('id', id)
             .select()
             .single()
@@ -306,122 +314,13 @@ export const inventoryService = {
         }
     },
 
-    // ── Sync de stock para ventas registradas vía "+ Ingreso" ────────────
-    // Los productos seleccionados en NewIncomeForm se guardan en incomes.services
-    // pero nunca generaban un movimiento de inventario — el stock nunca se
-    // descontaba. Esta función crea/reconcilia esos movimientos, idempotente
-    // ante ediciones: revierte los movimientos 'sale' que quedaron ligados a
-    // este income (income_id) con un 'adjustment' de signo contrario y los
-    // desvincula, luego inserta un 'sale' fresco por cada producto vigente.
-    // Nunca debe bloquear el guardado del ingreso — el llamador la envuelve
-    // en try/catch y solo loguea si falla.
-    // Recibe TODOS los ítems de la venta (no solo los productos): un servicio
-    // vinculado a un producto de inventario — ej. el servicio "Vacuna Antirrábica"
-    // vinculado al producto "Vacuna antirrábica" — también consume stock, aunque
-    // el ingreso se atribuya al servicio.
-    async syncIncomeProductMovements(params: {
-        clinicId: string
-        incomeId: string
-        items: Array<{ id?: string; name?: string; price?: number; type?: string; quantity?: number }>
-        tutorId?: string | null
-        locationId?: string | null
-    }): Promise<void> {
-        const sb = supabase as any
-        // Los ítems libres traen un id sintético ("custom-<ts>-<rand>"), no un UUID.
-        const isUuid = (v: unknown): v is string =>
-            typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-
-        // Un mismo producto puede consumirse por varias vías en la misma venta
-        // (vendido directo + vinculado a un servicio): se acumulan.
-        const consumption = new Map<string, { qty: number; unitPrice: number }>()
-        const addConsumption = (productId: string, qty: number, unitPrice: number) => {
-            const prev = consumption.get(productId)
-            if (prev) prev.qty += qty
-            else consumption.set(productId, { qty, unitPrice })
-        }
-
-        const items = params.items ?? []
-
-        // 1. Productos elegidos explícitamente en la venta.
-        // `it.price` es el TOTAL de la línea (unitario × cantidad), así que se divide
-        // para obtener el unitario que espera addConsumption. Antes cada unidad era
-        // una fila repetida del array; ahora una sola fila puede traer cantidad > 1.
-        for (const it of items) {
-            if (it?.type === 'product' && isUuid(it.id)) {
-                const qty = Math.max(1, Number(it.quantity) || 1)
-                addConsumption(it.id, qty, (Number(it.price) || 0) / qty)
-            }
-        }
-
-        // 2. Servicios con producto vinculado.
-        const serviceIds = items
-            .filter(it => it?.type === 'service' && isUuid(it.id))
-            .map(it => it.id as string)
-
-        if (serviceIds.length > 0) {
-            const { data: linked, error: linkErr } = await sb
-                .from('clinic_services')
-                .select('id, linked_product_id, linked_product_qty')
-                .in('id', serviceIds)
-                .not('linked_product_id', 'is', null)
-            if (linkErr) throw linkErr
-
-            const byId = new Map<string, any>((linked ?? []).map((s: any) => [s.id, s]))
-            for (const it of items) {
-                if (it?.type !== 'service' || !isUuid(it.id)) continue
-                const svc = byId.get(it.id)
-                if (!svc?.linked_product_id) continue
-                // El consumo escala con la cantidad del servicio vendido: 3 vacunas
-                // aplicadas consumen 3 dosis del producto vinculado, no una.
-                const qty = (Number(svc.linked_product_qty) || 1) * Math.max(1, Number(it.quantity) || 1)
-                // El precio se reparte entre las unidades consumidas para que el
-                // análisis ABC de inventario no infle los ingresos del producto.
-                addConsumption(svc.linked_product_id, qty, (Number(it.price) || 0) / qty)
-            }
-        }
-
-        const { data: existing, error: fetchErr } = await sb
-            .from('inventory_movements')
-            .select('id, product_id, quantity, location_id')
-            .eq('income_id', params.incomeId)
-            .eq('type', 'sale')
-        if (fetchErr) throw fetchErr
-
-        if (existing && existing.length > 0) {
-            const reversals = existing.map((m: any) => ({
-                clinic_id:   params.clinicId,
-                product_id:  m.product_id,
-                type:        'adjustment' as const,
-                quantity:    Math.abs(m.quantity),
-                location_id: m.location_id,
-                notes:       'Reversión automática por edición/eliminación de ingreso',
-            }))
-            const { error: revErr } = await sb.from('inventory_movements').insert(reversals)
-            if (revErr) throw revErr
-
-            const { error: detachErr } = await sb
-                .from('inventory_movements')
-                .update({ income_id: null })
-                .eq('income_id', params.incomeId)
-                .eq('type', 'sale')
-            if (detachErr) throw detachErr
-        }
-
-        if (consumption.size > 0) {
-            const rows = Array.from(consumption.entries()).map(([productId, c]) => ({
-                clinic_id:   params.clinicId,
-                product_id:  productId,
-                type:        'sale' as const,
-                quantity:    -c.qty,
-                unit_price:  c.unitPrice,
-                income_id:   params.incomeId,
-                tutor_id:    params.tutorId ?? null,
-                location_id: params.locationId ?? null,
-            }))
-            const { error: saleErr } = await sb.from('inventory_movements').insert(rows)
-            if (saleErr) throw saleErr
-        }
-    },
+    // ── Stock de las ventas registradas vía "+ Ingreso" ───────────────────
+    // Lo reconcilia la BASE DE DATOS, no el navegador: el trigger
+    // `tr_income_inventory_sync` sobre `incomes` lee `incomes.services` y
+    // descuenta/ajusta el stock en la MISMA transacción que guarda la venta;
+    // `tr_income_inventory_revert_on_delete` lo devuelve al borrarla.
+    // (migración 20261114120000_inventory_sync_atomic). No reintroducir un
+    // sync desde el cliente: no era atómico y fallaba en silencio.
 
     async getAppointmentItems(appointmentId: string): Promise<AppointmentItem[]> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

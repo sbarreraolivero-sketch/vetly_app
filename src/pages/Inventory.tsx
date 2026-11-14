@@ -982,7 +982,7 @@ const Inventory = () => {
                                 </thead>
                                 <tbody className="divide-y divide-silk-beige/40">
                                     {movements.map(m => (
-                                        <tr key={m.id} className="hover:bg-ivory/50">
+                                        <tr key={m.id} className={cn("hover:bg-ivory/50", (m as any).voided && "opacity-50")}>
                                             <td className="px-4 py-3 text-charcoal/60">
                                                 {format(new Date(m.created_at), 'dd MMM, HH:mm', { locale: es })}
                                             </td>
@@ -991,6 +991,14 @@ const Inventory = () => {
                                                 <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", MOVEMENT_COLORS[m.type] ?? 'text-charcoal/60 bg-charcoal/5')}>
                                                     {MOVEMENT_LABELS[m.type] ?? m.type}
                                                 </span>
+                                                {/* Venta reemplazada al editar/borrar el ingreso, o la reversión
+                                                    que la compensa: suman 0 en el stock y no cuentan en reportes. */}
+                                                {(m as any).voided && (
+                                                    <span className="ml-1.5 text-[10px] font-semibold text-charcoal/50 uppercase tracking-wide"
+                                                        title="Venta reemplazada por una edición o eliminación del ingreso (neto 0 en stock)">
+                                                        Anulado
+                                                    </span>
+                                                )}
                                             </td>
                                             {hasMultipleLocations && (
                                                 <td className="px-4 py-3 text-xs text-charcoal/50">

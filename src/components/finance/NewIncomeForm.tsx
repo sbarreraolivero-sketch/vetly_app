@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { X, Search, Plus, Minus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine, Gift, Sparkles } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { X, Search, Plus, Minus, Trash2, Calculator, Percent, Tag, Package, FileText, CreditCard, PenLine, Gift, Sparkles, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
@@ -159,6 +159,11 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     // Productos del inventario
     const [availableProducts, setAvailableProducts] = useState<ProductOption[]>([])
     const [filteredProducts, setFilteredProducts] = useState<ProductOption[]>([])
+    // Stock de TODOS los productos activos (incluye materiales: un servicio puede
+    // estar vinculado a uno que no se vende suelto) y vínculo servicio → producto.
+    // Solo se usan para AVISAR; el descuento real lo hace un trigger en la base.
+    const [stockById, setStockById] = useState<Map<string, { name: string; stock: number }>>(new Map())
+    const [serviceLinks, setServiceLinks] = useState<Map<string, { productId: string; qty: number }>>(new Map())
     const [productSearch, setProductSearch] = useState('')
     const [selectedProducts, setSelectedProducts] = useState<ProductOption[]>([])
     const [showProductDropdown, setShowProductDropdown] = useState(false)
@@ -215,8 +220,8 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
             if (!clinicId) return
             const [tutorsRes, servicesRes, productsRes, clinicRes] = await Promise.all([
                 supabase.from('tutors').select('id, name, loyalty_points, referred_by').eq('clinic_id', clinicId).order('name'),
-                (supabase as any).from('clinic_services').select('id, name, price').eq('clinic_id', clinicId).order('name'),
-                (supabase as any).from('inventory_products').select('id, name, sale_price').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
+                (supabase as any).from('clinic_services').select('id, name, price, linked_product_id, linked_product_qty').eq('clinic_id', clinicId).order('name'),
+                (supabase as any).from('inventory_products').select('id, name, sale_price, stock_quantity, is_for_sale').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
                 (supabase as any).from('clinic_settings').select(
                     'currency, iva_enabled, iva_rate, loyalty_enabled, loyalty_points_percentage, ' +
                     'loyalty_welcome_bonus, loyalty_welcome_bonus_type, loyalty_referral_bonus, ' +
@@ -240,10 +245,25 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 }
             }
 
-            if (servicesRes.data) setAvailableServices(servicesRes.data as ServiceOption[])
+            if (servicesRes.data) {
+                setAvailableServices((servicesRes.data as any[]).map(s => ({ id: s.id, name: s.name, price: s.price, quantity: 1 })))
+                const links = new Map<string, { productId: string; qty: number }>()
+                for (const s of servicesRes.data as any[]) {
+                    if (s.linked_product_id) links.set(s.id, { productId: s.linked_product_id, qty: Math.max(1, Number(s.linked_product_qty) || 1) })
+                }
+                setServiceLinks(links)
+            }
 
             if (productsRes.data) {
-                const prods = productsRes.data.map((p: any) => ({ id: p.id, name: p.name, price: p.sale_price ?? 0 }))
+                const stock = new Map<string, { name: string; stock: number }>()
+                for (const p of productsRes.data as any[]) stock.set(p.id, { name: p.name, stock: Number(p.stock_quantity) || 0 })
+                setStockById(stock)
+                // Los materiales (is_for_sale = false: pinzas, jeringas…) no se venden
+                // sueltos. Si un ingreso antiguo ya traía uno, se conserva al editar
+                // porque el pre-rellenado lee editingIncome.services, no esta lista.
+                const prods = (productsRes.data as any[])
+                    .filter(p => p.is_for_sale !== false)
+                    .map(p => ({ id: p.id, name: p.name, price: p.sale_price ?? 0, quantity: 1 }))
                 setAvailableProducts(prods)
                 setFilteredProducts(prods)
             }
@@ -349,6 +369,46 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const filteredServices = serviceSearch.trim()
         ? availableServices.filter(sv => norm(sv.name).includes(norm(serviceSearch.trim())))
         : availableServices
+
+    // ── Aviso de stock insuficiente (no bloquea) ──────────────────────────
+    // Mismo cálculo que el trigger de la base: productos directos + servicios
+    // vinculados (dosis × cantidad). En edición, lo que ESTA venta ya descontó
+    // se suma al disponible para no avisar por unidades que ya son suyas.
+    const consumptionOf = (lines: Array<{ id: string; type: string; quantity: number }>) => {
+        const m = new Map<string, number>()
+        for (const l of lines) {
+            const q = Math.max(1, Number(l.quantity) || 1)
+            if (l.type === 'product') m.set(l.id, (m.get(l.id) ?? 0) + q)
+            else if (l.type === 'service') {
+                const link = serviceLinks.get(l.id)
+                if (link) m.set(link.productId, (m.get(link.productId) ?? 0) + link.qty * q)
+            }
+        }
+        return m
+    }
+    const originalConsumption = useMemo(() => consumptionOf(
+        (editingIncome?.services ?? []).map((s: any) => ({ id: s.id, type: s.type, quantity: s.quantity }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [editingIncome, serviceLinks])
+    const stockWarnings = useMemo(() => {
+        const current = consumptionOf([
+            ...selectedProducts.map(p => ({ id: p.id, type: 'product', quantity: p.quantity })),
+            ...selectedServices.map(s => ({ id: s.id, type: 'service', quantity: s.quantity })),
+        ])
+        const out: Array<{ name: string; available: number; needed: number }> = []
+        current.forEach((needed, productId) => {
+            const info = stockById.get(productId)
+            if (!info) return
+            const available = info.stock + (originalConsumption.get(productId) ?? 0)
+            if (needed > available) out.push({ name: info.name, available, needed })
+        })
+        return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedProducts, selectedServices, stockById, serviceLinks, originalConsumption])
+    const stockOf = (productId: string) => {
+        const info = stockById.get(productId)
+        return info ? info.stock + (originalConsumption.get(productId) ?? 0) : null
+    }
 
     const serviceSubtotal = selectedServices.reduce((sum, s) => sum + Number(s.price || 0) * (s.quantity || 1), 0)
     const productSubtotal = selectedProducts.reduce((sum, p) => sum + Number(p.price || 0) * (p.quantity || 1), 0)
@@ -887,8 +947,15 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                 {filteredProducts.slice(0, 20).map(product => (
                                     <div key={product.id} onClick={() => addProduct(product)}
                                         className="px-4 py-2 hover:bg-silk-beige cursor-pointer text-sm text-charcoal flex justify-between transition-colors">
-                                        <span>{product.name}</span>
-                                        <span className="font-medium text-violet-600">{formatMoney(product.price)}</span>
+                                        <span className="min-w-0 truncate">
+                                            {product.name}
+                                            {stockOf(product.id) !== null && (
+                                                <span className={cn('ml-2 text-xs', (stockOf(product.id) ?? 0) <= 0 ? 'text-red-500' : 'text-charcoal/40')}>
+                                                    Stock: {stockOf(product.id)}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="font-medium text-violet-600 shrink-0">{formatMoney(product.price)}</span>
                                     </div>
                                 ))}
                             </div>
@@ -918,6 +985,20 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                        {stockWarnings.length > 0 && (
+                            <div className="mt-2 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-semibold">Stock insuficiente en inventario</p>
+                                    {stockWarnings.map(w => (
+                                        <p key={w.name}>
+                                            {w.name}: vendes {w.needed}, hay {w.available} → quedaría en {w.available - w.needed}
+                                        </p>
+                                    ))}
+                                    <p className="mt-0.5 text-amber-700/80">Puedes guardar igual. Revisa el inventario o registra la compra que falta.</p>
+                                </div>
                             </div>
                         )}
                     </div>

@@ -37,7 +37,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useClinicTimezone } from '@/hooks/useClinicTimezone'
 import { supabase } from '@/lib/supabase'
 import { financeService, type Expense, type Income } from '@/services/financeService'
-import { inventoryService } from '@/services/inventoryService'
 import { CajaDelDia, CloseCajaModal } from '@/components/finance/CajaDelDia'
 import { CajaExpenseModal } from '@/components/finance/CajaExpenseModal'
 import { printCajaReport } from '@/components/finance/CajaReport'
@@ -418,27 +417,9 @@ const Finance = () => {
     }
 
     // ── Income handlers ──
-    // Los productos de un ingreso manual (incomeData.services, type='product') nunca
-    // descontaban stock — se registraba el ingreso pero el inventario no se enteraba.
-    // Esta función crea/reconcilia los movimientos de inventario correspondientes.
-    // Nunca debe bloquear el guardado/borrado del ingreso: solo loguea si falla.
-    const syncProductStockForIncome = async (incomeId: string, services: any[] | undefined, tutorId?: string) => {
-        if (!clinicId) return
-        try {
-            const location = await inventoryService.getActiveForSalesLocation(clinicId)
-            await inventoryService.syncIncomeProductMovements({
-                clinicId,
-                incomeId,
-                // Se pasan TODOS los ítems: los servicios vinculados a un producto
-                // de inventario también descuentan stock (ej. una vacuna).
-                items: services ?? [],
-                tutorId: tutorId ?? null,
-                locationId: location?.id ?? null,
-            })
-        } catch (error) {
-            console.warn('No se pudo sincronizar el stock para este ingreso:', error)
-        }
-    }
+    // El stock de los productos (y servicios vinculados) de cada venta lo
+    // reconcilia un trigger en la base, en la misma transacción que guarda,
+    // edita o borra el ingreso. Aquí no hay que hacer nada de inventario.
 
     const handleAddIncome = async (incomeData: { description: string, amount: number, discount?: number, discount_reason?: string, iva_amount?: number, category: string, date: string, tutor_id?: string, services?: any[], notes?: string, payment_method?: string, loyalty_redeemed?: number, referrer_id?: string }) => {
         if (!clinicId) { toast.error('No se pudo identificar la clínica'); return }
@@ -458,7 +439,7 @@ const Finance = () => {
                 }
             }
 
-            const created = await financeService.addIncome({
+            await financeService.addIncome({
                 clinic_id:       clinicId,
                 description:     incomeData.description,
                 amount:          incomeData.amount,
@@ -473,7 +454,6 @@ const Finance = () => {
                 payment_method:  incomeData.payment_method,
                 loyalty_redeemed: incomeData.loyalty_redeemed ?? 0,
             } as any)
-            if (created?.id) await syncProductStockForIncome(created.id, incomeData.services, incomeData.tutor_id)
             toast.success('Ingreso registrado')
             setShowIncomeModal(false)
             loadData()
@@ -501,7 +481,6 @@ const Finance = () => {
                 payment_method:  incomeData.payment_method,
                 loyalty_redeemed: incomeData.loyalty_redeemed ?? 0,
             } as any)
-            await syncProductStockForIncome(editingIncome.id, incomeData.services, incomeData.tutor_id)
             toast.success('Ingreso actualizado')
             setEditingIncome(null)
             loadData()
@@ -521,10 +500,8 @@ const Finance = () => {
         const prevIncomes = incomes
         patchFinance(d => ({ ...d, incomes: d.incomes.filter(i => i.id !== incomeId) }))
         try {
-            // Revertir el stock ANTES de borrar — al borrar el ingreso, el FK de
-            // inventory_movements.income_id (ON DELETE SET NULL) desvincularía los
-            // movimientos y ya no podríamos encontrarlos para revertirlos.
-            await syncProductStockForIncome(incomeId, [])
+            // El trigger tr_income_inventory_revert_on_delete devuelve el stock en
+            // la misma transacción del borrado.
             await financeService.deleteIncome(incomeId)
             toast.success('Ingreso eliminado')
             loadData() // re-sincroniza totales y cajas en segundo plano
