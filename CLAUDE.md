@@ -8282,3 +8282,29 @@ Socios activos:
 | Correo | Clínica | clinic_id | Desde |
 |---|---|---|---|
 | consultavetfriend@gmail.com | Fiorela Pablo Figueroa | `08c38712-1d33-4f2f-b8eb-2a2b8131919d` | 2026-11-08 |
+
+---
+
+## Cambios realizados — noviembre 2026 (sesión 119, 2026-11-14) — commit `f47be4a`
+
+### Auditoría de Inventario ↔ formulario de venta — sincronización de stock movida a la base
+
+**Hallazgos (con datos reales):** 22 productos activos con stock negativo (Linares 13, Santiago 6, Vida Animal 3; vacunas de Santiago hasta −55: compras no registradas, no error de cálculo); 52 ventas reemplazadas por ediciones seguían como `sale` e inflaban el ABC y "sin rotación"; el sync desde el navegador era de 3 pasos no atómicos con fallo silencioso (1 venta real de Linares del 31‑ago con Nexgard combo 2.5–7.5 kg nunca descontó stock); al editar se descontaba de la ubicación activa de hoy, no la original; el formulario ofrecía materiales (`is_for_sale = false`); `updateProduct` reescribía `stock_quantity` con el valor del modal.
+
+**Fix (migración `20261114120000_inventory_sync_atomic.sql`):**
+- `inventory_movements.voided` — venta reemplazada + su reversión (neto 0). Backfill: 52 pares.
+- `income_inventory_consumption(clinic, services)` — consumo según `incomes.services` (productos directos + servicios vinculados × dosis).
+- `reconcile_income_inventory(...)` — no-op si no cambió; si cambió, revierte (anula y desvincula) y descuenta en la **ubicación original**.
+- Triggers en `incomes`: `tr_income_inventory_sync` (AFTER INSERT/UPDATE OF services, tutor_id) y `tr_income_inventory_revert_on_delete` (BEFORE DELETE). Mismo transacción que la venta: si falla, la venta no se guarda.
+- `set_active_sales_location(location)` — una sola sentencia.
+- `get_inventory_abc` / `get_inventory_no_rotation` excluyen `voided`.
+- Probado en transacción con rollback (crear −2/−3, editar, re-guardar sin movimientos, borrar devuelve todo) en Los Robles.
+
+**Frontend:** `syncIncomeProductMovements` eliminado (Finance ya no sincroniza); `updateProduct` descarta `stock_quantity`; `NewIncomeForm` filtra `is_for_sale`, muestra stock y avisa (sin bloquear) si la venta deja negativo; Movimientos marca "Anulado".
+
+**Pendiente (acción humana):** recontar/cargar compras de los 22 negativos con ajustes; decidir el Nexgard del 31‑ago (Linares) — al editar esa venta el trigger lo descontará.
+
+### Reglas permanentes
+- **El stock de una venta lo mueve SOLO el trigger de `incomes`.** No reintroducir sincronización desde el cliente.
+- **Los reportes de ventas de inventario deben filtrar `NOT voided`.**
+- **`stock_quantity` nunca se escribe directo**: solo vía INSERT en `inventory_movements`.
