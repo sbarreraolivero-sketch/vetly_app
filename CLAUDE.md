@@ -8308,3 +8308,10 @@ Socios activos:
 - **El stock de una venta lo mueve SOLO el trigger de `incomes`.** No reintroducir sincronización desde el cliente.
 - **Los reportes de ventas de inventario deben filtrar `NOT voided`.**
 - **`stock_quantity` nunca se escribe directo**: solo vía INSERT en `inventory_movements`.
+
+### Traspasos bodega ↔ vehículo (misma sesión 119) — migración `20261114130000_transfer_inventory_batch.sql`
+- **Por qué "no existía":** el modal sí existía pero el botón solo aparecía con 2+ inventarios, y ninguna clínica activa (Animalgrace ×2, Vida Animal) tenía un segundo inventario. Ahora el botón está siempre; con uno solo, el modal ofrece crear el segundo y continúa.
+- **Bugs corregidos:** el modal mostraba/validaba el stock de la pestaña abierta, no del origen elegido; un inventario recién creado (vacío) mostraba el stock total del producto (`getLocStock` caía al total si el mapa estaba vacío) — ahora con 2+ ubicaciones se muestra el stock real de la ubicación.
+- **Varios productos por traspaso** + botón invertir dirección + "Todo". RPC `transfer_inventory_batch(clinic, from, to, items jsonb, notes)`: todo o nada, valida stock por línea con el nombre del producto, reutiliza `transfer_inventory`.
+- Verificado en navegador real (Playwright) en Los Robles: crear 2º inventario, ida 3 u., vuelta invertida con "Todo", pestaña vehículo en 0.
+- Animalgrace (ambas) tiene 0 productos con stock por ubicación menor al total → pueden traspasar todo. Los Robles (prueba) tiene el stock cargado sin movimientos → nada traspasable allí.
