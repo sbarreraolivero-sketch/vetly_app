@@ -5,7 +5,7 @@ import {
     Edit2, Trash2, X, Boxes,
     FlaskConical, Syringe, Apple, Tag,
     Wrench, Clock, CheckCircle2, Sparkles,
-    Truck, Warehouse, Settings, ArrowLeftRight, ChevronRight,
+    Truck, Warehouse, Settings, ArrowLeftRight, Minus, ArrowUpDown,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import {
@@ -125,10 +125,13 @@ const Inventory = () => {
     // ── Transfer modal ─────────────────────────────────────────────────
     const [showTransferModal, setShowTransferModal] = useState(false)
     const [transferSearch, setTransferSearch] = useState('')
-    const [transferProduct, setTransferProduct] = useState<InventoryProduct | null>(null)
+    // Varias líneas por traspaso: cargar el vehículo en la mañana son muchos productos.
+    const [transferLines, setTransferLines] = useState<Array<{ product: InventoryProduct; qty: number }>>([])
     const [transferFromId, setTransferFromId] = useState<string | null>(null)
     const [transferToId, setTransferToId] = useState<string | null>(null)
-    const [transferQty, setTransferQty] = useState(1)
+    // Stock del ORIGEN elegido en el modal (no el de la pestaña abierta).
+    const [transferFromStock, setTransferFromStock] = useState<Map<string, number>>(new Map())
+    const [loadingFromStock, setLoadingFromStock] = useState(false)
     const [transferNotes, setTransferNotes] = useState('')
     const [transferring, setTransferring] = useState(false)
 
@@ -159,14 +162,17 @@ const Inventory = () => {
     // ── Stock de la ubicación activa ───────────────────────────────────
     // Si el mapa está vacío (inventory_stock sin entradas para esta ubicación),
     // cae de vuelta al stock_quantity total del producto como medida de seguridad.
+    // Con UN inventario se muestra el total del producto. Con dos, el de la
+    // ubicación: un inventario recién creado (vehículo) está vacío y debe verse
+    // en 0 — antes caía al total y parecía que todo el stock estaba en el vehículo.
     const getLocStock = (p: InventoryProduct): number => {
-        if (!locationStockMap.size) return p.stock_quantity
+        if (!hasMultipleLocations) return p.stock_quantity
         return locationStockMap.get(p.id) ?? 0
     }
 
     // ── Stats calculados desde el mapa de ubicación ────────────────────
     const displayStats = useMemo(() => {
-        if (!locationStockMap.size || !hasMultipleLocations) return stats
+        if (!hasMultipleLocations) return stats
         const today = new Date()
         const in30 = new Date(today); in30.setDate(in30.getDate() + 30)
         const active = products.filter(p => p.is_active)
@@ -315,8 +321,13 @@ const Inventory = () => {
         return matchView && matchSearch && matchCat
     })
 
+    const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    // Solo productos con stock en el ORIGEN y que no estén ya en el traspaso.
     const transferFilteredProducts = products.filter(p =>
-        p.is_active && (!transferSearch || p.name.toLowerCase().includes(transferSearch.toLowerCase()))
+        p.is_active
+        && (transferFromStock.get(p.id) ?? 0) > 0
+        && !transferLines.some(l => l.product.id === p.id)
+        && (!transferSearch || norm(p.name).includes(norm(transferSearch)))
     )
 
     // ── Handlers ───────────────────────────────────────────────────────
@@ -480,31 +491,84 @@ const Inventory = () => {
     // ── Transfer handler ───────────────────────────────────────────────
 
     const openTransfer = () => {
-        if (locations.length < 2) return
-        setTransferProduct(null)
+        setTransferLines([])
         setTransferSearch('')
-        setTransferQty(1)
         setTransferNotes('')
-        // Por defecto: from = ubicación activa, to = la otra
-        const other = locations.find(l => l.id !== activeLocationId)
-        setTransferFromId(activeLocationId)
-        setTransferToId(other?.id ?? null)
+        // Por defecto: origen = pestaña abierta, destino = la otra ubicación.
+        // Con un solo inventario el modal ofrece crear el segundo primero.
+        const from = locations.length > 1 ? activeLocationId : null
+        setTransferFromId(from)
+        setTransferToId(from ? (locations.find(l => l.id !== from)?.id ?? null) : null)
         setShowTransferModal(true)
     }
 
+    // Al crear el 2º inventario desde el modal, dejar el traspaso listo:
+    // bodega → nuevo inventario.
+    useEffect(() => {
+        if (!showTransferModal || transferFromId || locations.length < 2) return
+        const main = locations.find(l => l.is_active_for_sales) ?? locations[0]
+        setTransferFromId(main.id)
+        setTransferToId(locations.find(l => l.id !== main.id)?.id ?? null)
+    }, [showTransferModal, locations, transferFromId])
+
+    // Stock del origen elegido en el modal.
+    useEffect(() => {
+        if (!showTransferModal || !transferFromId) return
+        let cancelled = false
+        setLoadingFromStock(true)
+        inventoryService.getLocationStockMap(transferFromId)
+            .then(m => { if (!cancelled) setTransferFromStock(m) })
+            .catch(() => { if (!cancelled) setTransferFromStock(new Map()) })
+            .finally(() => { if (!cancelled) setLoadingFromStock(false) })
+        return () => { cancelled = true }
+    }, [showTransferModal, transferFromId])
+
+    const swapTransferDirection = () => {
+        if (!transferFromId || !transferToId) return
+        setTransferFromId(transferToId)
+        setTransferToId(transferFromId)
+        setTransferLines([])   // el stock disponible cambia con el origen
+    }
+
+    const addTransferLine = (p: InventoryProduct) => {
+        setTransferLines(prev => [...prev, { product: p, qty: 1 }])
+        setTransferSearch('')
+    }
+    const setTransferLineQty = (productId: string, qty: number) =>
+        setTransferLines(prev => prev.map(l => l.product.id === productId ? { ...l, qty: Math.max(1, Math.floor(qty) || 1) } : l))
+    const removeTransferLine = (productId: string) =>
+        setTransferLines(prev => prev.filter(l => l.product.id !== productId))
+
+    const transferOverStock = transferLines.filter(l => l.qty > (transferFromStock.get(l.product.id) ?? 0))
+    const transferUnits = transferLines.reduce((s, l) => s + l.qty, 0)
+
+    const handleCreateSecondLocation = async () => {
+        if (!newLocName.trim()) return toast.error('El nombre es obligatorio')
+        setAddingLocation(true)
+        try {
+            await inventoryService.createLocation(clinicId!, newLocName.trim(), newLocType)
+            toast.success(`"${newLocName}" creado`)
+            await loadLocations()
+        } catch (e: any) {
+            toast.error(e.message ?? 'Error al crear')
+        } finally {
+            setAddingLocation(false)
+        }
+    }
+
     const handleTransfer = async () => {
-        if (!transferProduct || !transferFromId || !transferToId || transferQty <= 0) return
+        if (!transferFromId || !transferToId || transferLines.length === 0 || transferOverStock.length > 0) return
         setTransferring(true)
         try {
-            await inventoryService.transferStock({
+            await inventoryService.transferStockBatch({
                 clinicId:       clinicId!,
-                productId:      transferProduct.id,
                 fromLocationId: transferFromId,
                 toLocationId:   transferToId,
-                quantity:       transferQty,
+                items:          transferLines.map(l => ({ productId: l.product.id, quantity: l.qty })),
                 notes:          transferNotes || undefined,
             })
-            toast.success(`Traspaso de ${transferQty} ${UNIT_LABELS[transferProduct.unit]}(s) realizado`)
+            const dest = locations.find(l => l.id === transferToId)?.name ?? 'destino'
+            toast.success(`Traspaso a ${dest}: ${transferLines.length} producto(s), ${transferUnits} unidad(es)`)
             setShowTransferModal(false)
             await Promise.all([loadProducts(), loadLocationStock()])
             if (activeTab === 'movements') await loadMovements()
@@ -514,8 +578,6 @@ const Inventory = () => {
             setTransferring(false)
         }
     }
-
-    const fromLocStock = transferProduct ? getLocStock(transferProduct) : 0
 
     // ── Stock badge ────────────────────────────────────────────────────
 
@@ -630,15 +692,14 @@ const Inventory = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {hasMultipleLocations && (
-                        <button
-                            onClick={openTransfer}
-                            className="flex items-center gap-2 px-4 py-2 bg-sky-50 border border-sky-200 text-sky-700 rounded-xl text-sm font-semibold hover:bg-sky-100 transition-colors"
-                        >
-                            <ArrowLeftRight className="w-4 h-4" />
-                            Traspaso
-                        </button>
-                    )}
+                    {/* Siempre visible: con un solo inventario, el modal ofrece crear el segundo. */}
+                    <button
+                        onClick={openTransfer}
+                        className="flex items-center gap-2 px-4 py-2 bg-sky-50 border border-sky-200 text-sky-700 rounded-xl text-sm font-semibold hover:bg-sky-100 transition-colors"
+                    >
+                        <ArrowLeftRight className="w-4 h-4" />
+                        Traspaso
+                    </button>
                     <button
                         onClick={openLocationSettings}
                         className="flex items-center gap-2 px-3 py-2 text-charcoal/50 hover:text-charcoal border border-silk-beige bg-white rounded-xl text-sm transition-colors"
@@ -1376,145 +1437,215 @@ const Inventory = () => {
             ══════════════════════════════════════════════════════════ */}
             {showTransferModal && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                        <div className="flex items-center justify-between p-5 border-b border-silk-beige">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between p-5 border-b border-silk-beige shrink-0">
                             <h2 className="font-bold text-charcoal text-lg flex items-center gap-2">
                                 <ArrowLeftRight className="w-5 h-5 text-sky-500" />
-                                Traspaso de inventario
+                                Traspaso entre inventarios
                             </h2>
                             <button onClick={() => setShowTransferModal(false)} className="p-1.5 hover:bg-silk-beige rounded-lg">
                                 <X className="w-5 h-5 text-charcoal/60" />
                             </button>
                         </div>
-                        <div className="p-5 space-y-4">
 
-                            {/* Dirección del traspaso */}
-                            <div>
-                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Dirección</label>
-                                <div className="mt-1 flex items-center gap-3">
-                                    <select
-                                        className="flex-1 px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-                                        value={transferFromId ?? ''}
-                                        onChange={e => {
-                                            const fromId = e.target.value
-                                            setTransferFromId(fromId)
-                                            setTransferToId(locations.find(l => l.id !== fromId)?.id ?? null)
-                                        }}
-                                    >
-                                        {locations.map(l => (
-                                            <option key={l.id} value={l.id}>{l.name}</option>
-                                        ))}
-                                    </select>
-                                    <ChevronRight className="w-5 h-5 text-charcoal/40 shrink-0" />
-                                    <div className="flex-1 px-3 py-2 border border-silk-beige rounded-xl text-sm bg-ivory text-charcoal/70">
-                                        {locations.find(l => l.id === transferToId)?.name ?? '—'}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Búsqueda de producto */}
-                            <div>
-                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Producto</label>
-                                {transferProduct ? (
-                                    <div className="mt-1 flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
-                                        <div>
-                                            <p className="font-semibold text-sky-800 text-sm">{transferProduct.name}</p>
-                                            <p className="text-xs text-sky-600">
-                                                Stock en origen: {fromLocStock} {UNIT_LABELS[transferProduct.unit]}(s)
-                                            </p>
-                                        </div>
-                                        <button onClick={() => setTransferProduct(null)} className="text-sky-400 hover:text-sky-600">
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="mt-1 relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
-                                        <input
-                                            className="w-full pl-9 pr-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-                                            placeholder="Buscar producto..."
-                                            value={transferSearch}
-                                            onChange={e => setTransferSearch(e.target.value)}
-                                        />
-                                        {transferSearch && (
-                                            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-silk-beige rounded-xl shadow-lg z-10 max-h-48 overflow-y-auto">
-                                                {transferFilteredProducts.length === 0 ? (
-                                                    <p className="px-4 py-3 text-sm text-charcoal/40">Sin resultados</p>
-                                                ) : transferFilteredProducts.map(p => (
-                                                    <button
-                                                        key={p.id}
-                                                        onClick={() => {
-                                                            setTransferProduct(p)
-                                                            setTransferSearch('')
-                                                            setTransferQty(1)
-                                                        }}
-                                                        className="w-full text-left px-4 py-2.5 hover:bg-sky-50 flex items-center justify-between"
-                                                    >
-                                                        <span className="text-sm font-medium text-charcoal">{p.name}</span>
-                                                        <span className="text-xs text-charcoal/40">
-                                                            {locationStockMap.get(p.id) ?? 0} {UNIT_LABELS[p.unit]}
-                                                        </span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Cantidad */}
-                            <div>
-                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Cantidad a traspasar</label>
-                                <input
-                                    type="number" min="1"
-                                    max={fromLocStock || undefined}
-                                    className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-                                    value={transferQty || ''}
-                                    placeholder="1"
-                                    onChange={e => setTransferQty(Number(e.target.value) || 1)}
-                                />
-                                {transferProduct && transferQty > fromLocStock && (
-                                    <p className="text-xs text-red-500 mt-1">⚠ Stock insuficiente en origen ({fromLocStock} disponible)</p>
-                                )}
-                            </div>
-
-                            {/* Notas */}
-                            <div>
-                                <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Notas (opcional)</label>
-                                <input
-                                    className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-                                    value={transferNotes}
-                                    onChange={e => setTransferNotes(e.target.value)}
-                                    placeholder="Motivo del traspaso..."
-                                />
-                            </div>
-
-                            {/* Preview */}
-                            {transferProduct && (
-                                <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 text-sm">
-                                    <p className="text-sky-700 font-medium">
-                                        {fromLocStock >= transferQty
-                                            ? `Quedarán ${fromLocStock - transferQty} ${UNIT_LABELS[transferProduct.unit]}(s) en ${locations.find(l => l.id === transferFromId)?.name}`
-                                            : '⚠ Stock insuficiente para realizar el traspaso'
-                                        }
+                        {locations.length < 2 ? (
+                            /* ── Paso previo: crear el segundo inventario ── */
+                            <div className="p-5 space-y-4 overflow-y-auto">
+                                <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 text-sm text-sky-800">
+                                    <p className="font-semibold">Necesitas un segundo inventario</p>
+                                    <p className="mt-1 text-sky-700">
+                                        Los traspasos mueven productos entre dos ubicaciones, por ejemplo de la
+                                        bodega al vehículo y de vuelta. Hoy tienes solo <strong>{locations[0]?.name ?? 'un inventario'}</strong>.
                                     </p>
                                 </div>
-                            )}
-                        </div>
+                                <div>
+                                    <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Nombre</label>
+                                    <input
+                                        className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                                        value={newLocName}
+                                        onChange={e => setNewLocName(e.target.value)}
+                                        placeholder="Vehículo"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {([
+                                        { value: 'vehicle' as const, label: 'Vehículo', Icon: Truck },
+                                        { value: 'warehouse' as const, label: 'Bodega / sede', Icon: Warehouse },
+                                    ]).map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => setNewLocType(opt.value)}
+                                            className={cn(
+                                                "flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors",
+                                                newLocType === opt.value ? "border-sky-400 bg-sky-50 text-sky-700" : "border-silk-beige text-charcoal/60 hover:bg-ivory"
+                                            )}
+                                        >
+                                            <opt.Icon className="w-4 h-4" />
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-charcoal/50">
+                                    El nuevo inventario parte vacío. Las ventas siguen descontando de <strong>{locations[0]?.name ?? 'tu inventario actual'}</strong> hasta que cambies cuál está activo para ventas.
+                                </p>
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button onClick={() => setShowTransferModal(false)} className="px-4 py-2 text-sm font-semibold text-charcoal/60 border border-silk-beige rounded-xl">
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleCreateSecondLocation}
+                                        disabled={addingLocation || !newLocName.trim()}
+                                        className="px-5 py-2 text-sm font-semibold bg-sky-500 text-white rounded-xl hover:bg-sky-600 disabled:opacity-50"
+                                    >
+                                        {addingLocation ? 'Creando...' : `Crear "${newLocName.trim() || 'inventario'}" y continuar`}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="p-5 space-y-4 overflow-y-auto">
+                                    {/* Dirección: origen → destino, con botón para invertir */}
+                                    <div>
+                                        <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Desde → Hacia</label>
+                                        <div className="mt-1 flex items-center gap-2">
+                                            <div className="flex-1 px-3 py-2 border border-silk-beige rounded-xl text-sm font-semibold text-charcoal bg-white">
+                                                {locations.find(l => l.id === transferFromId)?.name ?? '—'}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={swapTransferDirection}
+                                                title="Invertir dirección"
+                                                className="p-2 rounded-xl border border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 shrink-0"
+                                            >
+                                                <ArrowUpDown className="w-4 h-4 rotate-90" />
+                                            </button>
+                                            <div className="flex-1 px-3 py-2 border border-silk-beige rounded-xl text-sm font-semibold text-charcoal bg-ivory">
+                                                {locations.find(l => l.id === transferToId)?.name ?? '—'}
+                                            </div>
+                                        </div>
+                                    </div>
 
-                        <div className="flex justify-end gap-3 p-5 border-t border-silk-beige">
-                            <button onClick={() => setShowTransferModal(false)} className="px-4 py-2 text-sm font-semibold text-charcoal/60 border border-silk-beige rounded-xl">
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleTransfer}
-                                disabled={transferring || !transferProduct || !transferFromId || !transferToId || transferQty <= 0 || transferQty > fromLocStock}
-                                className="px-5 py-2 text-sm font-semibold bg-sky-500 text-white rounded-xl hover:bg-sky-600 disabled:opacity-50 flex items-center gap-2"
-                            >
-                                <ArrowLeftRight className="w-4 h-4" />
-                                {transferring ? 'Traspasando...' : 'Confirmar traspaso'}
-                            </button>
-                        </div>
+                                    {/* Buscar productos con stock en el origen */}
+                                    <div>
+                                        <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Agregar productos</label>
+                                        <div className="mt-1 relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
+                                            <input
+                                                className="w-full pl-9 pr-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                                                placeholder={loadingFromStock ? 'Cargando stock...' : 'Buscar producto...'}
+                                                value={transferSearch}
+                                                onChange={e => setTransferSearch(e.target.value)}
+                                                disabled={loadingFromStock}
+                                            />
+                                            {transferSearch && (
+                                                <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-silk-beige rounded-xl shadow-lg z-10 max-h-56 overflow-y-auto">
+                                                    {transferFilteredProducts.length === 0 ? (
+                                                        <p className="px-4 py-3 text-sm text-charcoal/40">Sin productos con stock en el origen</p>
+                                                    ) : transferFilteredProducts.slice(0, 30).map(p => (
+                                                        <button
+                                                            key={p.id}
+                                                            onClick={() => addTransferLine(p)}
+                                                            className="w-full text-left px-4 py-2.5 hover:bg-sky-50 flex items-center justify-between gap-3"
+                                                        >
+                                                            <span className="text-sm font-medium text-charcoal truncate">{p.name}</span>
+                                                            <span className="text-xs text-charcoal/40 shrink-0">
+                                                                {transferFromStock.get(p.id) ?? 0} {UNIT_LABELS[p.unit]}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {!loadingFromStock && transferFromStock.size === 0 && (
+                                            <p className="text-xs text-charcoal/50 mt-1.5">
+                                                {locations.find(l => l.id === transferFromId)?.name} no tiene stock todavía. Invierte la dirección para traspasar hacia este inventario.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Líneas del traspaso */}
+                                    {transferLines.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            {transferLines.map(l => {
+                                                const avail = transferFromStock.get(l.product.id) ?? 0
+                                                const over = l.qty > avail
+                                                return (
+                                                    <div key={l.product.id} className={cn(
+                                                        "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm",
+                                                        over ? "border-red-200 bg-red-50" : "border-sky-100 bg-sky-50/60"
+                                                    )}>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="font-medium text-charcoal truncate">{l.product.name}</p>
+                                                            <p className={cn("text-[11px]", over ? "text-red-500" : "text-charcoal/50")}>
+                                                                Disponible en origen: {avail}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button type="button" onClick={() => setTransferLineQty(l.product.id, l.qty - 1)} className="p-1 rounded-lg border border-silk-beige bg-white text-charcoal/60 hover:bg-ivory" aria-label="Restar">
+                                                                <Minus className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <input
+                                                                type="number" min={1} step={1}
+                                                                value={l.qty}
+                                                                onChange={e => setTransferLineQty(l.product.id, Number(e.target.value))}
+                                                                className="w-14 px-1.5 py-1 border border-silk-beige rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-sky-300"
+                                                            />
+                                                            <button type="button" onClick={() => setTransferLineQty(l.product.id, l.qty + 1)} className="p-1 rounded-lg border border-silk-beige bg-white text-charcoal/60 hover:bg-ivory" aria-label="Sumar">
+                                                                <Plus className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button type="button" onClick={() => setTransferLineQty(l.product.id, avail)} disabled={avail <= 0}
+                                                                className="ml-1 px-2 py-1 text-[11px] font-semibold rounded-lg text-sky-700 hover:bg-sky-100 disabled:opacity-40">
+                                                                Todo
+                                                            </button>
+                                                            <button type="button" onClick={() => removeTransferLine(l.product.id)} className="p-1 text-red-400 hover:text-red-500" aria-label="Quitar">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* Notas */}
+                                    <div>
+                                        <label className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Notas (opcional)</label>
+                                        <input
+                                            className="mt-1 w-full px-3 py-2 border border-silk-beige rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                                            value={transferNotes}
+                                            onChange={e => setTransferNotes(e.target.value)}
+                                            placeholder="Ej: carga para la ruta del día"
+                                        />
+                                    </div>
+
+                                    {transferOverStock.length > 0 && (
+                                        <p className="text-xs text-red-500">
+                                            ⚠ Stock insuficiente en el origen para: {transferOverStock.map(l => l.product.name).join(', ')}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3 p-5 border-t border-silk-beige shrink-0">
+                                    <p className="text-xs text-charcoal/50">
+                                        {transferLines.length > 0 ? `${transferLines.length} producto(s) · ${transferUnits} unidad(es)` : 'Agrega al menos un producto'}
+                                    </p>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setShowTransferModal(false)} className="px-4 py-2 text-sm font-semibold text-charcoal/60 border border-silk-beige rounded-xl">
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleTransfer}
+                                            disabled={transferring || !transferFromId || !transferToId || transferLines.length === 0 || transferOverStock.length > 0}
+                                            className="px-5 py-2 text-sm font-semibold bg-sky-500 text-white rounded-xl hover:bg-sky-600 disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            <ArrowLeftRight className="w-4 h-4" />
+                                            {transferring ? 'Traspasando...' : 'Confirmar traspaso'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

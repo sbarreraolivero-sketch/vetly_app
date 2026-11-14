@@ -138,6 +138,28 @@ export const inventoryService = {
         if (error) throw error
     },
 
+    // Traspaso de varios productos a la vez (ej. cargar el vehículo en la mañana).
+    // Todo o nada: si una línea no tiene stock suficiente en el origen, no se
+    // mueve ninguna y el error indica qué producto falló.
+    async transferStockBatch(params: {
+        clinicId: string
+        fromLocationId: string
+        toLocationId: string
+        items: Array<{ productId: string; quantity: number }>
+        notes?: string
+    }): Promise<number> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).rpc('transfer_inventory_batch', {
+            p_clinic_id:        params.clinicId,
+            p_from_location_id: params.fromLocationId,
+            p_to_location_id:   params.toLocationId,
+            p_items:            params.items.map(i => ({ product_id: i.productId, quantity: i.quantity })),
+            p_notes:            params.notes ?? null,
+        })
+        if (error) throw error
+        return data as number
+    },
+
     // ── Productos ──────────────────────────────────────────────────────
 
     // Solo productos vendibles — usado por VisitClosureModal
