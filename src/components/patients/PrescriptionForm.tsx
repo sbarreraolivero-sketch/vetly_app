@@ -57,6 +57,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
     const [documentType, setDocumentType] = useState<'receta' | 'orden' | 'derivacion'>('receta')
     const [issuedDate, setIssuedDate] = useState(new Date().toISOString().split('T')[0])
     const [diagnosis, setDiagnosis] = useState('')
+    const [includeStamp, setIncludeStamp] = useState(true)
     const [weight, setWeight] = useState<string>(patient.weight ? String(patient.weight) : '')
     const [items, setItems] = useState<PrescriptionItem[]>([emptyItem()])
     const [generalInstructions, setGeneralInstructions] = useState('')
@@ -104,7 +105,7 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                 prescriber_license: prescriberLicense || null,
                 prescriber_title: prescriberTitle || null,
                 prescriber_signature_url: prescriberSignatureUrl || null,
-                prescriber_stamp_url: prescriberStampUrl || null,
+                prescriber_stamp_url: (includeStamp && prescriberStampUrl) || null,
                 document_type: documentType,
                 issued_date: issuedDate,
                 patient_snapshot: {
@@ -180,6 +181,14 @@ export function PrescriptionForm({ patient, tutorName, onClose, onSave }: Prescr
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                             Completa tu título profesional y matrícula en <strong>Configuración → Mi Perfil</strong> para que aparezcan en la receta.
                         </div>
+                    )}
+
+                    {prescriberStampUrl && (
+                        <label className="flex items-center gap-3 p-3 bg-ivory border border-silk-beige rounded-xl cursor-pointer">
+                            <input type="checkbox" checked={includeStamp} onChange={(e) => setIncludeStamp(e.target.checked)} className="w-4 h-4 accent-primary-600" />
+                            <img src={prescriberStampUrl} alt="Timbre" className="h-8 max-w-[80px] object-contain" />
+                            <span className="text-sm text-charcoal/70">Incluir mi timbre/sello en este documento</span>
+                        </label>
                     )}
 
                     <div>
