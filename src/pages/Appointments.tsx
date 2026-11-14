@@ -1502,6 +1502,10 @@ export default function Appointments() {
                     {/* Mobile Calendar View (Google Calendar Style) */}
                     <div className="block md:hidden">
                         <MobileCalendarView
+                            onChangeStatus={(id, st) => {
+                                if (st === 'cancelled' && !confirm('¿Cancelar esta cita?')) return
+                                updateAppointmentStatus(id, st)
+                            }}
                             events={[
                                 ...mappedAppointments,
                             ]}

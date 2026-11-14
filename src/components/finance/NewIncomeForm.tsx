@@ -154,6 +154,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const [availableServices, setAvailableServices] = useState<ServiceOption[]>([])
     const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([])
     const [showServiceDropdown, setShowServiceDropdown] = useState(false)
+    const [serviceSearch, setServiceSearch] = useState('')
 
     // Productos del inventario
     const [availableProducts, setAvailableProducts] = useState<ProductOption[]>([])
@@ -286,14 +287,32 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         loadData()
     }, [clinicId])
 
+    // Cierra los desplegables al hacer clic fuera de ellos (en cualquier zona del
+    // formulario, incluido el espacio en blanco). Los desplegables se marcan con
+    // data-dd; un clic dentro de uno no cierra nada.
     useEffect(() => {
-        const lower = tutorSearch.toLowerCase()
-        setFilteredTutors(lower ? tutors.filter(t => t.name.toLowerCase().includes(lower)) : tutors)
+        const onDown = (e: MouseEvent) => {
+            const t = e.target as HTMLElement | null
+            if (t?.closest?.('[data-dd]')) return
+            setShowTutorDropdown(false)
+            setShowServiceDropdown(false)
+            setShowProductDropdown(false)
+            setShowReferrerDropdown(false)
+        }
+        document.addEventListener('mousedown', onDown)
+        return () => document.removeEventListener('mousedown', onDown)
+    }, [])
+
+    useEffect(() => {
+        const n = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        const lower = n(tutorSearch.trim())
+        setFilteredTutors(lower ? tutors.filter(t => n(t.name).includes(lower)) : tutors)
     }, [tutorSearch, tutors])
 
     useEffect(() => {
-        const lower = productSearch.toLowerCase()
-        setFilteredProducts(lower ? availableProducts.filter(p => p.name.toLowerCase().includes(lower)) : availableProducts)
+        const n = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        const lower = n(productSearch)
+        setFilteredProducts(lower ? availableProducts.filter(p => n(p.name).includes(lower)) : availableProducts)
     }, [productSearch, availableProducts])
 
     // ¿El tutor ya compró antes? Define si esta venta acumula el % de recompra o
@@ -325,6 +344,11 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
         setReferrerId(null)
         setReferrerSearch('')
     }, [selectedTutor?.id])
+
+    const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const filteredServices = serviceSearch.trim()
+        ? availableServices.filter(sv => norm(sv.name).includes(norm(serviceSearch.trim())))
+        : availableServices
 
     const serviceSubtotal = selectedServices.reduce((sum, s) => sum + Number(s.price || 0) * (s.quantity || 1), 0)
     const productSubtotal = selectedProducts.reduce((sum, p) => sum + Number(p.price || 0) * (p.quantity || 1), 0)
@@ -378,7 +402,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
     const referrerOptions = referrerSearch.trim()
         ? tutors.filter(t =>
             t.id !== selectedTutor?.id &&
-            t.name.toLowerCase().includes(referrerSearch.trim().toLowerCase())
+            t.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(referrerSearch.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())
           ).slice(0, 8)
         : []
     const selectedReferrer = referrerId ? tutors.find(t => t.id === referrerId) : null
@@ -441,6 +465,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
             ? selectedServices.map((s, i) => i === existing ? { ...s, quantity: s.quantity + 1 } : s)
             : [...selectedServices, { ...service, quantity: 1 }]
         setSelectedServices(newList)
+        setServiceSearch('')
         setShowServiceDropdown(false)
         updateDescription(newList, selectedProducts)
     }
@@ -586,7 +611,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-5">
 
                     {/* Tutor */}
-                    <div className="relative">
+                    <div className="relative" data-dd>
                         <label className="block text-sm font-medium text-charcoal mb-1">
                             {loyaltyActive ? 'Tutor Asociado' : 'Tutor Asociado (Opcional)'}
                         </label>
@@ -739,7 +764,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="relative">
+                                        <div className="relative" data-dd>
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
                                             <input
                                                 type="text"
@@ -753,7 +778,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                                     )}
 
                                     {showReferrerDropdown && !selectedReferrer && referrerOptions.length > 0 && (
-                                        <div className="absolute z-20 w-full mt-1 bg-white border border-silk-beige rounded-soft shadow-lg max-h-40 overflow-y-auto">
+                                        <div data-dd className="absolute z-20 w-full mt-1 bg-white border border-silk-beige rounded-soft shadow-lg max-h-40 overflow-y-auto">
                                             {referrerOptions.map(t => (
                                                 <div
                                                     key={t.id}
@@ -787,23 +812,31 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                     {/* Servicios */}
                     <div>
                         <label className="block text-sm font-medium text-charcoal mb-1">Servicios</label>
-                        <div className="relative">
-                            <button type="button" onClick={() => setShowServiceDropdown(!showServiceDropdown)}
-                                className="w-full text-left input-soft flex justify-between items-center">
-                                <span className="text-charcoal/50">Agregar servicio al total...</span>
-                                <Plus className="w-4 h-4 text-primary-500" />
-                            </button>
+                        <div className="relative" data-dd>
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal/40" />
+                            <input
+                                type="text"
+                                value={serviceSearch}
+                                onChange={e => { setServiceSearch(e.target.value); setShowServiceDropdown(true) }}
+                                onFocus={() => setShowServiceDropdown(true)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (filteredServices.length > 0) addService(filteredServices[0]) } }}
+                                className="input-soft pl-9"
+                                placeholder="Buscar servicio por nombre..."
+                            />
                             {showServiceDropdown && (
                                 <div className="absolute z-10 w-full mt-1 bg-white border border-silk-beige rounded-soft shadow-lg max-h-48 overflow-y-auto">
-                                    {availableServices.map(service => (
+                                    {filteredServices.map(service => (
                                         <div key={service.id} onClick={() => addService(service)}
-                                            className="px-4 py-2 hover:bg-silk-beige cursor-pointer text-sm text-charcoal flex justify-between transition-colors">
+                                            className="px-4 py-2 hover:bg-silk-beige cursor-pointer text-sm text-charcoal flex justify-between gap-2 transition-colors">
                                             <span>{service.name}</span>
-                                            <span className="font-medium text-primary-600">{formatMoney(service.price)}</span>
+                                            <span className="font-medium text-primary-600 shrink-0">{formatMoney(service.price)}</span>
                                         </div>
                                     ))}
                                     {availableServices.length === 0 && (
                                         <div className="p-4 text-sm text-charcoal/50 text-center">No hay servicios registrados.</div>
+                                    )}
+                                    {availableServices.length > 0 && filteredServices.length === 0 && (
+                                        <div className="p-4 text-sm text-charcoal/50 text-center">No se encontraron servicios.</div>
                                     )}
                                 </div>
                             )}
@@ -833,7 +866,7 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                     </div>
 
                     {/* Productos del inventario */}
-                    <div>
+                    <div data-dd>
                         <label className="block text-sm font-medium text-charcoal mb-1 flex items-center gap-1.5">
                             <Package className="w-3.5 h-3.5 text-violet-500" />
                             Productos del Inventario
@@ -1162,10 +1195,6 @@ export function NewIncomeForm({ clinicId, onClose, onSuccess, editingIncome, def
                 </div>
             </div>
 
-            {(showTutorDropdown || showServiceDropdown || showReferrerDropdown) && (
-                <div className="fixed inset-0 z-0"
-                    onClick={() => { setShowTutorDropdown(false); setShowServiceDropdown(false); setShowProductDropdown(false); setShowReferrerDropdown(false) }} />
-            )}
         </div>
     )
 }

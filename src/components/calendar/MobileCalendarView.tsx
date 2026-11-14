@@ -13,16 +13,17 @@ import {
     endOfWeek,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, CheckCheck, X } from 'lucide-react';
 import { CalendarEvent } from './CalendarView';
 
 interface MobileCalendarViewProps {
     events: CalendarEvent[];
     onSelectEvent: (event: CalendarEvent) => void;
     onSelectSlot?: (date: Date) => void;
+    onChangeStatus?: (id: string, status: 'confirmed' | 'completed' | 'cancelled') => void;
 }
 
-export function MobileCalendarView({ events, onSelectEvent, onSelectSlot }: MobileCalendarViewProps) {
+export function MobileCalendarView({ events, onSelectEvent, onSelectSlot, onChangeStatus }: MobileCalendarViewProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -152,6 +153,10 @@ export function MobileCalendarView({ events, onSelectEvent, onSelectSlot }: Mobi
                             const professionalName = event.resource?.professionalName || 'Sin asignar';
                             const patientName = event.resource?.patient_name || event.title;
                             const serviceName = event.resource?.service || '';
+                            const status: string = event.resource?.status || 'pending';
+                            const canAct = !!onChangeStatus && event.resource?.type !== 'google';
+                            const statusLabel: Record<string, string> = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
+                            const statusColor: Record<string, string> = { pending: 'text-amber-600', confirmed: 'text-sky-600', completed: 'text-emerald-600', cancelled: 'text-red-500' };
 
                             return (
                                 <div
@@ -180,6 +185,33 @@ export function MobileCalendarView({ events, onSelectEvent, onSelectSlot }: Mobi
                                             <span className="text-xs font-medium text-charcoal/50 truncate">
                                                 {professionalName}
                                             </span>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className={`text-xs font-medium ${statusColor[status] || 'text-charcoal/50'}`}>
+                                                {statusLabel[status] || status}
+                                            </span>
+                                            {canAct && (
+                                                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                    {status === 'pending' && (
+                                                        <button onClick={() => onChangeStatus!(event.id, 'confirmed')} title="Confirmar"
+                                                            className="w-8 h-8 flex items-center justify-center rounded-full border border-silk-beige text-sky-600 active:bg-sky-50">
+                                                            <Check className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {(status === 'pending' || status === 'confirmed') && (
+                                                        <button onClick={() => onChangeStatus!(event.id, 'completed')} title="Completar"
+                                                            className="w-8 h-8 flex items-center justify-center rounded-full border border-silk-beige text-emerald-600 active:bg-emerald-50">
+                                                            <CheckCheck className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {status !== 'cancelled' && status !== 'completed' && (
+                                                        <button onClick={() => onChangeStatus!(event.id, 'cancelled')} title="Cancelar"
+                                                            className="w-8 h-8 flex items-center justify-center rounded-full border border-silk-beige text-red-500 active:bg-red-50">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
